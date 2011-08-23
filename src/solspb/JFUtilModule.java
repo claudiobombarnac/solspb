@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import artist.api.BaseThread;
 import artist.api.IDataQueue;
-import artist.api.Queue;
+import artist.api.beans.Queue;
 
 public class JFUtilModule {
 	public class FuturesArbitrage extends BaseThread {
@@ -18,7 +18,7 @@ public class JFUtilModule {
 		private boolean signal = false;
 		private double priceFutures = 0;
 		
-		public FuturesArbitrage(int stock, int futures, DataQueue<Queue> dq) {
+		public FuturesArbitrage(int stock, int futures, IDataQueue<Queue> dq) {
 			this.dataQueue = dq;
 			this.stockNo = stock;
 			this.futuresNo = futures;
