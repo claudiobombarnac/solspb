@@ -3,15 +3,15 @@ package solspb;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import artist.BaseThread;
-import data.DataQueue;
-import data.beans.Queue;
+import artist.api.BaseThread;
+import artist.api.IDataQueue;
+import artist.api.Queue;
 
 public class JFUtilModule {
 	public class FuturesArbitrage extends BaseThread {
 		private Logger logger = LoggerFactory.getLogger(FuturesArbitrage.class);
 		private double coef = 1.01;
-		private DataQueue<Queue> dataQueue;
+		private IDataQueue<Queue> dataQueue;
 		private int stockNo;
 		private int futuresNo;
 		private double priceStock = 0;
