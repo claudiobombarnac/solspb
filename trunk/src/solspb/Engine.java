@@ -14,9 +14,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IMessage;
 import com.dukascopy.api.IOrder;
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.JFException;
+import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.impl.AbstractEngine;
 import com.dukascopy.api.impl.connect.JForexTaskManager;
 import com.dukascopy.api.impl.connect.PlatformOrderImpl;
@@ -32,7 +34,9 @@ class Engine extends AbstractEngine
     implements IEngine
 {
 
-    public Engine(TaskManager taskManager, String accountName, boolean live)
+    private List<IOrder> orders = new ArrayList<IOrder>();
+
+	public Engine(TaskManager taskManager, String accountName, boolean live)
     {
         myType = com.dukascopy.api.IEngine.Type.DEMO;
         this.accountName = null;
@@ -81,7 +85,7 @@ class Engine extends AbstractEngine
     public List getOrders()
         throws JFException
     {
-        throw new UnsupportedOperationException();
+        return orders ;
     }
 
     public com.dukascopy.api.IEngine.Type getType()
@@ -93,7 +97,9 @@ class Engine extends AbstractEngine
             double slippage, double stopLossPrice, double takeProfitPrice, long goodTillTime, String comment)
         throws JFException
     {
-        throw new UnsupportedOperationException();
+    	SubmitOrder order = new SubmitOrder();
+        orders.add(order);
+        return order;
     }
 
     public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 

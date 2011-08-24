@@ -45,12 +45,6 @@ public class StrategyProcessor
         executeTask(task, asynch);
     }
 
-    public void updateAccountInfo(IAccount account)
-    {
-        Task task = new TaskAccount(taskManager, strategy, account, taskManager.getExceptionHandler());
-        executeTask(task, false);
-    }
-
     public void onMarket(Instrument instrument, ITick tick)
     {
         Task task = new TaskTick(taskManager, strategy, instrument, tick, taskManager.getExceptionHandler());
@@ -285,11 +279,6 @@ public class StrategyProcessor
     public Set getSubscribedInstruments()
     {
         return taskManager.getSubscribedInstruments();
-    }
-
-    public IAccount getAccount()
-    {
-        return taskManager.getAccount();
     }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StrategyProcessor.class);
