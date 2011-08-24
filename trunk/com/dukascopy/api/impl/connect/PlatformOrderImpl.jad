@@ -1,0 +1,1911 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   PlatformOrderImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.execution.ScienceWaitForUpdate;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.*;
+import com.dukascopy.transport.client.TransportClient;
+import com.dukascopy.transport.common.model.type.*;
+import com.dukascopy.transport.common.msg.ProtocolMessage;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import com.dukascopy.transport.common.msg.group.OrderMessage;
+import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
+import com.dukascopy.transport.common.msg.response.ErrorResponseMessage;
+import com.dukascopy.transport.common.msg.response.NotificationMessage;
+import java.math.BigDecimal;
+import java.text.*;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            PlatformMessageImpl, ResponseMessageGenerator, JForexTaskManager, JForexAPI, 
+//            OrdersInternalCollection
+
+public class PlatformOrderImpl
+    implements IOrder, Cloneable, ScienceWaitForUpdate
+{
+    public static final class ServerRequest extends Enum
+    {
+
+        public static ServerRequest[] values()
+        {
+            return (ServerRequest[])$VALUES.clone();
+        }
+
+        public static ServerRequest valueOf(String name)
+        {
+            return (ServerRequest)Enum.valueOf(com/dukascopy/api/impl/connect/PlatformOrderImpl$ServerRequest, name);
+        }
+
+        public static final ServerRequest NONE;
+        public static final ServerRequest SUBMIT;
+        public static final ServerRequest SET_REQ_AMOUNT;
+        public static final ServerRequest SET_OPEN_PRICE;
+        public static final ServerRequest CLOSE;
+        public static final ServerRequest SET_EXPIRATION;
+        public static final ServerRequest SET_SL;
+        public static final ServerRequest SET_TP;
+        public static final ServerRequest MERGE_SOURCE;
+        public static final ServerRequest MERGE_TARGET;
+        public static final ServerRequest CANCEL_ORDER;
+        private static final ServerRequest $VALUES[];
+
+        static 
+        {
+            NONE = new ServerRequest("NONE", 0);
+            SUBMIT = new ServerRequest("SUBMIT", 1);
+            SET_REQ_AMOUNT = new ServerRequest("SET_REQ_AMOUNT", 2);
+            SET_OPEN_PRICE = new ServerRequest("SET_OPEN_PRICE", 3);
+            CLOSE = new ServerRequest("CLOSE", 4);
+            SET_EXPIRATION = new ServerRequest("SET_EXPIRATION", 5);
+            SET_SL = new ServerRequest("SET_SL", 6);
+            SET_TP = new ServerRequest("SET_TP", 7);
+            MERGE_SOURCE = new ServerRequest("MERGE_SOURCE", 8);
+            MERGE_TARGET = new ServerRequest("MERGE_TARGET", 9);
+            CANCEL_ORDER = new ServerRequest("CANCEL_ORDER", 10);
+            $VALUES = (new ServerRequest[] {
+                NONE, SUBMIT, SET_REQ_AMOUNT, SET_OPEN_PRICE, CLOSE, SET_EXPIRATION, SET_SL, SET_TP, MERGE_SOURCE, MERGE_TARGET, 
+                CANCEL_ORDER
+            });
+        }
+
+        private ServerRequest(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    public void setLastServerRequest(ServerRequest lastServerRequest)
+    {
+        this.lastServerRequest = lastServerRequest;
+    }
+
+    public PlatformOrderImpl(JForexTaskManager taskManager)
+    {
+        this.taskManager = null;
+        comment = null;
+        instrument = null;
+        requestedAmount = 0.0D;
+        filledAmount = 0.0D;
+        filledAmountInitial = 0.0D;
+        label = null;
+        tpPrice = 0.0D;
+        slPrice = 0.0D;
+        slSide = null;
+        slTrailStep = 0.0D;
+        openPrice = 0.0D;
+        slippage = (0.0D / 0.0D);
+        closePrice = 0.0D;
+        commission = 0.0D;
+        state = com.dukascopy.api.IOrder.State.CREATED;
+        groupId = null;
+        openingOrderId = null;
+        pendingOrderId = null;
+        slOrderId = null;
+        tpOrderId = null;
+        goodTillTime = 0L;
+        creationTime = 0L;
+        fillTime = 0L;
+        closeTime = 0L;
+        orderCommand = null;
+        localCreationTime = 0L;
+        updated = true;
+        lastServerRequest = ServerRequest.NONE;
+        this.taskManager = taskManager;
+        localCreationTime = System.currentTimeMillis();
+    }
+
+    public PlatformOrderImpl(JForexTaskManager taskManager, String comment, Instrument instrument, double requestedAmount, double filledAmount, 
+            String label, double tpPrice, double slPrice, OfferSide slSide, double slTrailStep, double openPrice, double closePrice, com.dukascopy.api.IOrder.State state, String groupId, 
+            String openingOrderId, String pendingOrderId, String slOrderId, String tpOrderId, long goodTillTime, long creationTime, long fillTime, long closeTime, com.dukascopy.api.IEngine.OrderCommand orderCommand, double commission)
+    {
+        this.taskManager = null;
+        this.comment = null;
+        this.instrument = null;
+        this.requestedAmount = 0.0D;
+        this.filledAmount = 0.0D;
+        filledAmountInitial = 0.0D;
+        this.label = null;
+        this.tpPrice = 0.0D;
+        this.slPrice = 0.0D;
+        this.slSide = null;
+        this.slTrailStep = 0.0D;
+        this.openPrice = 0.0D;
+        slippage = (0.0D / 0.0D);
+        this.closePrice = 0.0D;
+        this.commission = 0.0D;
+        this.state = com.dukascopy.api.IOrder.State.CREATED;
+        this.groupId = null;
+        this.openingOrderId = null;
+        this.pendingOrderId = null;
+        this.slOrderId = null;
+        this.tpOrderId = null;
+        this.goodTillTime = 0L;
+        this.creationTime = 0L;
+        this.fillTime = 0L;
+        this.closeTime = 0L;
+        this.orderCommand = null;
+        localCreationTime = 0L;
+        updated = true;
+        lastServerRequest = ServerRequest.NONE;
+        this.taskManager = taskManager;
+        this.comment = comment;
+        this.instrument = instrument;
+        this.requestedAmount = requestedAmount;
+        this.filledAmount = filledAmount;
+        filledAmountInitial = filledAmount;
+        this.label = label;
+        this.tpPrice = tpPrice;
+        this.slPrice = slPrice;
+        this.slSide = slSide;
+        this.slTrailStep = slTrailStep;
+        this.openPrice = openPrice;
+        this.closePrice = closePrice;
+        this.state = state;
+        this.groupId = groupId;
+        this.openingOrderId = openingOrderId;
+        this.pendingOrderId = pendingOrderId;
+        this.slOrderId = slOrderId;
+        this.tpOrderId = tpOrderId;
+        this.goodTillTime = goodTillTime;
+        this.creationTime = creationTime;
+        this.fillTime = fillTime;
+        this.closeTime = closeTime;
+        this.orderCommand = orderCommand;
+        localCreationTime = System.currentTimeMillis();
+        this.commission = commission;
+    }
+
+    public void setRequestedAmount(double amount)
+        throws JFException
+    {
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        amount = StratUtils.round(amount, 8);
+        if(amount > 0.0D && state != com.dukascopy.api.IOrder.State.OPENED)
+            throw new JFException("Cannot change amount of created (not yet accepted), filled, closed or canceled order");
+        if(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+            throw new JFException("Cannot change amount of PLACE_BID or PLACE_OFFER");
+        if(amount == 0.0D)
+        {
+            if(state != com.dukascopy.api.IOrder.State.FILLED && state != com.dukascopy.api.IOrder.State.OPENED)
+                throw new JFException("Cannot cancel created (not yet accepted), closed or canceled order");
+            if(state == com.dukascopy.api.IOrder.State.FILLED && pendingOrderId == null)
+                throw new JFException("Cannot cancel pending part of the filled order when it doesn't have pending part");
+        }
+        if(requestedAmountChangeTime + 1000L > System.currentTimeMillis())
+        {
+            String content = (new StringBuilder()).append("Position #").append(groupId).append(" ENTRY #").append(openingOrderId).append(" amount change REJECTED").append(", REASON: can't change requested amount more than once in a second").toString();
+            LOGGER.warn(content);
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage(content, true);
+            taskManager.onMessage(new PlatformMessageImpl(content, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_REJECTED, FeedDataProvider.getDefaultInstance().getCurrentTime()));
+            return;
+        }
+        requestedAmountChangeTime = System.currentTimeMillis();
+        if(amount == 0.0D)
+        {
+            lastServerRequest = ServerRequest.CANCEL_ORDER;
+            TransportClient transportClient = taskManager.getTransportClient();
+            OrderMessage om = JForexAPI.cancelOrder(taskManager.getStrategyKey(), label, getGroupId(), pendingOrderId, parentOrderId, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Canceling pending order [").append(om).append("]").toString());
+            ProtocolMessage submitResult = transportClient.controlRequest(om);
+            if(submitResult instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                taskManager.onErrorMessage(error, this);
+            }
+            DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Cancelling order #").append(pendingOrderId).append(" ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID ? orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append("ENTRY ").append(isLong() ? "BUY" : "SELL").toString() : "PLACE OFFER" : "PLACE BID").append(" ").append(BigDecimal.valueOf(getRequestedAmount()).subtract(BigDecimal.valueOf(getAmount())).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ ").append(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? BigDecimal.valueOf(openPrice).toPlainString() : Double.isNaN(slippage) ? "MKT" : (new StringBuilder()).append("LIMIT ").append(orderCommand.isLong() ? BigDecimal.valueOf(openPrice).add(BigDecimal.valueOf(slippage)).toPlainString() : BigDecimal.valueOf(openPrice).subtract(BigDecimal.valueOf(slippage)).toPlainString()).toString()).append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append(" IF ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "BID" : "ASK").append(" ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "=>" : "<=").append(" ").append(BigDecimal.valueOf(openPrice).toPlainString()).toString() : (new StringBuilder()).append(" EXPIRES:").append(goodTillTime != 0L ? format.format(Long.valueOf(goodTillTime)) : "GTC").toString()).append(" at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+        } else
+        {
+            lastServerRequest = ServerRequest.SET_REQ_AMOUNT;
+            TransportClient transportClient = taskManager.getTransportClient();
+            OrderMessage om = JForexAPI.modifyAmount(instrument, getGroupId(), pendingOrderId, amount, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Changing amount of pending order [").append(om).append("]").toString());
+            ProtocolMessage submitResult = transportClient.controlRequest(om);
+            if(submitResult instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                taskManager.onErrorMessage(error, this);
+            }
+        }
+    }
+
+    public void setOpenPrice(double price)
+        throws JFException
+    {
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        if(state != com.dukascopy.api.IOrder.State.OPENED && (state != com.dukascopy.api.IOrder.State.FILLED || getAmount() == getRequestedAmount()))
+            throw new JFException("Order not in OPENED or FILLED(partially) state");
+        if(openPriceChangeTime + 1000L > System.currentTimeMillis())
+        {
+            String content = (new StringBuilder()).append("Position #").append(groupId).append(" ENTRY #").append(openingOrderId).append(" price stop change REJECTED").append(", REASON: can't change price more than once in a second").toString();
+            LOGGER.warn(content);
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage(content, true);
+            taskManager.onMessage(new PlatformMessageImpl(content, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_REJECTED, FeedDataProvider.getDefaultInstance().getCurrentTime()));
+            return;
+        }
+        openPriceChangeTime = System.currentTimeMillis();
+        price = StratUtils.round(price, 7);
+        lastServerRequest = ServerRequest.SET_OPEN_PRICE;
+        TransportClient transportClient = taskManager.getTransportClient();
+        if(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+        {
+            OrderMessage om = JForexAPI.modifyBidOfferPrice(instrument, getGroupId(), openingOrderId, price, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Changing price of bid/offer order [").append(om).append("]").toString());
+            ProtocolMessage submitResult = transportClient.controlRequest(om);
+            if(submitResult instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                taskManager.onErrorMessage(error, this);
+            }
+        } else
+        {
+            OrderMessage om = JForexAPI.modifyPrice(taskManager.getStrategyKey(), label, instrument, getGroupId(), openingOrderId, price, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Changing price of pending order [").append(om).append("]").toString());
+            ProtocolMessage submitResult = transportClient.controlRequest(om);
+            if(submitResult instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                taskManager.onErrorMessage(error, this);
+            }
+        }
+    }
+
+    public void close(double amount, double price, double slippage)
+        throws JFException
+    {
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        if((amount > 0.0D || price > 0.0D || slippage >= 0.0D) && getState() == com.dukascopy.api.IOrder.State.OPENED)
+            throw new JFException(com.dukascopy.api.JFException.Error.ORDER_CANCEL_INCORRECT);
+        if(closeAttemptTime + 1000L > System.currentTimeMillis())
+        {
+            String content = (new StringBuilder()).append("Position #").append(groupId).append(" order close REJECTED").append(", REASON: can't send request to fully close order more than once in a second").toString();
+            LOGGER.warn(content);
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage(content, true);
+            taskManager.onMessage(new PlatformMessageImpl(content, this, com.dukascopy.api.IMessage.Type.ORDER_CLOSE_REJECTED, FeedDataProvider.getDefaultInstance().getCurrentTime()));
+            return;
+        }
+        if(amount == 0.0D || amount == getAmount() || getState() == com.dukascopy.api.IOrder.State.OPENED)
+            closeAttemptTime = System.currentTimeMillis();
+        if(slippage < 0.0D)
+            slippage = 5D;
+        slippage = StratUtils.round(slippage * instrument.getPipValue(), 7);
+        price = StratUtils.round(price, 7);
+        if(getState() == com.dukascopy.api.IOrder.State.OPENED)
+        {
+            lastServerRequest = ServerRequest.CLOSE;
+            TransportClient transportClient = taskManager.getTransportClient();
+            OrderMessage om = JForexAPI.cancelOrder(taskManager.getStrategyKey(), label, getGroupId(), openingOrderId, parentOrderId, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Canceling pending order order [").append(om).append("]").toString());
+            ProtocolMessage submitResult = transportClient.controlRequest(om);
+            if(submitResult instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                taskManager.onErrorMessage(error, this);
+            }
+            DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Cancelling order #").append(openingOrderId).append(" ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID ? orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append("ENTRY ").append(isLong() ? "BUY" : "SELL").toString() : "PLACE OFFER" : "PLACE BID").append(" ").append(BigDecimal.valueOf(getAmount()).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ ").append(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? BigDecimal.valueOf(openPrice).toPlainString() : Double.isNaN(slippage) ? "MKT" : (new StringBuilder()).append("LIMIT ").append(orderCommand.isLong() ? BigDecimal.valueOf(openPrice).add(BigDecimal.valueOf(slippage)).toPlainString() : BigDecimal.valueOf(openPrice).subtract(BigDecimal.valueOf(slippage)).toPlainString()).toString()).append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append(" IF ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "BID" : "ASK").append(" ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "=>" : "<=").append(" ").append(BigDecimal.valueOf(openPrice).toPlainString()).toString() : (new StringBuilder()).append(" EXPIRES:").append(goodTillTime != 0L ? format.format(Long.valueOf(goodTillTime)) : "GTC").toString()).append(" at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+        } else
+        if(getState() == com.dukascopy.api.IOrder.State.FILLED)
+        {
+            if(amount == 0.0D && requestedAmount > filledAmount)
+            {
+                TransportClient transportClient = taskManager.getTransportClient();
+                OrderMessage om = JForexAPI.cancelOrder(taskManager.getStrategyKey(), label, getGroupId(), pendingOrderId, parentOrderId, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+                if(LOGGER.isDebugEnabled())
+                    LOGGER.debug((new StringBuilder()).append("Canceling pending part of partially filled order [").append(om).append("]").toString());
+                ProtocolMessage submitResult = transportClient.controlRequest(om);
+                if(submitResult instanceof ErrorResponseMessage)
+                {
+                    ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                    taskManager.onErrorMessage(error, this);
+                }
+                DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Cancelling order #").append(pendingOrderId).append(" ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID ? orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append("ENTRY ").append(isLong() ? "BUY" : "SELL").toString() : "PLACE OFFER" : "PLACE BID").append(" ").append(BigDecimal.valueOf(getRequestedAmount()).subtract(BigDecimal.valueOf(getAmount())).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ ").append(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? BigDecimal.valueOf(openPrice).toPlainString() : Double.isNaN(slippage) ? "MKT" : (new StringBuilder()).append("LIMIT ").append(orderCommand.isLong() ? BigDecimal.valueOf(openPrice).add(BigDecimal.valueOf(slippage)).toPlainString() : BigDecimal.valueOf(openPrice).subtract(BigDecimal.valueOf(slippage)).toPlainString()).toString()).append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append(" IF ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "BID" : "ASK").append(" ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "=>" : "<=").append(" ").append(BigDecimal.valueOf(openPrice).toPlainString()).toString() : (new StringBuilder()).append(" EXPIRES:").append(goodTillTime != 0L ? format.format(Long.valueOf(goodTillTime)) : "GTC").toString()).append(" at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+            } else
+            if(taskManager.isGlobal())
+                throw new JFException("Cannot close orders on global accounts. Please open opposite order instead");
+            if(!taskManager.isGlobal())
+            {
+                lastServerRequest = ServerRequest.CLOSE;
+                TransportClient transportClient = taskManager.getTransportClient();
+                OrderMessage om = JForexAPI.closePosition(getOrderCommand(), getInstrument(), getGroupId(), taskManager.getStrategyKey(), label, amount != 0.0D ? amount : getAmount(), price, slippage, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+                if(LOGGER.isDebugEnabled())
+                    LOGGER.debug((new StringBuilder()).append("Closing order [").append(om).append("]").toString());
+                ProtocolMessage submitResult = transportClient.controlRequest(om);
+                if(submitResult instanceof ErrorResponseMessage)
+                {
+                    ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                    taskManager.onErrorMessage(error, this);
+                }
+                DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Closing order ").append(isLong() ? "SELL" : "BUY").append(" ").append(BigDecimal.valueOf(getAmount()).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ MKT").append(" is sent at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+            }
+        } else
+        {
+            throw new JFException(com.dukascopy.api.JFException.Error.ORDER_STATE_IMMUTABLE, (new StringBuilder()).append(" state is ").append(getState()).toString());
+        }
+    }
+
+    public void close(double amount, double price)
+        throws JFException
+    {
+        close(amount, price, -1D);
+    }
+
+    public void close(double amount)
+        throws JFException
+    {
+        close(amount, 0.0D);
+    }
+
+    public void close()
+        throws JFException
+    {
+        close(0.0D);
+    }
+
+    public double getAmount()
+    {
+        if(state == com.dukascopy.api.IOrder.State.CREATED || state == com.dukascopy.api.IOrder.State.CANCELED || state == com.dukascopy.api.IOrder.State.OPENED)
+            return requestedAmount;
+        if(state == com.dukascopy.api.IOrder.State.CLOSED)
+            return filledAmountInitial;
+        else
+            return filledAmount;
+    }
+
+    public double getClosePrice()
+    {
+        return closePrice;
+    }
+
+    public String getComment()
+    {
+        return comment;
+    }
+
+    public long getCreationTime()
+    {
+        return creationTime;
+    }
+
+    public long getCloseTime()
+    {
+        return closeTime;
+    }
+
+    public long getFillTime()
+    {
+        return fillTime;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public String getLabel()
+    {
+        return label;
+    }
+
+    public double getOpenPrice()
+    {
+        return openPrice;
+    }
+
+    public com.dukascopy.api.IOrder.State getState()
+    {
+        return state;
+    }
+
+    public void setState(com.dukascopy.api.IOrder.State state)
+    {
+        this.state = state;
+    }
+
+    public double getStopLossPrice()
+    {
+        return slPrice;
+    }
+
+    public double getTakeProfitPrice()
+    {
+        return tpPrice;
+    }
+
+    public OfferSide getStopLossSide()
+    {
+        return slSide;
+    }
+
+    public double getTrailingStep()
+    {
+        return slTrailStep;
+    }
+
+    public String getId()
+    {
+        return groupId;
+    }
+
+    private String getGroupId()
+    {
+        if(taskManager.isGlobal())
+            return (new StringBuilder()).append(taskManager.getUserId()).append(instrument.toString()).toString();
+        else
+            return groupId;
+    }
+
+    public double getRequestedAmount()
+    {
+        return requestedAmount;
+    }
+
+    public com.dukascopy.api.IEngine.OrderCommand getOrderCommand()
+    {
+        return orderCommand;
+    }
+
+    public boolean isLong()
+    {
+        return orderCommand != null && orderCommand.isLong();
+    }
+
+    public void setGoodTillTime(long goodTillTime)
+        throws JFException
+    {
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        if(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+            throw new JFException("Order should be \"place bid\" or \"place offer\"");
+        if(state != com.dukascopy.api.IOrder.State.OPENED && (state != com.dukascopy.api.IOrder.State.FILLED || getAmount() == getRequestedAmount()))
+            throw new JFException("Order not in OPENED or FILLED(partially) state");
+        if(goodTillTime < 0L)
+            throw new JFException(com.dukascopy.api.JFException.Error.INVALID_GTT);
+        if(goodTillTime > 0L && goodTillTime < 0xeaf625800L)
+            throw new JFException(com.dukascopy.api.JFException.Error.INVALID_GTT);
+        if(goodTillTimeChangeTime + 1000L > System.currentTimeMillis())
+        {
+            String content = (new StringBuilder()).append("Position #").append(groupId).append(" ENTRY #").append(openingOrderId).append(" good till time change REJECTED").append(", REASON: can't change good till time more than once in a second").toString();
+            LOGGER.warn(content);
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage(content, true);
+            taskManager.onMessage(new PlatformMessageImpl(content, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_REJECTED, FeedDataProvider.getDefaultInstance().getCurrentTime()));
+            return;
+        }
+        goodTillTimeChangeTime = System.currentTimeMillis();
+        lastServerRequest = ServerRequest.SET_EXPIRATION;
+        TransportClient transportClient = taskManager.getTransportClient();
+        OrderMessage om = JForexAPI.modifyGTT(getGroupId(), openingOrderId, goodTillTime <= 0L ? -1L : goodTillTime, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Changing expiration time of bid/offer order [").append(om).append("]").toString());
+        ProtocolMessage protocolMessage = transportClient.controlRequest(om);
+        if(protocolMessage instanceof ErrorResponseMessage)
+        {
+            ErrorResponseMessage error = (ErrorResponseMessage)protocolMessage;
+            taskManager.onErrorMessage(error, this);
+        }
+    }
+
+    public long getGoodTillTime()
+    {
+        return goodTillTime;
+    }
+
+    public void setStopLossPrice(double price)
+        throws JFException
+    {
+        setStopLossPrice(price, isLong() ? OfferSide.BID : OfferSide.ASK, slTrailStep);
+    }
+
+    public void setStopLossPrice(double price, OfferSide side)
+        throws JFException
+    {
+        setStopLossPrice(price, side, slTrailStep);
+    }
+
+    public void setStopLossPrice(double price, OfferSide side, double trailingStepInPips)
+        throws JFException
+    {
+        if(taskManager.isGlobal() && price > 0.0D)
+            throw new JFException("Stop loss orders are not allowed on global accounts");
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        if(state != com.dukascopy.api.IOrder.State.FILLED && state != com.dukascopy.api.IOrder.State.OPENED)
+            throw new JFException(com.dukascopy.api.JFException.Error.ORDER_STATE_IMMUTABLE);
+        if(trailingStepInPips != 0.0D && trailingStepInPips < 10D)
+            throw new JFException("Trailing step must be >= 10 or equals to 0 (cancel)");
+        if(stopLossChangeTime + 1000L > System.currentTimeMillis())
+        {
+            String content = (new StringBuilder()).append("Order REJECTED: STOP LOSS ").append(isLong() ? "SELL" : "BUY").append(" ").append(instrument).append(" @MKT IF ").append(side.name()).append(" ").append(isLong() ? "<=" : "=>").append(" ").append(price).append(" - Position #").append(groupId).append(", REASON: can't change stop loss price more than once in a second").toString();
+            LOGGER.warn(content);
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage(content, true);
+            taskManager.onMessage(new PlatformMessageImpl(content, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_REJECTED, FeedDataProvider.getDefaultInstance().getCurrentTime()));
+            return;
+        }
+        stopLossChangeTime = System.currentTimeMillis();
+        price = StratUtils.round(price, 7);
+        trailingStepInPips = StratUtils.round(trailingStepInPips, 7);
+        if(price > 0.0D)
+        {
+            lastServerRequest = ServerRequest.SET_SL;
+            double absoluteTrailingPrice = 0.0D;
+            if(trailingStepInPips > 0.0D)
+                absoluteTrailingPrice = StratUtils.round(trailingStepInPips * instrument.getPipValue(), 7);
+            if(slPrice > 0.0D)
+            {
+                TransportClient transportClient = taskManager.getTransportClient();
+                OrderMessage om = JForexAPI.modifyStopLoss(taskManager.getStrategyKey(), label, getGroupId(), slOrderId, isLong(), price, side, absoluteTrailingPrice, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+                if(LOGGER.isDebugEnabled())
+                    LOGGER.debug((new StringBuilder()).append("Modifying stop loss order [").append(om).append("]").toString());
+                ProtocolMessage protocolMessage = transportClient.controlRequest(om);
+                if(protocolMessage instanceof ErrorResponseMessage)
+                {
+                    ErrorResponseMessage error = (ErrorResponseMessage)protocolMessage;
+                    taskManager.onErrorMessage(error, this);
+                }
+            } else
+            {
+                TransportClient transportClient = taskManager.getTransportClient();
+                OrderMessage om = JForexAPI.addStopLoss(taskManager.getStrategyKey(), label, getGroupId(), openingOrderId, instrument, price, getAmount(), absoluteTrailingPrice, isLong(), side, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+                if(LOGGER.isDebugEnabled())
+                    LOGGER.debug((new StringBuilder()).append("Submitting stop loss order [").append(om).append("]").toString());
+                ProtocolMessage protocolMessage = transportClient.controlRequest(om);
+                if(protocolMessage instanceof ErrorResponseMessage)
+                {
+                    ErrorResponseMessage error = (ErrorResponseMessage)protocolMessage;
+                    taskManager.onErrorMessage(error, this);
+                }
+                DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Order STOP LOSS ").append(isLong() ? "SELL" : "BUY").append(" ").append(BigDecimal.valueOf(getAmount()).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ MKT IF ").append(side != null ? side.name() : isLong() ? "BID" : "ASK").append(isLong() ? " <=" : " =>").append(" ").append(BigDecimal.valueOf(price).toPlainString()).append(" is sent at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+            }
+        } else
+        if(slOrderId != null)
+        {
+            TransportClient transportClient = taskManager.getTransportClient();
+            OrderMessage om = JForexAPI.cancelOrder(taskManager.getStrategyKey(), label, getGroupId(), slOrderId, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Canceling stop loss order [").append(om).append("]").toString());
+            ProtocolMessage protocolMessage = transportClient.controlRequest(om);
+            if(protocolMessage instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)protocolMessage;
+                taskManager.onErrorMessage(error, this);
+            }
+            DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Canceling order #").append(slOrderId).append(" STOP LOSS ").append(isLong() ? "SELL" : "BUY").append(" ").append(BigDecimal.valueOf(getAmount()).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ MKT IF ").append(slSide.name()).append(isLong() ? " <=" : " =>").append(" ").append(BigDecimal.valueOf(slPrice).toPlainString()).append(" at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+        }
+    }
+
+    public void setTakeProfitPrice(double price)
+        throws JFException
+    {
+        if(taskManager.isGlobal() && price > 0.0D)
+            throw new JFException("Stop loss orders are not allowed on global accounts");
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        if(state != com.dukascopy.api.IOrder.State.FILLED && state != com.dukascopy.api.IOrder.State.OPENED)
+            throw new JFException(com.dukascopy.api.JFException.Error.ORDER_STATE_IMMUTABLE);
+        if(takeProfitChangeTime + 1000L > System.currentTimeMillis())
+        {
+            String content = (new StringBuilder()).append("Order REJECTED: TAKE PROFIT ").append(isLong() ? "SELL" : "BUY").append(" ").append(instrument).append(" @MKT IF ").append(isLong() ? "BID" : "ASK").append(" ").append(isLong() ? "=>" : "<=").append(" ").append(price).append(" - Position #").append(groupId).append(", REASON: can't change take profit price more than once in a second").toString();
+            LOGGER.warn(content);
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage(content, true);
+            taskManager.onMessage(new PlatformMessageImpl(content, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_REJECTED, FeedDataProvider.getDefaultInstance().getCurrentTime()));
+            return;
+        }
+        takeProfitChangeTime = System.currentTimeMillis();
+        price = StratUtils.round(price, 7);
+        TransportClient transportClient = taskManager.getTransportClient();
+        if(price > 0.0D)
+        {
+            lastServerRequest = ServerRequest.SET_TP;
+            if(tpPrice > 0.0D)
+            {
+                OrderMessage om = JForexAPI.modifyPrice(taskManager.getStrategyKey(), label, instrument, getGroupId(), tpOrderId, price, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+                if(LOGGER.isDebugEnabled())
+                    LOGGER.debug((new StringBuilder()).append("Modifying take profit order [").append(om).append("]").toString());
+                ProtocolMessage protocolMessage = transportClient.controlRequest(om);
+                if(protocolMessage instanceof ErrorResponseMessage)
+                {
+                    ErrorResponseMessage error = (ErrorResponseMessage)protocolMessage;
+                    taskManager.onErrorMessage(error, this);
+                }
+            } else
+            {
+                OrderMessage om = JForexAPI.addTakeProfit(taskManager.getStrategyKey(), label, getGroupId(), openingOrderId, instrument, price, getAmount(), isLong(), taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+                if(LOGGER.isDebugEnabled())
+                    LOGGER.debug((new StringBuilder()).append("Submitting take profit order [").append(om).append("]").toString());
+                ProtocolMessage protocolMessage = transportClient.controlRequest(om);
+                if(protocolMessage instanceof ErrorResponseMessage)
+                {
+                    ErrorResponseMessage error = (ErrorResponseMessage)protocolMessage;
+                    taskManager.onErrorMessage(error, this);
+                }
+                DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Order TAKE PROFIT ").append(isLong() ? "SELL" : "BUY").append(" ").append(BigDecimal.valueOf(getAmount()).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ LIMIT IF ").append(isLong() ? "BID =>" : "ASK <=").append(" ").append(BigDecimal.valueOf(price).toPlainString()).append(" is sent at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+            }
+        } else
+        if(tpOrderId != null)
+        {
+            OrderMessage om = JForexAPI.cancelOrder(taskManager.getStrategyKey(), label, getGroupId(), tpOrderId, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Canceling take profit order [").append(om).append("]").toString());
+            ProtocolMessage protocolMessage = transportClient.controlRequest(om);
+            if(protocolMessage instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)protocolMessage;
+                taskManager.onErrorMessage(error, this);
+            }
+            DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Cancelling order #").append(tpOrderId).append(" TAKE PROFIT ").append(isLong() ? "SELL" : "BUY").append(" ").append(BigDecimal.valueOf(getAmount()).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ LIMIT IF ").append(isLong() ? "BID =>" : "ASK <=").append(" ").append(BigDecimal.valueOf(slPrice).toPlainString()).append(" at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+        }
+    }
+
+    private boolean isStopLoss(OrderMessage orderMessage)
+    {
+        if(OrderDirection.CLOSE == orderMessage.getOrderDirection() && null != orderMessage.getPriceStop())
+        {
+            if(OrderSide.SELL == orderMessage.getSide())
+                return StopDirection.ASK_LESS == orderMessage.getStopDirection() || StopDirection.BID_LESS == orderMessage.getStopDirection();
+            else
+                return StopDirection.ASK_GREATER == orderMessage.getStopDirection() || StopDirection.BID_GREATER == orderMessage.getStopDirection();
+        } else
+        {
+            return false;
+        }
+    }
+
+    private boolean isTakeProfit(OrderMessage orderMessage)
+    {
+        if(OrderDirection.CLOSE == orderMessage.getOrderDirection() && null != orderMessage.getPriceStop())
+        {
+            if(OrderSide.BUY == orderMessage.getSide())
+                return StopDirection.ASK_LESS == orderMessage.getStopDirection() || StopDirection.BID_LESS == orderMessage.getStopDirection();
+            else
+                return StopDirection.ASK_GREATER == orderMessage.getStopDirection() || StopDirection.BID_GREATER == orderMessage.getStopDirection();
+        } else
+        {
+            return false;
+        }
+    }
+
+    public Map getOrdersToAttach()
+    {
+        return ordersToAttach;
+    }
+
+    public String getOpeningOrderId()
+    {
+        return openingOrderId;
+    }
+
+    public PlatformMessageImpl update(OrderGroupMessage groupMessage)
+    {
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("processing OrderGroupMessage [").append(groupMessage).append("]").toString());
+        try
+        {
+            groupMessage = new OrderGroupMessage(new ProtocolMessage(groupMessage.toString()));
+        }
+        catch(ParseException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        if(label == null)
+            label = extractLabel(groupMessage);
+        OrderMessage openingOrder = null;
+        OrderMessage slOrder = null;
+        OrderMessage tpOrder = null;
+        PlatformMessageImpl platformMessageImpl = null;
+        filledAmount = 0.0D;
+        pendingOrderId = null;
+        List ordersList = groupMessage.getOrders();
+        groupId = groupMessage.getOrderGroupId();
+        Money orderGroupCommission = groupMessage.getSummaryComission();
+        if(orderGroupCommission != null)
+            if(!taskManager.getAccountCurrency().equals(orderGroupCommission.getCurrency()))
+                LOGGER.error("Order commission currency {} differs from current account's currency {}", orderGroupCommission.getCurrency(), taskManager.getAccountCurrency());
+            else
+                commission = orderGroupCommission.getValue().doubleValue();
+        if(!ordersList.isEmpty())
+        {
+            Collections.sort(ordersList, new Comparator() {
+
+                public int compare(OrderMessage o1, OrderMessage o2)
+                {
+                    int i1 = 0;
+                    int i2 = 0;
+                    OrderState orderState = o1.getOrderState();
+                    if(o1.getOrderDirection() == OrderDirection.OPEN)
+                    {
+                        if(orderState == OrderState.PENDING)
+                            i1 = 1;
+                        else
+                        if(orderState == OrderState.EXECUTING)
+                            i1 = 2;
+                        else
+                        if(orderState == OrderState.FILLED)
+                            i1 = 3;
+                    } else
+                    {
+                        i1 = 4;
+                    }
+                    orderState = o2.getOrderState();
+                    if(o2.getOrderDirection() == OrderDirection.OPEN)
+                    {
+                        if(orderState == OrderState.PENDING)
+                            i2 = 1;
+                        else
+                        if(orderState == OrderState.EXECUTING)
+                            i2 = 2;
+                        else
+                        if(orderState == OrderState.FILLED)
+                            i2 = 3;
+                    } else
+                    {
+                        i2 = 4;
+                    }
+                    return i1 > i2 ? 1 : -1;
+                }
+
+                public volatile int compare(Object x0, Object x1)
+                {
+                    return compare((OrderMessage)x0, (OrderMessage)x1);
+                }
+
+                final PlatformOrderImpl this$0;
+
+            
+            {
+                this$0 = PlatformOrderImpl.this;
+                super();
+            }
+            });
+            groupMessage.setOrders(ordersList);
+            if(taskManager.isGlobal())
+            {
+                Iterator i$ = groupMessage.getOrders().iterator();
+                do
+                {
+                    if(!i$.hasNext())
+                        break;
+                    OrderMessage orderMessage = (OrderMessage)i$.next();
+                    OrderState orderState = orderMessage.getOrderState();
+                    if(orderMessage.getOrderDirection() == OrderDirection.OPEN)
+                        if(orderState == OrderState.FILLED)
+                        {
+                            BigDecimal amountPriceSum = BigDecimal.ZERO;
+                            BigDecimal amountTotal = BigDecimal.ZERO;
+                            BigDecimal price = orderMessage.getPriceClient().getValue();
+                            if(ordersToAttach != null && !ordersToAttach.isEmpty())
+                            {
+                                for(Iterator i$ = ordersToAttach.values().iterator(); i$.hasNext();)
+                                {
+                                    OrderMessage filledMessage = (OrderMessage)i$.next();
+                                    amountPriceSum = amountPriceSum.add(filledMessage.getPriceClient().getValue().multiply(filledMessage.getAmount().getValue()));
+                                    amountTotal = amountTotal.add(filledMessage.getAmount().getValue());
+                                }
+
+                                amountPriceSum = amountPriceSum.add(orderMessage.getPriceClient().getValue().multiply(orderMessage.getAmount().getValue()));
+                                price = amountPriceSum.divide(amountTotal.add(orderMessage.getAmount().getValue()), 6, 6);
+                            }
+                            if(ordersToAttach == null)
+                                ordersToAttach = new HashMap();
+                            if(!ordersToAttach.containsKey(orderMessage.getOrderId()))
+                                ordersToAttach.put(orderMessage.getOrderId(), (OrderMessage)ProtocolMessage.parse(orderMessage.toProtocolString()));
+                            orderMessage.setPriceClient(new Money(price, instrument.getPrimaryCurrency()));
+                            orderMessage.setAmount(new Money(orderMessage.getAmount().getValue().add(amountTotal), instrument.getPrimaryCurrency()));
+                            orderMessage.setOrigAmount(new Money(orderMessage.getOrigAmount().getValue().add(amountTotal), instrument.getPrimaryCurrency()));
+                            com.dukascopy.api.IEngine.OrderCommand orderMessageOrderCommand = detectOrderCommand(orderMessage);
+                            if(orderMessageOrderCommand != com.dukascopy.api.IEngine.OrderCommand.BUY && orderMessageOrderCommand != com.dukascopy.api.IEngine.OrderCommand.SELL && orderMessage.getOrigAmount().getValue().subtract(orderMessage.getAmount().getValue()).compareTo(BigDecimal.ZERO) > 0)
+                            {
+                                OrderMessage pendingMessage = (OrderMessage)ProtocolMessage.parse(orderMessage.toProtocolString());
+                                pendingMessage.setAmount(new Money(orderMessage.getOrigAmount().getValue().subtract(orderMessage.getAmount().getValue()), instrument.getPrimaryCurrency()));
+                                if(orderMessageOrderCommand.isConditional())
+                                    pendingMessage.setOrderState(OrderState.PENDING);
+                                else
+                                    pendingMessage.setOrderState(OrderState.EXECUTING);
+                                pendingMessage.setOrderId(openingOrderId);
+                                pendingMessage.put("fake_part", true);
+                                List newOrders = new ArrayList();
+                                newOrders.addAll(groupMessage.getOrders());
+                                newOrders.add(pendingMessage);
+                                groupMessage.setOrders(newOrders);
+                            }
+                        } else
+                        if(ordersToAttach != null && !ordersToAttach.isEmpty())
+                        {
+                            BigDecimal amountPriceSum = BigDecimal.ZERO;
+                            BigDecimal amountTotal = BigDecimal.ZERO;
+                            OrderMessage lastFilledOrder = null;
+                            for(Iterator i$ = ordersToAttach.values().iterator(); i$.hasNext();)
+                            {
+                                OrderMessage filledMessage = (OrderMessage)i$.next();
+                                amountPriceSum = amountPriceSum.add(filledMessage.getPriceClient().getValue().multiply(filledMessage.getAmount().getValue()));
+                                amountTotal = amountTotal.add(filledMessage.getAmount().getValue());
+                                lastFilledOrder = filledMessage;
+                            }
+
+                            if(lastFilledOrder != null)
+                            {
+                                BigDecimal price = amountPriceSum.divide(amountTotal, 6, 6);
+                                lastFilledOrder = (OrderMessage)ProtocolMessage.parse(lastFilledOrder.toProtocolString());
+                                lastFilledOrder.setPriceClient(new Money(price, instrument.getPrimaryCurrency()));
+                                lastFilledOrder.setAmount(new Money(amountTotal, instrument.getPrimaryCurrency()));
+                                lastFilledOrder.setOrigAmount(new Money(amountTotal, instrument.getPrimaryCurrency()));
+                                List newOrders = new ArrayList();
+                                newOrders.add(lastFilledOrder);
+                                newOrders.addAll(groupMessage.getOrders());
+                                groupMessage.setOrders(newOrders);
+                            }
+                        }
+                } while(true);
+            }
+            double calculatedRequestedAmount = 0.0D;
+            Iterator i$ = groupMessage.getOrders().iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                OrderMessage orderMessage = (OrderMessage)i$.next();
+                OrderState orderState = orderMessage.getOrderState();
+                if(orderMessage.getOrderDirection() == OrderDirection.OPEN)
+                {
+                    openingOrder = orderMessage;
+                    calculatedRequestedAmount += Double.parseDouble(orderMessage.getString("amount"));
+                    slippage = orderMessage.getPriceTrailingLimit() != null ? orderMessage.getPriceTrailingLimit().getValue().doubleValue() : (0.0D / 0.0D);
+                    static class _cls2
+                    {
+
+                        static final int $SwitchMap$com$dukascopy$api$impl$connect$PlatformOrderImpl$ServerRequest[];
+                        static final int $SwitchMap$com$dukascopy$api$IMessage$Type[];
+
+                        static 
+                        {
+                            $SwitchMap$com$dukascopy$api$IMessage$Type = new int[com.dukascopy.api.IMessage.Type.values().length];
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$IMessage$Type[com.dukascopy.api.IMessage.Type.ORDER_CLOSE_REJECTED.ordinal()] = 1;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$IMessage$Type[com.dukascopy.api.IMessage.Type.ORDER_CHANGED_REJECTED.ordinal()] = 2;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$IMessage$Type[com.dukascopy.api.IMessage.Type.ORDER_SUBMIT_REJECTED.ordinal()] = 3;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$IMessage$Type[com.dukascopy.api.IMessage.Type.ORDERS_MERGE_REJECTED.ordinal()] = 4;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$IMessage$Type[com.dukascopy.api.IMessage.Type.ORDER_FILL_REJECTED.ordinal()] = 5;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            $SwitchMap$com$dukascopy$api$impl$connect$PlatformOrderImpl$ServerRequest = new int[ServerRequest.values().length];
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$impl$connect$PlatformOrderImpl$ServerRequest[ServerRequest.SUBMIT.ordinal()] = 1;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$impl$connect$PlatformOrderImpl$ServerRequest[ServerRequest.SET_REQ_AMOUNT.ordinal()] = 2;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$impl$connect$PlatformOrderImpl$ServerRequest[ServerRequest.SET_OPEN_PRICE.ordinal()] = 3;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$impl$connect$PlatformOrderImpl$ServerRequest[ServerRequest.SET_EXPIRATION.ordinal()] = 4;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$impl$connect$PlatformOrderImpl$ServerRequest[ServerRequest.SET_SL.ordinal()] = 5;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$impl$connect$PlatformOrderImpl$ServerRequest[ServerRequest.SET_TP.ordinal()] = 6;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                        }
+                    }
+
+                    if(orderState == OrderState.EXECUTING)
+                    {
+                        if(state == com.dukascopy.api.IOrder.State.CREATED)
+                        {
+                            state = com.dukascopy.api.IOrder.State.OPENED;
+                            creationTime = orderMessage.getCreatedDate().getTime();
+                            String text = orderMessage.getNotes();
+                            if(orderCommand == null)
+                                orderCommand = detectOrderCommand(orderMessage);
+                            if(orderCommand.isConditional())
+                                openPrice = Double.parseDouble(orderMessage.getString("priceStop"));
+                            else
+                            if(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+                                openPrice = openingOrder.getPriceClient().getValue().doubleValue();
+                            platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_SUBMIT_OK, creationTime);
+                            LOGGER.debug("transiting order from CREATED state to OPENED as a response to EXECUTING order update message");
+                            closeAttemptTime = 0L;
+                            if(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUY && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELL)
+                                lastServerRequest = ServerRequest.NONE;
+                            if(orderMessage.isPlaceOffer())
+                                pendingOrderId = orderMessage.getOrderId();
+                        } else
+                        if(state == com.dukascopy.api.IOrder.State.OPENED && orderMessage.isPlaceOffer())
+                        {
+                            if(taskManager.isGlobal() && openingOrderId != null && openingOrderId.equals(orderMessage.getOrderId()) && !orderMessage.getBoolean("fake_part"))
+                            {
+                                filledAmount = filledAmountInitial;
+                                pendingOrderId = orderMessage.getOrderId();
+                                return null;
+                            }
+                            if(!taskManager.isGlobal() && groupMessage.getOrders().size() == 1 && openingOrderId != null && openingOrderId.equals(orderMessage.getOrderId()) && Math.abs(Double.parseDouble(orderMessage.getString("amount")) - requestedAmount) > 9.9999999999999995E-007D)
+                            {
+                                filledAmount = filledAmountInitial;
+                                pendingOrderId = orderMessage.getOrderId();
+                                return null;
+                            }
+                            long newGoodTillTime = 0L;
+                            if(openingOrder.getExecTimeoutMillis() != null)
+                                newGoodTillTime = openingOrder.getExecTimeoutMillis().longValue();
+                            double newOpenPrice = openPrice;
+                            if(openingOrder.getPriceClient() != null && openingOrder.getPriceClient().getValue() != null)
+                                newOpenPrice = openingOrder.getPriceClient().getValue().doubleValue();
+                            if(newGoodTillTime != goodTillTime || newOpenPrice != openPrice)
+                            {
+                                String text = orderMessage.getNotes();
+                                if(orderMessage.getTimestamp() == null)
+                                    LOGGER.warn("order update doesn't have timestamp set");
+                                platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, orderMessage.getTimestamp() != null ? orderMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                                goodTillTime = newGoodTillTime;
+                                openPrice = newOpenPrice;
+                                LOGGER.debug("updating order as a response to EXECUTING order update message");
+                            } else
+                            {
+                                LOGGER.debug("ignoring EXECUTING order update message, nothing changed");
+                            }
+                            switch(_cls2..SwitchMap.com.dukascopy.api.impl.connect.PlatformOrderImpl.ServerRequest[lastServerRequest.ordinal()])
+                            {
+                            case 1: // '\001'
+                            case 2: // '\002'
+                            case 3: // '\003'
+                            case 4: // '\004'
+                            case 5: // '\005'
+                            case 6: // '\006'
+                                lastServerRequest = ServerRequest.NONE;
+                                // fall through
+
+                            default:
+                                pendingOrderId = orderMessage.getOrderId();
+                                break;
+                            }
+                        } else
+                        {
+                            if(state == com.dukascopy.api.IOrder.State.FILLED && orderMessage.isPlaceOffer() && taskManager.isGlobal() && openingOrderId != null && openingOrderId.equals(orderMessage.getOrderId()) && !orderMessage.getBoolean("fake_part"))
+                            {
+                                filledAmount = filledAmountInitial;
+                                pendingOrderId = orderMessage.getOrderId();
+                                return null;
+                            }
+                            if(state == com.dukascopy.api.IOrder.State.FILLED && orderMessage.isPlaceOffer() && groupMessage.getOrders().size() == 1 && !taskManager.isGlobal() && openingOrderId != null && openingOrderId.equals(orderMessage.getOrderId()) && Math.abs(Double.parseDouble(orderMessage.getString("amount")) - (requestedAmount - filledAmountInitial)) > 9.9999999999999995E-007D)
+                            {
+                                filledAmount = filledAmountInitial;
+                                pendingOrderId = orderMessage.getOrderId();
+                                return null;
+                            }
+                            if(state == com.dukascopy.api.IOrder.State.FILLED)
+                                pendingOrderId = orderMessage.getOrderId();
+                        }
+                    } else
+                    if(orderState == OrderState.FILLED)
+                    {
+                        filledAmount = filledAmount + Double.parseDouble(orderMessage.getString("amount"));
+                        if(state == com.dukascopy.api.IOrder.State.OPENED)
+                        {
+                            String text = orderMessage.getNotes();
+                            fillTime = orderMessage.getTimestamp().getTime();
+                            platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_FILL_OK, fillTime);
+                            LOGGER.debug("transiting order from OPENED to FILLED state as a response to FILLED order update message");
+                        } else
+                        if(state == com.dukascopy.api.IOrder.State.CREATED && (lastServerRequest == ServerRequest.MERGE_TARGET || groupMessage.isOcoMerge()))
+                        {
+                            creationTime = orderMessage.getTimestamp().getTime();
+                            fillTime = orderMessage.getTimestamp().getTime();
+                            LOGGER.debug("transiting order from CREATED merge target to FILLED state as a response to FILLED order update message");
+                        } else
+                        if(state == com.dukascopy.api.IOrder.State.CREATED)
+                        {
+                            String text = orderMessage.getNotes();
+                            creationTime = orderMessage.getCreatedDate().getTime();
+                            fillTime = orderMessage.getTimestamp().getTime();
+                            platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, fillTime);
+                            LOGGER.debug("updating new order with data from FILLED order update message");
+                        } else
+                        if(filledAmountInitial > filledAmount)
+                        {
+                            if(groupMessage.getTimestamp() != null)
+                                closeTime = groupMessage.getTimestamp().getTime();
+                            else
+                                LOGGER.warn("partial close message doesn't have timestamp set");
+                            if(groupMessage.getPriceOpen() != null)
+                                closePrice = groupMessage.getPriceOpen().getValue().doubleValue();
+                            String text = orderMessage.getNotes();
+                            platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_CLOSE_OK, groupMessage.getTimestamp() != null ? groupMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                            LOGGER.debug("partially closing order as a response to FILLED order update message");
+                        } else
+                        if(filledAmountInitial < filledAmount || openPrice != orderMessage.getPriceClient().getValue().doubleValue())
+                        {
+                            fillTime = orderMessage.getTimestamp().getTime();
+                            String text = orderMessage.getNotes();
+                            platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, fillTime);
+                            LOGGER.debug("updating new order with data from FILLED order update message");
+                        }
+                        switch(_cls2..SwitchMap.com.dukascopy.api.impl.connect.PlatformOrderImpl.ServerRequest[lastServerRequest.ordinal()])
+                        {
+                        case 1: // '\001'
+                        case 2: // '\002'
+                        case 3: // '\003'
+                        case 4: // '\004'
+                        case 5: // '\005'
+                        case 6: // '\006'
+                            lastServerRequest = ServerRequest.NONE;
+                            break;
+                        }
+                        filledAmountInitial = filledAmount;
+                        openPrice = orderMessage.getPriceClient().getValue().doubleValue();
+                        state = com.dukascopy.api.IOrder.State.FILLED;
+                        closeAttemptTime = 0L;
+                    } else
+                    if(orderState == OrderState.PENDING)
+                    {
+                        if(state == com.dukascopy.api.IOrder.State.CREATED)
+                        {
+                            state = com.dukascopy.api.IOrder.State.OPENED;
+                            creationTime = orderMessage.getCreatedDate().getTime();
+                            openPrice = Double.parseDouble(orderMessage.getString("priceStop"));
+                            String text = orderMessage.getNotes();
+                            platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_SUBMIT_OK, creationTime);
+                            LOGGER.debug("transiting order from CREATED to OPENED state as a response to PENDING order update message");
+                            closeAttemptTime = 0L;
+                        } else
+                        if(state == com.dukascopy.api.IOrder.State.OPENED)
+                        {
+                            double newOpenPrice = Double.parseDouble(orderMessage.getString("priceStop"));
+                            if(newOpenPrice != openPrice)
+                            {
+                                openPrice = newOpenPrice;
+                                String text = orderMessage.getNotes();
+                                if(orderMessage.getTimestamp() == null)
+                                    LOGGER.warn("pending order update doesn't have timestamp set");
+                                platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, orderMessage.getTimestamp() != null ? orderMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                                LOGGER.debug("updating OPENED order with data from PENDING order update message");
+                            }
+                        } else
+                        if(state == com.dukascopy.api.IOrder.State.FILLED && groupMessage.getOrders().size() == 1 && filledAmountInitial > filledAmount)
+                        {
+                            if(groupMessage.getTimestamp() != null)
+                                closeTime = groupMessage.getTimestamp().getTime();
+                            else
+                                LOGGER.warn("filled partial close message doesn't have timestamp set");
+                            if(groupMessage.getPriceOpen() != null)
+                                closePrice = groupMessage.getPriceOpen().getValue().doubleValue();
+                            String text = orderMessage.getNotes();
+                            platformMessageImpl = new PlatformMessageImpl(text, this, com.dukascopy.api.IMessage.Type.ORDER_CLOSE_OK, groupMessage.getTimestamp() != null ? groupMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                            closeAttemptTime = 0L;
+                            LOGGER.debug("closing filled part of the order that also has pending part as a response to group update with only PENDING part");
+                            state = com.dukascopy.api.IOrder.State.OPENED;
+                            openPrice = Double.parseDouble(orderMessage.getString("priceStop"));
+                        }
+                        switch(_cls2..SwitchMap.com.dukascopy.api.impl.connect.PlatformOrderImpl.ServerRequest[lastServerRequest.ordinal()])
+                        {
+                        case 1: // '\001'
+                        case 2: // '\002'
+                        case 3: // '\003'
+                        case 4: // '\004'
+                        case 5: // '\005'
+                        case 6: // '\006'
+                            lastServerRequest = ServerRequest.NONE;
+                            break;
+                        }
+                        pendingOrderId = orderMessage.getOrderId();
+                        parentOrderId = orderMessage.getParentOrderId();
+                    } else
+                    if(orderState == OrderState.REJECTED && taskManager.isGlobal())
+                    {
+                        if(awaitingResubmit)
+                        {
+                            awaitingResubmit = false;
+                        } else
+                        {
+                            PlatformOrderImpl orderImpl = taskManager.getOrdersInternalCollection().removeById(groupId);
+                            if(orderImpl == null)
+                                taskManager.getOrdersInternalCollection().removeByLabel(label);
+                            if(getState() != com.dukascopy.api.IOrder.State.CANCELED)
+                            {
+                                if(orderMessage.getTimestamp() != null)
+                                    closeTime = orderMessage.getTimestamp().getTime();
+                                else
+                                    LOGGER.warn("rejected message doesn't have timestamp set");
+                                if(state == com.dukascopy.api.IOrder.State.OPENED && !orderCommand.isConditional() && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+                                {
+                                    state = com.dukascopy.api.IOrder.State.CANCELED;
+                                    LOGGER.debug("transiting order to CANCELED state as a response to order update message");
+                                    platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_FILL_REJECTED, orderMessage.getTimestamp() != null ? orderMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                                } else
+                                if(state == com.dukascopy.api.IOrder.State.FILLED)
+                                {
+                                    LOGGER.debug("canceling PENDING part as a response to order update message");
+                                    calculatedRequestedAmount -= Double.parseDouble(orderMessage.getString("amount"));
+                                    platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, orderMessage.getTimestamp() != null ? orderMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                                } else
+                                {
+                                    state = com.dukascopy.api.IOrder.State.CANCELED;
+                                    LOGGER.debug("transiting order to CANCELED state as a response to order update message");
+                                    platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_CLOSE_OK, orderMessage.getTimestamp() != null ? orderMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                                    closeAttemptTime = 0L;
+                                }
+                                lastServerRequest = ServerRequest.NONE;
+                            }
+                        }
+                    } else
+                    if(orderState == OrderState.CANCELLED && taskManager.isGlobal() && !orderMessage.isBidOfferCancellReplace().booleanValue())
+                    {
+                        PlatformOrderImpl orderImpl = taskManager.getOrdersInternalCollection().removeById(groupId);
+                        if(orderImpl == null)
+                            taskManager.getOrdersInternalCollection().removeByLabel(label);
+                        if(getState() != com.dukascopy.api.IOrder.State.CANCELED)
+                        {
+                            if(orderMessage.getTimestamp() != null)
+                                closeTime = orderMessage.getTimestamp().getTime();
+                            else
+                                LOGGER.warn("cancel message doesn't have timestamp set");
+                            LOGGER.debug("transiting order to CANCELED state as a response to order update message");
+                            if(state == com.dukascopy.api.IOrder.State.OPENED && !orderCommand.isConditional() && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+                            {
+                                state = com.dukascopy.api.IOrder.State.CANCELED;
+                                LOGGER.debug("transiting order to CANCELED state as a response to order update message");
+                                platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_FILL_REJECTED, orderMessage.getTimestamp() != null ? orderMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                            } else
+                            if(state == com.dukascopy.api.IOrder.State.FILLED)
+                            {
+                                LOGGER.debug("canceling PENDING part as a response to order update message");
+                                calculatedRequestedAmount -= Double.parseDouble(orderMessage.getString("amount"));
+                                platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, orderMessage.getTimestamp() != null ? orderMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                            } else
+                            {
+                                state = com.dukascopy.api.IOrder.State.CANCELED;
+                                LOGGER.debug("transiting order to CANCELED state as a response to order update message");
+                                platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_CLOSE_OK, orderMessage.getTimestamp() != null ? orderMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                                closeAttemptTime = 0L;
+                            }
+                        }
+                    }
+                    if(state == com.dukascopy.api.IOrder.State.FILLED)
+                    {
+                        orderCommand = orderMessage.getSide() != OrderSide.BUY ? com.dukascopy.api.IEngine.OrderCommand.SELL : com.dukascopy.api.IEngine.OrderCommand.BUY;
+                    } else
+                    {
+                        orderCommand = detectOrderCommand(orderMessage);
+                        if(orderCommand == null)
+                            orderCommand = orderMessage.getSide() != OrderSide.BUY ? com.dukascopy.api.IEngine.OrderCommand.SELL : com.dukascopy.api.IEngine.OrderCommand.BUY;
+                    }
+                } else
+                if(orderMessage.getOrderDirection() == OrderDirection.CLOSE && orderState == OrderState.EXECUTING)
+                {
+                    platformMessageImpl = null;
+                    LOGGER.debug("closing in progress, do nothing");
+                }
+                if(isStopLoss(orderMessage))
+                    slOrder = orderMessage;
+                if(isTakeProfit(orderMessage))
+                    tpOrder = orderMessage;
+            } while(true);
+            if(requestedAmount > calculatedRequestedAmount && platformMessageImpl == null)
+            {
+                LOGGER.debug("canceling PENDING part as a response to order update message");
+                if(groupMessage.getTimestamp() == null)
+                    LOGGER.warn("order group message doesn't have timestamp set");
+                platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, groupMessage.getTimestamp() != null ? groupMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+            }
+            requestedAmount = StratUtils.round(calculatedRequestedAmount, 8);
+            if(openingOrder != null)
+            {
+                openingOrderId = openingOrder.getOrderId();
+                parentOrderId = openingOrder.getParentOrderId();
+                comment = openingOrder.getTag();
+                instrument = Instrument.fromString(openingOrder.getInstrument());
+                String notes = null;
+                double newTpPrice;
+                if(tpOrder != null)
+                {
+                    newTpPrice = tpOrder.getPriceStop().getValue().doubleValue();
+                    tpOrderId = tpOrder.getOrderId();
+                    if(notes == null)
+                        notes = tpOrder.getNotes();
+                } else
+                {
+                    newTpPrice = 0.0D;
+                    tpOrderId = null;
+                }
+                double newSlPrice;
+                OfferSide newSlSide;
+                double newSlTrailStep;
+                if(slOrder != null)
+                {
+                    newSlPrice = slOrder.getPriceStop().getValue().doubleValue();
+                    slOrderId = slOrder.getOrderId();
+                    StopDirection slStopDirection = slOrder.getStopDirection();
+                    if(slStopDirection == StopDirection.ASK_EQUALS || slStopDirection == StopDirection.ASK_GREATER || slStopDirection == StopDirection.ASK_LESS)
+                        newSlSide = OfferSide.ASK;
+                    else
+                        newSlSide = OfferSide.BID;
+                    if(slOrder.has("priceLimit"))
+                    {
+                        newSlTrailStep = Double.parseDouble(slOrder.getString("priceLimit"));
+                        newSlTrailStep /= instrument.getPipValue();
+                    } else
+                    {
+                        newSlTrailStep = 0.0D;
+                    }
+                    if(notes == null)
+                        notes = slOrder.getNotes();
+                } else
+                {
+                    newSlPrice = 0.0D;
+                    slOrderId = null;
+                    newSlSide = null;
+                    newSlTrailStep = 0.0D;
+                }
+                if(newTpPrice != tpPrice || newSlPrice != slPrice || newSlSide != slSide || newSlTrailStep != slTrailStep)
+                {
+                    tpPrice = newTpPrice;
+                    slPrice = newSlPrice;
+                    slSide = newSlSide;
+                    slTrailStep = newSlTrailStep;
+                    if(platformMessageImpl == null)
+                    {
+                        if(groupMessage.getTimestamp() == null)
+                            LOGGER.warn("order group message doesn't have timestamp set");
+                        platformMessageImpl = new PlatformMessageImpl(notes, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, groupMessage.getTimestamp() != null ? groupMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                        LOGGER.debug("updating order because of changes in sl/tp");
+                    }
+                }
+                if(openingOrder.isPlaceOffer() && openingOrder.getExecTimeoutMillis() != null && goodTillTime != openingOrder.getExecTimeoutMillis().longValue())
+                {
+                    goodTillTime = openingOrder.getExecTimeoutMillis().longValue();
+                    if(platformMessageImpl == null)
+                    {
+                        if(groupMessage.getTimestamp() == null)
+                            LOGGER.warn("order group message doesn't have timestamp set");
+                        platformMessageImpl = new PlatformMessageImpl(openingOrder.getNotes(), this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, groupMessage.getTimestamp() != null ? groupMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                        LOGGER.debug("updating order because of changes in gtt");
+                    }
+                }
+            }
+        } else
+        if(lastServerRequest == ServerRequest.MERGE_TARGET || state == com.dukascopy.api.IOrder.State.CREATED && groupMessage.isOcoMerge() && groupMessage.getAmount() != null && groupMessage.getAmount().getValue().compareTo(BigDecimal.ZERO) == 0)
+            instrument = Instrument.fromString(groupMessage.getInstrument());
+        else
+        if(taskManager.isGlobal())
+        {
+            label = groupMessage.getOrderGroupId();
+            double oldPrice = openPrice;
+            com.dukascopy.api.IEngine.OrderCommand oldOrderCommand = orderCommand;
+            orderCommand = groupMessage.getSide() != PositionSide.SHORT ? com.dukascopy.api.IEngine.OrderCommand.BUY : com.dukascopy.api.IEngine.OrderCommand.SELL;
+            if(groupMessage.getAmount() != null)
+                filledAmount = Double.parseDouble(groupMessage.getString("amount"));
+            else
+                filledAmount = 0.0D;
+            requestedAmount = filledAmount;
+            openPrice = groupMessage.getPricePosOpen().getValue().doubleValue();
+            instrument = Instrument.fromString(groupMessage.getInstrument());
+            if(oldOrderCommand != orderCommand || filledAmount != filledAmountInitial || oldPrice != openPrice)
+            {
+                fillTime = groupMessage.getTimestamp().getTime();
+                platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_CHANGED_OK, fillTime);
+                LOGGER.debug("updating global position with data from order group update message");
+                lastServerRequest = ServerRequest.NONE;
+            }
+            filledAmountInitial = filledAmount;
+            state = com.dukascopy.api.IOrder.State.FILLED;
+            if(filledAmount == 0.0D)
+                taskManager.getOrdersInternalCollection().removeById(groupId);
+        } else
+        {
+            PlatformOrderImpl orderImpl = taskManager.getOrdersInternalCollection().removeById(groupId);
+            if(orderImpl == null)
+                orderImpl = taskManager.getOrdersInternalCollection().removeByLabel(label);
+            if(orderImpl != null && orderImpl.getState() != com.dukascopy.api.IOrder.State.CANCELED)
+            {
+                if(groupMessage.getTimestamp() != null)
+                    closeTime = groupMessage.getTimestamp().getTime();
+                else
+                    LOGGER.warn("order group message doesn't have timestamp set");
+                if(groupMessage.getPriceOpen() != null)
+                    closePrice = groupMessage.getPriceOpen().getValue().doubleValue();
+                com.dukascopy.api.IOrder.State previousState = state;
+                if(orderImpl.getState() == com.dukascopy.api.IOrder.State.FILLED)
+                {
+                    state = com.dukascopy.api.IOrder.State.CLOSED;
+                    LOGGER.debug("transiting order from FILLED to CLOSED state as a response to empty order group update message");
+                } else
+                {
+                    state = com.dukascopy.api.IOrder.State.CANCELED;
+                    LOGGER.debug("transiting order to CANCELED state as a response to empty order group update message");
+                }
+                if(lastServerRequest == ServerRequest.MERGE_TARGET)
+                {
+                    platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDERS_MERGE_OK, groupMessage.getTimestamp() != null ? groupMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                    instrument = Instrument.fromString(groupMessage.getInstrument());
+                    state = com.dukascopy.api.IOrder.State.CLOSED;
+                } else
+                {
+                    if(previousState == com.dukascopy.api.IOrder.State.OPENED && !orderCommand.isConditional() && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+                    {
+                        platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_FILL_REJECTED, groupMessage.getTimestamp() != null ? groupMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                    } else
+                    {
+                        platformMessageImpl = new PlatformMessageImpl(null, this, com.dukascopy.api.IMessage.Type.ORDER_CLOSE_OK, groupMessage.getTimestamp() != null ? groupMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                        closeAttemptTime = 0L;
+                    }
+                    lastServerRequest = ServerRequest.NONE;
+                }
+            } else
+            {
+                lastServerRequest = ServerRequest.NONE;
+            }
+        }
+        if(platformMessageImpl != null)
+        {
+            if(!updated)
+                updatedMessage = platformMessageImpl;
+            updated = true;
+            synchronized(this)
+            {
+                notifyAll();
+            }
+        }
+        return platformMessageImpl;
+    }
+
+    public PlatformMessageImpl update(MergePositionsMessage mergeMessage)
+    {
+        if(filledAmount == 0.0D)
+        {
+            taskManager.getOrdersInternalCollection().removeByLabel(label);
+            state = com.dukascopy.api.IOrder.State.CLOSED;
+            closeTime = creationTime = mergeMessage.getTimestamp().getTime();
+        }
+        StringBuilder notification = new StringBuilder("Positions: ");
+        String positionId;
+        for(Iterator i$ = mergeMessage.getPositionsList().iterator(); i$.hasNext(); notification.append(positionId).append("; "))
+            positionId = (String)i$.next();
+
+        notification.setLength(notification.length() - 2);
+        notification.append(" MERGED");
+        if(state == com.dukascopy.api.IOrder.State.CLOSED)
+            notification.append(", result position closed");
+        else
+            notification.append(" to position: ").append(mergeMessage.getNewOrderGroupId());
+        lastServerRequest = ServerRequest.NONE;
+        PlatformMessageImpl platformMessageImpl = new PlatformMessageImpl(notification.toString(), this, com.dukascopy.api.IMessage.Type.ORDERS_MERGE_OK, mergeMessage.getTimestamp().getTime());
+        if(!updated)
+            updatedMessage = platformMessageImpl;
+        updated = true;
+        synchronized(this)
+        {
+            notifyAll();
+        }
+        return platformMessageImpl;
+    }
+
+    public PlatformMessageImpl update(NotificationMessage notificationMessage)
+    {
+        NotificationMessageCode code = notificationMessage.getNotificationCode();
+        String text = notificationMessage.getText();
+        if(taskManager.isGlobal() && (code == NotificationMessageCode.REJECT_AND_RESUBMIT || code == NotificationMessageCode.REJECTED_COUNTERPARTY && (orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER) && notificationMessage.getOrderId().equals(openingOrderId)))
+        {
+            awaitingResubmit = true;
+            return new PlatformMessageImpl((new StringBuilder()).append(code).append("-").append(text).toString(), this, com.dukascopy.api.IMessage.Type.NOTIFICATION, notificationMessage.getTimestamp() != null ? notificationMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+        }
+        if(code == NotificationMessageCode.REJECTED_COUNTERPARTY && ((orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER) && notificationMessage.getOrderId().equals(openingOrderId) || state == com.dukascopy.api.IOrder.State.FILLED && notificationMessage.getOrderId().equals(pendingOrderId)))
+            return null;
+        com.dukascopy.api.IMessage.Type type = responseMessageGenerator.generateResponse(lastServerRequest, state, code, text);
+        PlatformMessageImpl platformMessageImpl;
+        if(type != null)
+        {
+            platformMessageImpl = new PlatformMessageImpl((new StringBuilder()).append(code).append("-").append(text).toString(), this, type, notificationMessage.getTimestamp() != null ? notificationMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+            switch(_cls2..SwitchMap.com.dukascopy.api.IMessage.Type[type.ordinal()])
+            {
+            case 1: // '\001'
+                closeAttemptTime = 0L;
+                // fall through
+
+            case 2: // '\002'
+                stopLossChangeTime = 0L;
+                takeProfitChangeTime = 0L;
+                requestedAmountChangeTime = 0L;
+                openPriceChangeTime = 0L;
+                // fall through
+
+            case 3: // '\003'
+            case 4: // '\004'
+                if(!updated)
+                    updatedMessage = platformMessageImpl;
+                updated = true;
+                synchronized(this)
+                {
+                    notifyAll();
+                }
+                lastServerRequest = ServerRequest.NONE;
+                break;
+
+            case 5: // '\005'
+                platformMessageImpl = null;
+                break;
+            }
+        } else
+        {
+            return null;
+        }
+        switch(_cls2..SwitchMap.com.dukascopy.api.IMessage.Type[type.ordinal()])
+        {
+        default:
+            break;
+
+        case 3: // '\003'
+            if(getState() != com.dukascopy.api.IOrder.State.CREATED)
+                break;
+            taskManager.getOrdersInternalCollection().removeByLabel(label);
+            state = com.dukascopy.api.IOrder.State.CANCELED;
+            if(notificationMessage.getTimestamp() != null)
+                closeTime = notificationMessage.getTimestamp().getTime();
+            break;
+
+        case 5: // '\005'
+            platformMessageImpl = null;
+            break;
+
+        case 4: // '\004'
+            taskManager.getOrdersInternalCollection().removeByLabel(label);
+            state = com.dukascopy.api.IOrder.State.CANCELED;
+            if(notificationMessage.getTimestamp() != null)
+                closeTime = notificationMessage.getTimestamp().getTime();
+            break;
+        }
+        return platformMessageImpl;
+    }
+
+    public PlatformMessageImpl update(ErrorResponseMessage errorResponseMessage)
+    {
+        PlatformMessageImpl platformMessageImpl = null;
+        if(state == com.dukascopy.api.IOrder.State.CREATED)
+        {
+            taskManager.getOrdersInternalCollection().removeByLabel(label);
+            state = com.dukascopy.api.IOrder.State.CANCELED;
+            platformMessageImpl = new PlatformMessageImpl(errorResponseMessage.getReason(), this, com.dukascopy.api.IMessage.Type.ORDER_SUBMIT_REJECTED, errorResponseMessage.getTimestamp() != null ? errorResponseMessage.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+        }
+        if(platformMessageImpl != null)
+        {
+            if(!updated)
+                updatedMessage = platformMessageImpl;
+            updated = true;
+            synchronized(this)
+            {
+                notifyAll();
+            }
+        }
+        return platformMessageImpl;
+    }
+
+    private com.dukascopy.api.IEngine.OrderCommand detectOrderCommand(OrderMessage orderMessage)
+    {
+        OrderSide orderSide = orderMessage.getSide();
+        StopDirection stopDirection = orderMessage.getStopDirection();
+        com.dukascopy.api.IEngine.OrderCommand orderCommand = null;
+        if(stopDirection == StopDirection.ASK_GREATER)
+        {
+            if(orderSide == OrderSide.BUY)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.BUYSTOP;
+            else
+            if(orderSide == OrderSide.SELL)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.SELLSTOP;
+            else
+                LOGGER.error((new StringBuilder()).append("Assertion error in detecting OrderCommand[1] ").append(orderSide).toString());
+        } else
+        if(stopDirection == StopDirection.ASK_LESS)
+        {
+            if(orderSide == OrderSide.BUY)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT;
+            else
+            if(orderSide == OrderSide.SELL)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK;
+            else
+                LOGGER.error((new StringBuilder()).append("Assertion error in detecting OrderCommand[2] ").append(orderSide).toString());
+        } else
+        if(stopDirection == StopDirection.BID_GREATER)
+        {
+            if(orderSide == OrderSide.BUY)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.BUYSTOP_BYBID;
+            else
+            if(orderSide == OrderSide.SELL)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT;
+            else
+                LOGGER.error((new StringBuilder()).append("Assertion error in detecting OrderCommand[3] ").append(orderSide).toString());
+        } else
+        if(stopDirection == StopDirection.BID_LESS)
+        {
+            if(orderSide == OrderSide.BUY)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID;
+            else
+            if(orderSide == OrderSide.SELL)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.SELLSTOP;
+            else
+                LOGGER.error((new StringBuilder()).append("Assertion error in detecting OrderCommand[4] ").append(orderSide).toString());
+        } else
+        if(stopDirection == null)
+        {
+            if(orderMessage.isPlaceOffer())
+            {
+                if(orderSide == OrderSide.BUY)
+                    orderCommand = com.dukascopy.api.IEngine.OrderCommand.PLACE_BID;
+                else
+                if(orderSide == OrderSide.SELL)
+                    orderCommand = com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER;
+                else
+                    LOGGER.error((new StringBuilder()).append("Assertion error in detecting OrderCommand[8] ").append(orderSide).toString());
+            } else
+            if(orderSide == OrderSide.BUY)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.BUY;
+            else
+            if(orderSide == OrderSide.SELL)
+                orderCommand = com.dukascopy.api.IEngine.OrderCommand.SELL;
+            else
+                LOGGER.error((new StringBuilder()).append("Assertion error in detecting OrderCommand[5] ").append(orderSide).toString());
+        } else
+        {
+            LOGGER.error((new StringBuilder()).append("Assertion error in detecting OrderCommand[6] ").append(stopDirection).toString());
+        }
+        return orderCommand;
+    }
+
+    public static String extractLabel(OrderGroupMessage orderGroupMessage)
+    {
+        String label;
+label0:
+        {
+            label = null;
+            OrderMessage openingOrder = orderGroupMessage.getOpeningOrder();
+            if(openingOrder != null)
+            {
+                label = openingOrder.getExternalSysId();
+                if(label == null)
+                    LOGGER.error((new StringBuilder()).append("PROBLEM WITH OPENING ORDER ").append(openingOrder).toString());
+                break label0;
+            }
+            Iterator i$ = orderGroupMessage.getOrders().iterator();
+            OrderMessage orderMessage;
+            do
+            {
+                if(!i$.hasNext())
+                    break label0;
+                orderMessage = (OrderMessage)i$.next();
+            } while(orderMessage == null || orderMessage.getExternalSysId() == null);
+            label = orderMessage.getExternalSysId();
+        }
+        if(label == null)
+            label = orderGroupMessage.getExternalSysId();
+        return label;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("[").append(getLabel()).append("]-").append(getState()).append(" / ").append(getInstrument()).append(" / ").append(getOpenPrice()).append(" / ").append(getRequestedAmount()).append(" / ").append(getAmount()).toString();
+    }
+
+    public String toStringDetail()
+    {
+        StringBuffer buff = new StringBuffer(128);
+        buff.append((new StringBuilder()).append("label=").append(getLabel()).append(";").toString()).append((new StringBuilder()).append("getId()=").append(getId()).append(";").toString()).append((new StringBuilder()).append("groupId=").append(getGroupId()).append(";").toString()).append((new StringBuilder()).append("openingOrderId=").append(getOpeningOrderId()).append(";").toString()).append((new StringBuilder()).append("pendingOrderId=").append(pendingOrderId).append(";").toString()).append((new StringBuilder()).append("parentOrderId=").append(parentOrderId).append(";").toString()).append((new StringBuilder()).append("tpOrderId=").append(tpOrderId).append(";").toString()).append((new StringBuilder()).append("slOrderId=").append(slOrderId).append(";").toString()).append((new StringBuilder()).append("state=").append(getState()).append(";").toString()).append((new StringBuilder()).append("instrument=").append(getInstrument()).append(";").toString()).append((new StringBuilder()).append("openPrice=").append(getOpenPrice()).append(";").toString()).append((new StringBuilder()).append("requestedAmount=").append(getRequestedAmount()).append(";").toString()).append((new StringBuilder()).append("amount=").append(getAmount()).append(";").toString()).append((new StringBuilder()).append("lastServerRequest=").append(lastServerRequest).append(";").toString()).append((new StringBuilder()).append("awaitingResubmit=").append(awaitingResubmit).append(";").toString()).append((new StringBuilder()).append("localCreationTime=").append(localCreationTime).append(";").toString());
+        if(updatedMessage != null)
+        {
+            buff.append((new StringBuilder()).append("updatedMessage.type=").append(updatedMessage.getType()).append(";").toString());
+            buff.append((new StringBuilder()).append("updatedMessage.creationTime=").append(updatedMessage.getCreationTime()).append(";").toString());
+            IOrder order = updatedMessage.getOrder();
+            if(order != null)
+            {
+                buff.append((new StringBuilder()).append("updatedMessage.getOrder().getLabel()=").append(order.getLabel()).append(";").toString());
+                buff.append((new StringBuilder()).append("updatedMessage.getOrder().getId()=").append(order.getId()).append(";").toString());
+            }
+        }
+        return buff.toString();
+    }
+
+    public boolean updated()
+    {
+        return updated;
+    }
+
+    public synchronized void waitForUpdate(long timeoutMillis)
+    {
+        if(state != com.dukascopy.api.IOrder.State.CLOSED && state != com.dukascopy.api.IOrder.State.CANCELED)
+        {
+            updated = false;
+            if(taskManager.isThreadOk(Thread.currentThread().getId()))
+            {
+                try
+                {
+                    taskManager.waitForUpdate(this, timeoutMillis, TimeUnit.MILLISECONDS);
+                }
+                catch(InterruptedException e)
+                {
+                    LOGGER.warn(e.getMessage(), e);
+                }
+            } else
+            {
+                long startTime = System.currentTimeMillis();
+                do
+                {
+                    long currentTime;
+                    if(taskManager.isStrategyStopping() || updated() || (currentTime = System.currentTimeMillis()) - startTime >= timeoutMillis)
+                        break;
+                    try
+                    {
+                        wait(timeoutMillis - (currentTime - startTime));
+                    }
+                    catch(InterruptedException e)
+                    {
+                        LOGGER.warn(e.getMessage(), e);
+                        updatedMessage = null;
+                        return;
+                    }
+                } while(true);
+            }
+            updatedMessage = null;
+        }
+    }
+
+    public synchronized IMessage waitForUpdate(long timeout, TimeUnit unit)
+    {
+        if(state != com.dukascopy.api.IOrder.State.CLOSED && state != com.dukascopy.api.IOrder.State.CANCELED)
+        {
+            updated = false;
+            if(taskManager.isThreadOk(Thread.currentThread().getId()))
+            {
+                try
+                {
+                    taskManager.waitForUpdate(this, timeout, unit);
+                }
+                catch(InterruptedException ie)
+                {
+                    LOGGER.warn("Interrupted");
+                }
+            } else
+            {
+                long startTime = System.currentTimeMillis();
+                long timeoutMillis = unit.toMillis(timeout);
+                do
+                {
+                    long currentTime;
+                    if(taskManager.isStrategyStopping() || updated() || (currentTime = System.currentTimeMillis()) - startTime >= timeoutMillis)
+                        break;
+                    try
+                    {
+                        wait(timeoutMillis - (currentTime - startTime));
+                    }
+                    catch(InterruptedException e)
+                    {
+                        LOGGER.warn(e.getMessage(), e);
+                        updatedMessage = null;
+                        return null;
+                    }
+                } while(true);
+            }
+            IMessage message = updatedMessage;
+            updatedMessage = null;
+            return message;
+        } else
+        {
+            return null;
+        }
+    }
+
+    public synchronized double getProfitLossInPips()
+    {
+        double closePrice;
+        if(state == com.dukascopy.api.IOrder.State.FILLED)
+        {
+            if(isLong())
+                closePrice = FeedDataProvider.getDefaultInstance().getLastBid(instrument);
+            else
+                closePrice = FeedDataProvider.getDefaultInstance().getLastAsk(instrument);
+        } else
+        if(state == com.dukascopy.api.IOrder.State.CLOSED)
+            closePrice = this.closePrice;
+        else
+            return 0.0D;
+        double plInPips;
+        if(isLong())
+            plInPips = StratUtils.roundHalfEven((closePrice - openPrice) / instrument.getPipValue(), 1);
+        else
+            plInPips = StratUtils.roundHalfEven((openPrice - closePrice) / instrument.getPipValue(), 1);
+        return plInPips;
+    }
+
+    public synchronized double getProfitLossInUSD()
+    {
+        double closePrice;
+        double amount;
+        if(state == com.dukascopy.api.IOrder.State.FILLED)
+        {
+            if(isLong())
+                closePrice = FeedDataProvider.getDefaultInstance().getLastBid(instrument);
+            else
+                closePrice = FeedDataProvider.getDefaultInstance().getLastAsk(instrument);
+            amount = filledAmount;
+        } else
+        if(state == com.dukascopy.api.IOrder.State.CLOSED)
+        {
+            closePrice = this.closePrice;
+            amount = filledAmountInitial;
+        } else
+        {
+            return 0.0D;
+        }
+        double profLossInSecondaryCCY;
+        if(isLong())
+            profLossInSecondaryCCY = StratUtils.roundHalfEven((closePrice - openPrice) * amount * 1000000D, 2);
+        else
+            profLossInSecondaryCCY = StratUtils.roundHalfEven((openPrice - closePrice) * amount * 1000000D, 2);
+        return StratUtils.roundHalfEven(CurrencyConverter.getCurrencyConverter().convert(profLossInSecondaryCCY, instrument.getSecondaryCurrency(), Instrument.EURUSD.getSecondaryCurrency(), null), 2);
+    }
+
+    public synchronized double getProfitLossInAccountCurrency()
+    {
+        double closePrice;
+        double amount;
+        if(state == com.dukascopy.api.IOrder.State.FILLED)
+        {
+            if(isLong())
+                closePrice = FeedDataProvider.getDefaultInstance().getLastBid(instrument);
+            else
+                closePrice = FeedDataProvider.getDefaultInstance().getLastAsk(instrument);
+            amount = filledAmount;
+        } else
+        if(state == com.dukascopy.api.IOrder.State.CLOSED)
+        {
+            closePrice = this.closePrice;
+            amount = filledAmountInitial;
+        } else
+        {
+            return 0.0D;
+        }
+        double profLossInSecondaryCCY;
+        if(isLong())
+            profLossInSecondaryCCY = StratUtils.roundHalfEven((closePrice - openPrice) * amount * 1000000D, 2);
+        else
+            profLossInSecondaryCCY = StratUtils.roundHalfEven((openPrice - closePrice) * amount * 1000000D, 2);
+        return StratUtils.roundHalfEven(CurrencyConverter.getCurrencyConverter().convert(profLossInSecondaryCCY, instrument.getSecondaryCurrency(), taskManager.getAccountCurrency(), null), 2);
+    }
+
+    public double getCommissionInUSD()
+    {
+        return StratUtils.roundHalfEven(CurrencyConverter.getCurrencyConverter().convert(commission, taskManager.getAccountCurrency(), Instrument.EURUSD.getSecondaryCurrency(), null), 2);
+    }
+
+    public double getCommission()
+    {
+        return StratUtils.roundHalfEven(commission, 2);
+    }
+
+    public synchronized void resetTimes()
+    {
+        stopLossChangeTime = 0L;
+        takeProfitChangeTime = 0L;
+        requestedAmountChangeTime = 0L;
+        openPriceChangeTime = 0L;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/PlatformOrderImpl);
+    private JForexTaskManager taskManager;
+    String comment;
+    Instrument instrument;
+    double requestedAmount;
+    double filledAmount;
+    double filledAmountInitial;
+    String label;
+    double tpPrice;
+    double slPrice;
+    OfferSide slSide;
+    double slTrailStep;
+    double openPrice;
+    double slippage;
+    double closePrice;
+    double commission;
+    private com.dukascopy.api.IOrder.State state;
+    String groupId;
+    String openingOrderId;
+    String pendingOrderId;
+    String parentOrderId;
+    String slOrderId;
+    String tpOrderId;
+    long goodTillTime;
+    long creationTime;
+    long fillTime;
+    long closeTime;
+    com.dukascopy.api.IEngine.OrderCommand orderCommand;
+    long localCreationTime;
+    private volatile boolean updated;
+    private volatile IMessage updatedMessage;
+    private boolean awaitingResubmit;
+    private Map ordersToAttach;
+    ServerRequest lastServerRequest;
+    private long stopLossChangeTime;
+    private long takeProfitChangeTime;
+    private long requestedAmountChangeTime;
+    private long openPriceChangeTime;
+    private long closeAttemptTime;
+    private long goodTillTimeChangeTime;
+    private static ResponseMessageGenerator responseMessageGenerator = new ResponseMessageGenerator();
+
+}

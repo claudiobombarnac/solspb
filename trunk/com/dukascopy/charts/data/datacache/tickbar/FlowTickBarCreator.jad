@@ -1,0 +1,44 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   FlowTickBarCreator.java
+
+package com.dukascopy.charts.data.datacache.tickbar;
+
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.tickbar:
+//            TickBarCreator, TickBarData
+
+public class FlowTickBarCreator extends TickBarCreator
+{
+
+    public FlowTickBarCreator(int ticksInOneBar, OfferSide offerSide)
+    {
+        super(1, ticksInOneBar, offerSide, true, true, null);
+    }
+
+    protected void resetResulArray()
+    {
+        result = new TickBarData[1];
+    }
+
+    public int getLastElementIndex()
+    {
+        return 0;
+    }
+
+    public void setupLastData(TickBarData data)
+    {
+        lastElementIndex = -1;
+        fullyCreatedBarsCount = 0;
+        currentDataConstructionTicksIncluded = 0;
+        ((TickBarData[])getResult())[0] = data;
+    }
+
+    public volatile void setupLastData(AbstractPriceAggregationData x0)
+    {
+        setupLastData((TickBarData)x0);
+    }
+}

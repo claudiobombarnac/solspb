@@ -1,0 +1,189 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractCurrencyConverter.java
+
+package com.dukascopy.dds2.greed.util;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+
+public abstract class AbstractCurrencyConverter
+{
+
+    public AbstractCurrencyConverter()
+    {
+    }
+
+    public BigDecimal convert(BigDecimal amount, Currency sourceCurrency, Currency targetCurrency, OfferSide side)
+    {
+        if(!$assertionsDisabled && amount == null)
+            throw new AssertionError();
+        if(!$assertionsDisabled && sourceCurrency == null)
+            throw new AssertionError();
+        if(!$assertionsDisabled && targetCurrency == null)
+            throw new AssertionError();
+        if(targetCurrency.equals(sourceCurrency))
+            return amount;
+        BigDecimal dollarValue;
+        if(sourceCurrency.equals(usdCurrency))
+        {
+            dollarValue = amount;
+        } else
+        {
+            Instrument helperSourceCurrencyPair = (Instrument)pairs.get(sourceCurrency);
+            if(helperSourceCurrencyPair == null)
+                throw new IllegalArgumentException((new StringBuilder()).append("Conversion Error: No currency pair found for ").append(sourceCurrency).toString());
+            double price = getLastMarketPrice(helperSourceCurrencyPair, side);
+            if(Double.isNaN(price))
+                return null;
+            BigDecimal helperSourceCurrencyPrice = BigDecimal.valueOf(price);
+            dollarValue = helperSourceCurrencyPair.getPrimaryCurrency().equals(usdCurrency) ? amount.divide(helperSourceCurrencyPrice, 2, RoundingMode.HALF_EVEN) : amount.multiply(helperSourceCurrencyPrice).setScale(2, RoundingMode.HALF_EVEN);
+        }
+        if(targetCurrency.equals(usdCurrency))
+            return dollarValue;
+        Instrument pair = (Instrument)pairs.get(targetCurrency);
+        double doublePrice = getLastMarketPrice(pair, side);
+        if(Double.isNaN(doublePrice))
+        {
+            return null;
+        } else
+        {
+            BigDecimal price = BigDecimal.valueOf(doublePrice);
+            BigDecimal result = pair.getPrimaryCurrency().equals(usdCurrency) ? dollarValue.multiply(price).setScale(2, RoundingMode.HALF_EVEN) : dollarValue.divide(price, 2, RoundingMode.HALF_EVEN);
+            return result;
+        }
+    }
+
+    public double convert(double amount, Currency sourceCurrency, Currency targetCurrency, OfferSide side)
+    {
+        if(!$assertionsDisabled && sourceCurrency == null)
+            throw new AssertionError();
+        if(!$assertionsDisabled && targetCurrency == null)
+            throw new AssertionError();
+        if(targetCurrency.equals(sourceCurrency))
+            return amount;
+        double dollarValue;
+        if(sourceCurrency.equals(usdCurrency))
+        {
+            dollarValue = amount;
+        } else
+        {
+            Instrument helperSourceCurrencyPair = (Instrument)pairs.get(sourceCurrency);
+            if(helperSourceCurrencyPair == null)
+                throw new IllegalArgumentException((new StringBuilder()).append("Conversion Error: No currency pair found for ").append(sourceCurrency).toString());
+            double helperSourceCurrencyPrice = getLastMarketPrice(helperSourceCurrencyPair, side);
+            if(Double.isNaN(helperSourceCurrencyPrice))
+                return (0.0D / 0.0D);
+            dollarValue = helperSourceCurrencyPair.getPrimaryCurrency().equals(usdCurrency) ? StratUtils.roundHalfEven(amount / helperSourceCurrencyPrice, 2) : StratUtils.roundHalfEven(amount * helperSourceCurrencyPrice, 2);
+        }
+        if(targetCurrency.equals(usdCurrency))
+            return dollarValue;
+        Instrument pair = (Instrument)pairs.get(targetCurrency);
+        double price = getLastMarketPrice(pair, side);
+        if(Double.isNaN(price))
+            return (0.0D / 0.0D);
+        else
+            return pair.getPrimaryCurrency().equals(usdCurrency) ? StratUtils.roundHalfEven(dollarValue * price, 2) : StratUtils.roundHalfEven(dollarValue / price, 2);
+    }
+
+    protected abstract double getLastMarketPrice(Instrument instrument, OfferSide offerside);
+
+    public static Set getConversionDeps(Currency fromCurrency, Currency targetCurrency)
+    {
+        if(!$assertionsDisabled && fromCurrency == null)
+            throw new AssertionError();
+        if(!$assertionsDisabled && targetCurrency == null)
+            throw new AssertionError();
+        Set result = new HashSet();
+        if(targetCurrency.equals(fromCurrency))
+            return result;
+        if(!fromCurrency.equals(usdCurrency))
+            result.add(pairs.get(fromCurrency));
+        if(targetCurrency.equals(usdCurrency))
+        {
+            return result;
+        } else
+        {
+            result.add(pairs.get(targetCurrency));
+            return result;
+        }
+    }
+
+    public static Set getConversionStringDeps(Currency fromCurrency, Currency targetCurency)
+    {
+        Set conversionDeps = getConversionDeps(fromCurrency, targetCurency);
+        Set stringDeps = new HashSet();
+        Instrument instrument;
+        for(Iterator i$ = conversionDeps.iterator(); i$.hasNext(); stringDeps.add(instrument.toString()))
+            instrument = (Instrument)i$.next();
+
+        return stringDeps;
+    }
+
+    public static Map getConversionPairs()
+    {
+        return Collections.unmodifiableMap(pairs);
+    }
+
+    public static Set getMajors()
+    {
+        return Collections.unmodifiableSet(majors);
+    }
+
+    public static Currency findMajor(String currencyCode)
+    {
+        for(Iterator i$ = majors.iterator(); i$.hasNext();)
+        {
+            Currency currency = (Currency)i$.next();
+            if(currency.getCurrencyCode().equals(currencyCode))
+                return currency;
+        }
+
+        return null;
+    }
+
+    protected static Map pairs;
+    protected static Set majors;
+    protected static Currency usdCurrency = Currency.getInstance("USD");
+    static final boolean $assertionsDisabled = !com/dukascopy/dds2/greed/util/AbstractCurrencyConverter.desiredAssertionStatus();
+
+    static 
+    {
+        pairs = new HashMap();
+        majors = new HashSet();
+        pairs.put(Currency.getInstance("AUD"), Instrument.AUDUSD);
+        pairs.put(Currency.getInstance("CAD"), Instrument.USDCAD);
+        pairs.put(Currency.getInstance("CHF"), Instrument.USDCHF);
+        pairs.put(Currency.getInstance("DKK"), Instrument.USDDKK);
+        pairs.put(Currency.getInstance("EUR"), Instrument.EURUSD);
+        pairs.put(Currency.getInstance("GBP"), Instrument.GBPUSD);
+        pairs.put(Currency.getInstance("HKD"), Instrument.USDHKD);
+        pairs.put(Currency.getInstance("JPY"), Instrument.USDJPY);
+        pairs.put(Currency.getInstance("MXN"), Instrument.USDMXN);
+        pairs.put(Currency.getInstance("NOK"), Instrument.USDNOK);
+        pairs.put(Currency.getInstance("NZD"), Instrument.NZDUSD);
+        pairs.put(Currency.getInstance("SEK"), Instrument.USDSEK);
+        pairs.put(Currency.getInstance("SGD"), Instrument.USDSGD);
+        pairs.put(Currency.getInstance("TRY"), Instrument.USDTRY);
+        pairs.put(Currency.getInstance("XAU"), Instrument.XAUUSD);
+        pairs.put(Currency.getInstance("XAG"), Instrument.XAGUSD);
+        pairs.put(Currency.getInstance("HUF"), Instrument.USDHUF);
+        pairs.put(Currency.getInstance("PLN"), Instrument.USDPLN);
+        pairs.put(Currency.getInstance("CZK"), Instrument.USDCZK);
+        pairs.put(Currency.getInstance("RON"), Instrument.USDRON);
+        pairs.put(Currency.getInstance("RUB"), Instrument.USDRUB);
+        pairs.put(Currency.getInstance("ZAR"), Instrument.USDZAR);
+        majors.add(Currency.getInstance("USD"));
+        majors.add(Currency.getInstance("JPY"));
+        majors.add(Currency.getInstance("CHF"));
+        majors.add(Currency.getInstance("GBP"));
+        majors.add(Currency.getInstance("EUR"));
+        majors.add(Currency.getInstance("CAD"));
+        majors.add(Currency.getInstance("AUD"));
+    }
+}

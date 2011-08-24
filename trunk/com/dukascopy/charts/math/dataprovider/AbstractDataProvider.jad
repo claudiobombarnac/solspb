@@ -1,0 +1,1878 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractDataProvider.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.api.ConnectorIndicator;
+import com.dukascopy.api.DataType;
+import com.dukascopy.api.Filter;
+import com.dukascopy.api.IIndicators;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.impl.History;
+import com.dukascopy.api.impl.IndicatorContext;
+import com.dukascopy.api.impl.IndicatorHolder;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.api.impl.Indicators;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.impl.TaLibException;
+import com.dukascopy.api.indicators.BooleanOptInputDescription;
+import com.dukascopy.api.indicators.DoubleListDescription;
+import com.dukascopy.api.indicators.DoubleRangeDescription;
+import com.dukascopy.api.indicators.IIndicator;
+import com.dukascopy.api.indicators.IndicatorInfo;
+import com.dukascopy.api.indicators.IndicatorResult;
+import com.dukascopy.api.indicators.InputParameterInfo;
+import com.dukascopy.api.indicators.IntegerListDescription;
+import com.dukascopy.api.indicators.IntegerRangeDescription;
+import com.dukascopy.api.indicators.OptInputParameterInfo;
+import com.dukascopy.api.indicators.OutputParameterInfo;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.DataCacheUtils;
+import com.dukascopy.charts.data.datacache.IFeedDataProvider;
+import com.dukascopy.charts.data.datacache.LoadingProgressListener;
+import com.dukascopy.charts.data.orders.OrdersProvider;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import java.lang.reflect.InvocationTargetException;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TimeZone;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider:
+//            TicksDataProvider, CandlesDataProvider, DataChangeListener, TickDataSequence, 
+//            CandleDataSequence, IDataProvider, IDataSequence, ISynchronizeIndicators
+
+public abstract class AbstractDataProvider
+    implements IDataProvider
+{
+    public static class IndicatorData
+    {
+
+        public IndicatorWrapper indicatorWrapper;
+        public double outputDataDouble[][];
+        public int outputDataInt[][];
+        public Object outputDataObject[][];
+        public int lookback;
+        public int lookforward;
+        public boolean disabledIndicator;
+        public long lastTime;
+        public Object lastValues[];
+        public OfferSide inputSides[];
+        public Period inputPeriods[];
+        public Instrument inputInstruments[];
+        public Filter inputFilters[];
+        public AbstractDataProvider inputDataProviders[];
+
+        public IndicatorData()
+        {
+            lastTime = -1L;
+        }
+    }
+
+    protected class LoadDataProgressListener
+        implements LoadingProgressListener
+    {
+
+        public boolean done()
+        {
+            return done;
+        }
+
+        public void dataLoaded(long l, long l1, long l2, String s)
+        {
+        }
+
+        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                Exception e)
+        {
+            done = true;
+            synchronized(this)
+            {
+                notifyAll();
+            }
+            AbstractDataProvider.this.dataLoaded(allDataLoaded, dataCacheRequestData, e, synchronizeIndicators);
+        }
+
+        public boolean stopJob()
+        {
+            return dataCacheRequestData.cancel;
+        }
+
+        private final AbstractDataCacheRequestData dataCacheRequestData;
+        private boolean done;
+        private ISynchronizeIndicators synchronizeIndicators;
+        final AbstractDataProvider this$0;
+
+        public LoadDataProgressListener(AbstractDataCacheRequestData dataCacheRequestData, ISynchronizeIndicators synchronizeIndicators)
+        {
+            this$0 = AbstractDataProvider.this;
+            super();
+            this.dataCacheRequestData = dataCacheRequestData;
+            this.synchronizeIndicators = synchronizeIndicators;
+        }
+
+        public LoadDataProgressListener(AbstractDataCacheRequestData dataCacheRequestData)
+        {
+            this$0 = AbstractDataProvider.this;
+            super();
+            this.dataCacheRequestData = dataCacheRequestData;
+        }
+    }
+
+    public static class AbstractDataCacheRequestData
+    {
+
+        public int numberOfCandlesBefore;
+        public int numberOfCandlesAfter;
+        public long time;
+        public RequestMode mode;
+        public LoadingProgressListener progressListener;
+        public boolean cancel;
+        public Map requestState;
+        public Map responseState;
+
+        public AbstractDataCacheRequestData()
+        {
+            time = 0x8000000000000000L;
+        }
+    }
+
+    protected class CacheDataUpdatedListener
+        implements com.dukascopy.charts.data.datacache.CacheDataUpdatedListener
+    {
+
+        public void cacheUpdated(Instrument instrument, long from, long to)
+        {
+            setFilter(filter);
+        }
+
+        final AbstractDataProvider this$0;
+
+        protected CacheDataUpdatedListener()
+        {
+            this$0 = AbstractDataProvider.this;
+            super();
+        }
+    }
+
+    protected static final class RequestMode extends Enum
+    {
+
+        public static RequestMode[] values()
+        {
+            return (RequestMode[])$VALUES.clone();
+        }
+
+        public static RequestMode valueOf(String name)
+        {
+            return (RequestMode)Enum.valueOf(com/dukascopy/charts/math/dataprovider/AbstractDataProvider$RequestMode, name);
+        }
+
+        public static final RequestMode OVERWRITE;
+        public static final RequestMode APPEND_AT_START_NOT_OVERWRITING;
+        private static final RequestMode $VALUES[];
+
+        static 
+        {
+            OVERWRITE = new RequestMode("OVERWRITE", 0);
+            APPEND_AT_START_NOT_OVERWRITING = new RequestMode("APPEND_AT_START_NOT_OVERWRITING", 1);
+            $VALUES = (new RequestMode[] {
+                OVERWRITE, APPEND_AT_START_NOT_OVERWRITING
+            });
+        }
+
+        private RequestMode(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    public AbstractDataProvider(Instrument instrument, Period period, OfferSide side, int maxNumberOfCandles, int bufferSizeMultiplier, Filter filter, IFeedDataProvider feedDataProvider)
+    {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+        dailyFilterPeriod = Period.DAILY;
+        formulas = new HashMap();
+        cal = Calendar.getInstance(TimeZone.getTimeZone("GMT0"));
+        indicators = null;
+        this.instrument = instrument;
+        this.period = period;
+        this.side = side;
+        this.maxNumberOfCandles = maxNumberOfCandles;
+        this.bufferSizeMultiplier = bufferSizeMultiplier;
+        this.filter = filter;
+        this.feedDataProvider = feedDataProvider;
+        cal.setFirstDayOfWeek(2);
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public Period getPeriod()
+    {
+        return period;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return side;
+    }
+
+    public synchronized long getLatestDataTime()
+    {
+        if(period == Period.TICK)
+            return firstData != null ? firstData.time : feedDataProvider.getLastTickTime(instrument);
+        else
+            return firstData != null ? firstData.time : feedDataProvider.getCurrentTime(instrument) != 0x8000000000000000L ? DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, feedDataProvider.getCurrentTime(instrument))) : 0x8000000000000000L;
+    }
+
+    public long getLatestDataTime(int indicatorId)
+    {
+        IndicatorData formula = (IndicatorData)formulas.get(Integer.valueOf(indicatorId));
+        if(formula == null)
+            throw new IllegalArgumentException((new StringBuilder()).append("Formula with id [").append(indicatorId).append("] not found in this DataProvider").toString());
+        else
+            return formula.lastTime;
+    }
+
+    public Object getLatestValue(int indicatorId, int outputIdx)
+    {
+        IndicatorData formula = (IndicatorData)formulas.get(Integer.valueOf(indicatorId));
+        if(formula == null)
+            throw new IllegalArgumentException((new StringBuilder()).append("Formula with id [").append(indicatorId).append("] not found in this DataProvider").toString());
+        if(formula.lastValues == null)
+            return null;
+        else
+            return formula.lastValues[outputIdx];
+    }
+
+    public synchronized void addIndicator(IndicatorWrapper indicatorWrapper)
+        throws IllegalArgumentException, IllegalAccessException, InvocationTargetException
+    {
+        if(formulas.containsKey(Integer.valueOf(indicatorWrapper.getId())))
+            throw new IllegalArgumentException((new StringBuilder()).append("Formula with id [").append(indicatorWrapper.getId()).append("] already exists in this DataProvider").toString());
+        IndicatorData formulaData = new IndicatorData();
+        IIndicator indicator = indicatorWrapper.getIndicator();
+        formulaData.indicatorWrapper = indicatorWrapper;
+        boolean resetData = initIndicatorInputs(formulaData);
+        try
+        {
+            formulaData.lookback = indicator.getLookback();
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            String error = StrategyWrapper.representError(indicator, t);
+            NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+            return;
+        }
+        try
+        {
+            formulaData.lookforward = indicator.getLookforward();
+        }
+        catch(AbstractMethodError e)
+        {
+            formulaData.lookforward = 0;
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            String error = StrategyWrapper.representError(indicator, t);
+            NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+            return;
+        }
+        IndicatorInfo indicatorInfo = indicator.getIndicatorInfo();
+        formulaData.outputDataDouble = new double[indicatorInfo.getNumberOfOutputs()][];
+        formulaData.outputDataInt = new int[indicatorInfo.getNumberOfOutputs()][];
+        formulaData.outputDataObject = new Object[indicatorInfo.getNumberOfOutputs()][];
+        initIndicatorDataOutputBuffers(formulaData);
+        formulas.put(Integer.valueOf(indicatorWrapper.getId()), formulaData);
+        calculateMinMaxShiftAndSparceFlag();
+        if(resetData)
+            setFilter(filter);
+        recalculateIndicators();
+        fireIndicatorAdded(indicatorWrapper.getId());
+    }
+
+    private void calculateMinMaxShiftAndSparceFlag()
+    {
+        formulasMinShift = 0;
+        formulasMaxShift = 0;
+        sparceIndicator = false;
+        for(Iterator i$ = formulas.entrySet().iterator(); i$.hasNext();)
+        {
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            IIndicator indicator = ((IndicatorData)entry.getValue()).indicatorWrapper.getIndicator();
+            if(indicator.getIndicatorInfo().isSparceIndicator())
+                sparceIndicator = true;
+            int i = 0;
+            int j = indicator.getIndicatorInfo().getNumberOfOutputs();
+            while(i < j) 
+            {
+                int shift = ((IndicatorData)entry.getValue()).indicatorWrapper.getOutputShifts()[i];
+                if(shift < 0)
+                {
+                    if(shift < formulasMinShift)
+                        formulasMinShift = shift;
+                } else
+                if(shift > 0 && shift > formulasMaxShift)
+                    formulasMaxShift = shift;
+                i++;
+            }
+        }
+
+    }
+
+    protected abstract void dataLoaded(boolean flag, AbstractDataCacheRequestData abstractdatacacherequestdata, Exception exception, ISynchronizeIndicators isynchronizeindicators);
+
+    protected abstract void initIndicatorDataOutputBuffers(IndicatorData indicatordata);
+
+    protected abstract void recalculateIndicators();
+
+    protected abstract void recalculateIndicator(IndicatorData indicatordata);
+
+    public abstract LoadDataProgressListener doHistoryRequests(int i, long l, int j);
+
+    public abstract long getLastLoadedDataTime();
+
+    public synchronized boolean containsIndicator(int id)
+    {
+        return formulas.containsKey(Integer.valueOf(id));
+    }
+
+    public synchronized void editIndicator(int id)
+        throws IllegalArgumentException, IllegalAccessException, InvocationTargetException
+    {
+        if(!formulas.containsKey(Integer.valueOf(id)))
+            throw new IllegalArgumentException((new StringBuilder()).append("Formula with id [").append(id).append("] doesn't exist").toString());
+        IndicatorData formulaData = (IndicatorData)formulas.get(Integer.valueOf(id));
+        IIndicator indicator = formulaData.indicatorWrapper.getIndicator();
+        boolean resetData = initIndicatorInputs(formulaData);
+        try
+        {
+            formulaData.lookback = indicator.getLookback();
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            String error = StrategyWrapper.representError(indicator, t);
+            NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+            return;
+        }
+        try
+        {
+            formulaData.lookforward = indicator.getLookforward();
+        }
+        catch(AbstractMethodError e)
+        {
+            formulaData.lookforward = 0;
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            String error = StrategyWrapper.representError(indicator, t);
+            NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+            return;
+        }
+        calculateMinMaxShiftAndSparceFlag();
+        if(resetData)
+            setFilter(filter);
+        recalculateIndicators();
+        fireIndicatorChanged(id);
+    }
+
+    protected boolean initIndicatorInputs(IndicatorData formulaData)
+    {
+        IIndicator indicator = formulaData.indicatorWrapper.getIndicator();
+        OfferSide tickOfferSides[] = formulaData.indicatorWrapper.getOfferSidesForTicks();
+        IndicatorInfo indicatorInfo = indicator.getIndicatorInfo();
+        int i = 0;
+        for(int j = indicatorInfo.getNumberOfOptionalInputs(); i < j; i++)
+        {
+            OptInputParameterInfo optInputParameterInfo = indicator.getOptInputParameterInfo(i);
+            Object optParams[] = formulaData.indicatorWrapper.getOptParams();
+            if((optInputParameterInfo.getDescription() instanceof IntegerListDescription) || (optInputParameterInfo.getDescription() instanceof IntegerRangeDescription))
+            {
+                if(optParams[i] instanceof Integer)
+                    indicator.setOptInputParameter(i, optParams[i]);
+                else
+                    throw new IllegalArgumentException((new StringBuilder()).append("Unexpected optional parameter [").append(optParams[i].getClass().getName()).append("]=[").append(optParams[i]).append("] for index [").append(i).append("]").toString());
+                continue;
+            }
+            if((optInputParameterInfo.getDescription() instanceof DoubleListDescription) || (optInputParameterInfo.getDescription() instanceof DoubleRangeDescription))
+            {
+                if(optParams[i] instanceof Double)
+                    indicator.setOptInputParameter(i, optParams[i]);
+                else
+                    throw new IllegalArgumentException((new StringBuilder()).append("Unexpected optional parameter [").append(optParams[i].getClass().getName()).append("]=[").append(optParams[i]).append("] for index [").append(i).append("]").toString());
+                continue;
+            }
+            if(!(optInputParameterInfo.getDescription() instanceof BooleanOptInputDescription))
+                continue;
+            if(optParams[i] instanceof Boolean)
+                indicator.setOptInputParameter(i, optParams[i]);
+            else
+                throw new IllegalArgumentException((new StringBuilder()).append("Unexpected optional parameter [").append(optParams[i].getClass().getName()).append("]=[").append(optParams[i]).append("] for index [").append(i).append("]").toString());
+        }
+
+        int numberOfInputs = indicatorInfo.getNumberOfInputs();
+        boolean resetData = false;
+        formulaData.disabledIndicator = false;
+        for(int i = 0; i < numberOfInputs; i++)
+        {
+            InputParameterInfo inputParameterInfo = indicator.getInputParameterInfo(i);
+            OfferSide currentSide;
+            Period currentPeriod;
+            Instrument currentInstrument;
+            Filter currentFilter;
+            if(inputParameterInfo.getOfferSide() != null && (formulaData.inputSides == null || inputParameterInfo.getOfferSide() != formulaData.inputSides[i] || formulaData.inputDataProviders == null || formulaData.inputDataProviders[i] == null) && inputParameterInfo.getOfferSide() != (isTicksDataType() ? tickOfferSides[i] : side) || (inputParameterInfo.getPeriod() != null && (formulaData.inputPeriods == null || inputParameterInfo.getPeriod() != formulaData.inputPeriods[i] || formulaData.inputDataProviders == null || formulaData.inputDataProviders[i] == null) && (noFilterPeriod(inputParameterInfo.getPeriod()) != period || dailyFilterPeriod(inputParameterInfo.getPeriod()) != dailyFilterPeriod(dailyFilterPeriod)) || inputParameterInfo.getInstrument() != null && (formulaData.inputInstruments == null || inputParameterInfo.getInstrument() != formulaData.inputInstruments[i] || formulaData.inputDataProviders == null || formulaData.inputDataProviders[i] == null) && inputParameterInfo.getInstrument() != instrument || inputParameterInfo.getFilter() != null && (formulaData.inputFilters == null || inputParameterInfo.getFilter() != formulaData.inputFilters[i] || formulaData.inputDataProviders == null || formulaData.inputDataProviders[i] == null) && inputParameterInfo.getFilter() != filter))
+            {
+                if(formulaData.inputSides == null)
+                    formulaData.inputSides = new OfferSide[numberOfInputs];
+                if(formulaData.inputPeriods == null)
+                    formulaData.inputPeriods = new Period[numberOfInputs];
+                if(formulaData.inputInstruments == null)
+                    formulaData.inputInstruments = new Instrument[numberOfInputs];
+                if(formulaData.inputFilters == null)
+                    formulaData.inputFilters = new Filter[numberOfInputs];
+                if(formulaData.inputDataProviders == null)
+                    formulaData.inputDataProviders = new AbstractDataProvider[numberOfInputs];
+                else
+                if(formulaData.inputDataProviders[i] != null)
+                {
+                    formulaData.inputDataProviders[i].dispose();
+                    formulaData.inputDataProviders[i] = null;
+                }
+                formulaData.inputSides[i] = inputParameterInfo.getOfferSide();
+                formulaData.inputPeriods[i] = inputParameterInfo.getPeriod();
+                formulaData.inputInstruments[i] = inputParameterInfo.getInstrument();
+                formulaData.inputFilters[i] = inputParameterInfo.getFilter();
+                currentSide = formulaData.inputSides[i] != null ? formulaData.inputSides[i] : side != null ? side : OfferSide.BID;
+                currentPeriod = formulaData.inputPeriods[i] != null ? formulaData.inputPeriods[i] : period;
+                currentInstrument = formulaData.inputInstruments[i] != null ? formulaData.inputInstruments[i] : instrument;
+                currentFilter = formulaData.inputFilters[i] != null ? formulaData.inputFilters[i] : filter;
+                if(!feedDataProvider.isSubscribedToInstrument(currentInstrument))
+                    throw new RuntimeException((new StringBuilder()).append("Instrument ").append(currentInstrument).append(" not subscribed, cannot add indicator").toString());
+                if(currentPeriod.getInterval() >= period.getInterval())
+                {
+                    if(currentPeriod == Period.TICK)
+                    {
+                        formulaData.inputDataProviders[i] = new TicksDataProvider(currentInstrument, maxNumberOfCandles, bufferSizeMultiplier, false, currentFilter, feedDataProvider);
+                        formulaData.inputDataProviders[i].start();
+                        formulaData.inputDataProviders[i].setParentData(this, formulaData);
+                        formulaData.inputDataProviders[i].setActive(active);
+                    } else
+                    {
+                        formulaData.inputDataProviders[i] = new CandlesDataProvider(currentInstrument, noFilterPeriod(currentPeriod), currentSide, maxNumberOfCandles, bufferSizeMultiplier, false, currentFilter, feedDataProvider);
+                        if(dailyFilterPeriod(currentPeriod) != null)
+                            formulaData.inputDataProviders[i].dailyFilterPeriod = dailyFilterPeriod(currentPeriod);
+                        formulaData.inputDataProviders[i].start();
+                        formulaData.inputDataProviders[i].setParentData(this, formulaData);
+                        formulaData.inputDataProviders[i].setActive(active);
+                    }
+                    resetData = true;
+                } else
+                {
+                    formulaData.disabledIndicator = true;
+                }
+                continue;
+            }
+            if(formulaData.inputDataProviders != null && formulaData.inputDataProviders[i] != null && inputParameterInfo.getOfferSide() != null && inputParameterInfo.getOfferSide() == (isTicksDataType() ? tickOfferSides[i] : side) && (inputParameterInfo.getPeriod() != null && noFilterPeriod(inputParameterInfo.getPeriod()) == period && dailyFilterPeriod(inputParameterInfo.getPeriod()) == dailyFilterPeriod(dailyFilterPeriod) && inputParameterInfo.getInstrument() != null && inputParameterInfo.getInstrument() == instrument && inputParameterInfo.getFilter() != null && inputParameterInfo.getFilter() == filter))
+            {
+                formulaData.inputDataProviders[i].dispose();
+                formulaData.inputDataProviders[i] = null;
+                continue;
+            }
+            if(formulaData.inputDataProviders == null || formulaData.inputDataProviders[i] == null)
+                continue;
+            formulaData.inputSides[i] = inputParameterInfo.getOfferSide();
+            formulaData.inputPeriods[i] = inputParameterInfo.getPeriod();
+            formulaData.inputInstruments[i] = inputParameterInfo.getInstrument();
+            formulaData.inputFilters[i] = inputParameterInfo.getFilter();
+            currentSide = formulaData.inputSides[i] != null ? formulaData.inputSides[i] : side != null ? side : OfferSide.BID;
+            currentPeriod = formulaData.inputPeriods[i] != null ? formulaData.inputPeriods[i] : period;
+            currentInstrument = formulaData.inputInstruments[i] != null ? formulaData.inputInstruments[i] : instrument;
+            currentFilter = formulaData.inputFilters[i] != null ? formulaData.inputFilters[i] : filter;
+            if(!formulaData.inputDataProviders[i].isTicksDataType() && currentSide != formulaData.inputDataProviders[i].getOfferSide())
+                formulaData.inputDataProviders[i].setOfferSide(currentSide);
+            if(noFilterPeriod(currentPeriod) != formulaData.inputDataProviders[i].getPeriod() && currentPeriod.getInterval() >= period.getInterval())
+                formulaData.inputDataProviders[i].setPeriod(noFilterPeriod(currentPeriod));
+            else
+            if(currentPeriod.getInterval() < period.getInterval())
+                formulaData.disabledIndicator = true;
+            if(dailyFilterPeriod(currentPeriod) != dailyFilterPeriod(formulaData.inputDataProviders[i].dailyFilterPeriod))
+                if(dailyFilterPeriod(currentPeriod) != null)
+                    formulaData.inputDataProviders[i].setDailyFilterPeriod(dailyFilterPeriod(currentPeriod));
+                else
+                    formulaData.inputDataProviders[i].setDailyFilterPeriod(Period.DAILY);
+            if(currentInstrument != formulaData.inputDataProviders[i].getInstrument())
+                formulaData.inputDataProviders[i].setInstrument(instrument);
+            if(currentFilter != formulaData.inputDataProviders[i].getFilter())
+                formulaData.inputDataProviders[i].setFilter(filter);
+        }
+
+        return resetData;
+    }
+
+    private Period noFilterPeriod(Period period)
+    {
+        if(period == null)
+            return null;
+        if(period == Period.DAILY_SKIP_SUNDAY || period == Period.DAILY_SUNDAY_IN_MONDAY)
+            return Period.DAILY;
+        else
+            return period;
+    }
+
+    private Period dailyFilterPeriod(Period period)
+    {
+        if(period == Period.DAILY || period == Period.DAILY_SKIP_SUNDAY || period == Period.DAILY_SUNDAY_IN_MONDAY)
+            return period;
+        else
+            return null;
+    }
+
+    public synchronized int[] getIndicatorIds()
+    {
+        int ret[] = new int[formulas.size()];
+        int i = 0;
+        for(Iterator i$ = formulas.keySet().iterator(); i$.hasNext();)
+        {
+            Integer id = (Integer)i$.next();
+            ret[i] = id.intValue();
+            i++;
+        }
+
+        return ret;
+    }
+
+    public synchronized void removeIndicator(int id)
+    {
+        if(!formulas.containsKey(Integer.valueOf(id)))
+            throw new IllegalArgumentException((new StringBuilder()).append("Formula with id [").append(id).append("] doesn't exist").toString());
+        IndicatorData indicatorData = (IndicatorData)formulas.remove(Integer.valueOf(id));
+        if(indicatorData.inputDataProviders != null)
+        {
+            AbstractDataProvider arr$[] = indicatorData.inputDataProviders;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                AbstractDataProvider indicatorDataProvider = arr$[i$];
+                if(indicatorDataProvider != null)
+                    indicatorDataProvider.dispose();
+            }
+
+        }
+        calculateMinMaxShiftAndSparceFlag();
+        fireIndicatorRemoved(id);
+    }
+
+    public synchronized void removeIndicators(int ids[])
+    {
+        int arr$[] = ids;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            int id = arr$[i$];
+            if(!formulas.containsKey(Integer.valueOf(id)))
+                throw new IllegalArgumentException((new StringBuilder()).append("Formula with id [").append(id).append("] doesn't exist").toString());
+        }
+
+        arr$ = ids;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            int id = arr$[i$];
+            IndicatorData indicatorData = (IndicatorData)formulas.remove(Integer.valueOf(id));
+            if(indicatorData.inputDataProviders == null)
+                continue;
+            AbstractDataProvider arr$[] = indicatorData.inputDataProviders;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                AbstractDataProvider indicatorDataProvider = arr$[i$];
+                if(indicatorDataProvider != null)
+                    indicatorDataProvider.dispose();
+            }
+
+        }
+
+        calculateMinMaxShiftAndSparceFlag();
+        fireIndicatorsRemoved(ids);
+    }
+
+    public synchronized void removeAllIndicators()
+    {
+        int id;
+        for(Iterator iterator = formulas.entrySet().iterator(); iterator.hasNext(); fireIndicatorRemoved(id))
+        {
+            java.util.Map.Entry entry = (java.util.Map.Entry)iterator.next();
+            id = ((Integer)entry.getKey()).intValue();
+            IndicatorData indicatorData = (IndicatorData)entry.getValue();
+            iterator.remove();
+            if(indicatorData.inputDataProviders == null)
+                continue;
+            AbstractDataProvider arr$[] = indicatorData.inputDataProviders;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                AbstractDataProvider indicatorDataProvider = arr$[i$];
+                if(indicatorDataProvider != null)
+                    indicatorDataProvider.dispose();
+            }
+
+        }
+
+        calculateMinMaxShiftAndSparceFlag();
+    }
+
+    protected synchronized boolean sparceIndicatorAttached()
+    {
+        for(Iterator i$ = formulas.values().iterator(); i$.hasNext();)
+        {
+            IndicatorData indicatorData = (IndicatorData)i$.next();
+            if(indicatorData.indicatorWrapper.getIndicator().getIndicatorInfo().isSparceIndicator())
+                return true;
+        }
+
+        return false;
+    }
+
+    protected boolean assertionsEnabled()
+    {
+        boolean b = false;
+        if(!$assertionsDisabled && !(b = true))
+            throw new AssertionError();
+        else
+            return b;
+    }
+
+    protected void fireDataChanged(long from, long to, boolean firstDataChange)
+    {
+        if(!$assertionsDisabled && Thread.holdsLock(this) && parentDataProvider != null && (parentDataProvider == null || !Thread.holdsLock(this) || !Thread.holdsLock(parentDataProvider)))
+            throw new AssertionError("this method should not be called while holding lock on this object, else deadlocks are possible");
+        if(!firstDataChange && LOGGER.isDebugEnabled())
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Data loaded for [").append(instrument.toString()).append("] [").append(period).append("] [").append(side).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").append(isTicksDataType() ? "" : (new StringBuilder()).append(", expected items count: ").append((to - from) / period.getInterval() + 1L).toString()).toString());
+        }
+        if(from > to)
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            Exception e = new Exception((new StringBuilder()).append("from [").append(dateFormat.format(new Date(from))).append("] > to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            LOGGER.error(e.getMessage(), e);
+            return;
+        }
+        synchronized(dataChangeListeners)
+        {
+            DataChangeListener dataChangeListener;
+            for(Iterator i$ = dataChangeListeners.iterator(); i$.hasNext(); dataChangeListener.dataChanged(from, to, period, side))
+                dataChangeListener = (DataChangeListener)i$.next();
+
+        }
+        if(parentDataProvider != null && parentDataProvider.isActive() && (parentDataProvider.getInstrument() != getInstrument() || getPeriod().isSmallerThan(parentDataProvider.getPeriod())))
+        {
+            synchronized(parentDataProvider)
+            {
+                parentDataProvider.recalculateIndicator(parentIndicatorData);
+            }
+            parentDataProvider.fireDataChanged(from, to, firstDataChange);
+        }
+    }
+
+    protected void fireLoadingStarted()
+    {
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("fireLoadingStarted, instrument[").append(instrument).append("] period [").append(period).append("] offerSide [").append(side).append("]").toString());
+        if(!loadingStarted)
+        {
+            loadingStarted = true;
+            DataChangeListener listeners[] = (DataChangeListener[])dataChangeListeners.toArray(new DataChangeListener[dataChangeListeners.size()]);
+            DataChangeListener arr$[] = listeners;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                DataChangeListener dataChangeListener = arr$[i$];
+                dataChangeListener.loadingStarted(period, side);
+            }
+
+            if(parentDataProvider != null)
+                parentDataProvider.fireLoadingStarted();
+        }
+    }
+
+    protected void fireLoadingFinished()
+    {
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("fireLoadingFinished, instrument[").append(instrument).append("] period [").append(period).append("] offerSide [").append(side).append("]").toString());
+        if(loadingStarted)
+        {
+            Iterator i$ = formulas.values().iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                IndicatorData indicatorData = (IndicatorData)i$.next();
+                if(indicatorData.inputDataProviders != null)
+                {
+                    AbstractDataProvider arr$[] = indicatorData.inputDataProviders;
+                    int len$ = arr$.length;
+                    int i$ = 0;
+                    while(i$ < len$) 
+                    {
+                        AbstractDataProvider formulaDataProvider = arr$[i$];
+                        if(formulaDataProvider != null && formulaDataProvider.isLoadingStarted())
+                            return;
+                        i$++;
+                    }
+                }
+            } while(true);
+            loadingStarted = false;
+            DataChangeListener listeners[] = (DataChangeListener[])dataChangeListeners.toArray(new DataChangeListener[dataChangeListeners.size()]);
+            DataChangeListener arr$[] = listeners;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                DataChangeListener dataChangeListener = arr$[i$];
+                dataChangeListener.loadingFinished(period, side);
+            }
+
+            if(parentDataProvider != null)
+                parentDataProvider.fireLoadingFinished();
+        }
+    }
+
+    protected boolean isLoadingStarted()
+    {
+        return loadingStarted;
+    }
+
+    private void fireIndicatorAdded(int id)
+    {
+        DataChangeListener listeners[] = (DataChangeListener[])dataChangeListeners.toArray(new DataChangeListener[dataChangeListeners.size()]);
+        DataChangeListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            DataChangeListener dataChangeListener = arr$[i$];
+            dataChangeListener.indicatorAdded(period, id);
+        }
+
+    }
+
+    private void fireIndicatorChanged(int id)
+    {
+        DataChangeListener listeners[] = (DataChangeListener[])dataChangeListeners.toArray(new DataChangeListener[dataChangeListeners.size()]);
+        DataChangeListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            DataChangeListener dataChangeListener = arr$[i$];
+            dataChangeListener.indicatorChanged(period, id);
+        }
+
+    }
+
+    private void fireIndicatorRemoved(int id)
+    {
+        DataChangeListener listeners[] = (DataChangeListener[])dataChangeListeners.toArray(new DataChangeListener[dataChangeListeners.size()]);
+        DataChangeListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            DataChangeListener dataChangeListener = arr$[i$];
+            dataChangeListener.indicatorRemoved(period, id);
+        }
+
+    }
+
+    private void fireIndicatorsRemoved(int ids[])
+    {
+        DataChangeListener listeners[] = (DataChangeListener[])dataChangeListeners.toArray(new DataChangeListener[dataChangeListeners.size()]);
+        DataChangeListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            DataChangeListener dataChangeListener = arr$[i$];
+            dataChangeListener.indicatorsRemoved(period, ids);
+        }
+
+    }
+
+    public void addDataChangeListener(DataChangeListener dataChangeListener)
+    {
+        dataChangeListeners.add(dataChangeListener);
+    }
+
+    public void removeDataChangeListener(DataChangeListener dataChangeListener)
+    {
+        dataChangeListeners.remove(dataChangeListener);
+    }
+
+    public boolean isActive()
+    {
+        return active;
+    }
+
+    public synchronized void setActive(boolean active)
+    {
+        this.active = active;
+        Iterator i$ = formulas.values().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            IndicatorData indicatorData = (IndicatorData)i$.next();
+            if(indicatorData.inputDataProviders != null)
+            {
+                AbstractDataProvider arr$[] = indicatorData.inputDataProviders;
+                int len$ = arr$.length;
+                int i$ = 0;
+                while(i$ < len$) 
+                {
+                    AbstractDataProvider indicatorDataProvider = arr$[i$];
+                    if(indicatorDataProvider != null)
+                        indicatorDataProvider.setActive(active);
+                    i$++;
+                }
+            }
+        } while(true);
+        recalculateIndicators();
+    }
+
+    public void dispose()
+    {
+        Iterator i$ = formulas.values().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            IndicatorData indicatorData = (IndicatorData)i$.next();
+            if(indicatorData.inputDataProviders != null)
+            {
+                AbstractDataProvider arr$[] = indicatorData.inputDataProviders;
+                int len$ = arr$.length;
+                int i$ = 0;
+                while(i$ < len$) 
+                {
+                    AbstractDataProvider indicatorDataProvider = arr$[i$];
+                    if(indicatorDataProvider != null)
+                        indicatorDataProvider.dispose();
+                    i$++;
+                }
+            }
+        } while(true);
+        if(cacheDataUpdatedListener != null)
+            feedDataProvider.removeCacheDataUpdatedListener(instrument, cacheDataUpdatedListener);
+        dataChangeListeners.clear();
+    }
+
+    public void setParentData(AbstractDataProvider parentDataProvider, IndicatorData parentIndicatorData)
+    {
+        this.parentDataProvider = parentDataProvider;
+        this.parentIndicatorData = parentIndicatorData;
+    }
+
+    public void setDailyFilterPeriod(Period dailyFilterPeriod)
+    {
+        this.dailyFilterPeriod = dailyFilterPeriod;
+        setFilter(filter);
+    }
+
+    public Period getDailyFilterPeriod()
+    {
+        return dailyFilterPeriod;
+    }
+
+    protected final int findStart(long from, int fi, int ei, Data buffer[])
+    {
+        int low = fi;
+        for(int high = ei; low <= high;)
+        {
+            int mid = low + high >>> 1;
+            long midVal = buffer[mid].time;
+            if(midVal < from)
+                low = mid + 1;
+            else
+            if(midVal > from)
+                high = mid - 1;
+            else
+                return mid;
+        }
+
+        return low;
+    }
+
+    protected final boolean calculateInterval(int numberOfCandlesBefore, long time, int numberOfCandlesAfter, int intervals[], CandleData buffer[], int lastIndex)
+    {
+        if(lastIndex == -1)
+            return false;
+        if(time < buffer[0].time)
+            return false;
+        int timeIndex = findStart(time, 0, lastIndex, buffer);
+        if(timeIndex <= lastIndex)
+        {
+            if(buffer[timeIndex].time != time)
+                timeIndex--;
+            if(sparceIndicator)
+            {
+                intervals[0] = 0;
+                intervals[1] = lastIndex;
+                if(timeIndex + 1 > numberOfCandlesBefore)
+                    intervals[2] = (timeIndex + 1) - numberOfCandlesBefore;
+                else
+                    intervals[2] = 0;
+                if(timeIndex + numberOfCandlesAfter > lastIndex)
+                    intervals[3] = 0;
+                else
+                    intervals[3] = lastIndex - (timeIndex + numberOfCandlesAfter);
+            } else
+            {
+                if(timeIndex + 1 > numberOfCandlesBefore + formulasMaxShift + 1)
+                {
+                    intervals[0] = (timeIndex + 1) - (numberOfCandlesBefore + formulasMaxShift + 1);
+                    intervals[2] = formulasMaxShift + 1;
+                } else
+                {
+                    intervals[0] = 0;
+                    intervals[2] = timeIndex + 1 <= numberOfCandlesBefore ? 0 : (timeIndex + 1) - numberOfCandlesBefore;
+                }
+                if(timeIndex + numberOfCandlesAfter + -formulasMinShift + 1 > lastIndex)
+                {
+                    intervals[1] = lastIndex;
+                    intervals[3] = lastIndex - timeIndex <= numberOfCandlesAfter ? 0 : lastIndex - timeIndex - numberOfCandlesAfter;
+                } else
+                {
+                    intervals[1] = timeIndex + numberOfCandlesAfter + -formulasMinShift + 1;
+                    intervals[3] = -formulasMinShift + 1;
+                }
+            }
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
+
+    protected final CandleData[] putDataInListFromToIndexes(int from, int to, CandleData buffer[])
+    {
+        CandleData data[] = new CandleData[(to - from) + 1];
+        System.arraycopy(buffer, from, data, 0, (to - from) + 1);
+        return data;
+    }
+
+    protected void recalculateIndicators(int from, int to, Collection formulasToRecalculate, int lastIndex, CandleData bufferAsk[], CandleData bufferBid[])
+    {
+        if(indicators == null)
+            indicators = new Indicators(new History(OrdersProvider.getInstance(), instrument.getPrimaryCurrency()));
+        indicators.calculateIndicators(instrument, period, side, from, to, formulasToRecalculate, lastIndex, bufferAsk, bufferBid, isTicksDataType(), maxNumberOfCandles, bufferSizeMultiplier, firstData);
+        active = true;
+    }
+
+    protected void recalculateIndicators_save(int from, int to, Collection formulasToRecalculate, int lastIndex, CandleData bufferAsk[], CandleData bufferBid[])
+    {
+        int finalLookback;
+        int finalLookforward;
+        int recalculateStart;
+        CandleData timeDataAsk[];
+        CandleData timeDataBid[];
+        long lastInputTime;
+        double doubleInputs[][][];
+        double priceInput[][][];
+        Iterator i$;
+        if(firstData == null || lastIndex == -1)
+            return;
+        finalLookback = 0;
+        finalLookforward = 0;
+        boolean needAsk = false;
+        boolean needBid = false;
+        Iterator i$ = formulasToRecalculate.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            IndicatorData formulaData = (IndicatorData)i$.next();
+            if(!formulaData.disabledIndicator)
+            {
+                IIndicator indicator = formulaData.indicatorWrapper.getIndicator();
+                int lookback = formulaData.lookback;
+                int lookforward = formulaData.lookforward;
+                if(indicator.getIndicatorInfo().isUnstablePeriod())
+                    lookback += lookback * 4 >= 100 ? lookback * 4 : 100;
+                if(finalLookback < lookback)
+                    finalLookback = lookback;
+                if(finalLookforward < lookforward)
+                    finalLookforward = lookforward;
+                if(isTicksDataType() && (!needBid || !needAsk))
+                {
+                    int i = 0;
+                    int j = indicator.getIndicatorInfo().getNumberOfInputs();
+                    while(i < j) 
+                    {
+                        OfferSide side = formulaData.indicatorWrapper.getOfferSidesForTicks()[i];
+                        if(side == OfferSide.ASK)
+                            needAsk = true;
+                        else
+                            needBid = true;
+                        i++;
+                    }
+                }
+            }
+        } while(true);
+        if(to != lastIndex)
+            to = lastIndex - to <= finalLookback ? lastIndex : to + finalLookback;
+        if(finalLookforward != 0 && from != 0)
+            from = from <= finalLookforward ? 0 : from - finalLookforward;
+        recalculateStart = from <= finalLookback ? 0 : from - finalLookback;
+        int recalculateEnd = lastIndex - to <= finalLookforward ? lastIndex : to + finalLookforward;
+        timeDataAsk = null;
+        timeDataBid = null;
+        if(isTicksDataType())
+        {
+            if(needAsk)
+                timeDataAsk = putDataInListFromToIndexes(recalculateStart, recalculateEnd, bufferAsk);
+            if(needBid)
+                timeDataBid = putDataInListFromToIndexes(recalculateStart, recalculateEnd, bufferBid);
+        } else
+        {
+            timeDataAsk = putDataInListFromToIndexes(recalculateStart, recalculateEnd, bufferAsk);
+        }
+        if(timeDataAsk != null)
+            lastInputTime = timeDataAsk[timeDataAsk.length - 1].time;
+        else
+            lastInputTime = -1L;
+        if(timeDataBid != null)
+        {
+            long time = timeDataBid[timeDataBid.length - 1].time;
+            if(time > lastInputTime)
+                lastInputTime = time;
+        }
+        doubleInputs = new double[OfferSide.values().length][com.dukascopy.api.IIndicators.AppliedPrice.values().length][];
+        priceInput = calculateIndicatorsInputs(formulasToRecalculate, timeDataAsk, timeDataBid, doubleInputs);
+        i$ = formulasToRecalculate.iterator();
+_L3:
+        if(!i$.hasNext()) goto _L2; else goto _L1
+_L1:
+        IndicatorData formulaData = (IndicatorData)i$.next();
+        if(!formulaData.disabledIndicator) goto _L4; else goto _L3
+_L4:
+        IIndicator indicator;
+        IndicatorInfo indicatorInfo;
+        OfferSide tickOfferSides[];
+        com.dukascopy.api.IIndicators.AppliedPrice appliedPrices[];
+        indicator = formulaData.indicatorWrapper.getIndicator();
+        indicatorInfo = indicator.getIndicatorInfo();
+        tickOfferSides = formulaData.indicatorWrapper.getOfferSidesForTicks();
+        appliedPrices = formulaData.indicatorWrapper.getAppliedPricesForCandles();
+        if(timeDataAsk != null || timeDataBid != null) goto _L5; else goto _L3
+_L5:
+        IndicatorContext indicatorContext;
+        indicatorContext = formulaData.indicatorWrapper.getIndicatorHolder().getIndicatorContext();
+        indicatorContext.setChartInfo(instrument, period, indicatorInfo.getNumberOfInputs() <= 0 ? OfferSide.BID : isTicksDataType() ? tickOfferSides[0] : this.side);
+        int dataSize;
+        int i;
+        int j;
+        dataSize = timeDataAsk != null ? timeDataAsk.length : timeDataBid.length;
+        i = 0;
+        j = indicatorInfo.getNumberOfInputs();
+_L15:
+        if(i >= j) goto _L7; else goto _L6
+_L6:
+        InputParameterInfo inputParameterInfo = indicator.getInputParameterInfo(i);
+        if((inputParameterInfo.getOfferSide() != null || inputParameterInfo.getPeriod() != null || inputParameterInfo.getInstrument() != null) && (inputParameterInfo.getOfferSide() != null && inputParameterInfo.getOfferSide() != (isTicksDataType() ? tickOfferSides[i] : this.side) || (inputParameterInfo.getPeriod() != null && (noFilterPeriod(inputParameterInfo.getPeriod()) != period || dailyFilterPeriod(inputParameterInfo.getPeriod()) != dailyFilterPeriod(dailyFilterPeriod)) || inputParameterInfo.getInstrument() != null && inputParameterInfo.getInstrument() != instrument))) goto _L9; else goto _L8
+_L8:
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type[];
+            static final int $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[];
+            static final int $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice = new int[com.dukascopy.api.IIndicators.AppliedPrice.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.CLOSE.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.HIGH.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.LOW.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.OPEN.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.MEDIAN_PRICE.ordinal()] = 5;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.TYPICAL_PRICE.ordinal()] = 6;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.WEIGHTED_CLOSE.ordinal()] = 7;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.TIMESTAMP.ordinal()] = 8;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IIndicators$AppliedPrice[com.dukascopy.api.IIndicators.AppliedPrice.VOLUME.ordinal()] = 9;
+                }
+                catch(NoSuchFieldError ex) { }
+                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type = new int[com.dukascopy.api.indicators.OutputParameterInfo.Type.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.INT.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.DOUBLE.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.OBJECT.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type = new int[com.dukascopy.api.indicators.InputParameterInfo.Type.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type[com.dukascopy.api.indicators.InputParameterInfo.Type.PRICE.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type[com.dukascopy.api.indicators.InputParameterInfo.Type.DOUBLE.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type[com.dukascopy.api.indicators.InputParameterInfo.Type.BAR.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        _cls1..SwitchMap.com.dukascopy.api.indicators.InputParameterInfo.Type[inputParameterInfo.getType().ordinal()];
+        JVM INSTR tableswitch 1 3: default 1145
+    //                   1 812
+    //                   2 917
+    //                   3 1040;
+           goto _L10 _L11 _L12 _L13
+_L11:
+        indicator.setInputParameter(i, isTicksDataType() ? ((Object) (priceInput[tickOfferSides[i].ordinal()])) : ((Object) (priceInput[0])));
+          goto _L10
+        Throwable t;
+        t;
+        LOGGER.error(t.getMessage(), t);
+        String error = StrategyWrapper.representError(indicator, t);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L12:
+        indicator.setInputParameter(i, isTicksDataType() ? ((Object) (doubleInputs[tickOfferSides[i].ordinal()][appliedPrices[i].ordinal()])) : ((Object) (doubleInputs[0][appliedPrices[i].ordinal()])));
+          goto _L10
+        t;
+        LOGGER.error(t.getMessage(), t);
+        String error = StrategyWrapper.representError(indicator, t);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L13:
+        indicator.setInputParameter(i, isTicksDataType() && tickOfferSides[i] != OfferSide.ASK ? ((Object) (timeDataBid)) : ((Object) (timeDataAsk)));
+          goto _L10
+        t;
+        LOGGER.error(t.getMessage(), t);
+        String error = StrategyWrapper.representError(indicator, t);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L9:
+        if(setIndicatorInputFromDataProvider(formulaData, i, bufferAsk[from].time, bufferAsk[to].time, finalLookback, finalLookforward)) goto _L10; else goto _L14
+_L14:
+        int k = 0;
+        for(int n = indicatorInfo.getNumberOfOutputs(); k < n; k++)
+        {
+            OutputParameterInfo outputParameterInfo = indicator.getOutputParameterInfo(k);
+            switch(_cls1..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[outputParameterInfo.getType().ordinal()])
+            {
+            case 1: // '\001'
+                Arrays.fill(formulaData.outputDataInt[k], from, to + 1, 0x80000000);
+                break;
+
+            case 2: // '\002'
+                Arrays.fill(formulaData.outputDataDouble[k], from, to + 1, (0.0D / 0.0D));
+                break;
+
+            case 3: // '\003'
+                Arrays.fill(formulaData.outputDataObject[k], from, to + 1, null);
+                break;
+            }
+        }
+
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L10:
+        i++;
+          goto _L15
+_L7:
+        IndicatorResult result;
+        Object outArrays[];
+        int i;
+        int j;
+        outArrays = new Object[indicatorInfo.getNumberOfOutputs()];
+        if(dataSize <= formulaData.lookback + formulaData.lookforward)
+        {
+            result = new IndicatorResult(0, 0, 0);
+            break MISSING_BLOCK_LABEL_2633;
+        }
+        i = 0;
+        j = indicatorInfo.getNumberOfOutputs();
+_L25:
+        if(i >= j) goto _L17; else goto _L16
+_L16:
+        OutputParameterInfo outputParameterInfo = indicator.getOutputParameterInfo(i);
+        _cls1..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[outputParameterInfo.getType().ordinal()];
+        JVM INSTR tableswitch 1 3: default 1760
+    //                   1 1432
+    //                   2 1542
+    //                   3 1652;
+           goto _L18 _L19 _L20 _L21
+_L19:
+        int arrayInt[] = new int[dataSize - (formulaData.lookback + formulaData.lookforward)];
+        indicator.setOutputParameter(i, arrayInt);
+          goto _L22
+        Throwable t;
+        t;
+        LOGGER.error(t.getMessage(), t);
+        String error = StrategyWrapper.representError(indicator, t);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L22:
+        outArrays[i] = arrayInt;
+          goto _L18
+_L20:
+        double arrayDouble[] = new double[dataSize - (formulaData.lookback + formulaData.lookforward)];
+        indicator.setOutputParameter(i, arrayDouble);
+          goto _L23
+        Throwable t;
+        t;
+        LOGGER.error(t.getMessage(), t);
+        String error = StrategyWrapper.representError(indicator, t);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L23:
+        outArrays[i] = arrayDouble;
+          goto _L18
+_L21:
+        Object arrayObject[] = new Object[dataSize - (formulaData.lookback + formulaData.lookforward)];
+        indicator.setOutputParameter(i, ((Object) (arrayObject)));
+          goto _L24
+        Throwable t;
+        t;
+        LOGGER.error(t.getMessage(), t);
+        String error = StrategyWrapper.representError(indicator, t);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L24:
+        outArrays[i] = ((Object) (arrayObject));
+_L18:
+        i++;
+          goto _L25
+_L17:
+        result = indicator.calculate(0, dataSize - 1);
+          goto _L26
+        TaLibException e;
+        e;
+        Throwable t = e.getCause();
+        LOGGER.error(t.getMessage(), t);
+        String error = StrategyWrapper.representError(indicator, t);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+        Throwable t;
+        t;
+        LOGGER.error(t.getMessage(), t);
+        String error = StrategyWrapper.representError(indicator, t);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), t, true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L26:
+        if(result.getNumberOfElements() >= dataSize - formulaData.lookback - formulaData.lookforward) goto _L28; else goto _L27
+_L27:
+        String error = (new StringBuilder()).append("calculate() method of indicator [").append(indicatorInfo.getName()).append("] returned less values than expected. Requested from-to [0]-[").append(dataSize - 1).append("], input array size [").append(dataSize).append("], returned first calculated index [").append(result.getFirstValueIndex()).append("], number of calculated values [").append(result.getNumberOfElements()).append("], lookback [").append(formulaData.lookback).append("], lookforward [").append(formulaData.lookforward).append("], expected number of elements is [").append(dataSize - formulaData.lookback - formulaData.lookforward).append("]").toString();
+        LOGGER.error(error);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L28:
+        if(result.getFirstValueIndex() + result.getNumberOfElements() <= dataSize) goto _L30; else goto _L29
+_L29:
+        String error = (new StringBuilder()).append("calculate() method of indicator [").append(indicatorInfo.getName()).append("] returned incorrect values. Requested from-to [0]-[").append(dataSize - 1).append("], input array size [").append(dataSize).append("], returned first calculated index [").append(result.getFirstValueIndex()).append("], number of calculated values [").append(result.getNumberOfElements()).append("], lookback [").append(formulaData.lookback).append("], lookforward [").append(formulaData.lookforward).append("], first index + number of elements cannot be > input array size").toString();
+        LOGGER.error(error);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L30:
+        if(result.getLastValueIndex() != 0x80000000 || result.getNumberOfElements() == 0) goto _L32; else goto _L31
+_L31:
+        if(formulaData.lookforward == 0) goto _L34; else goto _L33
+_L33:
+        String error = (new StringBuilder()).append("calculate() method of indicator [").append(indicatorInfo.getName()).append("] returned result without lastValueIndex set. This is only allowed when lookforward is equals to zero").toString();
+        LOGGER.error(error);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+_L34:
+        result.setLastValueIndex(dataSize - 1);
+_L32:
+        if((result.getLastValueIndex() + 1) - result.getFirstValueIndex() >= dataSize - formulaData.lookback - formulaData.lookforward)
+            break MISSING_BLOCK_LABEL_2633;
+        String error = (new StringBuilder()).append("calculate() method of indicator [").append(indicatorInfo.getName()).append("] returned incorrect first value and last value indexes. Requested from-to [0]-[").append(dataSize - 1).append("], input array size [").append(dataSize).append("], returned first calculated index [").append(result.getFirstValueIndex()).append("], number of calculated values [").append(result.getNumberOfElements()).append("], last calculated index (set to max index by default) [").append(result.getLastValueIndex()).append("], lookback [").append(formulaData.lookback).append("], lookforward [").append(formulaData.lookforward).append("]").toString();
+        LOGGER.error(error);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error in indicator: ").append(error).toString(), true);
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+        int firstValueIndex = result.getFirstValueIndex();
+        int numberOfElements = result.getNumberOfElements();
+        if(indicator instanceof ConnectorIndicator)
+        {
+            firstValueIndex = result.getFirstValueIndex() >= 0 ? result.getFirstValueIndex() : 0;
+            numberOfElements = result.getNumberOfElements() >= result.getLastValueIndex() - firstValueIndex ? result.getLastValueIndex() - firstValueIndex : result.getNumberOfElements();
+        }
+        if(lastInputTime > 0L && formulaData.lastTime != lastInputTime)
+        {
+            formulaData.lastTime = lastInputTime;
+            formulaData.lastValues = new Object[indicatorInfo.getNumberOfOutputs()];
+        }
+        int i = 0;
+        for(int j = indicatorInfo.getNumberOfOutputs(); i < j; i++)
+        {
+            OutputParameterInfo outputParameterInfo = indicator.getOutputParameterInfo(i);
+            switch(_cls1..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[outputParameterInfo.getType().ordinal()])
+            {
+            default:
+                break;
+
+            case 1: // '\001'
+                if(numberOfElements == 0)
+                    Arrays.fill(formulaData.outputDataInt[i], from, to + 1, 0x80000000);
+                else
+                    copyToIndicatorOutput(from, to, recalculateStart, formulaData.outputDataInt[i], firstValueIndex, numberOfElements, outArrays[i], outputParameterInfo.getType(), lastIndex, bufferAsk.length);
+                if(formulaData.lastTime == lastInputTime)
+                    formulaData.lastValues[i] = Integer.valueOf(formulaData.outputDataInt[i][lastIndex]);
+                break;
+
+            case 2: // '\002'
+                if(numberOfElements == 0)
+                    Arrays.fill(formulaData.outputDataDouble[i], from, to + 1, (0.0D / 0.0D));
+                else
+                    copyToIndicatorOutput(from, to, recalculateStart, formulaData.outputDataDouble[i], firstValueIndex, numberOfElements, outArrays[i], outputParameterInfo.getType(), lastIndex, bufferAsk.length);
+                if(formulaData.lastTime == lastInputTime)
+                    formulaData.lastValues[i] = Double.valueOf(formulaData.outputDataDouble[i][lastIndex]);
+                break;
+
+            case 3: // '\003'
+                if(numberOfElements == 0)
+                    Arrays.fill(formulaData.outputDataObject[i], from, to + 1, null);
+                else
+                    copyToIndicatorOutput(from, to, recalculateStart, ((Object) (formulaData.outputDataObject[i])), firstValueIndex, numberOfElements, outArrays[i], outputParameterInfo.getType(), lastIndex, bufferAsk.length);
+                if(formulaData.lastTime == lastInputTime)
+                    formulaData.lastValues[i] = formulaData.outputDataObject[i][lastIndex];
+                break;
+            }
+        }
+
+        indicatorContext.setChartInfo(null, null, null);
+          goto _L3
+        Exception exception;
+        exception;
+        indicatorContext.setChartInfo(null, null, null);
+        throw exception;
+_L2:
+    }
+
+    private boolean setIndicatorInputFromDataProvider(IndicatorData indicatorData, int inputIndex, long from, long to, int finalLookback, 
+            int finalLookforward)
+    {
+        IIndicator indicator = indicatorData.indicatorWrapper.getIndicator();
+        if(!$assertionsDisabled && indicatorData.inputDataProviders[inputIndex] == null)
+            throw new AssertionError("Input data provider is null");
+        Period inputPeriod = indicatorData.inputPeriods[inputIndex] != null ? indicatorData.inputPeriods[inputIndex] : period;
+        Period inputCandlePeriod = inputPeriod != Period.TICK ? inputPeriod : Period.ONE_SEC;
+        long latestTo = to = DataCacheUtils.getCandleStartFast(inputCandlePeriod, to);
+        from = DataCacheUtils.getCandleStartFast(inputCandlePeriod, from);
+        long latestDataTime = indicatorData.inputDataProviders[inputIndex].getLastLoadedDataTime();
+        if(latestDataTime == 0x8000000000000000L)
+        {
+            LOGGER.debug("WARN: Indicator data provider doesn't have any data");
+            return false;
+        }
+        if(to > latestDataTime)
+            to = DataCacheUtils.getCandleStartFast(inputCandlePeriod, latestDataTime);
+        if(from > to)
+            return false;
+        int candlesBefore = DataCacheUtils.getCandlesCountBetweenFast(inputCandlePeriod, from, to) + finalLookback;
+        if(candlesBefore == 0)
+        {
+            LOGGER.debug("WARN: Nothing to request from indicator data provider");
+            return false;
+        }
+        if(candlesBefore + finalLookforward > maxNumberOfCandles * bufferSizeMultiplier)
+            candlesBefore = maxNumberOfCandles * bufferSizeMultiplier - finalLookforward;
+        IDataSequence dataSequence = indicatorData.inputDataProviders[inputIndex].getDataSequence(candlesBefore, to, finalLookforward);
+        CandleData data[];
+        if(inputPeriod == Period.TICK)
+        {
+            TickDataSequence tickSequence = (TickDataSequence)dataSequence;
+            OfferSide offerSide = indicator.getInputParameterInfo(inputIndex).getOfferSide();
+            OfferSide tickOfferSides[] = indicatorData.indicatorWrapper.getOfferSidesForTicks();
+            if(offerSide != null && offerSide == OfferSide.ASK || offerSide == null && tickOfferSides[inputIndex] == OfferSide.ASK)
+                data = tickSequence.getOneSecCandlesAsk();
+            else
+                data = tickSequence.getOneSecCandlesBid();
+            if(tickSequence.getOneSecExtraBefore() > 0 || tickSequence.getOneSecExtraAfter() > 0)
+            {
+                CandleData newData[] = new CandleData[data.length - tickSequence.getOneSecExtraBefore() - tickSequence.getOneSecExtraAfter()];
+                System.arraycopy(data, tickSequence.getOneSecExtraBefore(), newData, 0, newData.length);
+                data = newData;
+            }
+        } else
+        {
+            CandleDataSequence candleSequence = (CandleDataSequence)dataSequence;
+            data = (CandleData[])candleSequence.getData();
+            if(dataSequence.getExtraBefore() > 0 || dataSequence.getExtraAfter() > 0)
+            {
+                CandleData newData[] = new CandleData[data.length - dataSequence.getExtraBefore() - dataSequence.getExtraAfter()];
+                System.arraycopy(data, dataSequence.getExtraBefore(), newData, 0, newData.length);
+                data = newData;
+            }
+        }
+        if(data.length == 0)
+        {
+            indicator.setInputParameter(inputIndex, getIndicatorInputData(indicatorData.indicatorWrapper.getIndicator().getInputParameterInfo(inputIndex), indicatorData.indicatorWrapper.getAppliedPricesForCandles()[inputIndex], new CandleData[0]));
+            return true;
+        }
+        int flats = 0;
+        if(latestTo > to)
+            flats = DataCacheUtils.getCandlesCountBetweenFast(inputCandlePeriod, to, latestTo) - 1;
+        CandleData correctData[];
+        if(flats > 0)
+        {
+            correctData = new CandleData[data.length + flats];
+            System.arraycopy(data, 0, correctData, 0, data.length);
+            CandleData lastCandle = correctData[data.length - 1];
+            int i = 1;
+            for(long time = DataCacheUtils.getNextCandleStartFast(inputCandlePeriod, lastCandle.time); i <= flats; time = DataCacheUtils.getNextCandleStartFast(inputCandlePeriod, time))
+            {
+                correctData[(data.length - 1) + i] = new CandleData(time, lastCandle.close, lastCandle.close, lastCandle.close, lastCandle.close, 0.0D);
+                i++;
+            }
+
+        } else
+        {
+            correctData = data;
+        }
+        indicator.setInputParameter(inputIndex, getIndicatorInputData(indicatorData.indicatorWrapper.getIndicator().getInputParameterInfo(inputIndex), indicatorData.indicatorWrapper.getAppliedPricesForCandles()[inputIndex], correctData));
+        return true;
+    }
+
+    private double[][][] calculateIndicatorsInputs(Collection formulasToRecalculate, CandleData timeDataAsk[], CandleData timeDataBid[], double doubleInputs[][][])
+    {
+        double priceInput[][][] = (double[][][])null;
+        Iterator i$ = formulasToRecalculate.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            IndicatorData formulaData = (IndicatorData)i$.next();
+            if(!formulaData.disabledIndicator)
+            {
+                IIndicator indicator = formulaData.indicatorWrapper.getIndicator();
+                OfferSide tickOfferSides[] = formulaData.indicatorWrapper.getOfferSidesForTicks();
+                com.dukascopy.api.IIndicators.AppliedPrice appliedPrices[] = formulaData.indicatorWrapper.getAppliedPricesForCandles();
+                if(timeDataAsk != null || timeDataBid != null)
+                {
+                    if(indicator instanceof ConnectorIndicator)
+                    {
+                        ((ConnectorIndicator)indicator).setCurrentInstrument(instrument);
+                        ((ConnectorIndicator)indicator).setCurrentPeriod(period);
+                    }
+                    int i = 0;
+                    int j = indicator.getIndicatorInfo().getNumberOfInputs();
+                    while(i < j) 
+                    {
+                        InputParameterInfo inputParameterInfo = indicator.getInputParameterInfo(i);
+                        if(inputParameterInfo.getOfferSide() == null && inputParameterInfo.getPeriod() == null && inputParameterInfo.getInstrument() == null || (inputParameterInfo.getOfferSide() == null || inputParameterInfo.getOfferSide() == (isTicksDataType() ? tickOfferSides[i] : side)) && ((inputParameterInfo.getPeriod() == null || noFilterPeriod(inputParameterInfo.getPeriod()) == period && dailyFilterPeriod(inputParameterInfo.getPeriod()) == dailyFilterPeriod(dailyFilterPeriod)) && (inputParameterInfo.getInstrument() == null || inputParameterInfo.getInstrument() == instrument)))
+                            switch(_cls1..SwitchMap.com.dukascopy.api.indicators.InputParameterInfo.Type[inputParameterInfo.getType().ordinal()])
+                            {
+                            default:
+                                break;
+
+                            case 1: // '\001'
+                                if(priceInput != null && (!isTicksDataType() || priceInput[tickOfferSides[i].ordinal()] != null))
+                                    break;
+                                if(priceInput == null)
+                                    priceInput = new double[2][][];
+                                priceInput[isTicksDataType() ? tickOfferSides[i].ordinal() : 0] = (double[][])(double[][])getIndicatorInputData(inputParameterInfo, appliedPrices[i], isTicksDataType() && tickOfferSides[i] != OfferSide.ASK ? timeDataBid : timeDataAsk);
+                                break;
+
+                            case 2: // '\002'
+                                if(doubleInputs[isTicksDataType() ? tickOfferSides[i].ordinal() : 0][appliedPrices[i].ordinal()] == null)
+                                    doubleInputs[isTicksDataType() ? tickOfferSides[i].ordinal() : 0][appliedPrices[i].ordinal()] = (double[])(double[])getIndicatorInputData(inputParameterInfo, appliedPrices[i], isTicksDataType() && tickOfferSides[i] != OfferSide.ASK ? timeDataBid : timeDataAsk);
+                                break;
+                            }
+                        i++;
+                    }
+                }
+            }
+        } while(true);
+        return priceInput;
+    }
+
+    private Object getIndicatorInputData(InputParameterInfo inputParameterInfo, com.dukascopy.api.IIndicators.AppliedPrice appliedPrice, CandleData timeData[])
+    {
+        int dataSize = timeData.length;
+        switch(_cls1..SwitchMap.com.dukascopy.api.indicators.InputParameterInfo.Type[inputParameterInfo.getType().ordinal()])
+        {
+        case 1: // '\001'
+            double open[] = new double[dataSize];
+            double high[] = new double[dataSize];
+            double low[] = new double[dataSize];
+            double close[] = new double[dataSize];
+            double volume[] = new double[dataSize];
+            int k = 0;
+            CandleData arr$[] = timeData;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                CandleData candle = arr$[i$];
+                open[k] = candle.open;
+                high[k] = candle.high;
+                low[k] = candle.low;
+                close[k] = candle.close;
+                volume[k] = candle.vol;
+                k++;
+            }
+
+            return (new double[][] {
+                open, close, high, low, volume
+            });
+
+        case 2: // '\002'
+            double data[] = new double[dataSize];
+            switch(_cls1..SwitchMap.com.dukascopy.api.IIndicators.AppliedPrice[appliedPrice.ordinal()])
+            {
+            default:
+                break;
+
+            case 1: // '\001'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = candle.close;
+                    k++;
+                }
+
+                break;
+            }
+
+            case 2: // '\002'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = candle.high;
+                    k++;
+                }
+
+                break;
+            }
+
+            case 3: // '\003'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = candle.low;
+                    k++;
+                }
+
+                break;
+            }
+
+            case 4: // '\004'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = candle.open;
+                    k++;
+                }
+
+                break;
+            }
+
+            case 5: // '\005'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = (candle.high + candle.low) / 2D;
+                    k++;
+                }
+
+                break;
+            }
+
+            case 6: // '\006'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = (candle.high + candle.low + candle.close) / 3D;
+                    k++;
+                }
+
+                break;
+            }
+
+            case 7: // '\007'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = (candle.high + candle.low + candle.close + candle.close) / 4D;
+                    k++;
+                }
+
+                break;
+            }
+
+            case 8: // '\b'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = candle.time;
+                    k++;
+                }
+
+                break;
+            }
+
+            case 9: // '\t'
+            {
+                int k = 0;
+                CandleData arr$[] = timeData;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    CandleData candle = arr$[i$];
+                    data[k] = candle.vol;
+                    k++;
+                }
+
+                break;
+            }
+            }
+            return data;
+
+        case 3: // '\003'
+            return timeData;
+        }
+        if(!$assertionsDisabled)
+            throw new AssertionError("shouldn't be here");
+        else
+            return null;
+    }
+
+    protected void copyToIndicatorOutput(int from, int to, int recalculateStart, Object outputData, int firstValueIndex, int numberOfElements, Object inputData, 
+            com.dukascopy.api.indicators.OutputParameterInfo.Type type, int lastIndex, int bufferLength)
+    {
+        int toSkip;
+        if(recalculateStart <= from)
+            toSkip = from - recalculateStart;
+        else
+            toSkip = (bufferLength - recalculateStart) + from;
+        int valuesNA = firstValueIndex - toSkip;
+        int outputBufferCounter;
+        int inputBufferCounter;
+        if(valuesNA > 0)
+        {
+            inputBufferCounter = 0;
+            if((lastIndex - from) + 1 >= valuesNA)
+                outputBufferCounter = from + valuesNA;
+            else
+                throw new RuntimeException("Cannot happen");
+            switch(_cls1..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[type.ordinal()])
+            {
+            case 1: // '\001'
+                int outputDataInt[] = (int[])(int[])outputData;
+                Arrays.fill(outputDataInt, from, outputBufferCounter, 0x80000000);
+                break;
+
+            case 2: // '\002'
+                double outputDataDouble[] = (double[])(double[])outputData;
+                Arrays.fill(outputDataDouble, from, outputBufferCounter, (0.0D / 0.0D));
+                break;
+
+            case 3: // '\003'
+                Object outputDataObject[] = (Object[])(Object[])outputData;
+                Arrays.fill(outputDataObject, from, outputBufferCounter, null);
+                break;
+            }
+        } else
+        {
+            outputBufferCounter = from;
+            inputBufferCounter = toSkip - firstValueIndex;
+            numberOfElements -= inputBufferCounter;
+        }
+        if((lastIndex - outputBufferCounter) + 1 >= numberOfElements)
+            System.arraycopy(inputData, inputBufferCounter, outputData, outputBufferCounter, numberOfElements);
+        else
+            throw new RuntimeException("Cannot happen");
+        if((to - (outputBufferCounter + numberOfElements)) + 1 > 0)
+            switch(_cls1..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[type.ordinal()])
+            {
+            case 1: // '\001'
+                int outputDataInt[] = (int[])(int[])outputData;
+                Arrays.fill(outputDataInt, outputBufferCounter + numberOfElements, to + 1, 0x80000000);
+                break;
+
+            case 2: // '\002'
+                double outputDataDouble[] = (double[])(double[])outputData;
+                Arrays.fill(outputDataDouble, outputBufferCounter + numberOfElements, to + 1, (0.0D / 0.0D));
+                break;
+
+            case 3: // '\003'
+                Object outputDataObject[] = (Object[])(Object[])outputData;
+                Arrays.fill(outputDataObject, outputBufferCounter + numberOfElements, to + 1, null);
+                break;
+            }
+    }
+
+    protected boolean isWeekendsBetween(long start, long end)
+    {
+        if(end <= start)
+            return false;
+        if(end - start > 0x240c8400L)
+        {
+            return true;
+        } else
+        {
+            cal.setTimeInMillis(start);
+            cal.set(7, 6);
+            cal.set(11, 22);
+            cal.set(12, 0);
+            cal.set(13, 0);
+            cal.set(14, 0);
+            long weekendStart = cal.getTimeInMillis();
+            return weekendStart > start && weekendStart < end;
+        }
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("DataProvider(").append(instrument).append(", ").append(period).append(")").toString();
+    }
+
+    public abstract DataType getDataType();
+
+    public boolean isTicksDataType()
+    {
+        return DataType.TICKS == getDataType();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/math/dataprovider/AbstractDataProvider);
+    protected static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss:SSS");
+    protected final IFeedDataProvider feedDataProvider;
+    protected Instrument instrument;
+    protected Period period;
+    protected OfferSide side;
+    protected Filter filter;
+    protected Period dailyFilterPeriod;
+    protected int maxNumberOfCandles;
+    protected int bufferSizeMultiplier;
+    protected Data firstData;
+    protected volatile boolean active;
+    protected volatile boolean loadingStarted;
+    private final Set dataChangeListeners = Collections.synchronizedSet(new HashSet());
+    protected CacheDataUpdatedListener cacheDataUpdatedListener;
+    protected Map formulas;
+    protected int formulasMinShift;
+    protected int formulasMaxShift;
+    protected boolean sparceIndicator;
+    protected AbstractDataProvider parentDataProvider;
+    protected IndicatorData parentIndicatorData;
+    protected Calendar cal;
+    private Indicators indicators;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/math/dataprovider/AbstractDataProvider.desiredAssertionStatus();
+
+}

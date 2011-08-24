@@ -1,0 +1,782 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TransportFileChooser.java
+
+package com.dukascopy.dds2.greed.gui.component.filechooser;
+
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.ICurvesProtocolHandler;
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import com.dukascopy.dds2.greed.gui.resizing.components.ResizableIcon;
+import com.dukascopy.transport.common.datafeed.FileType;
+import com.dukascopy.transport.common.datafeed.KeyNotFoundException;
+import com.dukascopy.transport.common.datafeed.Location;
+import com.dukascopy.transport.common.datafeed.StorageException;
+import com.dukascopy.transport.common.msg.strategy.FileItem;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.LayoutManager;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
+import javax.swing.Icon;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JFileChooser;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.JToggleButton;
+import javax.swing.ListSelectionModel;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import javax.swing.table.TableModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.component.filechooser:
+//            FileProgressListener, JButtonBar, ChooserSelectionWrapper, FileListTableModel, 
+//            CancelLoadingException
+
+public class TransportFileChooser extends JDialog
+{
+    class MyPanel extends JPanel
+    {
+
+        public JLabel getIconLabel()
+        {
+            return iconLabel;
+        }
+
+        public void setIconLabel(JLabel label)
+        {
+            iconLabel = label;
+        }
+
+        private static final long serialVersionUID = 0xe1589cef7700567dL;
+        JLabel iconLabel;
+        final TransportFileChooser this$0;
+
+        public MyPanel()
+        {
+            this$0 = TransportFileChooser.this;
+            super();
+        }
+
+        public MyPanel(boolean isDoubleBuffered)
+        {
+            this$0 = TransportFileChooser.this;
+            super(isDoubleBuffered);
+        }
+
+        public MyPanel(LayoutManager layout, boolean isDoubleBuffered)
+        {
+            this$0 = TransportFileChooser.this;
+            super(layout, isDoubleBuffered);
+        }
+
+        public MyPanel(LayoutManager layout)
+        {
+            this$0 = TransportFileChooser.this;
+            super(layout);
+        }
+    }
+
+
+    private TransportFileChooser(FileType fType, int opType, JFileChooser chooser, Component parent, String fileName, Boolean multipleSelection)
+    {
+        super(JOptionPane.getFrameForComponent(parent));
+        wrapper = null;
+        tableMap = new HashMap();
+        progressListener = new FileProgressListener();
+        this.multipleSelection = multipleSelection;
+        parentComponent = parent;
+        this.opType = opType;
+        fileType = fType;
+        localChooser = chooser;
+        leftPanel = new JPanel(new BorderLayout());
+        setDefaultCloseOperation(2);
+        addWindowListener(new WindowAdapter() {
+
+            public void windowClosed(WindowEvent e)
+            {
+                stopBackgroundOperations();
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        getContentPane().setLayout(new BorderLayout());
+        String opTypeLbl = "";
+        if(opType == 0)
+        {
+            opTypeLbl = LocalizationManager.getText("open.button.text");
+            chooser.setDialogType(0);
+        } else
+        if(opType == 1)
+        {
+            opTypeLbl = LocalizationManager.getText("save.button.text");
+            chooser.setDialogType(1);
+        }
+        chooser.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                if(e.getActionCommand().equals("ApproveSelection"))
+                    approve();
+                if(e.getActionCommand().equals("CancelSelection"))
+                    cancel();
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        setTitle(opTypeLbl);
+        setModal(true);
+        addWindowListener(new WindowAdapter() {
+
+            public void windowClosing(WindowEvent e)
+            {
+                cancel();
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        okBtn = new JButton(LocalizationManager.getText("button.ok"));
+        okBtn.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                approve();
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        JButton cancel = new JButton(LocalizationManager.getText("button.cancel"));
+        cancel.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                cancel();
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        fileNameTF = new JTextField();
+        fileNameTF.setText(fileName);
+        if(chooser.getSelectedFile() != null)
+            fileNameTF.setText(chooser.getSelectedFile().getName());
+        fileNameTF.addFocusListener(new FocusAdapter() {
+
+            public void focusGained(FocusEvent e)
+            {
+                highlightText(fileNameTF);
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        descriptionTF = new JTextField();
+        keyTF = new JTextField();
+        keyTF.addFocusListener(new FocusAdapter() {
+
+            public void focusGained(FocusEvent e)
+            {
+                highlightText(keyTF);
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        keyPanel = new JPanel(new BorderLayout(5, 0));
+        keyPanel.add(keyTF, "Center");
+        findKeyBtn = new JButton(LocalizationManager.getText("button.search"));
+        findKeyBtn.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                useKey();
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        keyPanel.add(findKeyBtn, "East");
+        JPanel buttonPanel = new JPanel(new GridLayout(3, 1, 3, 3));
+        buttonPanel.add(okBtn);
+        buttonPanel.add(cancel);
+        JPanel inputPanel = new JPanel(new GridBagLayout());
+        int y = 0;
+        inputPanel = new JPanel(new GridBagLayout());
+        inputPanel.add(new JLabel((new StringBuilder()).append(LocalizationManager.getText("chooser.file.name")).append(":").toString()), new GridBagConstraints(0, y, 1, 1, 0.0D, 0.0D, 17, 2, new Insets(3, 3, 3, 3), 0, 0));
+        inputPanel.add(fileNameTF, new GridBagConstraints(1, y++, 2, 1, 1.0D, 0.0D, 10, 2, new Insets(3, 3, 3, 3), 0, 0));
+        inputPanel.add(new JLabel((new StringBuilder()).append(LocalizationManager.getText("chooser.key")).append(":").toString()), new GridBagConstraints(0, y, 1, 1, 0.0D, 0.0D, 17, 2, new Insets(3, 3, 3, 3), 0, 0));
+        inputPanel.add(keyPanel, new GridBagConstraints(1, y++, 2, 1, 1.0D, 0.0D, 10, 2, new Insets(3, 3, 3, 3), 0, 0));
+        inputPanel.add(new JLabel((new StringBuilder()).append(LocalizationManager.getText("chooser.description")).append(":").toString()), new GridBagConstraints(0, y, 1, 1, 0.0D, 0.0D, 17, 2, new Insets(3, 3, 3, 3), 0, 0));
+        inputPanel.add(descriptionTF, new GridBagConstraints(1, y++, 2, 1, 1.0D, 0.0D, 10, 2, new Insets(3, 3, 3, 3), 0, 0));
+        controlPanel = new JPanel(new BorderLayout());
+        controlPanel.add(inputPanel, "Center");
+        controlPanel.add(buttonPanel, "East");
+        if(opType == 0)
+            descriptionTF.setEditable(false);
+        toolbar = new JButtonBar();
+        group = new ButtonGroup();
+        addButton(LocalizationManager.getText("chooser.local"), PARAMS_ICON, makePanel(LocalizationManager.getText("chooser.local.ext"), Location.LOCAL), Location.LOCAL);
+        addButton(LocalizationManager.getText("chooser.remote"), PARAMS_ICON, makePanel(LocalizationManager.getText("chooser.remote.ext"), Location.REMOTE_USER), Location.REMOTE_USER);
+        addButton(LocalizationManager.getText("chooser.public"), PARAMS_ICON, makePanel(LocalizationManager.getText("chooser.public.ext"), Location.REMOTE_PUBLIC), Location.REMOTE_PUBLIC);
+        leftPanel.add(controlPanel, "South");
+        getContentPane().add(leftPanel, "Center");
+    }
+
+    public Component getParentComponent()
+    {
+        return parentComponent;
+    }
+
+    private void stopBackgroundOperations()
+    {
+        stopLoading();
+    }
+
+    public void setLocalMode(boolean isLocal)
+    {
+        controlPanel.setVisible(!isLocal);
+    }
+
+    public void setPublicMode(boolean isPublic)
+    {
+        keyTF.setEnabled(!isPublic && opType != 1);
+        findKeyBtn.setEnabled(!isPublic && opType != 1);
+    }
+
+    public void refreshFileList()
+    {
+        cancelLoading();
+        refresh();
+    }
+
+    public void fileSelected(FileItem fileItem)
+    {
+        fileNameTF.setText(fileItem.getFileName());
+        if(opType == 1)
+            keyTF.setText(UUID.randomUUID().toString());
+        descriptionTF.setText(fileItem.getDescription());
+    }
+
+    public void clearFileName()
+    {
+        if(opType == 0)
+            fileNameTF.setText("");
+    }
+
+    private void highlightText(JTextField tf)
+    {
+        String text = tf.getText();
+        if(text != null && text.length() > 0)
+        {
+            tf.setSelectionStart(0);
+            tf.setSelectionEnd(text.length());
+        }
+    }
+
+    public void approve()
+    {
+        if(multipleSelection.booleanValue())
+            wrapper = new ChooserSelectionWrapper(getSelectedFiles(), currentLocation);
+        else
+            wrapper = new ChooserSelectionWrapper(getFile(), currentLocation);
+        dispose();
+    }
+
+    public void cancel()
+    {
+        wrapper = null;
+        dispose();
+    }
+
+    public String getDescription()
+    {
+        return descriptionTF.getText();
+    }
+
+    public void setFile(File f)
+    {
+        fileNameTF.setText(f.getName());
+    }
+
+    public ChooserSelectionWrapper showDialog()
+    {
+        setSize(640, 480);
+        setLocationRelativeTo(parentComponent);
+        setVisible(true);
+        return wrapper;
+    }
+
+    public void setClientType(String ct)
+    {
+        clientType = ct;
+    }
+
+    public FileItem getFile()
+    {
+        FileItem item = getSelectedFile();
+        if(item == null)
+        {
+            String fileName = fileNameTF.getText();
+            if(fileName != null && fileName.trim().length() > 0)
+            {
+                item = new FileItem();
+                item.setFileName(fileName);
+                item.setDescription(getDescription());
+                item.setFileType(fileType);
+                if(currentLocation == Location.REMOTE_USER)
+                    item.setAccessType(com.dukascopy.transport.common.msg.strategy.FileItem.AccessType.PRIVATE);
+                if(currentLocation == Location.REMOTE_PUBLIC)
+                    item.setAccessType(com.dukascopy.transport.common.msg.strategy.FileItem.AccessType.PUBLIC);
+            } else
+            {
+                return null;
+            }
+        }
+        return item;
+    }
+
+    public static ChooserSelectionWrapper showSaveDialog(FileType fileType, JFileChooser localChooser, Component parent, String fileName)
+    {
+        TransportFileChooser chooser = new TransportFileChooser(fileType, 1, localChooser, parent, fileName, Boolean.valueOf(false));
+        return chooser.showDialog();
+    }
+
+    public static ChooserSelectionWrapper showOpenDialog(FileType fileType, JFileChooser localChooser, Component parent, Boolean allowMultiple, String clientType)
+    {
+        TransportFileChooser chooser = new TransportFileChooser(fileType, 0, localChooser, parent, "", allowMultiple);
+        chooser.setClientType(clientType);
+        return chooser.showDialog();
+    }
+
+    private void addButton(String title, Icon icon, final MyPanel component, final Location location)
+    {
+        JToggleButton button = new JToggleButton();
+        button.setText(title);
+        button.setIcon(icon);
+        button.addItemListener(new ItemListener() {
+
+            public void itemStateChanged(ItemEvent e)
+            {
+                if(e.getStateChange() == 1)
+                    show(component, location);
+            }
+
+            final MyPanel val$component;
+            final Location val$location;
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                component = mypanel;
+                location = location1;
+                super();
+            }
+        });
+        toolbar.addButton(button);
+        group.add(button);
+        if(group.getSelection() == null)
+        {
+            button.setSelected(true);
+            show(component, location);
+        }
+    }
+
+    private void show(MyPanel component, Location location)
+    {
+        setLocalMode(location == Location.LOCAL);
+        setPublicMode(location == Location.REMOTE_PUBLIC);
+        if(currentComponent != null)
+            leftPanel.remove(currentComponent);
+        currentLocation = location;
+        leftPanel.add(currentComponent = component, "Center");
+        cancelLoading();
+        if(location != Location.LOCAL)
+        {
+            currentTable = (JTable)tableMap.get(location);
+            loadFileList(currentTable, location, component);
+        }
+        leftPanel.revalidate();
+        leftPanel.repaint();
+    }
+
+    private void cancelLoading()
+    {
+        synchronized(progressListener)
+        {
+            if(progressListener.isThreadStarted())
+            {
+                progressListener.cancelLoading();
+                while(!progressListener.isThreadStopped()) 
+                    try
+                    {
+                        Thread.sleep(100L);
+                    }
+                    catch(Exception e) { }
+            }
+        }
+    }
+
+    private void useKey()
+    {
+        String key = keyTF.getText();
+        if(key != null && key.trim().length() > 0)
+            try
+            {
+                FileItem item = FeedDataProvider.getCurvesProtocolHandler().useKey(key, fileType, new FileProgressListener(), clientType);
+                if(item != null)
+                {
+                    JOptionPane.showMessageDialog(this, (new StringBuilder()).append("TODO: File found by key: ").append(item.getFileName()).toString());
+                    refresh();
+                }
+            }
+            catch(KeyNotFoundException e)
+            {
+                JOptionPane.showMessageDialog(this, "TODO: Invalid key");
+            }
+            catch(StorageException e)
+            {
+                JOptionPane.showMessageDialog(this, "TODO: Cannot use key");
+            }
+    }
+
+    private void loadFileList(final JTable table, final Location location, final MyPanel panel)
+    {
+        okBtn.setEnabled(false);
+        fileNameTF.setEditable(false);
+        (new Thread(new Runnable() {
+
+            public void run()
+            {
+                panel.getIconLabel().setIcon(TransportFileChooser.PROGRESS_IMAGE);
+                TableModel m = table.getModel();
+                FileListTableModel model = null;
+                if(m instanceof FileListTableModel)
+                {
+                    model = (FileListTableModel)m;
+                    model.clearData();
+                }
+                progressListener.reset();
+                progressListener.setThreadStarted();
+                com.dukascopy.transport.common.msg.strategy.FileItem.AccessType accType = null;
+                if(location == Location.REMOTE_PUBLIC)
+                    accType = com.dukascopy.transport.common.msg.strategy.FileItem.AccessType.PUBLIC;
+                if(location == Location.REMOTE_USER)
+                    accType = com.dukascopy.transport.common.msg.strategy.FileItem.AccessType.PRIVATE;
+                java.util.List data = FeedDataProvider.getCurvesProtocolHandler().getFileList(fileType, accType, progressListener);
+                if(m instanceof FileListTableModel)
+                {
+                    model = (FileListTableModel)m;
+                    model.setData(data);
+                } else
+                {
+                    model = new FileListTableModel(data, fileType);
+                    table.setModel(model);
+                }
+                clearFileName();
+                okBtn.setEnabled(true);
+                fileNameTF.setEditable(true);
+                panel.getIconLabel().setIcon(null);
+                progressListener.setThreadStopped();
+                break MISSING_BLOCK_LABEL_364;
+                CancelLoadingException ce;
+                ce;
+                TransportFileChooser.LOGGER.warn(ce.getMessage());
+                panel.getIconLabel().setIcon(null);
+                progressListener.setThreadStopped();
+                break MISSING_BLOCK_LABEL_364;
+                Exception e;
+                e;
+                String errMsg = LocalizationManager.getText("chooser.list.failed");
+                String errTitle = LocalizationManager.getText("error.title");
+                TransportFileChooser.LOGGER.error(e.getMessage(), e);
+                if(!isShowing())
+                    parentComponent = getParentComponent();
+                JOptionPane.showMessageDialog(parentComponent, errMsg, errTitle, 0);
+                panel.getIconLabel().setIcon(null);
+                progressListener.setThreadStopped();
+                break MISSING_BLOCK_LABEL_364;
+                Exception exception;
+                exception;
+                panel.getIconLabel().setIcon(null);
+                progressListener.setThreadStopped();
+                throw exception;
+            }
+
+            final MyPanel val$panel;
+            final JTable val$table;
+            final Location val$location;
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                panel = mypanel;
+                table = jtable;
+                location = location1;
+                super();
+            }
+        })).start();
+    }
+
+    private MyPanel makePanel(String title, Location location)
+    {
+        MyPanel panel = new MyPanel(new BorderLayout());
+        JLabel topLabel = new JLabel();
+        topLabel.setText(title);
+        topLabel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        topLabel.setFont(topLabel.getFont().deriveFont(1));
+        topLabel.setOpaque(false);
+        topLabel.setBackground(panel.getBackground().brighter());
+        JButton refreshBtn = new JButton(REFRESH_IMAGE);
+        refreshBtn.setToolTipText(LocalizationManager.getText("button.refresh"));
+        refreshBtn.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                refreshFileList();
+            }
+
+            final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+        });
+        JPanel btnTopPanel = new JPanel();
+        btnTopPanel.add(refreshBtn);
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(topLabel, "Center");
+        topPanel.add(btnTopPanel, "East");
+        panel.setIconLabel(topLabel);
+        panel.add(topPanel, "North");
+        if(location == Location.LOCAL)
+        {
+            panel.add(localChooser, "Center");
+            btnTopPanel.setVisible(false);
+        } else
+        {
+            btnTopPanel.setVisible(true);
+            JTable table = new JTable();
+            table.setFillsViewportHeight(true);
+            table.setSelectionMode(multipleSelection.booleanValue() ? 2 : 0);
+            table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+
+                public void valueChanged(ListSelectionEvent e)
+                {
+                    onRowSelect();
+                }
+
+                final TransportFileChooser this$0;
+
+            
+            {
+                this$0 = TransportFileChooser.this;
+                super();
+            }
+            });
+            tableMap.put(location, table);
+            panel.add(new JScrollPane(table), "Center");
+        }
+        panel.setPreferredSize(new Dimension(400, 300));
+        panel.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        return panel;
+    }
+
+    public java.util.List getSelectedFiles()
+    {
+        java.util.List items = new ArrayList();
+        if(currentLocation == Location.LOCAL)
+        {
+            File files[] = localChooser.getSelectedFiles();
+            if(files != null)
+            {
+                File arr$[] = files;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    File file = arr$[i$];
+                    FileItem item = new FileItem();
+                    item.setFileName(file.getAbsolutePath());
+                    items.add(item);
+                }
+
+            }
+        } else
+        {
+            int selectedIndexes[] = currentTable.getSelectedRows();
+            if(selectedIndexes != null)
+            {
+                FileListTableModel model = (FileListTableModel)currentTable.getModel();
+                int arr$[] = selectedIndexes;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    int selectedIndex = arr$[i$];
+                    FileItem item = model.getRow(selectedIndex);
+                    items.add(item);
+                }
+
+            }
+        }
+        return items;
+    }
+
+    public FileItem getSelectedFile()
+    {
+        if(currentLocation == Location.LOCAL)
+        {
+            File f = localChooser.getSelectedFile();
+            FileItem item = new FileItem();
+            if(f != null)
+                item.setFileName(f.getAbsolutePath());
+            return item;
+        }
+        int selectedIndex = currentTable.getSelectedRow();
+        if(selectedIndex >= 0)
+        {
+            FileListTableModel model = (FileListTableModel)currentTable.getModel();
+            return model.getRow(selectedIndex);
+        } else
+        {
+            return null;
+        }
+    }
+
+    private void onRowSelect()
+    {
+        FileItem fi = getSelectedFile();
+        if(fi != null)
+            fileSelected(fi);
+    }
+
+    public void stopLoading()
+    {
+        progressListener.cancelLoading();
+    }
+
+    public void refresh()
+    {
+        loadFileList(currentTable, currentLocation, currentComponent);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/gui/component/filechooser/TransportFileChooser);
+    private static final long serialVersionUID = 0x558b8ab40309763dL;
+    private static final Icon PROGRESS_IMAGE = new ResizableIcon("titlebar_icon_loading.gif");
+    private static final Icon REFRESH_IMAGE = new ResizableIcon("toolbar_table_refresh.png");
+    private static final Icon PARAMS_ICON = new ResizableIcon("transport_file_choser_params.png");
+    private static final int SAVE = 1;
+    private static final int OPEN = 0;
+    private FileType fileType;
+    private int opType;
+    ChooserSelectionWrapper wrapper;
+    private JTextField fileNameTF;
+    private JTextField descriptionTF;
+    private JTextField keyTF;
+    private JButton findKeyBtn;
+    private JPanel keyPanel;
+    private JPanel controlPanel;
+    private Component parentComponent;
+    private MyPanel currentComponent;
+    private Location currentLocation;
+    private JTable currentTable;
+    private JButtonBar toolbar;
+    private Map tableMap;
+    private FileProgressListener progressListener;
+    private JFileChooser localChooser;
+    private JPanel leftPanel;
+    private ButtonGroup group;
+    private Boolean multipleSelection;
+    private JButton okBtn;
+    private String clientType;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}

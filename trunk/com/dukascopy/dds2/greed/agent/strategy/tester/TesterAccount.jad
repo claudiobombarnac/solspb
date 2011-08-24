@@ -1,0 +1,317 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterAccount.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.IAccount;
+import com.dukascopy.api.system.Commissions;
+import com.dukascopy.api.system.Overnights;
+import java.util.*;
+
+public class TesterAccount
+    implements IAccount
+{
+
+    public TesterAccount(Currency currency, double deposit, double maxLeverage, int marginCatLevel, double mcEquityLimit, Commissions commission, Overnights overnights, String accountId)
+    {
+        profitLossOfClosedPositions = 0.0D;
+        profLossOfOpenPositions = 0.0D;
+        setCurrency(currency);
+        setDeposit(deposit);
+        setEquity(deposit);
+        setRealizedEquity(deposit);
+        setRealizedEquityWithCommissions(deposit);
+        setMaxLeverage(maxLeverage);
+        setMarginCatLevel(marginCatLevel);
+        setMcEquityLimit(mcEquityLimit);
+        setCommissions(commission);
+        setOvernights(overnights);
+        setAccountId(accountId);
+    }
+
+    public TesterAccount(Currency currency, double deposit, double maxLeverage, int marginCatLevel, double marginWeekendCallLeverage, double mcEquityLimit, Commissions commission, Overnights overnights, String accountId)
+    {
+        profitLossOfClosedPositions = 0.0D;
+        profLossOfOpenPositions = 0.0D;
+        setCurrency(currency);
+        setDeposit(deposit);
+        setEquity(deposit);
+        setRealizedEquity(deposit);
+        setRealizedEquityWithCommissions(deposit);
+        setMaxLeverage(maxLeverage);
+        setMarginCatLevel(marginCatLevel);
+        setMarginWeekendCallLeverage(marginWeekendCallLeverage);
+        setMcEquityLimit(mcEquityLimit);
+        setCommissions(commission);
+        setOvernights(overnights);
+        setAccountId(accountId);
+    }
+
+    protected TesterAccount(TesterAccount parent)
+    {
+        profitLossOfClosedPositions = 0.0D;
+        profLossOfOpenPositions = 0.0D;
+        setCurrency(parent.getCurrency());
+        setDeposit(parent.getDeposit());
+        setEquity(parent.getEquityActual());
+        setRealizedEquity(parent.getRealizedEquity());
+        setRealizedEquityWithCommissions(parent.getRealizedEquityWithCommissions());
+        setMaxLeverage(parent.getMaxLeverage());
+        setMarginCatLevel(parent.getMarginCutLevel());
+        setMarginWeekendCallLeverage(parent.getMarginWeekendCallLeverage());
+        setMcEquityLimit(parent.getMCEquityLimit());
+        setCommissions(parent.getCommissions());
+        setOvernights(parent.getOvernights());
+        setUseOfLeverage(parent.getUseOfLeverage());
+        setCreditLine(parent.getCreditLine());
+        setAccountId(parent.getAccountId());
+        setProfitLossOfClosedPositions(parent.getProfitLossOfClosedPositions());
+        setProfLossOfOpenPositions(parent.getProfLossOfOpenPositions());
+        setGlobal(parent.isGlobal());
+    }
+
+    public double getCreditLine()
+    {
+        return creditLine5SecDelayed;
+    }
+
+    public Currency getCurrency()
+    {
+        return currency;
+    }
+
+    public double getEquity()
+    {
+        return equity5SecDelayed;
+    }
+
+    public double getBalance()
+    {
+        return getDeposit();
+    }
+
+    public double getLeverage()
+    {
+        return maxLeverage;
+    }
+
+    public double getUseOfLeverage()
+    {
+        return useOfLeverage5SecDelayed;
+    }
+
+    public void update5SecDelayedValues()
+    {
+        equity5SecDelayed = equity;
+        useOfLeverage5SecDelayed = useOfLeverage;
+        creditLine5SecDelayed = creditLine;
+    }
+
+    public double getMCEquityLimit()
+    {
+        return mcEquityLimit;
+    }
+
+    public void setMcEquityLimit(double mcEquityLimit)
+    {
+        this.mcEquityLimit = mcEquityLimit;
+    }
+
+    public double getDeposit()
+    {
+        return deposit;
+    }
+
+    public void setDeposit(double deposit)
+    {
+        this.deposit = deposit;
+    }
+
+    public double getMaxLeverage()
+    {
+        return maxLeverage;
+    }
+
+    public void setMaxLeverage(double maxLeverage)
+    {
+        this.maxLeverage = maxLeverage;
+    }
+
+    public int getMarginCutLevel()
+    {
+        return marginCatLevel;
+    }
+
+    public void setMarginCatLevel(int marginCatLevel)
+    {
+        this.marginCatLevel = marginCatLevel;
+    }
+
+    public double getMarginWeekendCallLeverage()
+    {
+        return marginWeekendCallLeverage;
+    }
+
+    public void setMarginWeekendCallLeverage(double marginWeekendCallLeverage)
+    {
+        this.marginWeekendCallLeverage = marginWeekendCallLeverage;
+    }
+
+    public double getUseOfLeverageActual()
+    {
+        return useOfLeverage;
+    }
+
+    public void setUseOfLeverage(double useOfLeverage)
+    {
+        this.useOfLeverage = useOfLeverage;
+    }
+
+    public void setCurrency(Currency currency)
+    {
+        this.currency = currency;
+    }
+
+    public void setEquity(double equity)
+    {
+        this.equity = equity;
+    }
+
+    public double getEquityActual()
+    {
+        return equity;
+    }
+
+    public double getRealizedEquity()
+    {
+        return realizedEquity;
+    }
+
+    public void setRealizedEquity(double realizedEquity)
+    {
+        this.realizedEquity = realizedEquity;
+    }
+
+    public double getRealizedEquityWithCommissions()
+    {
+        return realizedEquityWithCommissions;
+    }
+
+    public void setRealizedEquityWithCommissions(double realizedEquityWithCommissions)
+    {
+        this.realizedEquityWithCommissions = realizedEquityWithCommissions;
+    }
+
+    public void setCreditLine(double creditLine)
+    {
+        this.creditLine = creditLine;
+    }
+
+    public double getCreditLineActual()
+    {
+        return creditLine;
+    }
+
+    public double getAvailableMargin()
+    {
+        return creditLine / maxLeverage;
+    }
+
+    public Commissions getCommissions()
+    {
+        return commission;
+    }
+
+    public void setCommissions(Commissions commission)
+    {
+        this.commission = commission;
+    }
+
+    public Overnights getOvernights()
+    {
+        return overnights;
+    }
+
+    public void setOvernights(Overnights overnights)
+    {
+        this.overnights = overnights;
+    }
+
+    public int getOverWeekEndLeverage()
+    {
+        return 80;
+    }
+
+    public boolean isGlobal()
+    {
+        return isGlobal;
+    }
+
+    public void setGlobal(boolean isGlobal)
+    {
+        this.isGlobal = isGlobal;
+    }
+
+    public String getAccountId()
+    {
+        return accountId;
+    }
+
+    public void setAccountId(String accountId)
+    {
+        this.accountId = accountId;
+    }
+
+    public Set getClientIds()
+    {
+        return new HashSet(0);
+    }
+
+    public double getProfitLossOfClosedPositions()
+    {
+        return profitLossOfClosedPositions;
+    }
+
+    public void setProfitLossOfClosedPositions(double profitLossOfClosedPositions)
+    {
+        this.profitLossOfClosedPositions = profitLossOfClosedPositions;
+    }
+
+    public double getProfLossOfOpenPositions()
+    {
+        return profLossOfOpenPositions;
+    }
+
+    public void setProfLossOfOpenPositions(double profLossOfOpenPositions)
+    {
+        this.profLossOfOpenPositions = profLossOfOpenPositions;
+    }
+
+    public double getTotalProfitLoss()
+    {
+        return getProfitLossOfClosedPositions() + getProfLossOfOpenPositions();
+    }
+
+    private Currency currency;
+    private double deposit;
+    private double maxLeverage;
+    private int marginCatLevel;
+    private double marginWeekendCallLeverage;
+    private double mcEquityLimit;
+    private Commissions commission;
+    private Overnights overnights;
+    private String accountId;
+    private double equity;
+    private double realizedEquity;
+    private double realizedEquityWithCommissions;
+    private double useOfLeverage;
+    private double creditLine;
+    private double equity5SecDelayed;
+    private double useOfLeverage5SecDelayed;
+    private double creditLine5SecDelayed;
+    private double profitLossOfClosedPositions;
+    private double profLossOfOpenPositions;
+    private boolean isGlobal;
+}

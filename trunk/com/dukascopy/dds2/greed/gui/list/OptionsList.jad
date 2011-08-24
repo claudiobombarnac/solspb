@@ -1,0 +1,87 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OptionsList.java
+
+package com.dukascopy.dds2.greed.gui.list;
+
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.Set;
+import java.util.Vector;
+import javax.swing.JList;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.list:
+//            CheckBoxListCellRenderer, CheckBoxItem
+
+public abstract class OptionsList extends JList
+{
+
+    public OptionsList()
+    {
+        setSelectionMode(0);
+        setCellRenderer(new CheckBoxListCellRenderer());
+        addMouseListener(new MouseAdapter() {
+
+            public void mouseClicked(MouseEvent e)
+            {
+                CheckBoxItem selectedItem = (CheckBoxItem)getSelectedValue();
+                selectedItem.setSelected(!selectedItem.isSelected());
+                repaint();
+            }
+
+            final OptionsList this$0;
+
+            
+            {
+                this$0 = OptionsList.this;
+                super();
+            }
+        });
+        build();
+    }
+
+    private void build()
+    {
+        Object items[] = getItems();
+        Set selectedItems = getSelectedItems();
+        Vector checkBoxItems = new Vector();
+        for(int i = 0; i < items.length; i++)
+        {
+            Object item = items[i];
+            checkBoxItems.add(new CheckBoxItem(item, selectedItems.contains(item), checkBoxItemSelectionListener));
+        }
+
+        setListData(checkBoxItems);
+    }
+
+    public final void reset()
+    {
+        build();
+    }
+
+    protected abstract Object[] getItems();
+
+    protected abstract Set getSelectedItems();
+
+    private final CheckBoxItem.SelectionListener checkBoxItemSelectionListener = new CheckBoxItem.SelectionListener() {
+
+        public void selectionChanged(CheckBoxItem checkBoxItem)
+        {
+            Set items = getSelectedItems();
+            Object item = checkBoxItem.getValue();
+            if(checkBoxItem.isSelected())
+                items.add(item);
+            else
+                items.remove(item);
+        }
+
+        final OptionsList this$0;
+
+            
+            {
+                this$0 = OptionsList.this;
+                super();
+            }
+    };
+}

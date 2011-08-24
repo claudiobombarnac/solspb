@@ -1,0 +1,105 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   HalfPipRounder.java
+
+package com.dukascopy.dds2.greed.util;
+
+import com.dukascopy.dds2.calc.PriceUtil;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
+public class HalfPipRounder
+{
+
+    public HalfPipRounder()
+    {
+    }
+
+    public static BigDecimal halfPipRound(BigDecimal price)
+    {
+        BigDecimal result = null;
+        BigDecimal pipValue = PriceUtil.pipValue(price);
+        int pip;
+        BigDecimal onePipMore;
+        if(pipValue.equals(PriceUtil.PIP4))
+        {
+            pip = 4;
+            onePipMore = PIP5;
+        } else
+        if(pipValue.equals(PriceUtil.PIP2))
+        {
+            pip = 2;
+            onePipMore = PIP3;
+        } else
+        {
+            throw new IllegalArgumentException("Price does not meet the requirements!");
+        }
+        BigDecimal priceRound = new BigDecimal(price.toString());
+        priceRound = priceRound.setScale(pip, RoundingMode.DOWN);
+        BigDecimal pipCount = price.subtract(priceRound).divide(onePipMore);
+        result = priceRound.add((new BigDecimal(closeToFive(pipCount.longValue()))).multiply(onePipMore));
+        return result;
+    }
+
+    public static long closeToFive(long val)
+    {
+        if(val > 9L || val < 0L)
+            throw new IllegalArgumentException((new StringBuilder()).append(val).append(" - bad value").toString());
+        return 5L - val <= 0L ? 5L : 0L;
+    }
+
+    public static BigDecimal adjustPrice(BigDecimal price, int direction)
+    {
+        BigDecimal result = null;
+        BigDecimal normalized = new BigDecimal(price.toString());
+        if(normalized.signum() == -1)
+            normalized = normalized.negate();
+        BigDecimal pipValue = PriceUtil.pipValue(normalized);
+        BigDecimal increment = pipValue.equals(PriceUtil.PIP4) ? PIP5 : PIP3;
+        BigDecimal addOrSubstract = increment.multiply(PLUS).multiply(getDirection(direction));
+        BigDecimal candidate;
+        if(addOrSubstract.signum() >= 0)
+            candidate = normalized.add(addOrSubstract);
+        else
+        if(increment.subtract(price.subtract(normalized)).compareTo(BigDecimal.ZERO) > 0)
+            candidate = normalized.add(addOrSubstract);
+        else
+            candidate = normalized;
+        if(candidate.compareTo(minimum) > 0)
+            result = candidate;
+        return result;
+    }
+
+    static BigDecimal getDirection(int direction)
+    {
+        if(direction == 1)
+            return PLUS;
+        if(direction == -1)
+            return MINUS;
+        else
+            throw new IllegalArgumentException("Bad direction value, permitted values: 1, -1 ");
+    }
+
+    public static BigDecimal getHalfPip(BigDecimal price)
+    {
+        return PriceUtil.pipValue(price).divide(TWO);
+    }
+
+    public static void main(String args1[])
+    {
+    }
+
+    private static BigDecimal minimum;
+    public static final BigDecimal PIP3 = new BigDecimal("0.001");
+    public static final BigDecimal PIP5 = new BigDecimal("0.00001");
+    static final BigDecimal TWO = new BigDecimal("2");
+    static final BigDecimal FIVE = new BigDecimal("5");
+    static final BigDecimal MINUS = new BigDecimal("-1");
+    static final BigDecimal PLUS = new BigDecimal("1");
+
+    static 
+    {
+        minimum = BigDecimal.ZERO;
+    }
+}

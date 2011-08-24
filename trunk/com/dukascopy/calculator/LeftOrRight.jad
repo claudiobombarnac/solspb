@@ -1,0 +1,43 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   LeftOrRight.java
+
+package com.dukascopy.calculator;
+
+
+public final class LeftOrRight extends Enum
+{
+
+    public static LeftOrRight[] values()
+    {
+        return (LeftOrRight[])$VALUES.clone();
+    }
+
+    public static LeftOrRight valueOf(String name)
+    {
+        return (LeftOrRight)Enum.valueOf(com/dukascopy/calculator/LeftOrRight, name);
+    }
+
+    private LeftOrRight(String s, int i)
+    {
+        super(s, i);
+    }
+
+    public static final LeftOrRight NEITHER;
+    public static final LeftOrRight LEFT;
+    public static final LeftOrRight RIGHT;
+    public static final LeftOrRight BOTH;
+    private static final LeftOrRight $VALUES[];
+
+    static 
+    {
+        NEITHER = new LeftOrRight("NEITHER", 0);
+        LEFT = new LeftOrRight("LEFT", 1);
+        RIGHT = new LeftOrRight("RIGHT", 2);
+        BOTH = new LeftOrRight("BOTH", 3);
+        $VALUES = (new LeftOrRight[] {
+            NEITHER, LEFT, RIGHT, BOTH
+        });
+    }
+}

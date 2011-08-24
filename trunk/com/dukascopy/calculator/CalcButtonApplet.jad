@@ -1,0 +1,67 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   CalcButtonApplet.java
+
+package com.dukascopy.calculator;
+
+import java.awt.BorderLayout;
+import java.awt.Container;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import javax.swing.*;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            MainCalculatorPanel
+
+public class CalcButtonApplet extends JApplet
+    implements ActionListener
+{
+
+    public CalcButtonApplet()
+    {
+    }
+
+    public void init()
+    {
+        try
+        {
+            SwingUtilities.invokeAndWait(new Runnable() {
+
+                public void run()
+                {
+                    setup();
+                }
+
+                final CalcButtonApplet this$0;
+
+            
+            {
+                this$0 = CalcButtonApplet.this;
+                super();
+            }
+            });
+        }
+        catch(Exception e) { }
+    }
+
+    public void setup()
+    {
+        frame = MainCalculatorPanel.createFrame();
+        frame.setVisible(false);
+        frame.setDefaultCloseOperation(1);
+        getContentPane().removeAll();
+        getContentPane().setLayout(new BorderLayout());
+        JButton button = new JButton("calculator");
+        button.addActionListener(this);
+        getContentPane().add(button);
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+        frame.setVisible(!frame.isVisible());
+    }
+
+    private JFrame frame;
+    private static final long serialVersionUID = 1L;
+}

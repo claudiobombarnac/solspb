@@ -1,0 +1,214 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CandleData.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.IBar;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            Data
+
+public class CandleData extends Data
+    implements IBar
+{
+
+    public CandleData()
+    {
+    }
+
+    public CandleData(long time, double open, double close, double low, double high, double vol)
+    {
+        super(time);
+        this.open = open;
+        this.close = close;
+        this.low = low;
+        this.high = high;
+        this.vol = vol;
+    }
+
+    public boolean isFlat()
+    {
+        return open == close && open == high && open == low;
+    }
+
+    public int getBytesCount(int version)
+    {
+        return version > 4 ? 24 : 48;
+    }
+
+    public static int getLength(int version)
+    {
+        return version > 4 ? 24 : 48;
+    }
+
+    public void fromBytes(int version, long firstChunkCandle, double pipValue, byte bytes[], int off)
+    {
+        if(version <= 4)
+        {
+            time = getLong(bytes, off);
+            open = getDouble(bytes, off + 8);
+            close = getDouble(bytes, off + 16);
+            low = getDouble(bytes, off + 24);
+            high = getDouble(bytes, off + 32);
+            vol = getDouble(bytes, off + 40);
+        } else
+        {
+            long timeInt = getInt(bytes, off);
+            time = timeInt != 0xffffffff80000000L ? firstChunkCandle + timeInt * 1000L : 0x8000000000000000L;
+            open = (double)(long)(((double)getInt(bytes, off + 4) / 10D) * pipValue * 100000D + 0.5D) / 100000D;
+            close = (double)(long)(((double)getInt(bytes, off + 8) / 10D) * pipValue * 100000D + 0.5D) / 100000D;
+            low = (double)(long)(((double)getInt(bytes, off + 12) / 10D) * pipValue * 100000D + 0.5D) / 100000D;
+            high = (double)(long)(((double)getInt(bytes, off + 16) / 10D) * pipValue * 100000D + 0.5D) / 100000D;
+            vol = (double)(long)((double)getFloat(bytes, off + 20) * 100D + 0.5D) / 100D;
+        }
+    }
+
+    public void toBytes(int version, long firstChunkCandle, double pipValue, byte buff[], int off)
+    {
+        if(version <= 4)
+        {
+            if(buff.length < off + 48)
+                throw new ArrayIndexOutOfBoundsException("Buffer too short");
+            off = putLong(buff, off, time);
+            off = putDouble(buff, off, open);
+            off = putDouble(buff, off, close);
+            off = putDouble(buff, off, low);
+            off = putDouble(buff, off, high);
+            putDouble(buff, off, vol);
+        } else
+        {
+            if(buff.length < off + 24)
+                throw new ArrayIndexOutOfBoundsException("Buffer too short");
+            off = putInt(buff, off, time != 0x8000000000000000L ? (int)((time - firstChunkCandle) / 1000L) : 0x80000000);
+            off = putInt(buff, off, (int)Math.round((open / pipValue) * 10D));
+            off = putInt(buff, off, (int)Math.round((close / pipValue) * 10D));
+            off = putInt(buff, off, (int)Math.round((low / pipValue) * 10D));
+            off = putInt(buff, off, (int)Math.round((high / pipValue) * 10D));
+            putFloat(buff, off, (float)vol);
+        }
+    }
+
+    public String toString()
+    {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        StringBuilder stamp = new StringBuilder();
+        stamp.append(time).append("[").append(format.format(Long.valueOf(time))).append("] O: ").append(open).append(" C: ").append(close).append(" H: ").append(high).append(" L: ").append(low).append(" V: ").append(vol);
+        return stamp.toString();
+    }
+
+    public CandleData clone()
+    {
+        return (CandleData)super.clone();
+    }
+
+    public int hashCode()
+    {
+        int prime = 31;
+        int result = super.hashCode();
+        long temp = Double.doubleToLongBits(close);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        temp = Double.doubleToLongBits(high);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        temp = Double.doubleToLongBits(low);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        temp = Double.doubleToLongBits(open);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        temp = Double.doubleToLongBits(vol);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        return result;
+    }
+
+    public boolean equals(Object obj)
+    {
+        if(this == obj)
+            return true;
+        if(!super.equals(obj))
+            return false;
+        if(getClass() != obj.getClass())
+            return false;
+        CandleData other = (CandleData)obj;
+        if(Double.doubleToLongBits(close) != Double.doubleToLongBits(other.close))
+            return false;
+        if(Double.doubleToLongBits(high) != Double.doubleToLongBits(other.high))
+            return false;
+        if(Double.doubleToLongBits(low) != Double.doubleToLongBits(other.low))
+            return false;
+        if(Double.doubleToLongBits(open) != Double.doubleToLongBits(other.open))
+            return false;
+        return Double.doubleToLongBits(vol) == Double.doubleToLongBits(other.vol);
+    }
+
+    public void setOpen(double open)
+    {
+        this.open = open;
+    }
+
+    public void setClose(double close)
+    {
+        this.close = close;
+    }
+
+    public void setLow(double low)
+    {
+        this.low = low;
+    }
+
+    public void setHigh(double high)
+    {
+        this.high = high;
+    }
+
+    public void setVolume(double vol)
+    {
+        this.vol = vol;
+    }
+
+    public double getOpen()
+    {
+        return open;
+    }
+
+    public double getClose()
+    {
+        return close;
+    }
+
+    public double getLow()
+    {
+        return low;
+    }
+
+    public double getHigh()
+    {
+        return high;
+    }
+
+    public double getVolume()
+    {
+        return vol;
+    }
+
+    public volatile Data clone()
+    {
+        return clone();
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    protected static final int BYTES_COUNT4 = 48;
+    protected static final int BYTES_COUNT5 = 24;
+    public double open;
+    public double close;
+    public double low;
+    public double high;
+    public double vol;
+}

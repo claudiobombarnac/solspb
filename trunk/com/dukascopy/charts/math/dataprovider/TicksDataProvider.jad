@@ -1,0 +1,1540 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TicksDataProvider.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.api.indicators.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider:
+//            AbstractDataProvider, TickDataSequence, ISynchronizeIndicators, IDataSequence
+
+public class TicksDataProvider extends AbstractDataProvider
+{
+    protected static class LoadDataListener
+        implements LiveFeedListener
+    {
+
+        public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                double close, double low, double high, double vol)
+        {
+            if(!dataCacheRequestData.cancel)
+            {
+                if(!fromEnd && prevCandleTime > time || fromEnd && prevCandleTime < time)
+                    throw new RuntimeException("Received candles from data cache are not in ascending order");
+                List candles;
+                if(side == OfferSide.ASK)
+                    candles = dataCacheRequestData.askCandles;
+                else
+                    candles = dataCacheRequestData.bidCandles;
+                if(!fromEnd)
+                    candles.add(new CandleData(time, open, close, low, high, vol));
+                else
+                    candles.add(0, new CandleData(time, open, close, low, high, vol));
+                prevCandleTime = time;
+            } else
+            {
+                dataCacheRequestData.dataLoaded = null;
+                dataCacheRequestData.progressListener = null;
+            }
+        }
+
+        public void newTick(Instrument instrument, long time, double ask, double bid, 
+                double askVol, double bidVol)
+        {
+            if(!dataCacheRequestData.cancel)
+            {
+                if(!fromEnd && prevTime > time || fromEnd && prevTime < time)
+                    throw new RuntimeException("Received ticks from data cache are not in ascending order");
+                if(!fromEnd)
+                    dataCacheRequestData.dataLoaded.add(new TickData(time, ask, bid, askVol, bidVol));
+                else
+                    dataCacheRequestData.dataLoaded.add(0, new TickData(time, ask, bid, askVol, bidVol));
+                prevTime = time;
+            } else
+            {
+                dataCacheRequestData.dataLoaded = null;
+                dataCacheRequestData.progressListener = null;
+            }
+        }
+
+        private DataCacheRequestData dataCacheRequestData;
+        private long prevTime;
+        private long prevCandleTime;
+        private boolean fromEnd;
+
+        public LoadDataListener(DataCacheRequestData dataCacheRequestData, boolean fromEnd)
+        {
+            prevTime = 0x8000000000000000L;
+            prevCandleTime = 0x8000000000000000L;
+            this.dataCacheRequestData = dataCacheRequestData;
+            this.fromEnd = fromEnd;
+            if(fromEnd)
+            {
+                prevTime = 0x7fffffffffffffffL;
+                prevCandleTime = 0x7fffffffffffffffL;
+            }
+        }
+    }
+
+    protected static class DataCacheRequestData extends AbstractDataProvider.AbstractDataCacheRequestData
+    {
+
+        public String toString()
+        {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            StringBuilder stamp = new StringBuilder();
+            stamp.append(numberOfCandlesBefore).append(" - ").append(format.format(Long.valueOf(time))).append(" - ");
+            stamp.append(numberOfCandlesAfter).append(" loadedSize - ").append(dataLoaded.size());
+            return stamp.toString();
+        }
+
+        public List dataLoaded;
+        public List askCandles;
+        public List bidCandles;
+
+        protected DataCacheRequestData()
+        {
+            dataLoaded = new ArrayList();
+            askCandles = new ArrayList();
+            bidCandles = new ArrayList();
+        }
+    }
+
+
+    public TicksDataProvider(Instrument instrument, int maxNumberOfCandles, int bufferSizeMultiplier, boolean requestAtFirstTick, Filter filter, IFeedDataProvider feedDataProvider)
+    {
+        super(instrument, Period.TICK, null, maxNumberOfCandles, bufferSizeMultiplier, filter, feedDataProvider);
+        lastIndex = -1;
+        gaps = new long[0][];
+        oneSecLastIndex = -1;
+        LOGGER.debug((new StringBuilder()).append("Creating data provider for instrument [").append(instrument).append("], period [").append(period).append("], maxNumberOfCandles [").append(maxNumberOfCandles).append("]").toString());
+        this.requestAtFirstTick = requestAtFirstTick;
+        buffer = new TickData[maxNumberOfCandles * bufferSizeMultiplier * 2];
+        oneSecBufferAsk = new CandleData[maxNumberOfCandles * bufferSizeMultiplier];
+        oneSecBufferBid = new CandleData[maxNumberOfCandles * bufferSizeMultiplier];
+    }
+
+    public void start()
+    {
+        firstDataListener = new LiveFeedListener() {
+
+            public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                    double d1, double d2, double d3, double d4)
+            {
+            }
+
+            public void newTick(Instrument instrument, long time, double ask, double bid, 
+                    double askVol, double bidVol)
+            {
+                if(requestAtFirstTick && parentDataProvider != null)
+                    synchronized(parentDataProvider)
+                    {
+                        processNewTick(instrument, time, ask, bid, askVol, bidVol);
+                    }
+                else
+                    processNewTick(instrument, time, ask, bid, askVol, bidVol);
+            }
+
+            final TicksDataProvider this$0;
+
+            
+            {
+                this$0 = TicksDataProvider.this;
+                super();
+            }
+        };
+        TickData lastTick = feedDataProvider.getLastTick(instrument);
+        if(lastTick != null)
+            processNewTick(instrument, lastTick.time, lastTick.ask, lastTick.bid, lastTick.askVol, lastTick.bidVol);
+        feedDataProvider.subscribeToLiveFeed(instrument, firstDataListener);
+        cacheDataUpdatedListener = new AbstractDataProvider.CacheDataUpdatedListener(this);
+        feedDataProvider.addCacheDataUpdatedListener(instrument, cacheDataUpdatedListener);
+    }
+
+    private void processNewTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        boolean added;
+        boolean add;
+label0:
+        {
+            added = false;
+            synchronized(this)
+            {
+                add = true;
+                if(firstData == null || firstData.time <= time)
+                    break label0;
+                Exception notThrownException = new Exception((new StringBuilder()).append("[").append(firstData.time - time).append("] Received tick has older time than previous tick, ignoring").toString());
+                LOGGER.error(notThrownException.getMessage(), notThrownException);
+            }
+            return;
+        }
+        Data oldFirstData;
+        TickData tickData = new TickData(time, ask, bid, askVol, bidVol);
+        if(filter != Filter.NO_FILTER && period.getInterval() <= Period.DAILY.getInterval())
+        {
+            cal.setFirstDayOfWeek(2);
+            cal.setTimeInMillis(time);
+            cal.set(7, 6);
+            cal.set(11, 22);
+            cal.set(12, 0);
+            cal.set(13, 0);
+            cal.set(14, 0);
+            long weekendStart = cal.getTimeInMillis();
+            cal.set(7, 1);
+            cal.set(11, 21);
+            long weekendEnd = cal.getTimeInMillis();
+            if(time >= weekendStart && time <= weekendEnd)
+                add = false;
+        }
+        oldFirstData = firstData;
+        if(add)
+        {
+            oldFirstData = firstData;
+            firstData = tickData;
+            added = addFirstDataIfNeeded(oldFirstData != null ? oldFirstData.time : 0x8000000000000000L);
+        }
+        if(oldFirstData == null && requestAtFirstTick)
+        {
+            requestAtFirstTick = false;
+            int numberOfSeconds = maxNumberOfCandles * bufferSizeMultiplier;
+            long to = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, time);
+            if(feedDataProvider != null)
+            {
+                DataCacheRequestData requestData = new DataCacheRequestData();
+                requestData.numberOfCandlesBefore = 0;
+                requestData.numberOfCandlesAfter = 0;
+                requestData.time = to;
+                requestData.mode = AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING;
+                requestData.cancel = false;
+                if(assertionsEnabled())
+                {
+                    requestData.requestState = new HashMap();
+                    requestData.requestState.put("lastIndex", Integer.valueOf(lastIndex));
+                    TickData bufferCopy[] = new TickData[buffer.length];
+                    System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+                    requestData.requestState.put("buffer", bufferCopy);
+                    requestData.requestState.put("firstData", firstData);
+                    requestData.requestState.put("oneSecLastIndex", Integer.valueOf(oneSecLastIndex));
+                    CandleData oneSecBufferAskCopy[] = new CandleData[oneSecBufferAsk.length];
+                    System.arraycopy(oneSecBufferAsk, 0, oneSecBufferAskCopy, 0, oneSecBufferAsk.length);
+                    requestData.requestState.put("oneSecBufferAsk", oneSecBufferAskCopy);
+                    CandleData oneSecBufferBidCopy[] = new CandleData[oneSecBufferBid.length];
+                    System.arraycopy(oneSecBufferBid, 0, oneSecBufferBidCopy, 0, oneSecBufferBid.length);
+                    requestData.requestState.put("oneSecBufferBid", oneSecBufferBidCopy);
+                }
+                try
+                {
+                    AbstractDataProvider.LoadDataProgressListener loadDataProgressListener = new AbstractDataProvider.LoadDataProgressListener(this, requestData);
+                    if(LOGGER.isDebugEnabled())
+                    {
+                        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                        LOGGER.debug((new StringBuilder()).append("Requesting last available ticks for instrument [").append(instrument).append("] number of seconds [").append(numberOfSeconds).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+                    }
+                    feedDataProvider.loadLastAvailableNumberOfTicksDataSynched(instrument, numberOfSeconds, to, filter, new LoadDataListener(requestData, true), loadDataProgressListener);
+                }
+                catch(DataCacheException e)
+                {
+                    LOGGER.error(e.getMessage(), e);
+                }
+                if(oneSecLastIndex != -1)
+                {
+                    numberOfSeconds -= oneSecLastIndex;
+                    loadedNumberOfSeconds = oneSecLastIndex + 1;
+                    to = oneSecBufferAsk[0].time;
+                }
+            }
+            if(oneSecLastIndex == -1 || oneSecLastIndex + 1 < numberOfSeconds)
+                requestHistoryData(numberOfSeconds, 0, to, AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING, maxNumberOfCandles * bufferSizeMultiplier, DataCacheUtils.getCandleStartFast(Period.ONE_SEC, time), 0);
+        }
+        ticksdataprovider;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+        if(added)
+        {
+            long dataChangedFrom = oldFirstData != null ? oldFirstData.time : firstData.time;
+            long dataChangedTo = firstData.time;
+            if(sparceIndicatorAttached())
+            {
+                dataChangedFrom = buffer[0].time;
+                dataChangedTo = buffer[lastIndex].time;
+            } else
+            if(formulasMinShift != 0)
+                dataChangedFrom = DataCacheUtils.getTimeForNCandlesBackFast(Period.ONE_SEC, dataChangedFrom, -formulasMinShift + 1);
+            fireDataChanged(dataChangedFrom, dataChangedTo, true);
+        }
+        return;
+    }
+
+    public synchronized IDataSequence getDataSequence(int numberOfSecondsBefore, long to, int numberOfSecondsAfter)
+    {
+        if(parentDataProvider == null && numberOfSecondsBefore + numberOfSecondsAfter > maxNumberOfCandles)
+            throw new IllegalArgumentException((new StringBuilder()).append("Requested items count: ").append(numberOfSecondsBefore + numberOfSecondsAfter).append(" is bigger than maxNumberOfCandles[").append(maxNumberOfCandles).append("] specified in constructor").toString());
+        if(numberOfSecondsBefore < 0 || numberOfSecondsAfter < 0 || numberOfSecondsBefore + numberOfSecondsAfter == 0)
+            throw new IllegalArgumentException((new StringBuilder()).append("Negative or zero number of candles requested [").append(numberOfSecondsBefore).append("],[").append(numberOfSecondsAfter).append("]").toString());
+        if(!active)
+            throw new IllegalStateException("DataProvider is not active, activate it first");
+        if(assertionsEnabled())
+        {
+            if(to == 0x8000000000000000L || to > getLatestDataTime())
+                throw new IllegalStateException("DataProvider is not ready yet, waiting for first tick");
+            if(to != DataCacheUtils.getCandleStartFast(Period.ONE_SEC, to))
+            {
+                SimpleDateFormat df = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                df.setTimeZone(TimeZone.getTimeZone("GMT"));
+                throw new IllegalStateException((new StringBuilder()).append("to time [").append(df.format(Long.valueOf(to))).append("] is not a start of a candle with period [").append(Period.ONE_SEC).append("]").toString());
+            }
+        }
+        int oneSecIntervals[] = {
+            0x80000000, 0x80000000, 0, 0
+        };
+        boolean oneSecDataExists = calculateInterval(numberOfSecondsBefore, to, numberOfSecondsAfter, oneSecIntervals, oneSecBufferAsk, oneSecLastIndex);
+        CandleData oneSecTimeDataAsk[];
+        CandleData oneSecTimeDataBid[];
+        if(oneSecDataExists)
+        {
+            oneSecTimeDataAsk = new CandleData[(oneSecIntervals[1] - oneSecIntervals[0]) + 1];
+            oneSecTimeDataBid = new CandleData[(oneSecIntervals[1] - oneSecIntervals[0]) + 1];
+            System.arraycopy(oneSecBufferAsk, oneSecIntervals[0], oneSecTimeDataAsk, 0, (oneSecIntervals[1] - oneSecIntervals[0]) + 1);
+            System.arraycopy(oneSecBufferBid, oneSecIntervals[0], oneSecTimeDataBid, 0, (oneSecIntervals[1] - oneSecIntervals[0]) + 1);
+        } else
+        {
+            oneSecTimeDataAsk = new CandleData[0];
+            oneSecTimeDataBid = new CandleData[0];
+        }
+        int intervals[] = {
+            0x80000000, 0x80000000, 0, 0
+        };
+        TickData timeData[];
+        if(oneSecDataExists && calculateTicksInterval(oneSecIntervals, intervals))
+        {
+            timeData = new TickData[(intervals[1] - intervals[0]) + 1];
+            System.arraycopy(buffer, intervals[0], timeData, 0, (intervals[1] - intervals[0]) + 1);
+        } else
+        {
+            timeData = new TickData[0];
+        }
+        Map formulaOutputs = null;
+        Map indicators = null;
+        Iterator i$ = formulas.entrySet().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            AbstractDataProvider.IndicatorData formulaData = (AbstractDataProvider.IndicatorData)entry.getValue();
+            if(!formulaData.disabledIndicator)
+            {
+                IIndicator indicator = formulaData.indicatorWrapper.getIndicator();
+                if(formulaOutputs == null)
+                {
+                    formulaOutputs = new HashMap();
+                    indicators = new HashMap();
+                }
+                Integer indicatorId = (Integer)entry.getKey();
+                indicators.put(indicatorId, formulaData.indicatorWrapper);
+                Object outputs[] = new Object[formulaData.outputDataInt.length];
+                formulaOutputs.put(indicatorId, ((Object) (outputs)));
+                for(int i = 0; i < outputs.length; i++)
+                {
+                    static class _cls2
+                    {
+
+                        static final int $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[];
+
+                        static 
+                        {
+                            $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type = new int[com.dukascopy.api.indicators.OutputParameterInfo.Type.values().length];
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.INT.ordinal()] = 1;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.DOUBLE.ordinal()] = 2;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.OBJECT.ordinal()] = 3;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                        }
+                    }
+
+                    switch(_cls2..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[indicator.getOutputParameterInfo(i).getType().ordinal()])
+                    {
+                    default:
+                        break;
+
+                    case 1: // '\001'
+                        if(oneSecDataExists)
+                        {
+                            outputs[i] = new int[(oneSecIntervals[1] - oneSecIntervals[0]) + 1];
+                            System.arraycopy(formulaData.outputDataInt[i], oneSecIntervals[0], outputs[i], 0, (oneSecIntervals[1] - oneSecIntervals[0]) + 1);
+                        } else
+                        {
+                            outputs[i] = new int[0];
+                        }
+                        break;
+
+                    case 2: // '\002'
+                        if(oneSecDataExists)
+                        {
+                            outputs[i] = new double[(oneSecIntervals[1] - oneSecIntervals[0]) + 1];
+                            System.arraycopy(formulaData.outputDataDouble[i], oneSecIntervals[0], outputs[i], 0, (oneSecIntervals[1] - oneSecIntervals[0]) + 1);
+                        } else
+                        {
+                            outputs[i] = new double[0];
+                        }
+                        break;
+
+                    case 3: // '\003'
+                        if(oneSecDataExists)
+                        {
+                            outputs[i] = ((Object) (new Object[(oneSecIntervals[1] - oneSecIntervals[0]) + 1]));
+                            System.arraycopy(((Object) (formulaData.outputDataObject[i])), oneSecIntervals[0], outputs[i], 0, (oneSecIntervals[1] - oneSecIntervals[0]) + 1);
+                        } else
+                        {
+                            outputs[i] = ((Object) (new Object[0]));
+                        }
+                        break;
+                    }
+                }
+
+                if(formulaData.inputDataProviders != null)
+                {
+                    AbstractDataProvider arr$[] = formulaData.inputDataProviders;
+                    int len$ = arr$.length;
+                    int i$ = 0;
+                    while(i$ < len$) 
+                    {
+                        AbstractDataProvider indicatorDataProvider = arr$[i$];
+                        if(indicatorDataProvider != null)
+                        {
+                            Period indicatorPeriod = indicatorDataProvider.period != Period.TICK ? indicatorDataProvider.period : Period.ONE_SEC;
+                            long indicatorTo = DataCacheUtils.getCandleStartFast(indicatorPeriod, to);
+                            int indicatorBefore = 1;
+                            int indicatorAfter = numberOfSecondsAfter <= 0 ? 0 : 1;
+                            if(oneSecDataExists)
+                            {
+                                long indicatorFrom = DataCacheUtils.getCandleStartFast(indicatorPeriod, oneSecTimeDataAsk[oneSecIntervals[2]].time);
+                                indicatorBefore = DataCacheUtils.getCandlesCountBetweenFast(indicatorPeriod, indicatorFrom, indicatorTo);
+                                if(indicatorBefore < 0)
+                                    indicatorBefore = 1;
+                                long indicatorAfterTo = DataCacheUtils.getCandleStartFast(indicatorPeriod, oneSecTimeDataAsk[oneSecTimeDataAsk.length - oneSecIntervals[3] - 1].time);
+                                indicatorAfter = DataCacheUtils.getCandlesCountBetweenFast(indicatorPeriod, DataCacheUtils.getNextCandleStartFast(indicatorPeriod, indicatorTo), indicatorAfterTo);
+                                if(indicatorAfter < 0)
+                                    indicatorAfter = 0;
+                            }
+                            synchronized(indicatorDataProvider)
+                            {
+                                indicatorDataProvider.doHistoryRequests(indicatorBefore, indicatorTo, indicatorAfter);
+                            }
+                        }
+                        i$++;
+                    }
+                }
+            }
+        } while(true);
+        if(parentDataProvider == null)
+            doHistoryRequests(numberOfSecondsBefore, to, numberOfSecondsAfter);
+        return new TickDataSequence(oneSecDataExists ? oneSecTimeDataAsk[oneSecIntervals[2]].time : to, oneSecDataExists ? oneSecTimeDataAsk[oneSecTimeDataAsk.length - oneSecIntervals[3] - 1].time : to, intervals[2], intervals[3], timeData, gaps, oneSecIntervals[2], oneSecIntervals[3], oneSecTimeDataAsk, oneSecTimeDataBid, indicators, formulaOutputs, timeData.length > 0 && firstData != null && intervals[3] == 0 && timeData[timeData.length - 1].time == firstData.time, timeData.length > 0 && firstData != null && timeData[timeData.length - 1].time == firstData.time);
+    }
+
+    protected final boolean calculateTicksInterval(int oneSecIntervals[], int intervals[])
+    {
+        if(lastIndex == -1)
+            return false;
+        int startIndex = findStart(oneSecBufferAsk[oneSecIntervals[0] + oneSecIntervals[2]].time, 0, lastIndex, buffer);
+        long endTime = oneSecBufferAsk[oneSecIntervals[1] - oneSecIntervals[3]].time + 999L;
+        int endIndex = findStart(endTime, 0, lastIndex, buffer);
+        if(endIndex > lastIndex)
+            endIndex = lastIndex;
+        if(buffer[endIndex].time > endTime)
+            endIndex--;
+        if(startIndex > 0)
+        {
+            startIndex--;
+            intervals[2] = 1;
+        }
+        if(endIndex < lastIndex)
+        {
+            endIndex++;
+            intervals[3] = 1;
+        }
+        if(startIndex <= endIndex && startIndex >= 0 && endIndex <= lastIndex)
+        {
+            intervals[0] = startIndex;
+            intervals[1] = endIndex;
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
+
+    public void setFilter(Filter filter)
+    {
+        setParams(instrument, period, filter);
+    }
+
+    public void setPeriod(Period period)
+    {
+        setParams(instrument, period, filter);
+    }
+
+    public void setOfferSide(OfferSide offerSide)
+    {
+        throw new RuntimeException("Cannot change offer side for ticks");
+    }
+
+    public Filter getFilter()
+    {
+        return filter;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return null;
+    }
+
+    public void setInstrument(Instrument instrument)
+    {
+        setParams(instrument, period, filter);
+    }
+
+    public void setParams(Instrument instrument, Period period, Filter filter)
+    {
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Setting filter ").append(filter).append(" for [").append(instrument).append("] [").append(period).append("] provider").toString());
+        if(parentDataProvider != null)
+            synchronized(parentDataProvider)
+            {
+                synchronized(this)
+                {
+                    setPeriodAndFilterSynchronized(instrument, period, filter);
+                }
+            }
+        else
+            synchronized(this)
+            {
+                setPeriodAndFilterSynchronized(instrument, period, filter);
+            }
+    }
+
+    protected void setPeriodAndFilterSynchronized(Instrument instrument, Period period, Filter filter)
+    {
+        if(period != Period.TICK)
+            throw new IllegalArgumentException("Incorrect period set for ticks provider");
+        if(filter != Filter.NO_FILTER && filter != Filter.WEEKENDS)
+            throw new IllegalArgumentException("Incorrect filter set for ticks provider");
+        if(dataCacheRequestData != null)
+        {
+            dataCacheRequestData.cancel = true;
+            if(LOGGER.isDebugEnabled())
+            {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                LOGGER.debug((new StringBuilder()).append("Canceling request for instrument [").append(instrument).append("], period [").append(period).append("], numberOfCandlesBefore [").append(dataCacheRequestData.numberOfCandlesBefore).append("], numberOfCandlesAfter [").append(dataCacheRequestData.numberOfCandlesAfter).append("] time [").append(dateFormat.format(new Date(dataCacheRequestData.time))).append("] as a result for request to change instrument/period/filter").toString());
+            }
+        }
+        feedDataProvider.unsubscribeToLiveFeed(this.instrument, firstDataListener);
+        this.filter = filter;
+        this.instrument = instrument;
+        firstData = null;
+        lastIndex = -1;
+        oneSecLastIndex = -1;
+        loadedNumberOfSeconds = 0L;
+        loadedToInSeconds = 0x8000000000000000L;
+        Iterator i$ = formulas.values().iterator();
+label0:
+        do
+        {
+            if(i$.hasNext())
+            {
+                AbstractDataProvider.IndicatorData indicatorData = (AbstractDataProvider.IndicatorData)i$.next();
+                IIndicator indicator = indicatorData.indicatorWrapper.getIndicator();
+                int i = 0;
+                int j = indicator.getIndicatorInfo().getNumberOfInputs();
+                do
+                {
+                    if(i >= j)
+                        continue label0;
+                    InputParameterInfo inputParameterInfo = indicator.getInputParameterInfo(i);
+                    if(inputParameterInfo.getOfferSide() != null || inputParameterInfo.getPeriod() != null || inputParameterInfo.getInstrument() != null)
+                    {
+                        initIndicatorInputs(indicatorData);
+                        continue label0;
+                    }
+                    i++;
+                } while(true);
+            }
+            feedDataProvider.subscribeToLiveFeed(this.instrument, firstDataListener);
+            long firstTickTime = getLatestDataTime();
+            if(firstTickTime != 0x8000000000000000L)
+            {
+                if(requestAtFirstTick)
+                    requestAtFirstTick = false;
+                int numberOfSeconds = maxNumberOfCandles * bufferSizeMultiplier;
+                long to = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstTickTime);
+                if(feedDataProvider != null)
+                {
+                    DataCacheRequestData requestData = new DataCacheRequestData();
+                    requestData.numberOfCandlesBefore = 0;
+                    requestData.numberOfCandlesAfter = 0;
+                    requestData.time = to;
+                    requestData.mode = AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING;
+                    requestData.cancel = false;
+                    if(assertionsEnabled())
+                    {
+                        requestData.requestState = new HashMap();
+                        requestData.requestState.put("lastIndex", Integer.valueOf(lastIndex));
+                        TickData bufferCopy[] = new TickData[buffer.length];
+                        System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+                        requestData.requestState.put("buffer", bufferCopy);
+                        requestData.requestState.put("firstData", firstData);
+                        requestData.requestState.put("oneSecLastIndex", Integer.valueOf(oneSecLastIndex));
+                        CandleData oneSecBufferAskCopy[] = new CandleData[oneSecBufferAsk.length];
+                        System.arraycopy(oneSecBufferAsk, 0, oneSecBufferAskCopy, 0, oneSecBufferAsk.length);
+                        requestData.requestState.put("oneSecBufferAsk", oneSecBufferAskCopy);
+                        CandleData oneSecBufferBidCopy[] = new CandleData[oneSecBufferBid.length];
+                        System.arraycopy(oneSecBufferBid, 0, oneSecBufferBidCopy, 0, oneSecBufferBid.length);
+                        requestData.requestState.put("oneSecBufferBid", oneSecBufferBidCopy);
+                    }
+                    try
+                    {
+                        AbstractDataProvider.LoadDataProgressListener loadDataProgressListener = new AbstractDataProvider.LoadDataProgressListener(this, requestData);
+                        if(LOGGER.isDebugEnabled())
+                        {
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                            LOGGER.debug((new StringBuilder()).append("Requesting last available ticks for instrument [").append(instrument).append("] number of seconds [").append(numberOfSeconds).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+                        }
+                        feedDataProvider.loadLastAvailableNumberOfTicksDataSynched(instrument, numberOfSeconds, to, filter, new LoadDataListener(requestData, true), loadDataProgressListener);
+                    }
+                    catch(DataCacheException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                    if(oneSecLastIndex != -1)
+                    {
+                        numberOfSeconds -= oneSecLastIndex;
+                        loadedNumberOfSeconds = oneSecLastIndex + 1;
+                        to = oneSecBufferAsk[0].time;
+                    }
+                }
+                if(oneSecLastIndex == -1 || oneSecLastIndex + 1 < numberOfSeconds)
+                    requestHistoryData(numberOfSeconds, 0, to, AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING, maxNumberOfCandles * bufferSizeMultiplier, DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstTickTime), 0);
+            }
+            return;
+        } while(true);
+    }
+
+    protected void initIndicatorDataOutputBuffers(AbstractDataProvider.IndicatorData formulaData)
+    {
+        IndicatorInfo indicatorInfo = formulaData.indicatorWrapper.getIndicator().getIndicatorInfo();
+        for(int i = 0; i < indicatorInfo.getNumberOfOutputs(); i++)
+        {
+            OutputParameterInfo outputParameterInfo = formulaData.indicatorWrapper.getIndicator().getOutputParameterInfo(i);
+            switch(_cls2..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[outputParameterInfo.getType().ordinal()])
+            {
+            case 1: // '\001'
+                formulaData.outputDataInt[i] = new int[oneSecBufferAsk.length];
+                break;
+
+            case 2: // '\002'
+                formulaData.outputDataDouble[i] = new double[oneSecBufferAsk.length];
+                break;
+
+            case 3: // '\003'
+                formulaData.outputDataObject[i] = new Object[buffer.length];
+                break;
+            }
+        }
+
+    }
+
+    protected void recalculateIndicators()
+    {
+        recalculateIndicators(0, oneSecLastIndex);
+    }
+
+    protected void recalculateIndicator(AbstractDataProvider.IndicatorData indicatorData)
+    {
+        Collection indicators = new ArrayList(1);
+        indicators.add(indicatorData);
+        recalculateIndicators(0, oneSecLastIndex, indicators, oneSecLastIndex, oneSecBufferAsk, oneSecBufferBid);
+    }
+
+    protected void recalculateIndicators(int from, int to)
+    {
+        if(!active)
+            return;
+        boolean split = false;
+        Iterator i$ = formulas.values().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            AbstractDataProvider.IndicatorData formulaData = (AbstractDataProvider.IndicatorData)i$.next();
+            if(!formulaData.indicatorWrapper.getIndicator().getIndicatorInfo().isRecalculateAll())
+                continue;
+            split = true;
+            break;
+        } while(true);
+        if(split)
+        {
+            Collection recalculateAllFormulas = new ArrayList(formulas.size());
+            Collection restOfTheFormulas = new ArrayList(formulas.size());
+            for(Iterator i$ = formulas.values().iterator(); i$.hasNext();)
+            {
+                AbstractDataProvider.IndicatorData formulaData = (AbstractDataProvider.IndicatorData)i$.next();
+                if(formulaData.indicatorWrapper.getIndicator().getIndicatorInfo().isRecalculateAll())
+                    recalculateAllFormulas.add(formulaData);
+                else
+                    restOfTheFormulas.add(formulaData);
+            }
+
+            if(!recalculateAllFormulas.isEmpty())
+                recalculateIndicators(0, oneSecLastIndex, recalculateAllFormulas, oneSecLastIndex, oneSecBufferAsk, oneSecBufferBid);
+            if(!restOfTheFormulas.isEmpty())
+                recalculateIndicators(from, to, restOfTheFormulas, oneSecLastIndex, oneSecBufferAsk, oneSecBufferBid);
+        } else
+        if(!formulas.isEmpty())
+            recalculateIndicators(from, to, formulas.values(), oneSecLastIndex, oneSecBufferAsk, oneSecBufferBid);
+    }
+
+    protected boolean loadingNeeded(int numberOfCandlesBefore, long to, int numberOfCandlesAfter)
+    {
+        if(oneSecLastIndex == -1)
+            return numberOfCandlesBefore > 0 || numberOfCandlesAfter > 0;
+        if(to <= loadedToInSeconds)
+        {
+            int numberOfCandlesBetweenTimes = DataCacheUtils.getCandlesCountBetweenFast(Period.ONE_SEC, to, loadedToInSeconds) - 1;
+            if(numberOfCandlesAfter <= numberOfCandlesBetweenTimes && (long)numberOfCandlesBefore < loadedNumberOfSeconds - (long)numberOfCandlesBetweenTimes)
+                return false;
+        }
+        if(firstData != null)
+        {
+            if(to > firstData.time)
+            {
+                to = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time);
+                numberOfCandlesAfter = 0;
+            }
+            int maxCandlesAfter = DataCacheUtils.getCandlesCountBetweenFast(Period.ONE_SEC, DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, to), DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time));
+            if(numberOfCandlesAfter > maxCandlesAfter)
+                numberOfCandlesAfter = maxCandlesAfter;
+        }
+        int numberOfCandlesBetweenStartAndTo = 0;
+        int numberOfCandlesBetweenToAndEnd = 0;
+        int ei = oneSecLastIndex;
+        int toIndex = findStart(to, 0, ei, oneSecBufferAsk);
+        numberOfCandlesBetweenToAndEnd += ei - toIndex;
+        if(toIndex >= 0 && toIndex <= ei && oneSecBufferAsk[0].time == to)
+            toIndex++;
+        numberOfCandlesBetweenStartAndTo = (int)((long)numberOfCandlesBetweenStartAndTo + ((long)(toIndex + 1) + ((long)(oneSecLastIndex + 1) - loadedNumberOfSeconds)));
+        int safeCandlesAmount = (maxNumberOfCandles * bufferSizeMultiplier - maxNumberOfCandles) / 4;
+        if(firstData != null && (lastIndex == -1 || buffer[lastIndex].time != firstData.time) && numberOfCandlesBetweenToAndEnd < safeCandlesAmount + numberOfCandlesAfter)
+            return true;
+        else
+            return numberOfCandlesBetweenStartAndTo < safeCandlesAmount + numberOfCandlesBefore;
+    }
+
+    public AbstractDataProvider.LoadDataProgressListener doHistoryRequests(int numOfCandlesBefore, long reqTime, int numOfCandlesAfter)
+    {
+        if(loadingNeeded(numOfCandlesBefore, reqTime, numOfCandlesAfter))
+        {
+            int numberOfCandlesBefore = (maxNumberOfCandles * bufferSizeMultiplier) / 2 + (numOfCandlesBefore + numOfCandlesAfter) / 2;
+            int numberOfCandlesAfter = (maxNumberOfCandles * bufferSizeMultiplier) / 2 - (numOfCandlesBefore + numOfCandlesAfter) / 2;
+            AbstractDataProvider.RequestMode mode = AbstractDataProvider.RequestMode.OVERWRITE;
+            long time = reqTime;
+            long firstDataTime = 0x8000000000000000L;
+            if(firstData != null)
+                firstDataTime = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time);
+            if(firstDataTime != 0x8000000000000000L)
+                if(time >= firstDataTime)
+                {
+                    time = firstDataTime;
+                    numberOfCandlesAfter = 0;
+                    numberOfCandlesBefore = maxNumberOfCandles * bufferSizeMultiplier;
+                    mode = AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING;
+                    if(lastIndex != -1 && firstData != null && buffer[lastIndex].time != firstData.time)
+                    {
+                        lastIndex = 0;
+                        oneSecLastIndex = 0;
+                        buffer[lastIndex] = (TickData)firstData;
+                        oneSecBufferAsk[oneSecLastIndex] = new CandleData();
+                        oneSecBufferBid[oneSecLastIndex] = new CandleData();
+                        initCandleWithTick(oneSecBufferAsk[oneSecLastIndex], (TickData)firstData, OfferSide.ASK);
+                        initCandleWithTick(oneSecBufferBid[oneSecLastIndex], (TickData)firstData, OfferSide.BID);
+                        gaps = new long[0][];
+                        loadedNumberOfSeconds = 1L;
+                        loadedToInSeconds = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time);
+                        numberOfCandlesBefore--;
+                        recalculateIndicators();
+                        checkConsistency();
+                    } else
+                    if(lastIndex != -1 && firstData != null && buffer[lastIndex].time == firstData.time)
+                    {
+                        time = oneSecBufferAsk[0].time;
+                        numberOfCandlesBefore -= oneSecLastIndex + 1;
+                        if(numberOfCandlesBefore == 0 && assertionsEnabled())
+                            throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+                    }
+                } else
+                {
+                    long expectedLastCandleTime = DataCacheUtils.getTimeForNCandlesForwardFast(Period.ONE_SEC, time, numberOfCandlesAfter + 1);
+                    if(expectedLastCandleTime > firstDataTime)
+                    {
+                        int numberOfCandlesBetween = DataCacheUtils.getCandlesCountBetweenFast(Period.ONE_SEC, firstDataTime, expectedLastCandleTime) - 1;
+                        numberOfCandlesAfter -= numberOfCandlesBetween;
+                        numberOfCandlesBefore += numberOfCandlesBetween;
+                    }
+                }
+            return requestHistoryData(numberOfCandlesBefore, numberOfCandlesAfter, time, mode, numOfCandlesBefore, reqTime, numOfCandlesAfter);
+        }
+        if(dataCacheRequestData != null)
+        {
+            if(LOGGER.isDebugEnabled())
+            {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                LOGGER.debug((new StringBuilder()).append("Canceling request for instrument [").append(instrument).append("], period [").append(period).append("], number of").append(" candles before [").append(dataCacheRequestData.numberOfCandlesBefore).append("] number of candles after [").append(dataCacheRequestData.numberOfCandlesAfter).append("] to [").append(dateFormat.format(new Date(dataCacheRequestData.time))).append("] as a result to request for [").append(numOfCandlesBefore).append("] candles before time [").append(dateFormat.format(new Date(reqTime))).append("] and [").append(numOfCandlesAfter).append("] candles after time, buffer already has the required data").toString());
+            }
+            dataCacheRequestData.cancel = true;
+            dataCacheRequestData = null;
+            fireLoadingFinished();
+        }
+        return null;
+    }
+
+    protected void shiftLeft(int numberOfElements)
+    {
+label0:
+        {
+label1:
+            {
+                if(numberOfElements >= oneSecLastIndex + 1)
+                    break label1;
+                if(gaps.length > 0 && gaps[0][0] < oneSecBufferAsk[numberOfElements].time)
+                    gaps = new long[0][];
+                System.arraycopy(oneSecBufferAsk, numberOfElements, oneSecBufferAsk, 0, (oneSecLastIndex + 1) - numberOfElements);
+                System.arraycopy(oneSecBufferBid, numberOfElements, oneSecBufferBid, 0, (oneSecLastIndex + 1) - numberOfElements);
+                int newStartIndex = findStart(oneSecBufferAsk[0].time, 0, lastIndex, buffer);
+                System.arraycopy(buffer, newStartIndex, buffer, 0, (lastIndex + 1) - newStartIndex);
+                Iterator i$ = formulas.values().iterator();
+                do
+                {
+                    if(!i$.hasNext())
+                        break;
+                    AbstractDataProvider.IndicatorData indicatorData = (AbstractDataProvider.IndicatorData)i$.next();
+                    IIndicator indicator = indicatorData.indicatorWrapper.getIndicator();
+                    int i = 0;
+                    int j = indicator.getIndicatorInfo().getNumberOfOutputs();
+label2:
+                    do
+                    {
+label3:
+                        {
+                            if(i >= j)
+                                break label2;
+                            Object array;
+                            switch(_cls2..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[indicator.getOutputParameterInfo(i).getType().ordinal()])
+                            {
+                            default:
+                                break label3;
+
+                            case 2: // '\002'
+                                array = indicatorData.outputDataDouble[i];
+                                break;
+
+                            case 1: // '\001'
+                                array = indicatorData.outputDataInt[i];
+                                break;
+
+                            case 3: // '\003'
+                                array = ((Object) (indicatorData.outputDataObject[i]));
+                                break;
+                            }
+                            System.arraycopy(array, numberOfElements, array, 0, (oneSecLastIndex + 1) - numberOfElements);
+                        }
+                        i++;
+                    } while(true);
+                } while(true);
+                lastIndex = lastIndex - newStartIndex;
+                oneSecLastIndex = oneSecLastIndex - numberOfElements;
+                loadedNumberOfSeconds = oneSecLastIndex + 1;
+                loadedToInSeconds = oneSecBufferAsk[oneSecLastIndex].time;
+                break label0;
+            }
+            if(numberOfElements >= oneSecLastIndex + 1)
+            {
+                lastIndex = -1;
+                oneSecLastIndex = -1;
+                loadedNumberOfSeconds = 0L;
+                loadedToInSeconds = 0x8000000000000000L;
+                gaps = new long[0][];
+            }
+        }
+    }
+
+    protected AbstractDataProvider.LoadDataProgressListener requestHistoryData(int numberOfCandlesBefore, int numberOfCandlesAfter, long time, AbstractDataProvider.RequestMode mode, int requestedNumberOfCandlesBefore, long requestedTo, int requestedNumberOfCandlesAfter)
+    {
+        if(feedDataProvider != null && time < feedDataProvider.getTimeOfFirstCandle(instrument, period))
+            return null;
+        if(mode != AbstractDataProvider.RequestMode.OVERWRITE && mode != AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING)
+            throw new RuntimeException((new StringBuilder()).append("Request mode [").append(mode).append("] not supported").toString());
+        if(mode == AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING && lastIndex != -1 && firstData != null && (time > DataCacheUtils.getCandleStartFast(Period.ONE_SEC, buffer[0].time) || time > oneSecBufferAsk[0].time || time != oneSecBufferAsk[0].time))
+            throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        if(dataCacheRequestData != null && !dataCacheRequestData.cancel)
+        {
+            if(dataCacheRequestData.time == time && dataCacheRequestData.numberOfCandlesBefore == numberOfCandlesBefore && dataCacheRequestData.numberOfCandlesAfter == numberOfCandlesAfter && dataCacheRequestData.mode == mode)
+                return null;
+            long firstDataTime = 0x8000000000000000L;
+            if(firstData != null)
+                firstDataTime = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time);
+            long expectedBufferTimeStart;
+            long expectedBufferTimeEnd;
+            if(dataCacheRequestData.mode == AbstractDataProvider.RequestMode.OVERWRITE)
+            {
+                expectedBufferTimeStart = DataCacheUtils.getTimeForNCandlesBackFast(Period.ONE_SEC, dataCacheRequestData.time, dataCacheRequestData.numberOfCandlesBefore);
+                expectedBufferTimeEnd = DataCacheUtils.getTimeForNCandlesForwardFast(Period.ONE_SEC, DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, dataCacheRequestData.time), dataCacheRequestData.numberOfCandlesAfter);
+            } else
+            if(dataCacheRequestData.mode == AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING)
+            {
+                expectedBufferTimeEnd = firstDataTime;
+                expectedBufferTimeStart = DataCacheUtils.getTimeForNCandlesBackFast(Period.ONE_SEC, dataCacheRequestData.time, dataCacheRequestData.numberOfCandlesBefore + (DataCacheUtils.getCandlesCountBetweenFast(Period.ONE_SEC, time, firstDataTime) - 1));
+            } else
+            {
+                throw new RuntimeException((new StringBuilder()).append("Request mode [").append(dataCacheRequestData.mode).append("] not supported").toString());
+            }
+            long requestedFrom = DataCacheUtils.getTimeForNCandlesBackFast(Period.ONE_SEC, requestedTo, requestedNumberOfCandlesBefore + (maxNumberOfCandles * bufferSizeMultiplier - maxNumberOfCandles) / 4);
+            long requestedToCorrected = requestedTo + DataCacheUtils.getTimeForNCandlesForwardFast(Period.ONE_SEC, DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, requestedTo), requestedNumberOfCandlesAfter + (maxNumberOfCandles * bufferSizeMultiplier - maxNumberOfCandles) / 4);
+            if(requestedToCorrected > firstDataTime)
+                requestedToCorrected = firstDataTime;
+            if(requestedFrom >= expectedBufferTimeStart && requestedToCorrected <= expectedBufferTimeEnd)
+                return null;
+            if(LOGGER.isDebugEnabled())
+            {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                LOGGER.debug((new StringBuilder()).append("Canceling request for instrument [").append(instrument).append("], period [").append(period).append("], numberOfCandlesBefore [").append(dataCacheRequestData.numberOfCandlesBefore).append("], numberOfCandlesAfter [").append(dataCacheRequestData.numberOfCandlesAfter).append("] time [").append(dateFormat.format(new Date(dataCacheRequestData.time))).append("], request no longer contain required data").toString());
+            }
+            dataCacheRequestData.cancel = true;
+            dataCacheRequestData = null;
+        }
+        fireLoadingStarted();
+        dataCacheRequestData = new DataCacheRequestData();
+        dataCacheRequestData.numberOfCandlesBefore = numberOfCandlesBefore;
+        dataCacheRequestData.numberOfCandlesAfter = numberOfCandlesAfter;
+        dataCacheRequestData.time = time;
+        dataCacheRequestData.mode = mode;
+        dataCacheRequestData.cancel = false;
+        if(assertionsEnabled())
+        {
+            dataCacheRequestData.requestState = new HashMap();
+            dataCacheRequestData.requestState.put("lastIndex", Integer.valueOf(lastIndex));
+            TickData bufferCopy[] = new TickData[buffer.length];
+            System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+            dataCacheRequestData.requestState.put("buffer", bufferCopy);
+            dataCacheRequestData.requestState.put("firstData", firstData);
+            dataCacheRequestData.requestState.put("oneSecLastIndex", Integer.valueOf(oneSecLastIndex));
+            CandleData oneSecBufferAskCopy[] = new CandleData[oneSecBufferAsk.length];
+            System.arraycopy(oneSecBufferAsk, 0, oneSecBufferAskCopy, 0, oneSecBufferAsk.length);
+            dataCacheRequestData.requestState.put("oneSecBufferAsk", oneSecBufferAskCopy);
+            CandleData oneSecBufferBidCopy[] = new CandleData[oneSecBufferBid.length];
+            System.arraycopy(oneSecBufferBid, 0, oneSecBufferBidCopy, 0, oneSecBufferBid.length);
+            dataCacheRequestData.requestState.put("oneSecBufferBid", oneSecBufferBidCopy);
+        }
+        if(feedDataProvider == null)
+            break MISSING_BLOCK_LABEL_1163;
+        AbstractDataProvider.LoadDataProgressListener loadDataProgressListener;
+        loadDataProgressListener = new AbstractDataProvider.LoadDataProgressListener(this, dataCacheRequestData);
+        if(LOGGER.isDebugEnabled())
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Requesting ticks for instrument [").append(instrument).append("], period [").append(period).append("],  loading [").append(numberOfCandlesBefore).append("] seconds before and [").append(numberOfCandlesAfter).append("] after time [").append(dateFormat.format(new Date(time))).append("] as a result to request for [").append(requestedNumberOfCandlesBefore).append("] seconds before time [").append(dateFormat.format(new Date(requestedTo))).append("] and [").append(requestedNumberOfCandlesAfter).append("] seconds after time").toString());
+        }
+        feedDataProvider.loadTicksDataBeforeAfter(instrument, numberOfCandlesBefore, numberOfCandlesAfter, time, filter, new LoadDataListener(dataCacheRequestData, false), loadDataProgressListener);
+        return loadDataProgressListener;
+        DataCacheException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return null;
+        return null;
+    }
+
+    protected void dataLoaded(boolean allDataLoaded, AbstractDataProvider.AbstractDataCacheRequestData abstractRequestData, Exception e, ISynchronizeIndicators synchronizeIndicators)
+    {
+        boolean dataChanged = false;
+        long dataChangedFrom = 0x7fffffffffffffffL;
+        long dataChangedTo = 0x8000000000000000L;
+        boolean dataChangedFirstData = true;
+        synchronized(this)
+        {
+            DataCacheRequestData requestData = (DataCacheRequestData)abstractRequestData;
+            if(LOGGER.isTraceEnabled())
+                LOGGER.trace((new StringBuilder()).append("dataLoaded, period [").append(period).append("]").toString());
+            if(dataCacheRequestData == requestData)
+            {
+                dataCacheRequestData = null;
+                fireLoadingFinished();
+            }
+            if(!requestData.cancel && allDataLoaded)
+            {
+                if(LOGGER.isDebugEnabled())
+                {
+                    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    LOGGER.debug((new StringBuilder()).append("Loaded [").append(requestData.dataLoaded.size()).append("] data for instrument [").append(instrument).append("], period [").append(period).append("], requestedCandlesBefore [").append(requestData.numberOfCandlesBefore).append("], time [").append(dateFormat.format(new Date(requestData.time))).append("], requestedCandlesAfter [").append(requestData.numberOfCandlesAfter).append("]").toString());
+                }
+                if(assertionsEnabled())
+                {
+                    requestData.responseState = new HashMap();
+                    requestData.responseState.put("lastIndex", Integer.valueOf(lastIndex));
+                    TickData bufferCopy[] = new TickData[buffer.length];
+                    System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+                    requestData.responseState.put("buffer", bufferCopy);
+                    requestData.responseState.put("firstData", firstData);
+                    requestData.responseState.put("oneSecLastIndex", Integer.valueOf(oneSecLastIndex));
+                    CandleData oneSecBufferAskCopy[] = new CandleData[oneSecBufferAsk.length];
+                    System.arraycopy(oneSecBufferAsk, 0, oneSecBufferAskCopy, 0, oneSecBufferAsk.length);
+                    requestData.responseState.put("oneSecBufferAsk", oneSecBufferAskCopy);
+                    CandleData oneSecBufferBidCopy[] = new CandleData[oneSecBufferBid.length];
+                    System.arraycopy(oneSecBufferBid, 0, oneSecBufferBidCopy, 0, oneSecBufferBid.length);
+                    requestData.responseState.put("oneSecBufferBid", oneSecBufferBidCopy);
+                }
+                checkLoadedData(requestData);
+                if(requestData.mode == AbstractDataProvider.RequestMode.OVERWRITE)
+                {
+                    if(!requestData.askCandles.isEmpty())
+                    {
+                        lastIndex = -1;
+                        oneSecLastIndex = -1;
+                        gaps = new long[0][];
+                        TickData dataElement;
+                        for(Iterator i$ = requestData.dataLoaded.iterator(); i$.hasNext(); addTick(dataElement))
+                            dataElement = (TickData)i$.next();
+
+                        int i = 0;
+                        for(int j = requestData.askCandles.size(); i < j; i++)
+                            addCandles((CandleData)requestData.askCandles.get(i), (CandleData)requestData.bidCandles.get(i));
+
+                        if(requestData.numberOfCandlesAfter > 0)
+                        {
+                            long requestedTimePlusAfterCandles = DataCacheUtils.getTimeForNCandlesForwardFast(Period.ONE_SEC, requestData.time, requestData.numberOfCandlesAfter);
+                            loadedToInSeconds = oneSecBufferAsk[oneSecLastIndex].time <= requestedTimePlusAfterCandles ? requestedTimePlusAfterCandles : oneSecBufferAsk[oneSecLastIndex].time;
+                        } else
+                        {
+                            loadedToInSeconds = requestData.time;
+                        }
+                        loadedNumberOfSeconds = requestData.numberOfCandlesBefore + requestData.numberOfCandlesAfter;
+                        recalculateIndicators();
+                        dataChanged = true;
+                        dataChangedFrom = Math.min(dataChangedFrom, oneSecBufferAsk[0].time);
+                        dataChangedTo = Math.max(dataChangedTo, oneSecBufferAsk[oneSecLastIndex].time + 999L);
+                        dataChangedFirstData = false;
+                    } else
+                    {
+                        lastIndex = -1;
+                        oneSecLastIndex = -1;
+                        gaps = new long[0][];
+                        loadedNumberOfSeconds = requestData.numberOfCandlesBefore + requestData.numberOfCandlesAfter;
+                        if(requestData.numberOfCandlesBefore == 0)
+                            loadedToInSeconds = requestData.time;
+                        if(requestData.numberOfCandlesAfter > 0)
+                            loadedToInSeconds = DataCacheUtils.getTimeForNCandlesForwardFast(Period.ONE_SEC, requestData.time, requestData.numberOfCandlesAfter + 1);
+                        dataChanged = true;
+                        dataChangedFrom = Math.min(dataChangedFrom, DataCacheUtils.getTimeForNCandlesBackFast(Period.ONE_SEC, requestData.time, requestData.numberOfCandlesBefore + requestData.numberOfCandlesAfter));
+                        dataChangedTo = Math.max(dataChangedTo, loadedToInSeconds + 999L);
+                        dataChangedFirstData = false;
+                    }
+                } else
+                if(requestData.mode == AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING)
+                {
+                    if(!requestData.askCandles.isEmpty())
+                    {
+                        if(!requestData.dataLoaded.isEmpty())
+                        {
+                            if(firstData == null)
+                            {
+                                int index;
+                                for(firstData = (Data)requestData.dataLoaded.remove(requestData.dataLoaded.size() - 1); ((CandleData)requestData.askCandles.get(requestData.askCandles.size() - 1)).time > DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time); requestData.bidCandles.remove(index))
+                                {
+                                    index = requestData.askCandles.size() - 1;
+                                    requestData.askCandles.remove(index);
+                                }
+
+                                lastIndex = 0;
+                                oneSecLastIndex = 0;
+                                loadedNumberOfSeconds = 1L;
+                                loadedToInSeconds = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time);
+                                buffer[lastIndex] = (TickData)firstData;
+                                oneSecBufferAsk[oneSecLastIndex] = new CandleData();
+                                oneSecBufferBid[oneSecLastIndex] = new CandleData();
+                                initCandleWithTick(oneSecBufferAsk[oneSecLastIndex], (TickData)firstData, OfferSide.ASK);
+                                initCandleWithTick(oneSecBufferBid[oneSecLastIndex], (TickData)firstData, OfferSide.BID);
+                            }
+                            if(!requestData.dataLoaded.isEmpty())
+                            {
+                                TickData oldBuffer[] = buffer;
+                                int oldLastIndex = lastIndex;
+                                buffer = new TickData[buffer.length];
+                                lastIndex = -1;
+                                TickData dataElement;
+                                for(Iterator i$ = requestData.dataLoaded.iterator(); i$.hasNext(); addTick(dataElement))
+                                    dataElement = (TickData)i$.next();
+
+                                long timeOfLastLoadedTick = ((TickData)requestData.dataLoaded.get(requestData.dataLoaded.size() - 1)).time;
+                                int i = 0;
+                                do
+                                {
+                                    if(i > oldLastIndex)
+                                        break;
+                                    TickData dataElement = oldBuffer[i];
+                                    if(timeOfLastLoadedTick < dataElement.time)
+                                        break;
+                                    i++;
+                                } while(true);
+                                for(; i <= oldLastIndex; i++)
+                                {
+                                    TickData dataElement = oldBuffer[i];
+                                    addTick(dataElement);
+                                }
+
+                            }
+                        }
+                        CandleData oldAskBuffer[] = oneSecBufferAsk;
+                        CandleData oldBidBuffer[] = oneSecBufferBid;
+                        int oldOneSecLastIndex = oneSecLastIndex;
+                        oneSecBufferAsk = new CandleData[maxNumberOfCandles * bufferSizeMultiplier];
+                        oneSecBufferBid = new CandleData[maxNumberOfCandles * bufferSizeMultiplier];
+                        oneSecLastIndex = -1;
+                        gaps = new long[0][];
+                        int k = 0;
+                        for(int j = requestData.askCandles.size(); k < j; k++)
+                            addCandles((CandleData)requestData.askCandles.get(k), (CandleData)requestData.bidCandles.get(k));
+
+                        long timeOfLastLoadedCandle = ((CandleData)requestData.askCandles.get(requestData.askCandles.size() - 1)).time;
+                        if(requestData.askCandles.size() > 1)
+                        {
+                            double flatPriceAsk = ((CandleData)requestData.askCandles.get(requestData.askCandles.size() - 2)).close;
+                            double flatPriceBid = ((CandleData)requestData.bidCandles.get(requestData.bidCandles.size() - 2)).close;
+                            recreateCandle(oneSecBufferAsk[oneSecLastIndex], oneSecBufferBid[oneSecLastIndex], flatPriceAsk, flatPriceBid);
+                        }
+                        int i = 0;
+                        do
+                        {
+                            if(i > oldOneSecLastIndex)
+                                break;
+                            CandleData dataElement = oldAskBuffer[i];
+                            if(timeOfLastLoadedCandle < dataElement.time)
+                                break;
+                            i++;
+                        } while(true);
+                        loadedNumberOfSeconds = (oneSecLastIndex + 1) - i;
+                        for(; i <= oldOneSecLastIndex; i++)
+                            addCandles(oldAskBuffer[i], oldBidBuffer[i]);
+
+                        loadedNumberOfSeconds = loadedNumberOfSeconds + (long)((oldOneSecLastIndex - i) + 1);
+                        if(loadedNumberOfSeconds > (long)oneSecBufferAsk.length)
+                            loadedNumberOfSeconds = oneSecBufferAsk.length;
+                        recalculateIndicators(0, oneSecLastIndex);
+                    } else
+                    {
+                        loadedNumberOfSeconds = loadedNumberOfSeconds + (long)requestData.numberOfCandlesBefore + (long)requestData.numberOfCandlesAfter;
+                        if(loadedNumberOfSeconds > (long)oneSecBufferAsk.length)
+                            loadedNumberOfSeconds = oneSecBufferAsk.length;
+                    }
+                    if(!requestData.askCandles.isEmpty())
+                    {
+                        dataChanged = true;
+                        dataChangedFrom = Math.min(dataChangedFrom, oneSecBufferAsk[0].time);
+                        dataChangedTo = Math.max(dataChangedTo, oneSecBufferAsk[oneSecLastIndex].time + 999L);
+                        dataChangedFirstData = false;
+                    }
+                } else
+                if(!$assertionsDisabled)
+                    throw new AssertionError("unknown request mode");
+                checkConsistency();
+            } else
+            if(!allDataLoaded && e != null)
+                LOGGER.error(e.getMessage(), e);
+        }
+        if(dataChanged)
+        {
+            if(dataChangedFirstData && sparceIndicatorAttached())
+            {
+                dataChangedFrom = buffer[0].time;
+                dataChangedTo = buffer[lastIndex].time;
+            }
+            fireDataChanged(dataChangedFrom, dataChangedTo, dataChangedFirstData);
+        }
+    }
+
+    private void recreateCandle(CandleData askCandle, CandleData bidCandle, double priceAsk, double priceBid)
+    {
+        askCandle.open = priceAsk;
+        askCandle.close = priceAsk;
+        askCandle.low = priceAsk;
+        askCandle.high = priceAsk;
+        askCandle.vol = 0.0D;
+        bidCandle.open = priceBid;
+        bidCandle.close = priceBid;
+        bidCandle.low = priceBid;
+        bidCandle.high = priceBid;
+        bidCandle.vol = 0.0D;
+        boolean firstTick = true;
+        for(int i = findStart(askCandle.time, 0, lastIndex, buffer); i <= lastIndex && buffer[i].time / 1000L == askCandle.time / 1000L; i++)
+            if(firstTick)
+            {
+                initCandleWithTick(askCandle, buffer[i], OfferSide.ASK);
+                initCandleWithTick(bidCandle, buffer[i], OfferSide.BID);
+                firstTick = false;
+            } else
+            {
+                addTickAtTheEnd(askCandle, buffer[i], OfferSide.ASK);
+                addTickAtTheEnd(bidCandle, buffer[i], OfferSide.BID);
+            }
+
+    }
+
+    private void addCandles(CandleData askCandle, CandleData bidCandle)
+    {
+        if(oneSecLastIndex >= oneSecBufferAsk.length - 1)
+            shiftLeft(200);
+        oneSecLastIndex++;
+        oneSecBufferAsk[oneSecLastIndex] = askCandle;
+        oneSecBufferBid[oneSecLastIndex] = bidCandle;
+        if(oneSecLastIndex > 0 && oneSecBufferAsk[oneSecLastIndex - 1].time + 1000L != oneSecBufferAsk[oneSecLastIndex].time)
+        {
+            long firstGapCandleTime = oneSecBufferAsk[oneSecLastIndex - 1].time + 1000L;
+            gaps = (new long[][] {
+                new long[] {
+                    firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(Period.ONE_SEC, firstGapCandleTime, oneSecBufferAsk[oneSecLastIndex].time - 1000L)
+                }
+            });
+        }
+    }
+
+    private void checkConsistency()
+    {
+        if(assertionsEnabled())
+        {
+            if(oneSecLastIndex == -1)
+                return;
+            if(lastIndex >= buffer.length || oneSecLastIndex >= oneSecBufferAsk.length)
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            if(lastIndex != -1 && (buffer[0].time < oneSecBufferAsk[0].time || buffer[0].time > buffer[lastIndex].time || buffer[lastIndex].time > oneSecBufferAsk[oneSecLastIndex].time + 1000L) || oneSecBufferAsk[0].time > oneSecBufferAsk[oneSecLastIndex].time)
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            if(oneSecBufferAsk[oneSecLastIndex].time > DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time))
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            if(loadedNumberOfSeconds > (long)(maxNumberOfCandles * bufferSizeMultiplier))
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            long firstCandleStart = oneSecBufferAsk[0].time;
+            checkConsistency(firstCandleStart);
+        }
+    }
+
+    private void checkConsistency(long firstCandleStart)
+    {
+        long prevTime = 0x8000000000000000L;
+        long testGaps[][] = new long[0][];
+        long candleStart = firstCandleStart;
+        int start = 0;
+        CandleData candleAsk = new CandleData();
+        CandleData candleBid = new CandleData();
+        for(int i = 0; i <= oneSecLastIndex; i++)
+        {
+            CandleData dataElementAsk = oneSecBufferAsk[i];
+            CandleData dataElementBid = oneSecBufferBid[i];
+            if(dataElementAsk == null || dataElementBid == null || dataElementAsk.time != dataElementBid.time)
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            long firstGapCandleTime = prevTime + 1000L;
+            if(prevTime != 0x8000000000000000L && firstGapCandleTime != dataElementAsk.time)
+                testGaps = (new long[][] {
+                    new long[] {
+                        firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(Period.ONE_SEC, firstGapCandleTime, dataElementAsk.time - 1000L)
+                    }
+                });
+            prevTime = dataElementAsk.time;
+            if(filter == Filter.NO_FILTER)
+            {
+                if(dataElementAsk.time != candleStart)
+                    throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+                candleStart = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, candleStart);
+            } else
+            {
+                if(dataElementAsk.time < candleStart)
+                    throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+                candleStart = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, dataElementAsk.time);
+            }
+            boolean firstTick = true;
+            for(; start <= lastIndex && buffer[start].time / 1000L <= dataElementAsk.time / 1000L; start++)
+            {
+                if(buffer[start].time / 1000L != dataElementAsk.time / 1000L)
+                    continue;
+                if(firstTick)
+                {
+                    initCandleWithTick(candleAsk, buffer[start], OfferSide.ASK);
+                    initCandleWithTick(candleBid, buffer[start], OfferSide.BID);
+                    firstTick = false;
+                } else
+                {
+                    addTickAtTheEnd(candleAsk, buffer[start], OfferSide.ASK);
+                    addTickAtTheEnd(candleBid, buffer[start], OfferSide.BID);
+                }
+            }
+
+            if(firstTick)
+            {
+                candleAsk.time = dataElementAsk.time;
+                candleAsk.open = candleAsk.close = candleAsk.high = candleAsk.low = candleAsk.close;
+                candleAsk.vol = 0.0D;
+                candleBid.time = dataElementBid.time;
+                candleBid.open = candleBid.close = candleBid.high = candleBid.low = candleBid.close;
+                candleBid.vol = 0.0D;
+            }
+            if(start != 0 && (!dataElementAsk.equals(candleAsk) || !dataElementBid.equals(candleBid)))
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        }
+
+        if(gaps.length != testGaps.length)
+            throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        if(gaps.length != 0 && gaps.length != 1)
+            throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        if(gaps.length == 1)
+        {
+            if(gaps[0][0] != testGaps[0][0] || gaps[0][1] != testGaps[0][1])
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            if(gaps[0][0] == gaps[0][1])
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        }
+    }
+
+    private void checkLoadedData(DataCacheRequestData requestData)
+    {
+        if(!assertionsEnabled() || requestData.askCandles.isEmpty())
+            return;
+        if(requestData.askCandles.size() != requestData.bidCandles.size())
+            throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        long candleStart = ((CandleData)requestData.askCandles.get(0)).time;
+        int start = 0;
+        CandleData candleAsk = new CandleData();
+        CandleData candleBid = new CandleData();
+        int i = 0;
+        for(int j = requestData.askCandles.size(); i < j; i++)
+        {
+            CandleData dataElementAsk = (CandleData)requestData.askCandles.get(i);
+            CandleData dataElementBid = (CandleData)requestData.bidCandles.get(i);
+            if(dataElementAsk == null || dataElementBid == null || dataElementAsk.time != dataElementBid.time)
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            if(filter == Filter.NO_FILTER)
+            {
+                if(dataElementAsk.time != candleStart)
+                    throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+                candleStart = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, candleStart);
+            } else
+            {
+                if(dataElementAsk.time < candleStart)
+                    throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+                candleStart = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, dataElementAsk.time);
+            }
+            boolean firstTick = true;
+            for(int k = requestData.dataLoaded.size(); start < k && ((TickData)requestData.dataLoaded.get(start)).time / 1000L <= dataElementAsk.time / 1000L; start++)
+            {
+                TickData tickData = (TickData)requestData.dataLoaded.get(start);
+                if(tickData.time / 1000L != dataElementAsk.time / 1000L)
+                    continue;
+                if(firstTick)
+                {
+                    initCandleWithTick(candleAsk, tickData, OfferSide.ASK);
+                    initCandleWithTick(candleBid, tickData, OfferSide.BID);
+                    firstTick = false;
+                } else
+                {
+                    addTickAtTheEnd(candleAsk, tickData, OfferSide.ASK);
+                    addTickAtTheEnd(candleBid, tickData, OfferSide.BID);
+                }
+            }
+
+            if(!firstTick && (!dataElementAsk.equals(candleAsk) || !dataElementBid.equals(candleBid)))
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        }
+
+    }
+
+    protected boolean addFirstDataIfNeeded(long oldTime)
+    {
+        if(oldTime == 0x8000000000000000L)
+        {
+            lastIndex = 0;
+            loadedNumberOfSeconds = 1L;
+            loadedToInSeconds = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time);
+            buffer[lastIndex] = (TickData)firstData;
+            oneSecLastIndex = 0;
+            oneSecBufferAsk[oneSecLastIndex] = new CandleData();
+            oneSecBufferBid[oneSecLastIndex] = new CandleData();
+            initCandleWithTick(oneSecBufferAsk[oneSecLastIndex], buffer[lastIndex], OfferSide.ASK);
+            initCandleWithTick(oneSecBufferBid[oneSecLastIndex], buffer[lastIndex], OfferSide.BID);
+            gaps = new long[0][];
+            recalculateIndicators();
+            checkConsistency();
+            return true;
+        }
+        if(lastIndex != -1 && buffer[lastIndex].time == oldTime)
+        {
+            long lastCandleTime = oneSecBufferAsk[oneSecLastIndex].time;
+            int recalculateIndexStart;
+            if(firstData.time / 1000L == lastCandleTime / 1000L)
+            {
+                addTickAtTheEnd(oneSecBufferAsk[oneSecLastIndex], (TickData)firstData, OfferSide.ASK);
+                addTickAtTheEnd(oneSecBufferBid[oneSecLastIndex], (TickData)firstData, OfferSide.BID);
+                addTick((TickData)firstData);
+                recalculateIndexStart = oneSecLastIndex;
+            } else
+            {
+                int addedSecondsCount = 0;
+                long firstDataCandleTime = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, firstData.time);
+                if(DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, lastCandleTime) < firstDataCandleTime && !isWeekendsBetween(lastCandleTime, firstDataCandleTime))
+                {
+                    for(long nextCandleTime = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, lastCandleTime); nextCandleTime < firstDataCandleTime; nextCandleTime = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, nextCandleTime))
+                    {
+                        double priceAsk = oneSecBufferAsk[oneSecLastIndex].close;
+                        double priceBid = oneSecBufferBid[oneSecLastIndex].close;
+                        if(oneSecLastIndex + 1 >= oneSecBufferAsk.length)
+                            shiftLeft(200);
+                        oneSecLastIndex++;
+                        addedSecondsCount++;
+                        oneSecBufferAsk[oneSecLastIndex] = new CandleData(nextCandleTime, priceAsk, priceAsk, priceAsk, priceAsk, 0.0D);
+                        oneSecBufferBid[oneSecLastIndex] = new CandleData(nextCandleTime, priceBid, priceBid, priceBid, priceBid, 0.0D);
+                        loadedToInSeconds = nextCandleTime;
+                        loadedNumberOfSeconds = oneSecLastIndex + 1;
+                    }
+
+                }
+                if(oneSecLastIndex + 1 >= oneSecBufferAsk.length)
+                    shiftLeft(200);
+                addTick((TickData)firstData);
+                oneSecLastIndex++;
+                addedSecondsCount++;
+                oneSecBufferAsk[oneSecLastIndex] = new CandleData();
+                oneSecBufferBid[oneSecLastIndex] = new CandleData();
+                initCandleWithTick(oneSecBufferAsk[oneSecLastIndex], buffer[lastIndex], OfferSide.ASK);
+                initCandleWithTick(oneSecBufferBid[oneSecLastIndex], buffer[lastIndex], OfferSide.BID);
+                loadedToInSeconds = firstDataCandleTime;
+                loadedNumberOfSeconds = oneSecLastIndex + 1;
+                long firstGapCandleTime = oneSecBufferAsk[oneSecLastIndex - 1].time + 1000L;
+                if(firstGapCandleTime != oneSecBufferAsk[oneSecLastIndex].time)
+                    gaps = (new long[][] {
+                        new long[] {
+                            firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(Period.ONE_SEC, firstGapCandleTime, oneSecBufferAsk[oneSecLastIndex].time - 1000L)
+                        }
+                    });
+                if(addedSecondsCount >= oneSecLastIndex + 1)
+                    recalculateIndexStart = 0;
+                else
+                    recalculateIndexStart = (oneSecLastIndex + 1) - addedSecondsCount;
+            }
+            recalculateIndicators(recalculateIndexStart, oneSecLastIndex);
+            checkConsistency();
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
+
+    private void addTick(TickData firstData)
+    {
+        if(lastIndex + 1 >= buffer.length)
+            buffer = (TickData[])Arrays.copyOf(buffer, buffer.length + 200);
+        buffer[++lastIndex] = firstData;
+    }
+
+    private void addTickAtTheEnd(CandleData candle, TickData chartsTick, OfferSide side)
+    {
+        candle.close = side != OfferSide.ASK ? chartsTick.bid : chartsTick.ask;
+        candle.high = candle.high >= candle.close ? candle.high : candle.close;
+        candle.low = candle.low <= candle.close ? candle.low : candle.close;
+        candle.vol = StratUtils.round(candle.vol + (side != OfferSide.ASK ? chartsTick.bidVol : chartsTick.askVol), 6);
+    }
+
+    private void initCandleWithTick(CandleData candle, TickData chartsTick, OfferSide side)
+    {
+        candle.time = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, chartsTick.time);
+        double price = side != OfferSide.ASK ? chartsTick.bid : chartsTick.ask;
+        candle.open = price;
+        candle.close = price;
+        candle.high = price;
+        candle.low = price;
+        candle.vol = side != OfferSide.ASK ? chartsTick.bidVol : chartsTick.askVol;
+    }
+
+    public synchronized long getLastLoadedDataTime()
+    {
+        if(oneSecLastIndex == -1)
+            return 0x8000000000000000L;
+        else
+            return oneSecBufferAsk[oneSecLastIndex].time;
+    }
+
+    public void dispose()
+    {
+        if(firstDataListener != null)
+            feedDataProvider.unsubscribeToLiveFeed(instrument, firstDataListener);
+        if(dataCacheRequestData != null)
+        {
+            dataCacheRequestData.cancel = true;
+            dataCacheRequestData = null;
+        }
+        super.dispose();
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("TicksDataProvider(").append(instrument).append(", ").append(period).append(")").toString();
+    }
+
+    public DataType getDataType()
+    {
+        return DataType.TICKS;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/math/dataprovider/TicksDataProvider);
+    private static final int MIN_SHIFT = 200;
+    private static final int MIN_INCREASE = 200;
+    protected TickData buffer[];
+    protected int lastIndex;
+    protected long gaps[][];
+    protected CandleData oneSecBufferAsk[];
+    protected CandleData oneSecBufferBid[];
+    protected int oneSecLastIndex;
+    protected long loadedNumberOfSeconds;
+    protected long loadedToInSeconds;
+    protected DataCacheRequestData dataCacheRequestData;
+    private volatile boolean requestAtFirstTick;
+    private LiveFeedListener firstDataListener;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/math/dataprovider/TicksDataProvider.desiredAssertionStatus();
+
+
+
+}

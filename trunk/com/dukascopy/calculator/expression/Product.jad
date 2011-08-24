@@ -1,0 +1,428 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Product.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.*;
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.complex.DoubleFormat;
+import java.io.PrintStream;
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            SumOrProduct, Expression, Power
+
+public class Product extends SumOrProduct
+    implements Cloneable
+{
+
+    public Product(Expression expression, boolean inverse)
+    {
+        if(expression instanceof Product)
+        {
+            Product product = (Product)expression;
+            if(inverse)
+            {
+                complex = new Complex(1.0D);
+                complex = complex.divide(product.complex);
+                expressionList = product.divisorList;
+                divisorList = product.expressionList;
+            } else
+            {
+                complex = product.complex;
+                expressionList = product.expressionList;
+                divisorList = product.divisorList;
+            }
+        } else
+        {
+            complex = new Complex(1.0D);
+            if(inverse)
+            {
+                expressionList = new LinkedList();
+                divisorList = new LinkedList();
+                divisorList.add(expression);
+            } else
+            {
+                expressionList = new LinkedList();
+                expressionList.add(expression);
+                divisorList = new LinkedList();
+            }
+        }
+    }
+
+    void setComplex(Complex z)
+    {
+        complex = z;
+    }
+
+    public Product()
+    {
+        complex = new Complex();
+        expressionList = new LinkedList();
+        divisorList = new LinkedList();
+    }
+
+    public Product clone()
+    {
+        Product copy = new Product();
+        copy.complex = new Complex(complex.real(), complex.imaginary());
+        copy.expressionList = new LinkedList();
+        for(ListIterator i = getExpressionList().listIterator(); i.hasNext(); copy.expressionList.add(i.next()));
+        copy.divisorList = new LinkedList();
+        for(ListIterator i = divisorList.listIterator(); i.hasNext(); copy.divisorList.add(i.next()));
+        return copy;
+    }
+
+    public OObject multiply(Complex z)
+    {
+        Product product = clone();
+        product.complex = complex.multiply(z);
+        return product;
+    }
+
+    public OObject divide(Complex z)
+    {
+        Product product = clone();
+        product.complex = complex.divide(z);
+        return product;
+    }
+
+    public Product negate()
+    {
+        Product p = clone();
+        p.complex = complex.negate();
+        return p;
+    }
+
+    public OObject multiply(Product x)
+    {
+        System.out.println("Multiplying two products");
+        Product s = clone();
+        s.complex = s.complex.multiply(x.complex);
+        for(ListIterator i = x.expressionList.listIterator(); i.hasNext(); s.expressionList.add(i.next()));
+        for(ListIterator i = x.divisorList.listIterator(); i.hasNext(); s.divisorList.add(i.next()));
+        return s;
+    }
+
+    public OObject divide(Product x)
+    {
+        System.out.println("Dividing one product by another");
+        Product s = clone();
+        s.complex = s.complex.divide(x.complex);
+        for(ListIterator i = x.divisorList.listIterator(); i.hasNext(); s.expressionList.add(i.next()));
+        for(ListIterator i = x.expressionList.listIterator(); i.hasNext(); s.divisorList.add(i.next()));
+        return s;
+    }
+
+    public boolean isNegative()
+    {
+        if(complex.isZero())
+            return false;
+        boolean negative = complex.isNegative();
+        for(ListIterator i = expressionList.listIterator(); i.hasNext();)
+        {
+            Expression e = (Expression)i.next();
+            if(e.isZero())
+                return false;
+            boolean enegative = e.isNegative();
+            negative = negative ? !enegative : enegative;
+        }
+
+        return negative;
+    }
+
+    public OObject unBox()
+    {
+        if(divisorList.isEmpty() && expressionList.size() == 1 && complex.subtract(new Complex(1.0D)).isZero())
+            return (OObject)expressionList.getFirst();
+        if(divisorList.isEmpty() && expressionList.isEmpty())
+            return complex;
+        else
+            return this;
+    }
+
+    public int compareTo(Product product)
+    {
+        sort();
+        int r = compare(expressionList, product.expressionList);
+        if(r != 0)
+            return r;
+        else
+            return compare(divisorList, product.divisorList);
+    }
+
+    public StringArray toHTMLSubString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray s = new StringArray();
+        StringArray t = complex.toHTMLParenString(maxChars, precision, base, notation, polarFactor);
+        boolean unity = false;
+        if(!expressionList.isEmpty())
+        {
+            if(t.isMinusOne())
+                s.add((String)DoubleFormat.minus.firstElement());
+            else
+            if(t.isOne())
+                unity = true;
+            else
+                s.addAll(t);
+        } else
+        {
+            s.addAll(t);
+        }
+        if(unity && expressionList.size() == 1 && divisorList.isEmpty())
+        {
+            Expression expression = (Expression)expressionList.getFirst();
+            return expression.toHTMLSubString(maxChars, precision, base, notation, polarFactor);
+        }
+        ListIterator i = expressionList.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            Expression expression = (Expression)i.next();
+            if(expression instanceof Power)
+                s.addAll(expression.toHTMLSubString(maxChars, precision, base, notation, polarFactor));
+            else
+            if(expression != null)
+                s.addAll(expression.toHTMLParenString(maxChars, precision, base, notation, polarFactor));
+        } while(true);
+        if(!divisorList.isEmpty())
+        {
+            s.add("&#247;");
+            if(divisorList.size() == 1)
+            {
+                s.addAll(((Expression)divisorList.getFirst()).toHTMLParenString(maxChars, precision, base, notation, polarFactor));
+            } else
+            {
+                s.add("(");
+                Expression expression;
+                for(i = divisorList.listIterator(); i.hasNext(); s.addAll(expression.toHTMLParenString(maxChars, precision, base, notation, polarFactor)))
+                    expression = (Expression)i.next();
+
+                s.add(")");
+            }
+        }
+        return s;
+    }
+
+    public StringArray toHTMLParenString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray t = complex.toHTMLParenString(maxChars, precision, base, notation, polarFactor);
+        if(getExpressionList().isEmpty() && divisorList.isEmpty())
+            return t;
+        if(getExpressionList().size() == 1 && divisorList.isEmpty() && t.isOne())
+            return ((Expression)getExpressionList().getFirst()).toHTMLParenString(maxChars, precision, base, notation, polarFactor);
+        if(getExpressionList().size() == 1 && divisorList.isEmpty() && t.isMinusOne())
+        {
+            StringArray s = new StringArray();
+            s.add((String)DoubleFormat.minus.firstElement());
+            s.addAll(((Expression)getExpressionList().getFirst()).toHTMLParenString(maxChars, precision, base, notation, polarFactor));
+            return s;
+        } else
+        {
+            StringArray s = new StringArray();
+            s.add("(");
+            s.addAll(toHTMLSubString(maxChars, precision, base, notation, polarFactor));
+            s.add(")");
+            return s;
+        }
+    }
+
+    public StringArray toHTMLParenStringL(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray t = complex.toHTMLParenString(maxChars, precision, base, notation, polarFactor);
+        if(expressionList.isEmpty() && divisorList.isEmpty())
+            return t;
+        if(expressionList.size() == 1 && divisorList.isEmpty())
+        {
+            if(t.isOne())
+                return ((Expression)expressionList.getFirst()).toHTMLParenString(maxChars, precision, base, notation, polarFactor);
+            if(t.isMinusOne())
+            {
+                StringArray u = ((Expression)expressionList.getFirst()).toHTMLParenString(maxChars, precision, base, notation, polarFactor);
+                if(u.size() > 0 && !((String)((Vector)u.firstElement()).firstElement()).equals("("))
+                {
+                    StringArray v = new StringArray();
+                    v.add((String)DoubleFormat.minus.firstElement());
+                    v.addAll(u);
+                    return v;
+                }
+            }
+        }
+        StringArray s = new StringArray();
+        s.add("(");
+        s.addAll(toHTMLSubString(maxChars, precision, base, notation, polarFactor));
+        s.add(")");
+        return s;
+    }
+
+    OObject integer_power(long n)
+    {
+        Complex z = new Complex(n);
+        Product result = new Product();
+        result.complex = complex.pow(z);
+        Expression e;
+        for(ListIterator i = expressionList.listIterator(); i.hasNext(); result.expressionList.add(new Power(e, z)))
+            e = (Expression)i.next();
+
+        Expression e;
+        for(ListIterator i = divisorList.listIterator(); i.hasNext(); result.divisorList.add(new Power(e, z)))
+            e = (Expression)i.next();
+
+        return result;
+    }
+
+    public void sort()
+    {
+        super.sort();
+        Expression e;
+        for(Iterator i$ = divisorList.iterator(); i$.hasNext(); e.sort())
+            e = (Expression)i$.next();
+
+        Collections.sort(divisorList);
+    }
+
+    public OObject auto_simplify()
+    {
+        ListIterator i;
+        for(i = divisorList.listIterator(); i.hasNext();)
+        {
+            Expression e = (Expression)i.next();
+            OObject o = (new Power(e, new Complex(-1D))).auto_simplify();
+            if(o instanceof Complex)
+                complex = complex.divide((Complex)o);
+            else
+            if(o instanceof Expression)
+                expressionList.add((Expression)o);
+            else
+                return new Error("Product.auto_simplify() error");
+        }
+
+        divisorList.clear();
+        for(i = expressionList.listIterator(); i.hasNext();)
+        {
+            OObject o = ((Expression)i.next()).auto_simplify();
+            if(o instanceof Complex)
+            {
+                complex = complex.multiply((Complex)o);
+                i.remove();
+            } else
+            if(o instanceof Expression)
+                i.set((Expression)o);
+            else
+                return new Error("Product.auto_simplify() error");
+        }
+
+        sort();
+        if(expressionList.isEmpty())
+            return unBox();
+        i = expressionList.listIterator();
+        Expression f = null;
+        for(Expression e = (Expression)i.next(); i.hasNext(); e = f)
+        {
+            OObject base_e = e;
+            OObject exponent_e = new Complex(1.0D);
+            if(e instanceof Power)
+            {
+                base_e = ((Power)e).base();
+                exponent_e = ((Power)e).exponent();
+            }
+            f = (Expression)i.next();
+            OObject base_f = f;
+            OObject exponent_f = new Complex(1.0D);
+            if(f instanceof Power)
+            {
+                base_f = ((Power)f).base();
+                exponent_f = ((Power)f).exponent();
+            }
+            if(base_e.compareTo(base_f) != 0)
+                continue;
+            OObject exponent = exponent_e.add(exponent_f);
+            if(exponent instanceof Expression)
+                exponent = ((Expression)exponent).auto_simplify();
+            OObject expression = (new Power(base_e, exponent)).auto_simplify();
+            if(expression instanceof Complex)
+            {
+                complex = complex.multiply((Complex)expression);
+                i.remove();
+                i.previous();
+                i.remove();
+                if(i.hasNext())
+                    e = (Expression)i.next();
+                continue;
+            }
+            if(expression instanceof Expression)
+            {
+                i.remove();
+                i.previous();
+                i.set((Expression)expression);
+                f = (Expression)i.next();
+            } else
+            {
+                return new Error("Product.auto_simplify() error");
+            }
+        }
+
+        return unBox();
+    }
+
+    public OObject substitute(Substitution substitution)
+    {
+        Product s = clone();
+        for(ListIterator i = s.expressionList.listIterator(); i.hasNext();)
+        {
+            Expression expression = (Expression)i.next();
+            OObject o = expression.substitute(substitution);
+            if(o instanceof Complex)
+            {
+                i.remove();
+                s.complex = s.complex.multiply((Complex)o);
+            } else
+            if(o instanceof Expression)
+                i.set((Expression)o);
+            else
+                return new Error("Product.substitution() Error");
+        }
+
+        for(ListIterator i = s.divisorList.listIterator(); i.hasNext();)
+        {
+            Expression expression = (Expression)i.next();
+            OObject o = expression.substitute(substitution);
+            if(o instanceof Complex)
+            {
+                i.remove();
+                s.complex = s.complex.divide((Complex)o);
+            } else
+            if(o instanceof Expression)
+                i.set((Expression)o);
+            else
+                return new Error("Product.substitution() Error");
+        }
+
+        return s.auto_simplify();
+    }
+
+    public static void main(String args1[])
+    {
+    }
+
+    public volatile Expression negate()
+    {
+        return negate();
+    }
+
+    public volatile OObject negate()
+    {
+        return negate();
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    protected LinkedList divisorList;
+}

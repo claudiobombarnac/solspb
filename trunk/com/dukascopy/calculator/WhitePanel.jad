@@ -1,0 +1,29 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   WhitePanel.java
+
+package com.dukascopy.calculator;
+
+import java.awt.Color;
+import java.awt.Graphics;
+import javax.swing.JPanel;
+import javax.swing.border.EmptyBorder;
+
+public class WhitePanel extends JPanel
+{
+
+    public WhitePanel()
+    {
+        setBorder(new EmptyBorder(0, 0, 0, 0));
+    }
+
+    public void paintComponent(Graphics graphics)
+    {
+        super.paintComponent(graphics);
+        graphics.setColor(Color.WHITE);
+        graphics.fillRect(0, 0, getWidth(), getHeight());
+    }
+
+    private static final long serialVersionUID = 1L;
+}

@@ -1,0 +1,162 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractDataLoadingThread.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.dataload;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.impl.TimedData;
+import com.dukascopy.charts.data.datacache.*;
+import java.util.concurrent.BlockingQueue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester.dataload:
+//            IDataLoadingThread
+
+public abstract class AbstractDataLoadingThread extends Thread
+    implements IDataLoadingThread
+{
+
+    public AbstractDataLoadingThread(String name, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, BlockingQueue queue, long from, 
+            long to, IFeedDataProvider feedDataProvider)
+    {
+        super(name);
+        stop = false;
+        this.instrument = instrument;
+        this.offerSide = offerSide;
+        this.queue = queue;
+        this.from = from;
+        this.to = to;
+        this.feedDataProvider = feedDataProvider;
+        this.jForexPeriod = jForexPeriod;
+    }
+
+    public abstract void run();
+
+    protected abstract TimedData createEmptyBar();
+
+    protected LoadingProgressListener createLoadingProgressListener()
+    {
+        return new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long start, long end, long currentPosition, 
+                    Exception e)
+            {
+                if(allDataLoaded)
+                    putDataToQueue(createEmptyBar());
+                else
+                if(e != null)
+                    AbstractDataLoadingThread.LOGGER.error(e.getMessage(), e);
+            }
+
+            public boolean stopJob()
+            {
+                return isStop();
+            }
+
+            final AbstractDataLoadingThread this$0;
+
+            
+            {
+                this$0 = AbstractDataLoadingThread.this;
+                super();
+            }
+        };
+    }
+
+    protected void putDataToQueue(TimedData datas[])
+    {
+        if(datas != null)
+        {
+            TimedData arr$[] = datas;
+            int len$ = arr$.length;
+            int i$ = 0;
+            do
+            {
+                if(i$ >= len$)
+                    break;
+                TimedData data = arr$[i$];
+                if(isStop())
+                    break;
+                putDataToQueue(data);
+                i$++;
+            } while(true);
+        }
+    }
+
+    protected void putDataToQueue(TimedData data)
+    {
+        try
+        {
+            getQueue().put(data);
+        }
+        catch(InterruptedException e)
+        {
+            LOGGER.error(e.getLocalizedMessage(), e);
+        }
+    }
+
+    public void stopThread()
+    {
+        stop = true;
+        while(queue.poll() != null) ;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public JForexPeriod getJForexPeriod()
+    {
+        return jForexPeriod;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    public BlockingQueue getQueue()
+    {
+        return queue;
+    }
+
+    public IFeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    public long getFrom()
+    {
+        return from;
+    }
+
+    public long getTo()
+    {
+        return to;
+    }
+
+    public boolean isStop()
+    {
+        return stop;
+    }
+
+    protected static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/dataload/AbstractDataLoadingThread);
+    private final Instrument instrument;
+    private final JForexPeriod jForexPeriod;
+    private final OfferSide offerSide;
+    private final BlockingQueue queue;
+    private final long from;
+    private final long to;
+    private final IFeedDataProvider feedDataProvider;
+    private boolean stop;
+
+}

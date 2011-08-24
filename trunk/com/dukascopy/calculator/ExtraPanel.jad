@@ -1,0 +1,108 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ExtraPanel.java
+
+package com.dukascopy.calculator;
+
+import java.awt.*;
+import javax.swing.JPanel;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            ReadOnlyDisplayPanel, ReadOnlyCalculatorApplet, Notation, AngleType, 
+//            OObject, Base
+
+public class ExtraPanel extends JPanel
+{
+
+    public ExtraPanel(ReadOnlyDisplayPanel panel)
+    {
+        this.panel = panel;
+    }
+
+    public void paintComponent(Graphics graphics)
+    {
+        Graphics2D g2 = (Graphics2D)graphics;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.setFont(getFont().deriveFont(getPanel().getApplet().extraTextSize()));
+        int fontHeight = (int)Math.ceil(getPanel().getApplet().extraTextSize());
+        int x = 0;
+        int xx = getWidth() - graphics.getFontMetrics().stringWidth("Hex ");
+        int y = getHeight() - (int)((double)fontHeight * 0.5D);
+        if(getPanel().getOn())
+        {
+            if(getPanel().getApplet().getNotation().nonComplex())
+            {
+                graphics.drawString(getPanel().getApplet().getAngleType().toString(), x, y);
+            } else
+            {
+                if(getPanel().getApplet().getAngleType() == AngleType.DEGREES)
+                    graphics.drawString("Deg", x, y);
+                else
+                    graphics.drawString("Rad", x, y);
+                graphics.drawString("Cplx", xx, y);
+            }
+            y = getHeight() - (int)((double)fontHeight * 2D);
+            if(getPanel().getApplet().getNotation().scientific())
+                graphics.drawString("Sci", xx, y);
+            if(getPanel().getApplet().getStat())
+                graphics.drawString("Stat", x, y);
+            y = getHeight() - (int)((double)fontHeight * 3.5D);
+            if(!getPanel().getApplet().getMemory().isZero())
+                graphics.drawString("Mem", x, y);
+            static class _cls1
+            {
+
+                static final int $SwitchMap$com$dukascopy$calculator$Base[];
+
+                static 
+                {
+                    $SwitchMap$com$dukascopy$calculator$Base = new int[Base.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$calculator$Base[Base.HEXADECIMAL.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$calculator$Base[Base.OCTAL.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$calculator$Base[Base.BINARY.ordinal()] = 3;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                }
+            }
+
+            switch(_cls1..SwitchMap.com.dukascopy.calculator.Base[getPanel().getApplet().getBase().ordinal()])
+            {
+            case 1: // '\001'
+                graphics.drawString("Hex", xx, y);
+                break;
+
+            case 2: // '\002'
+                graphics.drawString("Oct", xx, y);
+                break;
+
+            case 3: // '\003'
+                graphics.drawString("Bin", xx, y);
+                break;
+            }
+            y = getHeight() - (int)((double)fontHeight * 5D);
+            if(getPanel().getApplet().getShift())
+                graphics.drawString("Shift", x, y);
+            if(getPanel().getApplet().getNotation().polar())
+                graphics.drawString("Pol", xx, y);
+        }
+    }
+
+    public ReadOnlyDisplayPanel getPanel()
+    {
+        return panel;
+    }
+
+    private ReadOnlyDisplayPanel panel;
+    private static final long serialVersionUID = 1L;
+}

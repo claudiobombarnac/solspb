@@ -1,0 +1,498 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JFXPack.java
+
+package com.dukascopy.dds2.greed.agent.compiler;
+
+import com.dukascopy.api.RequiresFullAccess;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.transport.util.Hex;
+import java.io.*;
+import java.security.*;
+import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.compiler:
+//            JFXClassLoader, AESCript
+
+public class JFXPack
+{
+    class JFXHeader2 extends JFXHeader
+    {
+
+        int vestion()
+        {
+            return 2;
+        }
+
+        void write(DataOutputStream dataOutputStream)
+            throws Exception
+        {
+            dataOutputStream.writeInt(vestion());
+            dataOutputStream.writeLong(0L);
+            byte key[] = AESCript.key();
+            dataOutputStream.writeInt(key.length);
+            dataOutputStream.write(key);
+            dataOutputStream.writeInt(className.length);
+            for(int i = 0; i < className.length; i++)
+            {
+                dataOutputStream.writeInt(className[i].length());
+                dataOutputStream.write(className[i].getBytes());
+                byte content[] = AESCript.encript(classCode[i], key);
+                dataOutputStream.writeInt(content.length);
+                dataOutputStream.write(content);
+            }
+
+            dataOutputStream.writeInt(resourceName.length);
+            for(int i = 0; i < resourceName.length; i++)
+            {
+                dataOutputStream.writeInt(resourceName[i].length());
+                dataOutputStream.write(resourceName[i].getBytes());
+                byte content[] = AESCript.encript(resourceCode[i], key);
+                dataOutputStream.writeInt(content.length);
+                dataOutputStream.write(content);
+            }
+
+        }
+
+        void read(DataInputStream dataInputStream)
+            throws IOException, GeneralSecurityException
+        {
+            dataInputStream.readLong();
+            int keyLen = dataInputStream.readInt();
+            byte key[] = new byte[keyLen];
+            for(int read = 0; (read += dataInputStream.read(key, read, key.length - read)) < key.length;);
+            int countClassesLen = dataInputStream.readInt();
+            className = new String[countClassesLen];
+            classCode = new byte[countClassesLen][];
+            for(int i = 0; i < className.length; i++)
+            {
+                int nameLen = dataInputStream.readInt();
+                byte name[] = new byte[nameLen];
+                for(int read = 0; (read += dataInputStream.read(name, read, name.length - read)) < name.length;);
+                className[i] = new String(name);
+                int contentLen = dataInputStream.readInt();
+                byte content[] = new byte[contentLen];
+                for(int read = 0; (read += dataInputStream.read(content, read, content.length - read)) < content.length;);
+                classCode[i] = AESCript.decript(content, key);
+            }
+
+            int countResourcesLen = dataInputStream.readInt();
+            resourceName = new String[countResourcesLen];
+            resourceCode = new byte[countResourcesLen][];
+            for(int i = 0; i < resourceName.length; i++)
+            {
+                int nameLen = dataInputStream.readInt();
+                byte name[] = new byte[nameLen];
+                for(int read = 0; (read += dataInputStream.read(name, read, name.length - read)) < name.length;);
+                resourceName[i] = new String(name);
+                int contentLen = dataInputStream.readInt();
+                byte content[] = new byte[contentLen];
+                for(int read = 0; (read += dataInputStream.read(content, read, content.length - read)) < content.length;);
+                resourceCode[i] = AESCript.decript(content, key);
+            }
+
+        }
+
+        final JFXPack this$0;
+
+        JFXHeader2()
+        {
+            this$0 = JFXPack.this;
+            super();
+        }
+    }
+
+    abstract class JFXHeader
+    {
+
+        abstract int vestion();
+
+        abstract void write(DataOutputStream dataoutputstream)
+            throws Exception;
+
+        abstract void read(DataInputStream datainputstream)
+            throws IOException, GeneralSecurityException;
+
+        final JFXPack this$0;
+
+        JFXHeader()
+        {
+            this$0 = JFXPack.this;
+            super();
+        }
+    }
+
+    static class JFXEntry
+    {
+
+        String name;
+        byte bytes[];
+
+        JFXEntry()
+        {
+        }
+    }
+
+
+    public JFXPack()
+    {
+        packedFile = null;
+        classCode = (byte[][])null;
+        className = null;
+        resourceCode = (byte[][])null;
+        resourceName = null;
+        classLoader = null;
+    }
+
+    public static JFXPack buildFromClass(File classFile, File jars[])
+    {
+        JFXPack pack = new JFXPack();
+        File dir = classFile.getParentFile();
+        File classFiles[] = dir.listFiles(new FilenameFilter(classFile) {
+
+            public boolean accept(File dir, String name)
+            {
+                return name.endsWith(".class") && !classFile.getName().equals(name);
+            }
+
+            final File val$classFile;
+
+            
+            {
+                classFile = file;
+                super();
+            }
+        });
+        List jfxClassEntries = new ArrayList();
+        List jfxResourceEntries = new ArrayList();
+        if(jars.length > 0)
+        {
+            File arr$[] = jars;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File file = arr$[i$];
+                try
+                {
+                    if(!file.isFile())
+                        continue;
+                    JarFile jarFile = new JarFile(file);
+                    Enumeration enumeration = jarFile.entries();
+                    do
+                    {
+                        if(!enumeration.hasMoreElements())
+                            break;
+                        JarEntry jarEntry = (JarEntry)enumeration.nextElement();
+                        if(!jarEntry.isDirectory())
+                        {
+                            String entryName = jarEntry.getName();
+                            if(!entryName.endsWith("MANIFEST.MF"))
+                            {
+                                InputStream inputStream = jarFile.getInputStream(jarEntry);
+                                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                StratUtils.turboPipe(inputStream, baos);
+                                inputStream.close();
+                                baos.close();
+                                JFXEntry entry = new JFXEntry();
+                                entry.name = entryName;
+                                entry.bytes = baos.toByteArray();
+                                if(entryName.endsWith(".class"))
+                                    jfxClassEntries.add(entry);
+                                else
+                                    jfxResourceEntries.add(entry);
+                            }
+                        }
+                    } while(true);
+                    jarFile.close();
+                }
+                catch(Exception e)
+                {
+                    LOGGER.error(e.getMessage(), e);
+                }
+            }
+
+        }
+        int jarResourcesSize = jfxResourceEntries.size();
+        int resourcesIndexer = 0;
+        pack.resourceCode = new byte[jarResourcesSize][0];
+        pack.resourceName = new String[jarResourcesSize];
+        for(Iterator i$ = jfxResourceEntries.iterator(); i$.hasNext();)
+        {
+            JFXEntry entry = (JFXEntry)i$.next();
+            pack.resourceCode[resourcesIndexer] = entry.bytes;
+            pack.resourceName[resourcesIndexer] = entry.name;
+            resourcesIndexer++;
+        }
+
+        int jarClassesSize = jfxClassEntries.size();
+        int classesIndexer = 0;
+        pack.classCode = new byte[classFiles.length + 1 + jarClassesSize][0];
+        pack.className = new String[classFiles.length + 1 + jarClassesSize];
+        pack.classCode[classesIndexer] = loadFile(classFile);
+        JFXPack p = new JFXPack();
+        JFXClassLoader cl = new JFXClassLoader(null, p);
+        String goodName = cl.findName(pack.classCode[classesIndexer]);
+        pack.className[classesIndexer] = goodName;
+        for(int i = 0; i < classFiles.length; i++)
+        {
+            classesIndexer++;
+            pack.classCode[classesIndexer] = loadFile(classFiles[i]);
+            goodName = cl.findName(pack.classCode[classesIndexer]);
+            pack.className[classesIndexer] = goodName;
+        }
+
+        for(Iterator i$ = jfxClassEntries.iterator(); i$.hasNext();)
+        {
+            JFXEntry entry = (JFXEntry)i$.next();
+            classesIndexer++;
+            pack.classCode[classesIndexer] = entry.bytes;
+            pack.className[classesIndexer] = entry.name.substring(0, entry.name.lastIndexOf('.')).replace('/', '.');
+        }
+
+        return pack;
+    }
+
+    public static JFXPack loadFromPack(File packFile)
+        throws IOException, GeneralSecurityException
+    {
+        JFXPack pack = null;
+        if(packFile != null && packFile.exists())
+        {
+            FileInputStream fileInputStream = new FileInputStream(packFile);
+            DataInputStream dataInputStream = new DataInputStream(fileInputStream);
+            int version = dataInputStream.readInt();
+            if(version == 2)
+            {
+                pack = new JFXPack();
+                JFXHeader header = pack. new JFXHeader2();
+                header.read(dataInputStream);
+            }
+            dataInputStream.close();
+            fileInputStream.close();
+        }
+        return pack;
+    }
+
+    public static JFXPack loadFromPack(byte bytes[])
+        throws Exception
+    {
+        DataInputStream is = new DataInputStream(new ByteArrayInputStream(bytes));
+        int version;
+        JFXPack jfxpack1;
+        version = is.readInt();
+        if(version != 2)
+            break MISSING_BLOCK_LABEL_65;
+        JFXPack pack = new JFXPack();
+        JFXHeader header = pack. new JFXHeader2();
+        header.read(is);
+        jfxpack1 = pack;
+        is.close();
+        return jfxpack1;
+        JFXPack jfxpack;
+        LOGGER.debug((new StringBuilder()).append("Null returned because of not supported version: ").append(version).toString());
+        jfxpack = null;
+        is.close();
+        return jfxpack;
+        Exception exception;
+        exception;
+        is.close();
+        throw exception;
+    }
+
+    public boolean isFullAccessRequested()
+    {
+        Class clazz = getTargetClass(true);
+        if(clazz != null)
+            return clazz.getAnnotation(com/dukascopy/api/RequiresFullAccess) != null;
+        return false;
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return false;
+    }
+
+    public void setFullAccess(boolean fullAccess)
+    {
+        getClassLoader().setFullAccess(fullAccess);
+    }
+
+    public boolean isFullAccess()
+    {
+        return classLoader != null && classLoader.isFullAccess();
+    }
+
+    public Object getTarget()
+    {
+        Class targetClass = getTargetClass(false);
+        if(targetClass != null)
+            return targetClass.newInstance();
+        break MISSING_BLOCK_LABEL_32;
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return null;
+    }
+
+    Class getTargetClass(boolean useTemporaryCL)
+    {
+        JFXClassLoader jfxClassLoader = useTemporaryCL ? new JFXClassLoader(Thread.currentThread().getContextClassLoader(), this) : getClassLoader();
+        return Class.forName(className[0], true, jfxClassLoader);
+        Throwable e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return null;
+    }
+
+    public static byte[] loadFile(File file)
+    {
+        FileInputStream fileInputStream;
+        byte rc[];
+        fileInputStream = null;
+        rc = null;
+        rc = new byte[(int)file.length()];
+        fileInputStream = new FileInputStream(file);
+        fileInputStream.read(rc);
+        Exception e;
+        try
+        {
+            fileInputStream.close();
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_118;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        try
+        {
+            fileInputStream.close();
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_118;
+        Exception exception;
+        exception;
+        try
+        {
+            fileInputStream.close();
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        throw exception;
+        return rc;
+    }
+
+    public void write(File jfxFile)
+    {
+        FileOutputStream fileOutputStream;
+        DataOutputStream dataOutputStream;
+        if(jfxFile.exists())
+            jfxFile.delete();
+        fileOutputStream = null;
+        dataOutputStream = null;
+        jfxFile.createNewFile();
+        fileOutputStream = new FileOutputStream(jfxFile);
+        dataOutputStream = new DataOutputStream(fileOutputStream);
+        JFXHeader header = new JFXHeader2();
+        header.write(dataOutputStream);
+        Exception e;
+        try
+        {
+            dataOutputStream.close();
+            fileOutputStream.close();
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_167;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        try
+        {
+            dataOutputStream.close();
+            fileOutputStream.close();
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_167;
+        Exception exception;
+        exception;
+        try
+        {
+            dataOutputStream.close();
+            fileOutputStream.close();
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        throw exception;
+        packedFile = jfxFile;
+        return;
+    }
+
+    public String getMD5HexString()
+    {
+        MessageDigest md;
+        md = MessageDigest.getInstance("MD5");
+        byte arr$[][] = classCode;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            byte data[] = arr$[i$];
+            md.update(data);
+        }
+
+        arr$ = resourceCode;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            byte data[] = arr$[i$];
+            md.update(data);
+        }
+
+        return Hex.encodeHexString(md.digest()).toUpperCase();
+        NoSuchAlgorithmException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return null;
+    }
+
+    public File getPackedFile()
+    {
+        return packedFile;
+    }
+
+    public JFXClassLoader getClassLoader()
+    {
+        if(classLoader == null)
+            classLoader = new JFXClassLoader(Thread.currentThread().getContextClassLoader(), this);
+        return classLoader;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/compiler/JFXPack);
+    private File packedFile;
+    byte classCode[][];
+    String className[];
+    byte resourceCode[][];
+    String resourceName[];
+    private JFXClassLoader classLoader;
+
+}

@@ -1,0 +1,247 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JColorComboBox.java
+
+package com.dukascopy.dds2.greed.gui.component;
+
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Graphics;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import javax.swing.ComboBoxEditor;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.Icon;
+import javax.swing.JColorChooser;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JList;
+
+public class JColorComboBox extends JComboBox
+{
+    private class ColorCellRenderer extends DefaultListCellRenderer
+    {
+
+        public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus)
+        {
+            JLabel label = (JLabel)super.getListCellRendererComponent(list, "", index, isSelected, cellHasFocus);
+            if(value instanceof ColorIcon)
+            {
+                ColorIcon icon = (ColorIcon)value;
+                label.setIcon(icon);
+            }
+            return label;
+        }
+
+        final JColorComboBox this$0;
+
+        public ColorCellRenderer()
+        {
+            this$0 = JColorComboBox.this;
+            super();
+            setIconTextGap(0);
+            setHorizontalAlignment(0);
+        }
+    }
+
+    private class ColorCellEditor
+        implements ComboBoxEditor
+    {
+
+        public Component getEditorComponent()
+        {
+            return editorComponent;
+        }
+
+        public void setItem(Object value)
+        {
+            if(value instanceof ColorIcon)
+            {
+                ColorIcon icon = (ColorIcon)value;
+                color = icon.getColor();
+                editorComponent.setIcon(icon);
+            }
+        }
+
+        public Object getItem()
+        {
+            return new ColorIcon(color);
+        }
+
+        public void selectAll()
+        {
+        }
+
+        public void addActionListener(ActionListener listener)
+        {
+            actionChangedListeners.add(listener);
+        }
+
+        public void removeActionListener(ActionListener listener)
+        {
+            actionChangedListeners.remove(listener);
+        }
+
+        private void fireItemEdited(ActionEvent e)
+        {
+            ActionListener listeners[] = (ActionListener[])actionChangedListeners.toArray(new ActionListener[actionChangedListeners.size()]);
+            ActionListener arr$[] = listeners;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                ActionListener listener = arr$[i$];
+                listener.actionPerformed(e);
+            }
+
+        }
+
+        private void showColorChooser()
+        {
+            final JColorChooser colorChooser = new JColorChooser(color);
+            JColorChooser.createDialog(JColorComboBox.this, "Output Color", true, colorChooser, new ActionListener() {
+
+                public void actionPerformed(ActionEvent e)
+                {
+                    color = colorChooser.getColor();
+                    editorComponent.setIcon(new ColorIcon(color));
+                    fireItemEdited(new ActionEvent(ColorCellEditor.this, 0, "colorChange"));
+                }
+
+                final JColorChooser val$colorChooser;
+                final ColorCellEditor this$1;
+
+                
+                {
+                    this$1 = ColorCellEditor.this;
+                    colorChooser = jcolorchooser;
+                    super();
+                }
+            }, new ActionListener() {
+
+                public void actionPerformed(ActionEvent actionevent)
+                {
+                }
+
+                final ColorCellEditor this$1;
+
+                
+                {
+                    this$1 = ColorCellEditor.this;
+                    super();
+                }
+            }).setVisible(true);
+        }
+
+        private final JLabel editorComponent;
+        private Color color;
+        private java.util.List actionChangedListeners;
+        final JColorComboBox this$0;
+
+
+
+
+
+
+        public ColorCellEditor()
+        {
+            this$0 = JColorComboBox.this;
+            super();
+            actionChangedListeners = new ArrayList();
+            editorComponent = new _cls1(JColorComboBox.this);
+        }
+    }
+
+    private class ColorIcon
+        implements Icon
+    {
+
+        public int getIconHeight()
+        {
+            return 15;
+        }
+
+        public int getIconWidth()
+        {
+            return 10;
+        }
+
+        public void paintIcon(Component c, Graphics g, int x, int y)
+        {
+            int width = c.getWidth();
+            g.setColor(color);
+            g.fillRect(5, y + 1, width - 10, 12);
+            g.setColor(Color.BLACK);
+            g.drawRect(5, y + 1, width - 10, 12);
+        }
+
+        public Color getColor()
+        {
+            return color;
+        }
+
+        private static final int HEIGHT = 15;
+        private static final int MARGIN = 5;
+        private final Color color;
+        final JColorComboBox this$0;
+
+        public ColorIcon(Color color)
+        {
+            this$0 = JColorComboBox.this;
+            super();
+            this.color = color;
+        }
+    }
+
+
+    public JColorComboBox()
+    {
+        Color arr$[] = COLORS;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Color color = arr$[i$];
+            addItem(new ColorIcon(color));
+        }
+
+        setRenderer(new ColorCellRenderer());
+        setEditor(new ColorCellEditor());
+        setMaximumRowCount(COLORS.length);
+        setEditable(true);
+    }
+
+    public Color getSelectedColor()
+    {
+        return ((ColorIcon)getSelectedItem()).getColor();
+    }
+
+    public Color getColorAt(int rowIndex)
+    {
+        return ((ColorIcon)getItemAt(rowIndex)).getColor();
+    }
+
+    public void showColorChooser()
+    {
+        ((ColorCellEditor)getEditor()).showColorChooser();
+    }
+
+    public void setSelectedColor(Color selectedColor)
+    {
+        setSelectedItem(new ColorIcon(selectedColor));
+    }
+
+    public static final Color COLORS[];
+
+    static 
+    {
+        COLORS = (new Color[] {
+            Color.BLUE, Color.GREEN, Color.RED, new Color(49, 125, 167), Color.MAGENTA, Color.ORANGE, new Color(181, 63, 57), new Color(80, 36, 143), Color.GRAY, new Color(255, 128, 64), 
+            new Color(0, 100, 50), new Color(170, 210, 210), new Color(100, 0, 50), Color.DARK_GRAY, new Color(150, 150, 0), new Color(0, 255, 128), new Color(40, 80, 80), new Color(0, 128, 128), new Color(192, 192, 192), Color.BLACK, 
+            Color.WHITE, Color.getHSBColor(0.0F, 0.745F, 0.87F), Color.getHSBColor(0.35F, 0.6F, 0.65F), Color.getHSBColor(0.333F, 0.865F, 0.494F), Color.getHSBColor(0.0F, 0.748F, 0.56F), Color.getHSBColor(0.088F, 0.341F, 0.862F), Color.getHSBColor(0.118F, 0.545F, 0.862F)
+        });
+    }
+}

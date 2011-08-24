@@ -1,0 +1,432 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   JForexEngineImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.AbstractEngine;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.*;
+import com.dukascopy.transport.client.TransportClient;
+import com.dukascopy.transport.common.msg.ProtocolMessage;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import com.dukascopy.transport.common.msg.group.OrderMessage;
+import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
+import com.dukascopy.transport.common.msg.response.ErrorResponseMessage;
+import com.dukascopy.transport.common.msg.strategy.StrategyBroadcastMessage;
+import java.math.BigDecimal;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            PlatformOrderImpl, PlatformMessageImpl, JForexTaskManager, OrdersInternalCollection, 
+//            JForexAPI
+
+class JForexEngineImpl extends AbstractEngine
+    implements IEngine
+{
+
+    public JForexEngineImpl(JForexTaskManager taskManager, String accountName, boolean live)
+    {
+        myType = com.dukascopy.api.IEngine.Type.DEMO;
+        this.accountName = null;
+        lastBroadcastTime = 0L;
+        if(live)
+            myType = com.dukascopy.api.IEngine.Type.LIVE;
+        this.taskManager = taskManager;
+        this.accountName = accountName;
+    }
+
+    public IOrder getOrder(String label)
+        throws JFException
+    {
+        List allOrders = getOrders();
+        IOrder rc = null;
+        Iterator i$ = allOrders.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            IOrder order = (IOrder)i$.next();
+            if(order.getLabel() == null || !order.getLabel().equals(label))
+                continue;
+            rc = order;
+            break;
+        } while(true);
+        return rc;
+    }
+
+    public List getOrders(Instrument instrument)
+        throws JFException
+    {
+        List rc = new ArrayList();
+        Iterator i$ = getOrders().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            IOrder order = (IOrder)i$.next();
+            if(instrument == order.getInstrument())
+                rc.add(order);
+        } while(true);
+        return rc;
+    }
+
+    public List getOrders()
+        throws JFException
+    {
+        return taskManager.getOrdersInternalCollection().allAsOrders();
+    }
+
+    public com.dukascopy.api.IEngine.Type getType()
+    {
+        return myType;
+    }
+
+    public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
+            double slippage, double stopLossPrice, double takeProfitPrice, long goodTillTime, String comment)
+        throws JFException
+    {
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        label = validateLabel(label);
+        validateOrder(taskManager.isGlobal(), instrument, orderCommand, amount, price, slippage, stopLossPrice, takeProfitPrice, goodTillTime, comment);
+        FeedDataProvider feedDataProvider = FeedDataProvider.getDefaultInstance();
+        if(!feedDataProvider.isSubscribedToInstrument(instrument))
+            throw new JFException((new StringBuilder()).append("Not subscribed to the instrument [").append(instrument).append("]").toString());
+        Set conversionDeps = AbstractCurrencyConverter.getConversionDeps(instrument.getSecondaryCurrency(), Instrument.EURUSD.getSecondaryCurrency());
+        for(Iterator i$ = conversionDeps.iterator(); i$.hasNext();)
+        {
+            Instrument instrumentDep = (Instrument)i$.next();
+            if(!feedDataProvider.isSubscribedToInstrument(instrumentDep))
+                throw new JFException((new StringBuilder()).append("Not subscribed to the instrument [").append(instrumentDep).append("]").toString());
+        }
+
+        conversionDeps = AbstractCurrencyConverter.getConversionDeps(Instrument.EURUSD.getSecondaryCurrency(), taskManager.getAccountCurrency());
+        for(Iterator i$ = conversionDeps.iterator(); i$.hasNext();)
+        {
+            Instrument instrumentDep = (Instrument)i$.next();
+            if(!feedDataProvider.isSubscribedToInstrument(instrumentDep))
+                throw new JFException((new StringBuilder()).append("Not subscribed to the instrument [").append(instrumentDep).append("]").toString());
+        }
+
+        price = StratUtils.round(price, 7);
+        amount = StratUtils.round(amount, 6);
+        stopLossPrice = StratUtils.round(stopLossPrice, 7);
+        takeProfitPrice = StratUtils.round(takeProfitPrice, 7);
+        if(!Double.isNaN(slippage))
+        {
+            if(slippage < 0.0D)
+                slippage = 5D;
+            slippage = StratUtils.round(slippage * instrument.getPipValue(), 7);
+        }
+        PlatformOrderImpl order = new PlatformOrderImpl(taskManager);
+        order.lastServerRequest = PlatformOrderImpl.ServerRequest.SUBMIT;
+        order.label = label;
+        order.requestedAmount = amount;
+        order.comment = comment;
+        order.slPrice = stopLossPrice;
+        order.tpPrice = takeProfitPrice;
+        order.openPrice = price;
+        order.instrument = instrument;
+        if(goodTillTime > 0L)
+            order.goodTillTime = goodTillTime;
+        order.orderCommand = orderCommand;
+        if(order.slPrice > 0.0D)
+            order.slSide = orderCommand.isLong() ? OfferSide.BID : OfferSide.ASK;
+        taskManager.getOrdersInternalCollection().put(label, order, true);
+        DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        if(!taskManager.isConnected())
+        {
+            String content = (new StringBuilder()).append("Order REJECTED: ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append(orderCommand.isConditional() ? "CONDITIONAL " : "").append(orderCommand.isLong() ? "SELL" : "BUY").toString() : orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID ? "PLACE OFFER" : "PLACE BID ").append(" ").append(instrument).append(", REASON: disconnect").toString();
+            LOGGER.warn(content);
+            ErrorResponseMessage error = new ErrorResponseMessage(content);
+            taskManager.onErrorMessage(error, order);
+            return order;
+        }
+        BigDecimal usableMargin = taskManager.getUsableMargin();
+        if(usableMargin != null && usableMargin.compareTo(BigDecimal.ZERO) < 0 && !orderCommand.isConditional() && taskManager.getOrdersInternalCollection().isLongExposure(instrument) == orderCommand.isLong())
+        {
+            String content = (new StringBuilder()).append("Order REJECTED: ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append(orderCommand.isConditional() ? "CONDITIONAL " : "").append(orderCommand.isLong() ? "SELL" : "BUY").toString() : orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID ? "PLACE OFFER" : "PLACE BID ").append(" ").append(instrument).append(", REASON: no margin available").toString();
+            LOGGER.warn(content);
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Order ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID ? orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? (new StringBuilder()).append("ENTRY ").append(orderCommand.isLong() ? "BUY" : "SELL").toString() : "PLACE OFFER" : "PLACE BID").append(" ").append(BigDecimal.valueOf(order.getRequestedAmount()).subtract(BigDecimal.valueOf(order.getAmount())).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ ").append(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? BigDecimal.valueOf(order.getOpenPrice()).toPlainString() : orderCommand.isConditional() ? (new StringBuilder()).append("LIMIT ").append(BigDecimal.valueOf(order.getOpenPrice()).toPlainString()).toString() : "MKT").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER ? orderCommand.isConditional() ? (new StringBuilder()).append(" IF ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "BID" : "ASK").append(" ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "=>" : "<=").append(" ").append(BigDecimal.valueOf(price).toPlainString()).toString() : "" : (new StringBuilder()).append(" EXPIRES:").append(goodTillTime != 0L ? format.format(Long.valueOf(goodTillTime)) : "GTC").toString()).append(" is sent at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage(content, false);
+            ErrorResponseMessage error = new ErrorResponseMessage(content);
+            taskManager.onErrorMessage(error, order);
+            return order;
+        }
+        if(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+        {
+            if(goodTillTime < 0L)
+                throw new JFException(com.dukascopy.api.JFException.Error.INVALID_GTT);
+            if(goodTillTime > 0L && goodTillTime < 0xeaf625800L)
+                throw new JFException(com.dukascopy.api.JFException.Error.INVALID_GTT);
+            TransportClient transportClient = taskManager.getTransportClient();
+            OrderGroupMessage ogm = JForexAPI.placeBidOffer(taskManager.getStrategyKey(), label, instrument, orderCommand, amount, price, stopLossPrice, takeProfitPrice, goodTillTime, comment, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Submitting bid/offer order [").append(ogm).append("]").toString());
+            ProtocolMessage submitResult = transportClient.controlRequest(ogm);
+            if(submitResult instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                taskManager.onErrorMessage(error, order);
+            }
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Order ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID ? "PLACE OFFER" : "PLACE BID").append(" ").append(BigDecimal.valueOf(amount).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ ").append(BigDecimal.valueOf(price).toPlainString()).append(" EXPIRES:").append(goodTillTime != 0L ? format.format(Long.valueOf(goodTillTime)) : "GTC").append(" is sent at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+        } else
+        {
+            TransportClient transportClient = taskManager.getTransportClient();
+            OrderGroupMessage ogm;
+            try
+            {
+                ogm = JForexAPI.submitOrder(taskManager.getStrategyKey(), label, instrument, orderCommand, amount, price, slippage, stopLossPrice, takeProfitPrice, comment, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID());
+            }
+            catch(IllegalStateException e)
+            {
+                throw new JFException(e.getMessage(), e);
+            }
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Submitting order [").append(ogm).append("]").toString());
+            ProtocolMessage submitResult = transportClient.controlRequest(ogm);
+            if(submitResult instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+                taskManager.onErrorMessage(error, order);
+            }
+            NotificationUtilsProvider.getNotificationUtils().postInfoMessage((new StringBuilder()).append("Order ").append(orderCommand.isConditional() ? "ENTRY " : "").append(orderCommand.isLong() ? "BUY" : "SELL").append(" ").append(BigDecimal.valueOf(amount).multiply(BigDecimal.valueOf(0xf4240L)).stripTrailingZeros().toPlainString()).append(" ").append(instrument).append(" @ ").append(orderCommand.isConditional() && !Double.isNaN(slippage) ? (new StringBuilder()).append("LIMIT ").append(orderCommand.isLong() ? BigDecimal.valueOf(price).add(BigDecimal.valueOf(slippage)).toPlainString() : BigDecimal.valueOf(price).subtract(BigDecimal.valueOf(slippage)).toPlainString()).toString() : "MKT").append(orderCommand.isConditional() ? (new StringBuilder()).append(" IF ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "BID" : "ASK").append(" ").append(orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK ? "=>" : "<=").append(" ").append(BigDecimal.valueOf(price).toPlainString()).toString() : "").append(" is sent at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ").append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server").toString());
+        }
+        return order;
+    }
+
+    public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
+            double slippage, double stopLossPrice, double takeProfitPrice, long goodTillTime)
+        throws JFException
+    {
+        return submitOrder(label, instrument, orderCommand, amount, price, slippage, stopLossPrice, takeProfitPrice, goodTillTime, null);
+    }
+
+    public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
+            double slippage, double stopLossPrice, double takeProfitPrice)
+        throws JFException
+    {
+        return submitOrder(label, instrument, orderCommand, amount, price, slippage, stopLossPrice, takeProfitPrice, 0L);
+    }
+
+    public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
+            double slippage)
+        throws JFException
+    {
+        return submitOrder(label, instrument, orderCommand, amount, price, slippage, 0.0D, 0.0D);
+    }
+
+    public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price)
+        throws JFException
+    {
+        double slippage = 5D;
+        if(orderCommand != null && (orderCommand == com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT || orderCommand == com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT || orderCommand == com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK))
+            slippage = 0.0D;
+        return submitOrder(label, instrument, orderCommand, amount, price, slippage);
+    }
+
+    public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount)
+        throws JFException
+    {
+        return submitOrder(label, instrument, orderCommand, amount, 0.0D);
+    }
+
+    public PlatformOrderImpl getOrderById(String positionId)
+    {
+        return taskManager.getOrdersInternalCollection().getOrderById(positionId);
+    }
+
+    public String toString()
+    {
+        return "Platform engine";
+    }
+
+    public String getAccount()
+    {
+        return accountName;
+    }
+
+    public transient void mergeOrders(IOrder orders[])
+        throws JFException
+    {
+        NotificationUtilsProvider.getNotificationUtils().postWarningMessage("mergeOrders method is deprecated and will be removed later, please use method with label parameter instead", true);
+        mergeOrders(null, orders);
+    }
+
+    public transient IOrder mergeOrders(String label, IOrder orders[])
+        throws JFException
+    {
+        if(taskManager.isGlobal())
+            throw new JFException("Merges are not supported on global accounts");
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        Instrument instrument = null;
+        Set mergeOrderGroupIdList = new HashSet();
+        IOrder arr$[] = orders;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            IOrder order = arr$[i$];
+            if(instrument == null)
+                instrument = order.getInstrument();
+            if(order.getInstrument() != instrument)
+                throw new JFException("Cannot merge orders with instruments not equal");
+            if(order.getState() != com.dukascopy.api.IOrder.State.FILLED)
+                throw new JFException("Cannot merge orders in state other than FILLED");
+            if(order.getStopLossPrice() != 0.0D)
+                throw new JFException("Cannot merge orders with stop loss");
+            if(order.getTakeProfitPrice() != 0.0D)
+                throw new JFException("Cannot merge orders with take profit");
+            PlatformOrderImpl platformOrder = (PlatformOrderImpl)order;
+            if(mergeOrderGroupIdList.contains(platformOrder.groupId))
+                throw new JFException((new StringBuilder()).append("Order [").append(platformOrder.getLabel()).append("] appears more than once in list of orders to merge").toString());
+            mergeOrderGroupIdList.add(platformOrder.groupId);
+        }
+
+        if(mergeOrderGroupIdList.size() < 2)
+            throw new JFException("Cannot merge less then 2 orders");
+        if(label == null)
+            label = JForexAPI.generateLabel();
+        else
+            label = validateLabel(label);
+        PlatformOrderImpl order = new PlatformOrderImpl(taskManager);
+        order.label = label;
+        order.instrument = instrument;
+        order.setLastServerRequest(PlatformOrderImpl.ServerRequest.MERGE_TARGET);
+        taskManager.getOrdersInternalCollection().put(label, order, true);
+        TransportClient transportClient = taskManager.getTransportClient();
+        MergePositionsMessage mpm = JForexAPI.merge(taskManager.getStrategyKey(), label, mergeOrderGroupIdList);
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Sending merge request [").append(mpm).append("]").toString());
+        ProtocolMessage submitResult = transportClient.controlRequest(mpm);
+        if(submitResult instanceof ErrorResponseMessage)
+        {
+            ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+            taskManager.onErrorMessage(error, order);
+        }
+        DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        StringBuilder strBuilder = new StringBuilder();
+        strBuilder.append("Merge request with label ").append(label).append(" sent for positions: ");
+        String mergeOrderGroupId;
+        for(Iterator i$ = mergeOrderGroupIdList.iterator(); i$.hasNext(); strBuilder.append(mergeOrderGroupId).append(", "))
+            mergeOrderGroupId = (String)i$.next();
+
+        strBuilder.setLength(strBuilder.length() - 2);
+        strBuilder.append(" at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ");
+        strBuilder.append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server");
+        NotificationUtilsProvider.getNotificationUtils().postInfoMessage(strBuilder.toString());
+        return order;
+    }
+
+    public transient void closeOrders(IOrder orders[])
+        throws JFException
+    {
+        if(taskManager.isGlobal())
+            throw new JFException("Cannot close orders on global accounts. Please open opposite order instead");
+        if(!taskManager.isThreadOk(Thread.currentThread().getId()))
+            throw new JFException(com.dukascopy.api.JFException.Error.THREAD_INCORRECT);
+        List groupsToClose = new ArrayList();
+        IOrder arr$[] = orders;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            IOrder order = arr$[i$];
+            if(order.getState() != com.dukascopy.api.IOrder.State.FILLED)
+                throw new JFException("Cannot mass close orders in state other than FILLED");
+            groupsToClose.add(JForexAPI.generatePositionClosingOrder(order.getOrderCommand(), order.getInstrument(), ((PlatformOrderImpl)order).groupId, taskManager.getStrategyKey(), order.getLabel(), order.getAmount(), 0.0D, -1D, taskManager.getExternalIP(), taskManager.getInternalIP(), taskManager.getSessionID()));
+        }
+
+        arr$ = orders;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            IOrder order = arr$[i$];
+            ((PlatformOrderImpl)order).setLastServerRequest(PlatformOrderImpl.ServerRequest.CLOSE);
+        }
+
+        TransportClient transportClient = taskManager.getTransportClient();
+        OrderGroupMessage ogm = JForexAPI.massClose(groupsToClose);
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Sending mass close request [").append(ogm).append("]").toString());
+        ProtocolMessage submitResult = transportClient.controlRequest(ogm);
+        if(submitResult instanceof ErrorResponseMessage)
+        {
+            ErrorResponseMessage error = (ErrorResponseMessage)submitResult;
+            taskManager.onMessage(new PlatformMessageImpl(error.getReason(), null, com.dukascopy.api.IMessage.Type.ORDER_CLOSE_REJECTED, FeedDataProvider.getDefaultInstance().getCurrentTime()));
+        }
+        DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        StringBuilder strBuilder = new StringBuilder("Closing request sent for positions: ");
+        OrderMessage orderMessage;
+        for(Iterator i$ = groupsToClose.iterator(); i$.hasNext(); strBuilder.append(orderMessage.getOrderGroupId()).append(", "))
+            orderMessage = (OrderMessage)i$.next();
+
+        strBuilder.setLength(strBuilder.length() - 2);
+        strBuilder.append(" at ").append(format.format(Long.valueOf(System.currentTimeMillis()))).append(" by the strategy \"").append(taskManager.getStrategyName()).append("\": from the ");
+        strBuilder.append(taskManager.getEnvironment() != JForexTaskManager.Environment.REMOTE ? "local computer" : "remote server");
+        NotificationUtilsProvider.getNotificationUtils().postInfoMessage(strBuilder.toString());
+    }
+
+    public void broadcast(String topic, String message)
+        throws JFException
+    {
+        if(topic == null || topic.isEmpty())
+            throw new JFException("Illegal broadcast usage : topic is empty");
+        if(topic.length() > 100)
+            throw new JFException((new StringBuilder()).append("Broadcast topic max length exceeded : ").append(topic.length()).append(" / ").append(100).toString());
+        if(message == null || message.isEmpty())
+            throw new JFException("Illegal broadcast usage : message is empty");
+        if(message.length() > 1000)
+            throw new JFException((new StringBuilder()).append("Broadcast message max length exceeded : ").append(message.length()).append(" / ").append(1000).toString());
+        long period = System.currentTimeMillis() - lastBroadcastTime;
+        if(period >= 0L && period < BROADCAST_MIN_PERIOD)
+            throw new JFException((new StringBuilder()).append("Broadcast min period exceeded : ").append(period).append(" / ").append(BROADCAST_MIN_PERIOD).toString());
+        lastBroadcastTime = System.currentTimeMillis();
+        try
+        {
+            StrategyBroadcastMessage broadcastMessage = new StrategyBroadcastMessage();
+            broadcastMessage.setTopic(topic);
+            broadcastMessage.setMessage(message);
+            broadcastMessage.setTransactionId(taskManager.getUID());
+            LOGGER.debug((new StringBuilder()).append("Sending broadcast message : ").append(broadcastMessage).toString());
+            ProtocolMessage response = taskManager.getTransportClient().controlRequest(broadcastMessage);
+            if(response instanceof ErrorResponseMessage)
+                throw new JFException((new StringBuilder()).append("Unable to send broadcast message : ").append(((ErrorResponseMessage)response).getReason()).toString());
+        }
+        catch(Exception ex)
+        {
+            throw new JFException("Broadcast error", ex);
+        }
+    }
+
+    public volatile IOrder getOrderById(String x0)
+    {
+        return getOrderById(x0);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/JForexEngineImpl);
+    private static final int BROADCAST_TOPIC_MAX_LENGTH = 100;
+    private static final int BROADCAST_MESSAGE_MAX_LENGTH = 1000;
+    private static final long BROADCAST_MIN_PERIOD;
+    static final double DEFAULT_SLIPPAGE = 5D;
+    private com.dukascopy.api.IEngine.Type myType;
+    private final JForexTaskManager taskManager;
+    private String accountName;
+    private volatile long lastBroadcastTime;
+
+    static 
+    {
+        BROADCAST_MIN_PERIOD = TimeUnit.SECONDS.toMillis(1L);
+    }
+}

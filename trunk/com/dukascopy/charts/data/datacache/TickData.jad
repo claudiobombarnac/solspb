@@ -1,0 +1,264 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TickData.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.ITick;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.TimeZone;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            Data
+
+public class TickData extends Data
+    implements ITick
+{
+
+    public TickData()
+    {
+    }
+
+    public TickData(long time, double ask, double bid, double askVol, double bidVol)
+    {
+        super(time);
+        this.ask = ask;
+        this.bid = bid;
+        this.askVol = askVol;
+        this.bidVol = bidVol;
+    }
+
+    public TickData(long time, double ask, double bid, double askVolume, double bidVolume, double asks[], double bids[], double askVolumes[], double bidVolumes[])
+    {
+        this.time = time;
+        this.ask = ask;
+        this.bid = bid;
+        askVol = askVolume;
+        bidVol = bidVolume;
+        this.asks = asks;
+        this.bids = bids;
+        this.askVolumes = askVolumes;
+        this.bidVolumes = bidVolumes;
+    }
+
+    public void fromBytes(int version, long firstChunkCandle, double pipValue, byte bytes[], int off)
+    {
+        if(version <= 4)
+        {
+            time = getLong(bytes, off);
+            ask = getDouble(bytes, off + 8);
+            bid = getDouble(bytes, off + 16);
+            askVol = StratUtils.roundHalfEven(getDouble(bytes, off + 24) / 1000000D, 2);
+            bidVol = StratUtils.roundHalfEven(getDouble(bytes, off + 32) / 1000000D, 2);
+        } else
+        {
+            int timeInt = getInt(bytes, off);
+            time = timeInt != 0x80000000 ? firstChunkCandle + (long)timeInt : 0x8000000000000000L;
+            ask = (double)(long)(((double)getInt(bytes, off + 4) / 10D) * pipValue * 100000D + 0.5D) / 100000D;
+            bid = (double)(long)(((double)getInt(bytes, off + 8) / 10D) * pipValue * 100000D + 0.5D) / 100000D;
+            askVol = (double)(long)((double)getFloat(bytes, off + 12) * 100D + 0.5D) / 100D;
+            bidVol = (double)(long)((double)getFloat(bytes, off + 16) * 100D + 0.5D) / 100D;
+        }
+    }
+
+    public final void toBytes(int version, long firstChunkCandle, double pipValue, byte buff[], int off)
+    {
+        if(version <= 4)
+        {
+            if(buff.length < off + 40)
+                throw new ArrayIndexOutOfBoundsException("Buffer too short");
+            off = putLong(buff, off, time);
+            off = putDouble(buff, off, ask);
+            off = putDouble(buff, off, bid);
+            off = putDouble(buff, off, Math.round(askVol * 1000000D));
+            putDouble(buff, off, Math.round(bidVol * 1000000D));
+        } else
+        {
+            if(buff.length < off + 20)
+                throw new ArrayIndexOutOfBoundsException("Buffer too short");
+            off = putInt(buff, off, time != 0x8000000000000000L ? (int)(time - firstChunkCandle) : 0x80000000);
+            off = putInt(buff, off, (int)Math.round((ask / pipValue) * 10D));
+            off = putInt(buff, off, (int)Math.round((bid / pipValue) * 10D));
+            off = putFloat(buff, off, (float)askVol);
+            putFloat(buff, off, (float)bidVol);
+        }
+    }
+
+    public int getBytesCount(int version)
+    {
+        return version > 4 ? 20 : 40;
+    }
+
+    public static int getLength(int version)
+    {
+        return version > 4 ? 20 : 40;
+    }
+
+    public String toString()
+    {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        StringBuilder stamp = new StringBuilder();
+        stamp.append(time).append("[").append(format.format(Long.valueOf(time))).append("] / ");
+        stamp.append(ask).append(" / ").append(bid);
+        return stamp.toString();
+    }
+
+    public TickData clone()
+    {
+        return (TickData)super.clone();
+    }
+
+    public boolean equals(Object o)
+    {
+        if(this == o)
+            return true;
+        if(o == null || getClass() != o.getClass())
+            return false;
+        if(!super.equals(o))
+            return false;
+        TickData tickData = (TickData)o;
+        if(Double.compare(tickData.ask, ask) != 0)
+            return false;
+        if(Double.compare(tickData.askVol, askVol) != 0)
+            return false;
+        if(Double.compare(tickData.bid, bid) != 0)
+            return false;
+        if(Double.compare(tickData.bidVol, bidVol) != 0)
+            return false;
+        if(!Arrays.equals(askVolumes, tickData.askVolumes))
+            return false;
+        if(!Arrays.equals(asks, tickData.asks))
+            return false;
+        if(!Arrays.equals(bidVolumes, tickData.bidVolumes))
+            return false;
+        return Arrays.equals(bids, tickData.bids);
+    }
+
+    public int hashCode()
+    {
+        int result = super.hashCode();
+        long temp = ask == 0.0D ? 0L : Double.doubleToLongBits(ask);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        temp = bid == 0.0D ? 0L : Double.doubleToLongBits(bid);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        temp = askVol == 0.0D ? 0L : Double.doubleToLongBits(askVol);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        temp = bidVol == 0.0D ? 0L : Double.doubleToLongBits(bidVol);
+        result = 31 * result + (int)(temp ^ temp >>> 32);
+        result = 31 * result + (asks == null ? 0 : Arrays.hashCode(asks));
+        result = 31 * result + (bids == null ? 0 : Arrays.hashCode(bids));
+        result = 31 * result + (askVolumes == null ? 0 : Arrays.hashCode(askVolumes));
+        result = 31 * result + (bidVolumes == null ? 0 : Arrays.hashCode(bidVolumes));
+        return result;
+    }
+
+    public double getAsk()
+    {
+        return ask;
+    }
+
+    public double getBid()
+    {
+        return bid;
+    }
+
+    public double getAskVolume()
+    {
+        return askVol;
+    }
+
+    public double getBidVolume()
+    {
+        return bidVol;
+    }
+
+    public double[] getAsks()
+    {
+        if(asks == null)
+            asks = (new double[] {
+                ask
+            });
+        return asks;
+    }
+
+    public double[] getBids()
+    {
+        if(bids == null)
+            bids = (new double[] {
+                bid
+            });
+        return bids;
+    }
+
+    public double[] getAskVolumes()
+    {
+        if(askVolumes == null)
+            askVolumes = (new double[] {
+                askVol
+            });
+        return askVolumes;
+    }
+
+    public double[] getBidVolumes()
+    {
+        if(bidVolumes == null)
+            bidVolumes = (new double[] {
+                bidVol
+            });
+        return bidVolumes;
+    }
+
+    public double getTotalAskVolume()
+    {
+        double totalAskVolume = 0.0D;
+        double arr$[] = askVolumes;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            double askVolume = arr$[i$];
+            totalAskVolume = askVolume;
+        }
+
+        return (double)(long)(totalAskVolume * 100D + 0.5D) / 100D;
+    }
+
+    public double getTotalBidVolume()
+    {
+        double totalBidVolume = 0.0D;
+        double arr$[] = bidVolumes;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            double bidVolume = arr$[i$];
+            totalBidVolume = bidVolume;
+        }
+
+        return (double)(long)(totalBidVolume * 100D + 0.5D) / 100D;
+    }
+
+    public volatile Data clone()
+    {
+        return clone();
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    private static final int BYTES_COUNT4 = 40;
+    private static final int BYTES_COUNT5 = 20;
+    public double ask;
+    public double bid;
+    public double askVol;
+    public double bidVol;
+    public double asks[];
+    public double bids[];
+    public double askVolumes[];
+    public double bidVolumes[];
+}

@@ -1,0 +1,137 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:27
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   TaskOrderGroupUpdate.java
+
+package com.dukascopy.api.impl.execution;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.impl.connect.*;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import com.dukascopy.transport.common.model.type.Money;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import java.math.BigDecimal;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.execution:
+//            Task
+
+public class TaskOrderGroupUpdate
+    implements Task
+{
+
+    public TaskOrderGroupUpdate(JForexTaskManager taskManager, IStrategy strategy, OrderGroupMessage orderGroupMessage)
+    {
+        this.strategy = strategy;
+        this.orderGroupMessage = orderGroupMessage;
+        this.taskManager = taskManager;
+    }
+
+    public Task.Type getType()
+    {
+        return Task.Type.MESSAGE;
+    }
+
+    public Object call()
+        throws Exception
+    {
+        if(taskManager.isStrategyStopping())
+            return null;
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Starting processing of order group message [").append(orderGroupMessage).append("]").toString());
+        PlatformOrderImpl platformOrderImpl;
+        OrdersInternalCollection ordersInternalCollection = taskManager.getOrdersInternalCollection();
+        platformOrderImpl = null;
+        String orderGroupId = orderGroupMessage.getOrderGroupId();
+        if(orderGroupId != null)
+            platformOrderImpl = ordersInternalCollection.getOrderById(orderGroupId);
+        String label = PlatformOrderImpl.extractLabel(orderGroupMessage);
+        if(platformOrderImpl == null && label != null)
+        {
+            platformOrderImpl = ordersInternalCollection.getOrderByLabel(label);
+            if(platformOrderImpl != null && platformOrderImpl.getState() != com.dukascopy.api.IOrder.State.CREATED)
+                LOGGER.warn((new StringBuilder()).append("Getting order by label [").append(label).append("] instead of order id").toString());
+        }
+        if(platformOrderImpl != null)
+            break MISSING_BLOCK_LABEL_444;
+        if(label == null)
+        {
+            if(!taskManager.isGlobal())
+            {
+                LOGGER.warn((new StringBuilder()).append("Order group message received that doesn't have assigned external id. Order group id [").append(orderGroupId).append("]").toString());
+                orderGroupMessage.setExternalSysId(orderGroupId);
+            }
+            label = orderGroupId;
+        }
+        if(orderGroupMessage.getOrders().size() > 0)
+        {
+            platformOrderImpl = new PlatformOrderImpl(taskManager);
+            try
+            {
+                ordersInternalCollection.put(label, platformOrderImpl, false);
+            }
+            catch(JFException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            break MISSING_BLOCK_LABEL_444;
+        }
+        if(taskManager.isGlobal() && orderGroupMessage.getAmount() != null && orderGroupMessage.getAmount().getValue().compareTo(BigDecimal.ZERO) > 0)
+        {
+            platformOrderImpl = new PlatformOrderImpl(taskManager);
+            try
+            {
+                ordersInternalCollection.put(label, platformOrderImpl, false);
+            }
+            catch(JFException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            break MISSING_BLOCK_LABEL_444;
+        }
+        if(orderGroupMessage.isOcoMerge() && orderGroupMessage.getAmount() != null && orderGroupMessage.getAmount().getValue().compareTo(BigDecimal.ZERO) == 0)
+        {
+            platformOrderImpl = new PlatformOrderImpl(taskManager);
+            try
+            {
+                ordersInternalCollection.put(label, platformOrderImpl, false);
+            }
+            catch(JFException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            break MISSING_BLOCK_LABEL_444;
+        }
+        return null;
+        try
+        {
+            com.dukascopy.api.IMessage platformMessageImpl = platformOrderImpl.update(orderGroupMessage);
+            if(platformMessageImpl != null)
+                strategy.onMessage(platformMessageImpl);
+        }
+        catch(Throwable t)
+        {
+            String msg = StrategyWrapper.representError(strategy, t);
+            NotificationUtilsProvider.getNotificationUtils().postErrorMessage(msg, t, false);
+            LOGGER.error(t.getMessage(), t);
+            taskManager.getExceptionHandler().onException(taskManager.getStrategyId(), com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_MESSAGE, t);
+        }
+        return null;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("TaskOrderGroupUpdate [").append(orderGroupMessage).append("]").toString();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/execution/TaskOrderGroupUpdate);
+    private IStrategy strategy;
+    private OrderGroupMessage orderGroupMessage;
+    private JForexTaskManager taskManager;
+
+}

@@ -1,0 +1,52 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PriceRangeData.java
+
+package com.dukascopy.charts.data.datacache.rangebar;
+
+import com.dukascopy.api.feed.IRangeBar;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+public class PriceRangeData extends AbstractPriceAggregationData
+    implements IRangeBar
+{
+
+    public PriceRangeData()
+    {
+    }
+
+    public PriceRangeData(long time, long endTime, double open, double close, double low, double high, double vol, 
+            long formedElementsCount)
+    {
+        super(time, endTime, open, close, low, high, vol, formedElementsCount);
+    }
+
+    public PriceRangeData clone()
+    {
+        return (PriceRangeData)super.clone();
+    }
+
+    public volatile AbstractPriceAggregationData clone()
+    {
+        return clone();
+    }
+
+    public volatile CandleData clone()
+    {
+        return clone();
+    }
+
+    public volatile Data clone()
+    {
+        return clone();
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+}

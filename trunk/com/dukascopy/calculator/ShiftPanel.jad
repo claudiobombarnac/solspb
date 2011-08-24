@@ -1,0 +1,57 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ShiftPanel.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.button.CalculatorButton;
+import com.dukascopy.calculator.function.ACos;
+import com.dukascopy.calculator.function.ASin;
+import com.dukascopy.calculator.function.ATan;
+import com.dukascopy.calculator.function.Conjugate;
+import com.dukascopy.calculator.function.Cube;
+import com.dukascopy.calculator.function.CubeRoot;
+import com.dukascopy.calculator.function.Exp;
+import com.dukascopy.calculator.function.Factorial;
+import com.dukascopy.calculator.function.Permutation;
+import com.dukascopy.calculator.function.Pi;
+import com.dukascopy.calculator.function.Root;
+import com.dukascopy.calculator.function.TenX;
+import java.awt.Color;
+import java.util.Vector;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            AbstractCalculatorPanel, MainCalculatorPanel, SpecialButtonType, AngleType
+
+public class ShiftPanel extends AbstractCalculatorPanel
+{
+
+    public ShiftPanel(MainCalculatorPanel applet, SpecialButtonType sbt, Color colour)
+    {
+        super(applet, sbt, colour);
+        if(sbt != SpecialButtonType.SHIFT && sbt != SpecialButtonType.SHIFT_STAT)
+            throw new RuntimeException("ShiftPanel instantiated wrongly.");
+        else
+            return;
+    }
+
+    protected void setButtons()
+    {
+        ((CalculatorButton)buttons().elementAt(1)).setPObject(new Factorial());
+        ((CalculatorButton)buttons().elementAt(2)).setPObject(new ASin(AngleType.DEGREES));
+        ((CalculatorButton)buttons().elementAt(3)).setPObject(new TenX());
+        ((CalculatorButton)buttons().elementAt(4)).setPObject(new Permutation());
+        ((CalculatorButton)buttons().elementAt(6)).setPObject(new Cube());
+        ((CalculatorButton)buttons().elementAt(7)).setPObject(new ACos(AngleType.DEGREES));
+        ((CalculatorButton)buttons().elementAt(8)).setPObject(new Exp());
+        ((CalculatorButton)buttons().elementAt(9)).setPObject(new Conjugate());
+        ((CalculatorButton)buttons().elementAt(11)).setPObject(new CubeRoot());
+        ((CalculatorButton)buttons().elementAt(12)).setPObject(new ATan(AngleType.DEGREES));
+        ((CalculatorButton)buttons().elementAt(13)).setPObject(new Root());
+        ((CalculatorButton)buttons().elementAt(24)).setPObject(new Pi());
+        createKeyMap();
+    }
+
+    private static final long serialVersionUID = 1L;
+}

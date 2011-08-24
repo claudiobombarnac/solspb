@@ -1,0 +1,194 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TickBarCreator.java
+
+package com.dukascopy.charts.data.datacache.tickbar;
+
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationCreator;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.tickbar:
+//            TickBarData, ITickBarLiveFeedListener
+
+public class TickBarCreator extends AbstractPriceAggregationCreator
+{
+
+    public TickBarCreator(int desiredBarsCount, int ticksInOneBar, OfferSide offerSide, boolean directOrder, boolean liveCreation, ITickBarLiveFeedListener listener)
+    {
+        super(listener, desiredBarsCount);
+        this.ticksInOneBar = ticksInOneBar;
+        this.offerSide = offerSide;
+        this.directOrder = directOrder;
+        this.liveCreation = liveCreation;
+        reset();
+    }
+
+    public boolean isAllDesiredDataLoaded()
+    {
+        return fullyCreatedBarsCount >= getDesiredDatasCount();
+    }
+
+    public boolean analyse(TickData data)
+    {
+        TickBarData currentBar = null;
+        if(currentDataConstructionTicksIncluded == 0)
+        {
+            currentBar = startNewBar(data, offerSide);
+        } else
+        {
+            currentBar = (TickBarData)getLastData();
+            if(canContinueCurrentDataConstruction(currentBar, data))
+            {
+                currentBar = continueCurrentBar(currentBar, data, offerSide);
+            } else
+            {
+                currentBar = finishCurrentBar(currentBar, data, offerSide);
+                if(isAllDesiredDataLoaded())
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private TickBarData finishCurrentBar(TickBarData currentBar, TickData data, OfferSide offerSide)
+    {
+        currentBar = continueCurrentBar(currentBar, data, offerSide);
+        fullyCreatedBarsCount++;
+        if(liveCreation)
+            fireNewBarCreated(currentBar);
+        currentBar = null;
+        currentDataConstructionTicksIncluded = 0;
+        return currentBar;
+    }
+
+    private TickBarData startNewBar(TickData data, OfferSide offerSide)
+    {
+        currentDataConstructionTicksIncluded++;
+        double price = getPrice(data, offerSide);
+        double volume = getVolume(data, offerSide);
+        TickBarData currentBar = new TickBarData();
+        currentBar.setOpen(price);
+        currentBar.setHigh(price);
+        currentBar.setLow(price);
+        currentBar.setClose(price);
+        currentBar.setTime(data.time);
+        currentBar.setEndTime(data.time);
+        currentBar.setVolume(volume);
+        currentBar.setFormedElementsCount(1L);
+        lastElementIndex++;
+        ((TickBarData[])result)[getLastElementIndex()] = currentBar;
+        return currentBar;
+    }
+
+    private double getVolume(TickData data, OfferSide offerSide)
+    {
+        if(OfferSide.ASK.equals(offerSide))
+            return data.askVol;
+        else
+            return data.bidVol;
+    }
+
+    private TickBarData continueCurrentBar(TickBarData currentBar, TickData data, OfferSide offerSide)
+    {
+        currentDataConstructionTicksIncluded++;
+        double price = getPrice(data, offerSide);
+        double volume = getVolume(data, offerSide);
+        currentBar.setVolume(round(currentBar.getVolume() + volume));
+        currentBar.setFormedElementsCount(currentBar.getFormedElementsCount() + 1L);
+        if(isDirectOrder())
+        {
+            currentBar.setEndTime(data.time);
+            currentBar.setClose(price);
+        } else
+        {
+            currentBar.setTime(data.time);
+            currentBar.setOpen(price);
+        }
+        if(currentBar.getLow() > price)
+            currentBar.setLow(price);
+        else
+        if(currentBar.getHigh() < price)
+            currentBar.setHigh(price);
+        return currentBar;
+    }
+
+    private double getPrice(TickData data, OfferSide offerSide)
+    {
+        if(OfferSide.ASK.equals(offerSide))
+            return data.ask;
+        else
+            return data.bid;
+    }
+
+    public boolean canContinueCurrentDataConstruction(TickBarData currentData, TickData sourceData)
+    {
+        boolean canContinueByTickCount = currentDataConstructionTicksIncluded + 1 < ticksInOneBar;
+        if(!canContinueByTickCount)
+            return false;
+        if(sourceData == null)
+            return false;
+        else
+            return DataCacheUtils.isTheSameTradingSession(currentData.getTime(), sourceData.getTime());
+    }
+
+    public boolean isDirectOrder()
+    {
+        return directOrder;
+    }
+
+    public void reset()
+    {
+        resetResulArray();
+        lastElementIndex = -1;
+        currentDataConstructionTicksIncluded = 0;
+        fullyCreatedBarsCount = 0;
+    }
+
+    protected void resetResulArray()
+    {
+        result = new TickBarData[getDesiredDatasCount()];
+    }
+
+    public void setupLastData(TickBarData data)
+    {
+        ((TickBarData[])getResult())[getLastElementIndex()] = data;
+    }
+
+    public TickBarData getLastCompletedData()
+    {
+        if(0 < fullyCreatedBarsCount)
+            return ((TickBarData[])getResult())[fullyCreatedBarsCount - 1];
+        else
+            return null;
+    }
+
+    public volatile boolean canContinueCurrentDataConstruction(AbstractPriceAggregationData x0, Data x1)
+    {
+        return canContinueCurrentDataConstruction((TickBarData)x0, (TickData)x1);
+    }
+
+    public volatile void setupLastData(AbstractPriceAggregationData x0)
+    {
+        setupLastData((TickBarData)x0);
+    }
+
+    public volatile AbstractPriceAggregationData getLastCompletedData()
+    {
+        return getLastCompletedData();
+    }
+
+    public volatile boolean analyse(Data x0)
+    {
+        return analyse((TickData)x0);
+    }
+
+    protected int fullyCreatedBarsCount;
+    protected int currentDataConstructionTicksIncluded;
+    private int ticksInOneBar;
+    private OfferSide offerSide;
+    private boolean directOrder;
+    private boolean liveCreation;
+}

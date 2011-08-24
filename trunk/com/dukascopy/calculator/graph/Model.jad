@@ -1,0 +1,75 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Model.java
+
+package com.dukascopy.calculator.graph;
+
+import java.awt.Graphics2D;
+import java.util.LinkedList;
+import java.util.ListIterator;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            HAxis, VAxis, Element, Locus, 
+//            View, Axis
+
+public class Model
+{
+
+    public Model()
+    {
+        xAxis = new HAxis();
+        yAxis = new VAxis();
+        elements = new LinkedList();
+        elements.add(xAxis);
+        elements.add(yAxis);
+    }
+
+    public void add(Element element)
+    {
+        elements.add(element);
+    }
+
+    public void reset(Locus locus)
+    {
+        elements.clear();
+        elements.add(xAxis);
+        elements.add(yAxis);
+        elements.add(locus);
+    }
+
+    public void draw(View view, Graphics2D graphics2d)
+    {
+        for(ListIterator i = elements.listIterator(); i.hasNext(); ((Element)i.next()).draw(this, view, graphics2d));
+    }
+
+    public void updatePaths()
+    {
+        ListIterator i = elements.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            Element element = (Element)i.next();
+            if(element instanceof Locus)
+            {
+                Locus locus = (Locus)element;
+                locus.updatePath();
+            }
+        } while(true);
+    }
+
+    Axis getXAxis()
+    {
+        return xAxis;
+    }
+
+    Axis getYAxis()
+    {
+        return yAxis;
+    }
+
+    private HAxis xAxis;
+    private VAxis yAxis;
+    protected LinkedList elements;
+}

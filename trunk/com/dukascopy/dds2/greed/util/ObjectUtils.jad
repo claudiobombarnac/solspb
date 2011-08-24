@@ -1,0 +1,63 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ObjectUtils.java
+
+package com.dukascopy.dds2.greed.util;
+
+import java.util.*;
+
+public class ObjectUtils
+{
+
+    public ObjectUtils()
+    {
+    }
+
+    public static boolean isEqual(Object obj1, Object obj2)
+    {
+        if(obj1 == null)
+            return obj2 == null;
+        else
+            return obj2 != null && obj1.equals(obj2);
+    }
+
+    public static int getHash(Object obj)
+    {
+        return obj != null ? obj.hashCode() : 0;
+    }
+
+    public static boolean isNullOrEmpty(Object o)
+    {
+        if(o == null)
+            return true;
+        if(o instanceof String)
+            return ((String)o).isEmpty();
+        if(o instanceof Collection)
+            return ((Collection)o).isEmpty();
+        if(o instanceof Map)
+            return ((Map)o).isEmpty();
+        else
+            return false;
+    }
+
+    public static int compare(Comparable comp1, Object comp2)
+    {
+        if(comp1 == null)
+            return comp2 != null ? -1 : 0;
+        if(comp2 == null)
+            return 1;
+        else
+            return comp1.compareTo(comp2);
+    }
+
+    public static int compare(Object o1, Object o2, Comparator comparator)
+    {
+        if(o1 == null)
+            return o2 != null ? -1 : 0;
+        if(o2 == null)
+            return 1;
+        else
+            return comparator.compare(o1, o2);
+    }
+}

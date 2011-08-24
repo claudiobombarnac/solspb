@@ -1,0 +1,169 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:31
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   EqualsButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.*;
+import com.dukascopy.calculator.function.*;
+import java.awt.event.ActionEvent;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            CalculatorButton
+
+public class EqualsButton extends CalculatorButton
+{
+    protected static final class ChangeBase extends Enum
+    {
+
+        public static ChangeBase[] values()
+        {
+            return (ChangeBase[])$VALUES.clone();
+        }
+
+        public static ChangeBase valueOf(String name)
+        {
+            return (ChangeBase)Enum.valueOf(com/dukascopy/calculator/button/EqualsButton$ChangeBase, name);
+        }
+
+        public static final ChangeBase BINARY;
+        public static final ChangeBase OCTAL;
+        public static final ChangeBase DECIMAL;
+        public static final ChangeBase HEXADECIMAL;
+        public static final ChangeBase NONE;
+        private static final ChangeBase $VALUES[];
+
+        static 
+        {
+            BINARY = new ChangeBase("BINARY", 0);
+            OCTAL = new ChangeBase("OCTAL", 1);
+            DECIMAL = new ChangeBase("DECIMAL", 2);
+            HEXADECIMAL = new ChangeBase("HEXADECIMAL", 3);
+            NONE = new ChangeBase("NONE", 4);
+            $VALUES = (new ChangeBase[] {
+                BINARY, OCTAL, DECIMAL, HEXADECIMAL, NONE
+            });
+        }
+
+        private ChangeBase(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    protected EqualsButton()
+    {
+    }
+
+    public EqualsButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new Equals());
+        setText();
+        setTextSize();
+        changeBase = ChangeBase.NONE;
+        addActionListener(this);
+        setShortcut('=');
+        setToolTipKey("sc.calculator.evaluates.the.expression.you.have.just.typed");
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+label0:
+        {
+            synchronized(mainCalculatorPanel)
+            {
+                if(getMainCalculatorPanel().getMode() == 0)
+                    break label0;
+                getMainCalculatorPanel().setMode(getPobject());
+                getMainCalculatorPanel().requestFocusInWindow();
+            }
+            return;
+        }
+        if(!getMainCalculatorPanel().getParser().isEmpty())
+        {
+            PObject p = getMainCalculatorPanel().getParser().getLast();
+            OObject o = getMainCalculatorPanel().getValue();
+            if(!(o instanceof Error) && ((p instanceof RFunction) || (p instanceof DFunction) || (p instanceof MFunction) || (p instanceof AFunction)))
+            {
+                Ans ans = new Ans();
+                ans.setValue(o);
+                getMainCalculatorPanel().insert(ans);
+                getMainCalculatorPanel().updateDisplay(true, true);
+            }
+            getMainCalculatorPanel().pushHistory();
+            OObject value = getMainCalculatorPanel().getParser().evaluate(getMainCalculatorPanel().getAngleType());
+            getMainCalculatorPanel().clear();
+            getMainCalculatorPanel().setValue(value);
+        }
+        getMainCalculatorPanel().setShift(false);
+        getMainCalculatorPanel().newExpression();
+        setBase();
+        getMainCalculatorPanel().updateDisplay(true, true);
+        getMainCalculatorPanel().requestFocusInWindow();
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    private void setBase()
+    {
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$calculator$button$EqualsButton$ChangeBase[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$calculator$button$EqualsButton$ChangeBase = new int[ChangeBase.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$button$EqualsButton$ChangeBase[ChangeBase.DECIMAL.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$button$EqualsButton$ChangeBase[ChangeBase.BINARY.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$button$EqualsButton$ChangeBase[ChangeBase.OCTAL.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$button$EqualsButton$ChangeBase[ChangeBase.HEXADECIMAL.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls1..SwitchMap.com.dukascopy.calculator.button.EqualsButton.ChangeBase[changeBase.ordinal()])
+        {
+        case 1: // '\001'
+            getMainCalculatorPanel().setBase(Base.DECIMAL);
+            break;
+
+        case 2: // '\002'
+            getMainCalculatorPanel().setBase(Base.BINARY);
+            break;
+
+        case 3: // '\003'
+            getMainCalculatorPanel().setBase(Base.OCTAL);
+            break;
+
+        case 4: // '\004'
+            getMainCalculatorPanel().setBase(Base.HEXADECIMAL);
+            break;
+        }
+    }
+
+    protected ChangeBase changeBase;
+    private static final long serialVersionUID = 1L;
+}

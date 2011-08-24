@@ -1,0 +1,65 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   SortedDataComparator.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.util;
+
+import com.dukascopy.api.Period;
+import com.dukascopy.api.impl.TimedData;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import java.io.PrintStream;
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester.util:
+//            SortedDataItem
+
+public class SortedDataComparator
+    implements Comparator
+{
+
+    public SortedDataComparator()
+    {
+    }
+
+    public int compare(SortedDataItem o1, SortedDataItem o2)
+    {
+        Period firstThreadPeriod = o2.getJForexPeriod().getPeriod();
+        Period secondThreadPeriod = o1.getJForexPeriod().getPeriod();
+        long firstVal = o2.getAskOrBidBarTime();
+        TimedData firstData = o2.getAskBar() != null ? o2.getAskBar() : o2.getBidBar();
+        if(firstData instanceof AbstractPriceAggregationData)
+            firstVal = ((AbstractPriceAggregationData)firstData).getEndTime();
+        if(firstThreadPeriod != Period.TICK)
+            firstVal = DataCacheUtils.getNextCandleStartFast(firstThreadPeriod, firstVal);
+        long secondVal = o1.getAskOrBidBarTime();
+        TimedData secondData = o1.getAskBar() != null ? o1.getAskBar() : o1.getBidBar();
+        if(secondData instanceof AbstractPriceAggregationData)
+            secondVal = ((AbstractPriceAggregationData)secondData).getEndTime();
+        if(secondThreadPeriod != Period.TICK)
+            secondVal = DataCacheUtils.getNextCandleStartFast(secondThreadPeriod, secondVal);
+        return firstVal >= secondVal ? ((int) (firstVal != secondVal ? 1 : 0)) : -1;
+    }
+
+    public static void main(String args[])
+    {
+        SortedDataItem array1 = new SortedDataItem(null, new JForexPeriod(Period.TEN_SECS), new CandleData(1L, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D), new CandleData(1L, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D));
+        SortedDataItem array2 = new SortedDataItem(null, new JForexPeriod(Period.TEN_MINS), new CandleData(10L, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D), new CandleData(10L, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D));
+        SortedDataItem array3 = new SortedDataItem(null, new JForexPeriod(Period.TEN_SECS), new CandleData(2L, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D), new CandleData(2L, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D));
+        SortedDataItem array4 = new SortedDataItem(null, new JForexPeriod(Period.ONE_HOUR), new CandleData(60L, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D), new CandleData(60L, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D));
+        List list = Arrays.asList(new SortedDataItem[] {
+            array1, array2, array3, array4
+        });
+        Collections.sort(list, new SortedDataComparator());
+        SortedDataItem array;
+        for(Iterator i$ = list.iterator(); i$.hasNext(); System.out.println(array.toString()))
+            array = (SortedDataItem)i$.next();
+
+    }
+
+    public volatile int compare(Object x0, Object x1)
+    {
+        return compare((SortedDataItem)x0, (SortedDataItem)x1);
+    }
+}

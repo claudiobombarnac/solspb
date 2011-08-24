@@ -1,0 +1,131 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OptionsTree.java
+
+package com.dukascopy.dds2.greed.gui.tree;
+
+import java.util.*;
+import javax.swing.JTree;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeExpansionListener;
+import javax.swing.tree.*;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.tree:
+//            CheckBoxNodeRenderer, CheckBoxNodeEditor, CheckBoxNode
+
+public abstract class OptionsTree extends JTree
+{
+
+    protected OptionsTree()
+    {
+        TreePath expandTreePath = build();
+        setModel(new DefaultTreeModel(rootNode));
+        setRootVisible(false);
+        setToggleClickCount(1);
+        setAutoscrolls(true);
+        setScrollsOnExpand(true);
+        setExpandsSelectedPaths(true);
+        setEditable(true);
+        setCellRenderer(new CheckBoxNodeRenderer());
+        setCellEditor(new CheckBoxNodeEditor());
+        addTreeExpansionListener(new TreeExpansionListener() {
+
+            public void treeExpanded(TreeExpansionEvent event)
+            {
+                collapse(event.getPath().getLastPathComponent());
+            }
+
+            public void treeCollapsed(TreeExpansionEvent treeexpansionevent)
+            {
+            }
+
+            private void collapse(Object excludeNode)
+            {
+                for(int i = 0; i < rootNode.getChildCount(); i++)
+                {
+                    javax.swing.tree.TreeNode node = rootNode.getChildAt(i);
+                    if(node != excludeNode)
+                        collapsePath(new TreePath(new Object[] {
+                            rootNode, node
+                        }));
+                }
+
+            }
+
+            final OptionsTree this$0;
+
+            
+            {
+                this$0 = OptionsTree.this;
+                super();
+            }
+        });
+        expandPath(expandTreePath);
+    }
+
+    protected final TreePath build()
+    {
+        TreePath pathToExpand = null;
+        rootNode.removeAllChildren();
+        Object arr$[] = getRoots();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Object root = arr$[i$];
+            DefaultMutableTreeNode node = new DefaultMutableTreeNode(String.valueOf(root));
+            Iterator i$ = getItems(root).iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                Object item = i$.next();
+                boolean selected = getSelectedItems().contains(item);
+                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new CheckBoxNode(item, selected, checkBoxNodeSelectionListener));
+                node.add(childNode);
+                if(pathToExpand == null && selected)
+                    pathToExpand = new TreePath(new Object[] {
+                        rootNode, node
+                    });
+            } while(true);
+            rootNode.add(node);
+        }
+
+        return pathToExpand;
+    }
+
+    public final void reset()
+    {
+        build();
+        setModel(new DefaultTreeModel(rootNode));
+    }
+
+    protected abstract Set getSelectedItems();
+
+    protected abstract Object[] getRoots();
+
+    protected abstract List getItems(Object obj);
+
+    private final DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode();
+    private final CheckBoxNode.SelectionListener checkBoxNodeSelectionListener = new CheckBoxNode.SelectionListener() {
+
+        public void selectionChanged(CheckBoxNode checkBoxNode)
+        {
+            Set items = getSelectedItems();
+            Object item = checkBoxNode.getValue();
+            if(checkBoxNode.isSelected())
+                items.add(item);
+            else
+                items.remove(item);
+        }
+
+        final OptionsTree this$0;
+
+            
+            {
+                this$0 = OptionsTree.this;
+                super();
+            }
+    };
+
+}

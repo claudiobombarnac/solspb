@@ -1,0 +1,502 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EditorImpl.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.impl;
+
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.ICurvesProtocolHandler;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.agent.strategy.ide.EditorFactory;
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor;
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.EditorRegistry;
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.FileChangeListener;
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.ServiceSourceLanguage;
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.ServiceSourceType;
+import com.dukascopy.dds2.greed.gui.component.filechooser.ChooserSelectionWrapper;
+import com.dukascopy.dds2.greed.gui.component.filechooser.FileProgressListener;
+import com.dukascopy.transport.common.datafeed.FileType;
+import com.dukascopy.transport.common.datafeed.Location;
+import com.dukascopy.transport.common.msg.strategy.FileItem;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.FocusListener;
+import java.io.File;
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.LinkedList;
+import javax.swing.ActionMap;
+import javax.swing.InputMap;
+import javax.swing.JComponent;
+import javax.swing.event.CaretListener;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Document;
+import javax.swing.text.TextAction;
+import javax.swing.undo.UndoManager;
+import org.fife.ui.rsyntaxtextarea.CodeTemplateManager;
+import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+import org.fife.ui.rsyntaxtextarea.templates.CodeTemplate;
+import org.fife.ui.rsyntaxtextarea.templates.StaticCodeTemplate;
+import org.fife.ui.rtextarea.Gutter;
+import org.fife.ui.rtextarea.IconGroup;
+import org.fife.ui.rtextarea.RTextScrollPane;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.ide.impl:
+//            EditorFileHandler, EditorDocumentListener, EditorDialogManager, EditorFocusListener, 
+//            EditorUndoableEditListener, EditorStatusBar
+
+public class EditorImpl
+    implements Editor
+{
+
+    EditorImpl(EditorRegistry registry, EditorStatusBar statusBar, ActionListener actionListener, ServiceSourceType serviceSourceType, String clientMode)
+    {
+        this(registry, statusBar, actionListener, serviceSourceType, null, clientMode);
+    }
+
+    EditorImpl(EditorRegistry registry, EditorStatusBar statusBar, ActionListener actionListener, ServiceSourceType serviceSourceType, FocusListener focusListener, String clientMode)
+    {
+        syntaxStyle = "text/java";
+        fileChangeListeners = new LinkedList();
+        this.registry = registry;
+        area = new RSyntaxTextArea();
+        area.setMinimumSize(ZERO_SIZE);
+        undoManager = new UndoManager();
+        this.clientMode = clientMode;
+        sourceType = serviceSourceType;
+        editorFileHandler = new EditorFileHandler();
+        editorDocumentListener = new EditorDocumentListener();
+        editorDialogManager = new EditorDialogManager(statusBar, area, serviceSourceType);
+        editorFocusListener = new EditorFocusListener(area, editorFileHandler, editorDialogManager);
+        area.setSyntaxEditingStyle(getSyntaxStyle());
+        area.setMarkOccurrences(true);
+        area.setFont(new Font("Monospaced", 0, 12));
+        area.getDocument().addDocumentListener(editorDocumentListener);
+        area.getDocument().addDocumentListener(statusBar);
+        RSyntaxTextArea.setTemplatesEnabled(true);
+        CodeTemplateManager ctm = RSyntaxTextArea.getCodeTemplateManager();
+        CodeTemplate ct = new StaticCodeTemplate("sout", "System.out.println(", ")");
+        ctm.addTemplate(ct);
+        ct = new StaticCodeTemplate("for", "for (int i=0; i<", "; i++) {\n\t\n}\n");
+        ctm.addTemplate(ct);
+        ct = new StaticCodeTemplate("if", "if(", "){\n\t\n}else{\n\t\n}");
+        ctm.addTemplate(ct);
+        IconGroup iconGroup = new IconGroup("Icons", "");
+        RSyntaxTextArea.setIconGroup(iconGroup);
+        area.setClearWhitespaceLinesEnabled(false);
+        area.setTabsEmulated(true);
+        area.setTabSize(4);
+        area.addFocusListener(editorFocusListener);
+        if(focusListener != null)
+            area.addFocusListener(focusListener);
+        area.addCaretListener(statusBar);
+        area.setSelectionColor(SELECTION_COLOR);
+        initInputMapForTextArea();
+        initActionMapForTextArea(actionListener);
+        scrollPane = new RTextScrollPane(area, true);
+        scrollPane.setMinimumSize(ZERO_SIZE);
+        scrollPane.getGutter().setBookmarkIcon(StratUtils.loadIcon("resources/icons/bookmark.png"));
+        scrollPane.getGutter().setBookmarkingEnabled(true);
+    }
+
+    void initActionMapForTextArea(ActionListener compileActionListener)
+    {
+        area.getActionMap().put(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.REDO, new TextAction(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.REDO.name()) {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                if(!undoManager.canRedo())
+                {
+                    return;
+                } else
+                {
+                    undoManager.redo();
+                    return;
+                }
+            }
+
+            final EditorImpl this$0;
+
+            
+            {
+                this$0 = EditorImpl.this;
+                super(x0);
+            }
+        });
+        area.getActionMap().put(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.UNDO, new TextAction(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.UNDO.name()) {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                if(!undoManager.canUndo())
+                {
+                    return;
+                } else
+                {
+                    undoManager.undo();
+                    return;
+                }
+            }
+
+            final EditorImpl this$0;
+
+            
+            {
+                this$0 = EditorImpl.this;
+                super(x0);
+            }
+        });
+        area.getActionMap().put(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.FIND, new TextAction(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.FIND.name()) {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                editorDialogManager.showFind();
+            }
+
+            final EditorImpl this$0;
+
+            
+            {
+                this$0 = EditorImpl.this;
+                super(x0);
+            }
+        });
+        area.getActionMap().put(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.REPLACE, new TextAction(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.REPLACE.name()) {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                editorDialogManager.showReplace();
+            }
+
+            final EditorImpl this$0;
+
+            
+            {
+                this$0 = EditorImpl.this;
+                super(x0);
+            }
+        });
+        area.getActionMap().put(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.SAVE, new TextAction(compileActionListener) {
+
+            public void actionPerformed(ActionEvent actionEvent)
+            {
+                compileActionListener.actionPerformed(new ActionEvent(actionEvent.getSource(), actionEvent.getID(), com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.SAVE.name()));
+            }
+
+            final ActionListener val$compileActionListener;
+            final EditorImpl this$0;
+
+            
+            {
+                this$0 = EditorImpl.this;
+                compileActionListener = actionlistener;
+                super(x0);
+            }
+        });
+        area.getActionMap().put(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.COMPILE, new TextAction(compileActionListener) {
+
+            public void actionPerformed(ActionEvent actionEvent)
+            {
+                compileActionListener.actionPerformed(new ActionEvent(actionEvent.getSource(), actionEvent.getID(), com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.COMPILE.name()));
+            }
+
+            final ActionListener val$compileActionListener;
+            final EditorImpl this$0;
+
+            
+            {
+                this$0 = EditorImpl.this;
+                compileActionListener = actionlistener;
+                super(x0);
+            }
+        });
+        area.getActionMap().put(com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.HELP, new TextAction(compileActionListener) {
+
+            public void actionPerformed(ActionEvent actionEvent)
+            {
+                compileActionListener.actionPerformed(new ActionEvent(actionEvent.getSource(), actionEvent.getID(), com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.HELP.name()));
+            }
+
+            final ActionListener val$compileActionListener;
+            final EditorImpl this$0;
+
+            
+            {
+                this$0 = EditorImpl.this;
+                compileActionListener = actionlistener;
+                super(x0);
+            }
+        });
+    }
+
+    void initInputMapForTextArea()
+    {
+        com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action arr$[] = com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action.values();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            com.dukascopy.dds2.greed.agent.strategy.ide.api.Editor.Action action = arr$[i$];
+            area.getInputMap().put(action.getKeyStroke(), action);
+        }
+
+    }
+
+    public void selectLine(int lineNumber)
+    {
+        area.requestFocus();
+        lineNumber = lineNumber <= 0 ? lineNumber : --lineNumber;
+        int start = -1;
+        try
+        {
+            start = area.getLineStartOffset(lineNumber);
+        }
+        catch(BadLocationException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        area.setCaretPosition(start);
+    }
+
+    public void focus()
+    {
+        area.requestFocusInWindow();
+    }
+
+    public void open(File file)
+    {
+        String content = editorFileHandler.readFromFile(file);
+        area.setText(content);
+        area.getDocument().addUndoableEditListener(new EditorUndoableEditListener(undoManager));
+        editorDocumentListener.reset();
+        area.setCaretPosition(0);
+    }
+
+    public boolean save()
+        throws IOException
+    {
+        if(editorFileHandler.contentWasModified(area.getText()))
+        {
+            editorFileHandler.writeToFile(area.getText());
+            editorDocumentListener.reset();
+            editorFocusListener.reset();
+        }
+        return true;
+    }
+
+    public boolean saveAs(Component parent, String fileName, ServiceSourceLanguage serviceSourceLanguage)
+        throws IOException
+    {
+        FileType ft = sourceType != ServiceSourceType.INDICATOR ? FileType.STRATEGY : FileType.INDICATOR;
+        String extension = ".java";
+        if(serviceSourceLanguage == ServiceSourceLanguage.MQ4)
+            extension = ".mq4";
+        else
+        if(serviceSourceLanguage == ServiceSourceLanguage.MQ5)
+            extension = ".mq5";
+        ChooserSelectionWrapper selection = editorDialogManager.showSaveAsDialog(fileName, serviceSourceLanguage, ft, clientMode);
+        String newPath = "";
+        if(selection != null)
+        {
+            Location location = selection.getLocation();
+            FileItem fileItem = selection.getFileItem();
+            if(location == Location.LOCAL)
+            {
+                File selectedFile = new File(fileItem.getFileName());
+                if(selectedFile.getName().endsWith(".java") && serviceSourceLanguage == ServiceSourceLanguage.JAVA || selectedFile.getName().endsWith(".mq4") && serviceSourceLanguage == ServiceSourceLanguage.MQ4 || selectedFile.getName().endsWith(".mq5") && serviceSourceLanguage == ServiceSourceLanguage.MQ5)
+                    newPath = fileItem.getFileName();
+                else
+                    newPath = (new StringBuilder()).append(selectedFile.getAbsolutePath()).append(extension).toString();
+                String oldPath = editorFileHandler.getFile().getAbsolutePath();
+                editorFileHandler.writeToFile(new File(newPath), area.getText());
+                EditorFactory.getRegistry().editorRenamed(oldPath, newPath);
+                editorFocusListener.reset();
+                editorDocumentListener.reset();
+                FileChangeListener fileChangeListener;
+                for(Iterator i$ = fileChangeListeners.iterator(); i$.hasNext(); fileChangeListener.fileChanged(new File(newPath)))
+                    fileChangeListener = (FileChangeListener)i$.next();
+
+            } else
+            {
+                try
+                {
+                    fileItem.setFileData(area.getText().getBytes("UTF-8"));
+                    FeedDataProvider.getCurvesProtocolHandler().uploadFile(fileItem, clientMode, new FileProgressListener());
+                }
+                catch(Exception e)
+                {
+                    LOGGER.error((new StringBuilder()).append("Error saving strategy in remote storage: ").append(fileItem.getFileName()).toString(), e);
+                }
+            }
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
+
+    public boolean saveAs(File file)
+        throws IOException
+    {
+        if(file == null)
+            return false;
+        String oldPath = editorFileHandler.getFile().getAbsolutePath();
+        editorFileHandler.writeToFile(file, area.getText());
+        String newPath = file.getAbsolutePath();
+        EditorFactory.getRegistry().editorRenamed(oldPath, newPath);
+        editorFocusListener.reset();
+        editorDocumentListener.reset();
+        FileChangeListener fileChangeListener;
+        for(Iterator i$ = fileChangeListeners.iterator(); i$.hasNext(); fileChangeListener.fileChanged(file))
+            fileChangeListener = (FileChangeListener)i$.next();
+
+        return true;
+    }
+
+    public void find()
+    {
+        editorDialogManager.showFind();
+    }
+
+    public void replace()
+    {
+        editorDialogManager.showReplace();
+    }
+
+    public boolean contentWasModified()
+    {
+        return editorFileHandler.contentWasModified(area.getText());
+    }
+
+    public boolean close()
+    {
+        if(editorDocumentListener.fileIsInModifiedState() && editorFileHandler.contentWasModified(area.getText()))
+            editorFileHandler.writeToFile(area.getText());
+        return true;
+    }
+
+    public File getFile()
+    {
+        return editorFileHandler.getFile();
+    }
+
+    public boolean isFileModified()
+    {
+        return editorDocumentListener.fileIsInModifiedState();
+    }
+
+    public void addFileChangeListener(FileChangeListener fileChangeListener)
+    {
+        fileChangeListeners.add(fileChangeListener);
+    }
+
+    public boolean addCaretListener(CaretListener caretListener)
+    {
+        if(area != null)
+        {
+            area.addCaretListener(caretListener);
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
+
+    public boolean removeCaretListener(CaretListener caretListener)
+    {
+        if(area != null)
+        {
+            area.removeCaretListener(caretListener);
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
+
+    public JComponent getGUIComponent()
+    {
+        return scrollPane;
+    }
+
+    public void setSyntaxStyle(String syntaxStyle)
+    {
+        this.syntaxStyle = syntaxStyle;
+    }
+
+    public String getSyntaxStyle()
+    {
+        return syntaxStyle;
+    }
+
+    public void setContent(String content)
+    {
+        if(area != null)
+        {
+            area.setText(content);
+            area.getDocument().addUndoableEditListener(new EditorUndoableEditListener(undoManager));
+            editorDocumentListener.reset();
+            area.setCaretPosition(0);
+        }
+    }
+
+    public String getContent()
+    {
+        if(area != null)
+            return area.getText();
+        else
+            return "";
+    }
+
+    public boolean isJavaSource()
+    {
+        if(area != null)
+            return area.getText().contains("class");
+        else
+            return false;
+    }
+
+    public void setEditable(boolean isEditable)
+    {
+        if(area != null)
+            area.setEditable(isEditable);
+    }
+
+    public boolean isEditable()
+    {
+        if(area != null)
+            return area.isEditable();
+        else
+            return false;
+    }
+
+    public void reloadEditor(File oldFile, File newFile)
+    {
+        EditorFactory.getRegistry().editorRenamed(oldFile.getAbsolutePath(), newFile.getAbsolutePath());
+        editorFileHandler.readFromFile(newFile);
+        editorFocusListener.reset();
+        editorDocumentListener.reset();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/ide/impl/EditorImpl);
+    private static final Dimension ZERO_SIZE = new Dimension(0, 0);
+    private String syntaxStyle;
+    RSyntaxTextArea area;
+    RTextScrollPane scrollPane;
+    EditorFileHandler editorFileHandler;
+    EditorDocumentListener editorDocumentListener;
+    EditorDialogManager editorDialogManager;
+    UndoManager undoManager;
+    ServiceSourceType sourceType;
+    String clientMode;
+    EditorRegistry registry;
+    java.util.List fileChangeListeners;
+    private EditorFocusListener editorFocusListener;
+    private static final Color SELECTION_COLOR = new Color(184, 207, 229);
+
+}

@@ -1,0 +1,56 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LiveTickBarFeedListenerWrapper.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification.tickbar;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.feed.ITickBarFeedListener;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.impl.connect.StrategyProcessor;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.data.datacache.tickbar.ITickBarLiveFeedListener;
+import com.dukascopy.charts.data.datacache.tickbar.TickBarData;
+import com.dukascopy.dds2.greed.agent.strategy.notification.AbstractLiveBarFeedListenerWrapper;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+
+public class LiveTickBarFeedListenerWrapper extends AbstractLiveBarFeedListenerWrapper
+    implements ITickBarLiveFeedListener
+{
+
+    public LiveTickBarFeedListenerWrapper(ITickBarFeedListener liveListener, ITickBarLiveFeedListener liveBarUpdatedListener, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IStrategyExceptionHandler exceptionHandler, JForexTaskManager taskManager, 
+            StrategyProcessor strategyProcessor, INotificationUtils notificationUtils)
+    {
+        super(liveListener, liveBarUpdatedListener, instrument, jForexPeriod, offerSide, exceptionHandler, taskManager, strategyProcessor, notificationUtils);
+    }
+
+    public void newPriceData(TickBarData tickBar)
+    {
+        try
+        {
+            ((ITickBarFeedListener)getLiveBarFormedListener()).onBar(getInstrument(), getOfferSide(), getJForexPeriod().getTickBarSize(), tickBar);
+        }
+        catch(Throwable t)
+        {
+            onException(t);
+        }
+    }
+
+    public void newPriceDatas(TickBarData atickbardata[], int i, int j)
+    {
+    }
+
+    public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+    {
+        newPriceDatas((TickBarData[])x0, x1, x2);
+    }
+
+    public volatile void newPriceData(AbstractPriceAggregationData x0)
+    {
+        newPriceData((TickBarData)x0);
+    }
+}

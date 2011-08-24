@@ -1,0 +1,29 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ISystemListenerExtended.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.system.ISystemListener;
+import java.io.File;
+import java.util.Map;
+import java.util.Set;
+
+public interface ISystemListenerExtended
+    extends ISystemListener
+{
+
+    public abstract void subscribeToInstruments(Set set);
+
+    public abstract Set getSubscribedInstruments();
+
+    public abstract long startStrategy(File file, IStrategyListener istrategylistener, Map map, boolean flag)
+        throws JFException;
+
+    public abstract long startStrategy(IStrategy istrategy, IStrategyListener istrategylistener, boolean flag)
+        throws JFException;
+
+    public abstract void stopStrategy(long l);
+}

@@ -1,0 +1,113 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyCandleNotificationManager.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification.candle;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.feed.IBarFeedListener;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.impl.connect.StrategyProcessor;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.dds2.greed.agent.strategy.notification.AbstractLiveBarFeedListenerWrapper;
+import com.dukascopy.dds2.greed.agent.strategy.notification.AbstractStrategyRateDataNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.tester.IStrategyRunner;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.CandleDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.IDataLoadingThread;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import java.util.concurrent.ArrayBlockingQueue;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.notification.candle:
+//            LiveCandleFeedListenerWrapper, IStrategyCandleNotificationManager
+
+public class StrategyCandleNotificationManager extends AbstractStrategyRateDataNotificationManager
+    implements IStrategyCandleNotificationManager
+{
+
+    public StrategyCandleNotificationManager(FeedDataProvider feedDataProvider)
+    {
+        super(feedDataProvider);
+    }
+
+    protected LiveCandleFeedListenerWrapper createListenerWrapper(Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IBarFeedListener barFeedListener, IStrategyExceptionHandler exceptionHandler, JForexTaskManager taskManager, StrategyProcessor strategyProcessor, 
+            INotificationUtils notificationUtils)
+    {
+        return new LiveCandleFeedListenerWrapper(barFeedListener, new LiveFeedListener() {
+
+            public void newTick(Instrument instrument1, long l, double d, double d1, 
+                    double d2, double d3)
+            {
+            }
+
+            public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                    double d1, double d2, double d3, double d4)
+            {
+            }
+
+            final StrategyCandleNotificationManager this$0;
+
+            
+            {
+                this$0 = StrategyCandleNotificationManager.this;
+                super();
+            }
+        }, instrument, jForexPeriod, offerSide, exceptionHandler, taskManager, strategyProcessor, notificationUtils);
+    }
+
+    protected String validateJForexPeriodFields(JForexPeriod jForexPeriod)
+    {
+        if(jForexPeriod.getPeriod() == null)
+            return "Period could not be null";
+        if(!DataType.TIME_PERIOD_AGGREGATION.equals(jForexPeriod.getDataType()))
+            return (new StringBuilder()).append("DataType has to be equals to ").append(DataType.TIME_PERIOD_AGGREGATION).toString();
+        else
+            return null;
+    }
+
+    protected IDataLoadingThread createDataLoadingThread(IStrategyRunner strategyRunner, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, ArrayBlockingQueue queue)
+    {
+        String threadName = (new StringBuilder()).append("Strategy tester data loading thread - ").append(jForexPeriod.toString()).toString();
+        IDataLoadingThread dataLoadingThread = new CandleDataLoadingThread(threadName, instrument, jForexPeriod, offerSide, queue, strategyRunner.getFrom(), strategyRunner.getTo(), strategyRunner.getFeedDataProvider());
+        return dataLoadingThread;
+    }
+
+    protected void addLiveInProgressBarListener(Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, LiveCandleFeedListenerWrapper formedListener)
+    {
+        getFeedDataProvider().subscribeToPeriodNotifications(instrument, jForexPeriod.getPeriod(), offerSide, formedListener);
+        getFeedDataProvider().addInProgressCandleListener(instrument, jForexPeriod.getPeriod(), offerSide, (LiveFeedListener)formedListener.getLiveBarUpdatedListener());
+    }
+
+    protected void onBar(LiveCandleFeedListenerWrapper listenerWrapper, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IBar bar)
+    {
+        ((IBarFeedListener)listenerWrapper.getLiveBarFormedListener()).onBar(instrument, jForexPeriod.getPeriod(), offerSide, bar);
+    }
+
+    protected void removeLiveInProgressBarListener(LiveCandleFeedListenerWrapper listenerWrapper)
+    {
+        getFeedDataProvider().unsubscribeToPeriodNotifications(listenerWrapper.getInstrument(), listenerWrapper.getJForexPeriod().getPeriod(), listenerWrapper.getOfferSide(), listenerWrapper);
+        getFeedDataProvider().removeInProgressCandleListener(listenerWrapper.getInstrument(), listenerWrapper.getJForexPeriod().getPeriod(), listenerWrapper.getOfferSide(), (LiveFeedListener)listenerWrapper.getLiveBarUpdatedListener());
+    }
+
+    protected volatile void onBar(AbstractLiveBarFeedListenerWrapper x0, Instrument x1, JForexPeriod x2, OfferSide x3, IBar x4)
+    {
+        onBar((LiveCandleFeedListenerWrapper)x0, x1, x2, x3, x4);
+    }
+
+    protected volatile void removeLiveInProgressBarListener(AbstractLiveBarFeedListenerWrapper x0)
+    {
+        removeLiveInProgressBarListener((LiveCandleFeedListenerWrapper)x0);
+    }
+
+    protected volatile void addLiveInProgressBarListener(Instrument x0, JForexPeriod x1, OfferSide x2, AbstractLiveBarFeedListenerWrapper x3)
+    {
+        addLiveInProgressBarListener(x0, x1, x2, (LiveCandleFeedListenerWrapper)x3);
+    }
+
+    protected volatile AbstractLiveBarFeedListenerWrapper createListenerWrapper(Instrument x0, JForexPeriod x1, OfferSide x2, Object x3, IStrategyExceptionHandler x4, JForexTaskManager x5, StrategyProcessor x6, 
+            INotificationUtils x7)
+    {
+        return createListenerWrapper(x0, x1, x2, (IBarFeedListener)x3, x4, x5, x6, x7);
+    }
+}

@@ -1,0 +1,79 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   SumOrProduct.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.OObject;
+import com.dukascopy.calculator.complex.Complex;
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            Expression
+
+public abstract class SumOrProduct extends Expression
+{
+
+    protected SumOrProduct()
+    {
+    }
+
+    public final Complex getComplex()
+    {
+        return complex;
+    }
+
+    public final LinkedList getExpressionList()
+    {
+        return expressionList;
+    }
+
+    public boolean isZero()
+    {
+        if(!complex.isZero())
+            return false;
+        if(expressionList.isEmpty())
+            return true;
+        for(ListIterator i = expressionList.listIterator(); i.hasNext();)
+            if(!((Expression)i.next()).isZero())
+                return false;
+
+        return true;
+    }
+
+    public void sort()
+    {
+        Expression e;
+        for(Iterator i$ = expressionList.iterator(); i$.hasNext(); e.sort())
+            e = (Expression)i$.next();
+
+        Collections.sort(expressionList);
+    }
+
+    public OObject auto_simplify()
+    {
+        return this;
+    }
+
+    public static int compare(LinkedList expressionList1, LinkedList expressionList2)
+    {
+        ListIterator i = expressionList1.listIterator();
+        ListIterator j;
+        for(j = expressionList2.listIterator(); i.hasNext() && j.hasNext();)
+        {
+            Expression e = (Expression)i.next();
+            Expression f = (Expression)j.next();
+            int r = e.compareTo(f);
+            if(r != 0)
+                return r;
+        }
+
+        if(i.hasNext())
+            return -1;
+        return !j.hasNext() ? 0 : 1;
+    }
+
+    protected Complex complex;
+    protected LinkedList expressionList;
+}

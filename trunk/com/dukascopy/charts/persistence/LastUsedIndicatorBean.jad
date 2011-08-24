@@ -1,0 +1,73 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LastUsedIndicatorBean.java
+
+package com.dukascopy.charts.persistence;
+
+import com.dukascopy.api.IIndicators;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.indicators.OutputParameterInfo;
+import java.awt.Color;
+
+// Referenced classes of package com.dukascopy.charts.persistence:
+//            IndicatorBean
+
+public class LastUsedIndicatorBean extends IndicatorBean
+    implements Comparable
+{
+
+    public LastUsedIndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], boolean valuesOnChart[], 
+            boolean showOutputs[], float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], java.util.List chartObjects, java.util.List levelInfoList)
+    {
+        this(id, name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, null, valuesOnChart, showOutputs, opacityAlphas, drawingStyles, lineWidths, outputShifts, System.currentTimeMillis(), chartObjects, levelInfoList);
+    }
+
+    public LastUsedIndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], 
+            int lineWidths[], int outputShifts[], long lastUsedTime, java.util.List chartObjects, java.util.List levelInfoList)
+    {
+        this(id, name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, null, null, null, null, drawingStyles, lineWidths, outputShifts, lastUsedTime, chartObjects, levelInfoList);
+    }
+
+    public LastUsedIndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], 
+            boolean valuesOnChart[], boolean showOutputs[], float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], java.util.List chartObjects, 
+            java.util.List levelInfoList)
+    {
+        this(id, name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, outputColors2, valuesOnChart, showOutputs, opacityAlphas, drawingStyles, lineWidths, outputShifts, System.currentTimeMillis(), chartObjects, levelInfoList);
+    }
+
+    public LastUsedIndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], 
+            com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], long lastUsedTime, java.util.List chartObjects, java.util.List levelInfoList)
+    {
+        this(id, name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, outputColors2, null, null, null, drawingStyles, lineWidths, outputShifts, lastUsedTime, chartObjects, levelInfoList);
+    }
+
+    public LastUsedIndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], 
+            boolean valuesOnChart[], boolean showOutputs[], float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], long lastUsedTime, java.util.List chartObjects, java.util.List levelInfoList)
+    {
+        super(id, name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, outputColors2, valuesOnChart, showOutputs, opacityAlphas, drawingStyles, lineWidths, outputShifts, Integer.valueOf(-1), chartObjects, levelInfoList);
+        this.lastUsedTime = lastUsedTime;
+    }
+
+    public long getLastUsedTime()
+    {
+        return lastUsedTime;
+    }
+
+    public void setLastUsedTime(long lastUsedTime)
+    {
+        this.lastUsedTime = lastUsedTime;
+    }
+
+    public int compareTo(LastUsedIndicatorBean bean)
+    {
+        return lastUsedTime >= bean.lastUsedTime ? lastUsedTime != bean.lastUsedTime ? -1 : 0 : 1;
+    }
+
+    public volatile int compareTo(Object x0)
+    {
+        return compareTo((LastUsedIndicatorBean)x0);
+    }
+
+    private long lastUsedTime;
+}

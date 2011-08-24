@@ -1,0 +1,37 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyParameters.java
+
+package com.dukascopy.dds2.greed.agent.strategy;
+
+import java.util.HashMap;
+
+public final class StrategyParameters
+{
+
+    private StrategyParameters()
+    {
+    }
+
+    public static void putParameters(String strategyName, HashMap params)
+    {
+        if(params != null)
+            parameters.put(strategyName, params);
+        else
+            parameters.remove(strategyName);
+    }
+
+    public static HashMap getParameters(String strategyName)
+    {
+        return (HashMap)parameters.get(strategyName);
+    }
+
+    public static boolean areParametersSet(String strategyName)
+    {
+        return parameters.containsKey(strategyName);
+    }
+
+    private static final HashMap parameters = new HashMap();
+
+}

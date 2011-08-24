@@ -1,0 +1,42 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   FlowPointAndFigureFromTicksCreator.java
+
+package com.dukascopy.charts.data.datacache.pnf;
+
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.pnf:
+//            PointAndFigureCreator, PointAndFigureData
+
+public class FlowPointAndFigureFromTicksCreator extends PointAndFigureCreator
+{
+
+    public FlowPointAndFigureFromTicksCreator(double boxSize, double reversalAmount, OfferSide offerSide)
+    {
+        super(boxSize, reversalAmount, 0x7fffffff, true, offerSide, true, null);
+    }
+
+    protected void resetResultArray()
+    {
+        result = new PointAndFigureData[1];
+    }
+
+    public int getLastElementIndex()
+    {
+        return 0;
+    }
+
+    public void setupLastData(PointAndFigureData data)
+    {
+        super.setupLastData(data);
+        currentBoxColumn = data;
+    }
+
+    public volatile void setupLastData(AbstractPriceAggregationData x0)
+    {
+        setupLastData((PointAndFigureData)x0);
+    }
+}

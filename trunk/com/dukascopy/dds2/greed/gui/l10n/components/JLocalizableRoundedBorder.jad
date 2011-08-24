@@ -1,0 +1,65 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JLocalizableRoundedBorder.java
+
+package com.dukascopy.dds2.greed.gui.l10n.components;
+
+import com.dukascopy.dds2.greed.gui.component.JRoundedBorder;
+import com.dukascopy.dds2.greed.gui.l10n.Localizable;
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import java.awt.Font;
+import javax.swing.JComponent;
+
+public class JLocalizableRoundedBorder extends JRoundedBorder
+    implements Localizable
+{
+
+    public JLocalizableRoundedBorder(JComponent parent, String text, int topInset, int leftInset, int bottomInset, int rightInset)
+    {
+        super(parent, text, topInset, leftInset, bottomInset, rightInset);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableRoundedBorder(JComponent parent, String text)
+    {
+        super(parent, text);
+        textKey = text;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableRoundedBorder(JComponent parent)
+    {
+        super(parent);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public void localize()
+    {
+        performLocalization();
+        if(parent != null)
+        {
+            parent.revalidate();
+            parent.repaint();
+        }
+    }
+
+    protected void performLocalization()
+    {
+        setHeaderFont(LocalizationManager.getDefaultFont(getHeaderFont().getSize()));
+        setHeaderText(LocalizationManager.getText(textKey));
+    }
+
+    public String getTextKey()
+    {
+        return textKey;
+    }
+
+    public void setTextKey(String textKey)
+    {
+        this.textKey = textKey;
+        localize();
+    }
+
+    private String textKey;
+}

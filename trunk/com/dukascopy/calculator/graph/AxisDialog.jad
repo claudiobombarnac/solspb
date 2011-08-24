@@ -1,0 +1,595 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AxisDialog.java
+
+package com.dukascopy.calculator.graph;
+
+import com.dukascopy.calculator.ReadOnlyCalculatorApplet;
+import java.awt.*;
+import java.awt.event.*;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.util.ArrayDeque;
+import java.util.Iterator;
+import javax.swing.*;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            AxisData, View, Transformation, Axis
+
+public class AxisDialog extends JFrame
+    implements ActionListener
+{
+    public class CancelButtonListener
+        implements ActionListener
+    {
+
+        public void actionPerformed(ActionEvent event)
+        {
+            cancel();
+            setVisible(false);
+            stack.clear();
+        }
+
+        final AxisDialog this$0;
+
+        public CancelButtonListener()
+        {
+            this$0 = AxisDialog.this;
+            super();
+        }
+    }
+
+    public class OKButtonListener
+        implements ActionListener
+    {
+
+        public void actionPerformed(ActionEvent event)
+        {
+            if(!apply())
+            {
+                return;
+            } else
+            {
+                setVisible(false);
+                stack.clear();
+                return;
+            }
+        }
+
+        final AxisDialog this$0;
+
+        public OKButtonListener()
+        {
+            this$0 = AxisDialog.this;
+            super();
+        }
+    }
+
+    public class UndoButtonListener
+        implements ActionListener
+    {
+
+        public void actionPerformed(ActionEvent event)
+        {
+            undo();
+        }
+
+        final AxisDialog this$0;
+
+        public UndoButtonListener()
+        {
+            this$0 = AxisDialog.this;
+            super();
+        }
+    }
+
+    public class ApplyButtonListener
+        implements ActionListener
+    {
+
+        public void actionPerformed(ActionEvent event)
+        {
+            apply();
+        }
+
+        final AxisDialog this$0;
+
+        public ApplyButtonListener()
+        {
+            this$0 = AxisDialog.this;
+            super();
+        }
+    }
+
+    public class FieldFocusListener
+        implements FocusListener
+    {
+
+        public void focusGained(FocusEvent focusevent)
+        {
+        }
+
+        public void focusLost(FocusEvent focusEvent)
+        {
+            String s = textField.getText();
+            s = s.replace("\u2212", "-");
+            double value = 0.0D;
+            try
+            {
+                value = Double.parseDouble(s);
+            }
+            catch(NumberFormatException e)
+            {
+                if(positive)
+                    textField.setText("1");
+                else
+                    textField.setText("0");
+                textField.requestFocusInWindow();
+                return;
+            }
+            if(positive && value <= 0.0D)
+            {
+                textField.setText("1");
+                textField.requestFocusInWindow();
+                return;
+            } else
+            {
+                s = s.replace("-", "\u2212");
+                textField.setText(s);
+                return;
+            }
+        }
+
+        private JTextField textField;
+        private boolean positive;
+        final AxisDialog this$0;
+
+        FieldFocusListener(JTextField textField, boolean positive)
+        {
+            this$0 = AxisDialog.this;
+            super();
+            this.textField = textField;
+            this.positive = positive;
+        }
+    }
+
+
+    public AxisDialog(ReadOnlyCalculatorApplet applet, View view, Axis axis, boolean x, String title)
+    {
+        super(title);
+        this.applet = applet;
+        this.view = view;
+        this.axis = axis;
+        this.x = x;
+        stack = new ArrayDeque();
+        minimumLabel = new JLabel("Minimum:");
+        minimumLabel.setHorizontalAlignment(4);
+        maximumLabel = new JLabel("Maximum:");
+        maximumLabel.setHorizontalAlignment(4);
+        majorUnitLabel = new JLabel("Major unit:");
+        majorUnitLabel.setHorizontalAlignment(4);
+        minorUnitLabel = new JLabel("Minor unit:");
+        minorUnitLabel.setHorizontalAlignment(4);
+        minimumTextBox = new JTextField();
+        maximumTextBox = new JTextField();
+        majorUnitTextBox = new JTextField();
+        minorUnitTextBox = new JTextField();
+        minimumLabel.setLabelFor(minimumTextBox);
+        minimumLabel.setDisplayedMnemonic('n');
+        minimumLabel.setToolTipText("Minimum value shown on chart");
+        maximumLabel.setLabelFor(maximumTextBox);
+        maximumLabel.setDisplayedMnemonic('x');
+        maximumLabel.setToolTipText("Maximum value shown on chart");
+        majorUnitLabel.setLabelFor(majorUnitTextBox);
+        majorUnitLabel.setDisplayedMnemonic('j');
+        majorUnitLabel.setToolTipText("Spacing between larger ticks with numerical scale");
+        minorUnitLabel.setLabelFor(minorUnitTextBox);
+        minorUnitLabel.setDisplayedMnemonic('i');
+        minorUnitLabel.setToolTipText("Spacing between smalle ticks");
+        majorCheckBox = new JCheckBox("visible", true);
+        minorCheckBox = new JCheckBox("visible", true);
+        applyButton = new JButton("Apply");
+        applyButton.setMnemonic('A');
+        applyButton.setToolTipText("Apply changes to graph");
+        undoButton = new JButton("Undo");
+        undoButton.setMnemonic('U');
+        undoButton.setToolTipText("Undo most recently applied change");
+        okButton = new JButton("OK");
+        okButton.setMnemonic('O');
+        okButton.setToolTipText("Apply changes to graph and quit");
+        cancelButton = new JButton("Cancel");
+        cancelButton.setMnemonic('C');
+        cancelButton.setToolTipText("Undo all changes and quit");
+        undoButton.setEnabled(false);
+        majorCheckBox.setMnemonic('s');
+        minorCheckBox.setMnemonic('v');
+        minimumTextBox.addFocusListener(new FieldFocusListener(minimumTextBox, false));
+        maximumTextBox.addFocusListener(new FieldFocusListener(maximumTextBox, false));
+        majorUnitTextBox.addFocusListener(new FieldFocusListener(majorUnitTextBox, true));
+        minorUnitTextBox.addFocusListener(new FieldFocusListener(minorUnitTextBox, true));
+        applyButton.addActionListener(new ApplyButtonListener());
+        okButton.addActionListener(new OKButtonListener());
+        undoButton.addActionListener(new UndoButtonListener());
+        cancelButton.addActionListener(new CancelButtonListener());
+        springLayout = new SpringLayout();
+        setSizes();
+        setDefaultCloseOperation(1);
+        setResizable(false);
+        Container contentPane = getContentPane();
+        contentPane.setLayout(springLayout);
+        contentPane.add(minimumLabel);
+        contentPane.add(maximumLabel);
+        contentPane.add(majorUnitLabel);
+        contentPane.add(minorUnitLabel);
+        contentPane.add(minimumTextBox);
+        contentPane.add(maximumTextBox);
+        contentPane.add(majorUnitTextBox);
+        contentPane.add(minorUnitTextBox);
+        contentPane.add(majorCheckBox);
+        contentPane.add(minorCheckBox);
+        contentPane.add(applyButton);
+        contentPane.add(undoButton);
+        contentPane.add(okButton);
+        contentPane.add(cancelButton);
+        layOut();
+        setVisible(false);
+    }
+
+    private void layOut()
+    {
+        textBoxWidth = Spring.scale(buttonWidth, 1.0F);
+        labelWidth = Spring.scale(buttonWidth, 1.0F);
+        visibleWidth = Spring.scale(buttonWidth, 1.0F);
+        javax.swing.SpringLayout.Constraints constraints = springLayout.getConstraints(minimumLabel);
+        constraints.setWidth(labelWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(maximumLabel);
+        constraints.setWidth(labelWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(majorUnitLabel);
+        constraints.setWidth(labelWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(minorUnitLabel);
+        constraints.setWidth(labelWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(minimumTextBox);
+        constraints.setWidth(textBoxWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(maximumTextBox);
+        constraints.setWidth(textBoxWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(majorUnitTextBox);
+        constraints.setWidth(textBoxWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(minorUnitTextBox);
+        constraints.setWidth(textBoxWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(majorCheckBox);
+        constraints.setWidth(visibleWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(minorCheckBox);
+        constraints.setWidth(visibleWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(applyButton);
+        constraints.setWidth(buttonWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(undoButton);
+        constraints.setWidth(buttonWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(okButton);
+        constraints.setWidth(buttonWidth);
+        constraints.setHeight(buttonHeight);
+        constraints = springLayout.getConstraints(cancelButton);
+        constraints.setWidth(buttonWidth);
+        constraints.setHeight(buttonHeight);
+        Container contentPane = getContentPane();
+        springLayout.putConstraint("North", minimumLabel, smallGap, "North", contentPane);
+        springLayout.putConstraint("West", minimumLabel, smallGap, "West", contentPane);
+        springLayout.putConstraint("North", maximumLabel, smallGap, "South", minimumLabel);
+        springLayout.putConstraint("West", maximumLabel, smallGap, "West", contentPane);
+        springLayout.putConstraint("North", majorUnitLabel, gap, "South", maximumLabel);
+        springLayout.putConstraint("West", majorUnitLabel, smallGap, "West", contentPane);
+        springLayout.putConstraint("North", minorUnitLabel, smallGap, "South", majorUnitLabel);
+        springLayout.putConstraint("West", minorUnitLabel, smallGap, "West", contentPane);
+        springLayout.putConstraint("North", minimumTextBox, smallGap, "North", contentPane);
+        springLayout.putConstraint("West", minimumTextBox, smallGap, "East", minimumLabel);
+        springLayout.putConstraint("North", maximumTextBox, smallGap, "South", minimumTextBox);
+        springLayout.putConstraint("West", maximumTextBox, smallGap, "East", maximumLabel);
+        springLayout.putConstraint("North", majorUnitTextBox, gap, "South", maximumTextBox);
+        springLayout.putConstraint("West", majorUnitTextBox, smallGap, "East", majorUnitLabel);
+        springLayout.putConstraint("North", minorUnitTextBox, smallGap, "South", majorUnitTextBox);
+        springLayout.putConstraint("West", minorUnitTextBox, smallGap, "East", minorUnitLabel);
+        springLayout.putConstraint("North", majorCheckBox, gap, "South", maximumTextBox);
+        springLayout.putConstraint("West", majorCheckBox, smallGap, "East", majorUnitTextBox);
+        springLayout.putConstraint("North", minorCheckBox, smallGap, "South", majorCheckBox);
+        springLayout.putConstraint("West", minorCheckBox, smallGap, "East", minorUnitTextBox);
+        springLayout.putConstraint("North", applyButton, gap, "South", minorUnitLabel);
+        springLayout.putConstraint("West", applyButton, smallGap, "West", contentPane);
+        springLayout.putConstraint("North", undoButton, gap, "South", minorUnitLabel);
+        springLayout.putConstraint("West", undoButton, smallGap, "East", applyButton);
+        springLayout.putConstraint("North", okButton, gap, "South", minorUnitLabel);
+        springLayout.putConstraint("West", okButton, smallGap, "East", undoButton);
+        springLayout.putConstraint("North", cancelButton, gap, "South", minorUnitLabel);
+        springLayout.putConstraint("West", cancelButton, smallGap, "East", okButton);
+    }
+
+    public void actionPerformed(ActionEvent event)
+    {
+        setBounds();
+        setVisible(true);
+    }
+
+    private boolean validateFields()
+    {
+        return true;
+    }
+
+    public void setBounds()
+    {
+        if((float)minimumLabel.getFont().getSize() != applet.buttonTextSize() && setSizes())
+            layOut();
+        NumberFormat f = NumberFormat.getNumberInstance();
+        if(f instanceof DecimalFormat)
+        {
+            DecimalFormat d = (DecimalFormat)f;
+            d.setNegativePrefix("\u2212");
+        }
+        AxisData axisData = (AxisData)stack.peekFirst();
+        double oldWidth = 0.0D;
+        if(axisData == null)
+            axisData = new AxisData();
+        else
+            oldWidth = axisData.maximum - axisData.minimum;
+        if(x)
+        {
+            axisData.minimum = view.getTransformation().toModelX(0.0D);
+            axisData.maximum = view.getTransformation().toModelX(view.getWidth());
+        } else
+        {
+            axisData.minimum = view.getTransformation().toModelY(view.getHeight());
+            axisData.maximum = view.getTransformation().toModelY(0.0D);
+        }
+        minimumTextBox.setText(f.format(axisData.minimum));
+        maximumTextBox.setText(f.format(axisData.maximum));
+        if(stack.size() == 0)
+        {
+            if(x)
+            {
+                axisData.majorUnit = view.getTransformation().getXMajorUnit();
+                axisData.minorUnit = view.getTransformation().getXMinorUnit();
+            } else
+            {
+                axisData.minorUnit = view.getTransformation().getYMajorUnit();
+                axisData.minorUnit = view.getTransformation().getYMinorUnit();
+            }
+            majorUnitTextBox.setText(Double.toString(axisData.majorUnit));
+            minorUnitTextBox.setText(Double.toString(axisData.minorUnit));
+            majorCheckBox.setSelected(axisData.majorVisible);
+            minorCheckBox.setSelected(axisData.minorVisible);
+            stack.addFirst(axisData);
+        } else
+        {
+            double newWidth = axisData.maximum - axisData.minimum;
+            double change = (newWidth - oldWidth) / 2D;
+            Iterator i = stack.iterator();
+            if(i.hasNext())
+            {
+                i.next();
+                while(i.hasNext()) 
+                {
+                    AxisData a = (AxisData)i.next();
+                    a.maximum += change;
+                    a.minimum -= change;
+                }
+            }
+        }
+    }
+
+    public boolean setSizes()
+    {
+        setSize(applet.minSize() * 5 + applet.buttonWidth() * 4 + applet.getFrameInsets().left + applet.getFrameInsets().right, applet.minSize() * 4 + applet.strutSize() * 2 + applet.buttonHeight() * 5 + applet.getFrameInsets().top + applet.getFrameInsets().bottom);
+        boolean result = (float)minimumLabel.getFont().getSize() != applet.buttonTextSize();
+        if(result)
+        {
+            smallGap = Spring.constant(applet.minSize());
+            gap = Spring.constant(applet.strutSize());
+            buttonWidth = Spring.constant(applet.buttonWidth());
+            buttonHeight = Spring.constant(applet.buttonHeight());
+            minimumLabel.setFont(minimumLabel.getFont().deriveFont(applet.buttonTextSize()));
+            maximumLabel.setFont(maximumLabel.getFont().deriveFont(applet.buttonTextSize()));
+            majorUnitLabel.setFont(majorUnitLabel.getFont().deriveFont(applet.buttonTextSize()));
+            minorUnitLabel.setFont(minorUnitLabel.getFont().deriveFont(applet.buttonTextSize()));
+            minimumTextBox.setFont(minimumTextBox.getFont().deriveFont(applet.buttonTextSize()));
+            maximumTextBox.setFont(maximumTextBox.getFont().deriveFont(applet.buttonTextSize()));
+            majorUnitTextBox.setFont(majorUnitTextBox.getFont().deriveFont(applet.buttonTextSize()));
+            minorUnitTextBox.setFont(minorUnitTextBox.getFont().deriveFont(applet.buttonTextSize()));
+            majorCheckBox.setFont(majorCheckBox.getFont().deriveFont(applet.buttonTextSize()));
+            minorCheckBox.setFont(minorCheckBox.getFont().deriveFont(applet.buttonTextSize()));
+            applyButton.setFont(applyButton.getFont().deriveFont(applet.buttonTextSize()));
+            undoButton.setFont(undoButton.getFont().deriveFont(applet.buttonTextSize()));
+            okButton.setFont(okButton.getFont().deriveFont(applet.buttonTextSize()));
+            cancelButton.setFont(cancelButton.getFont().deriveFont(applet.buttonTextSize()));
+        }
+        return result;
+    }
+
+    private boolean apply()
+    {
+        AxisData axisData = new AxisData();
+        String s = minimumTextBox.getText();
+        s = s.replace("\u2212", "-");
+        try
+        {
+            axisData.minimum = Double.parseDouble(s);
+        }
+        catch(NumberFormatException e) { }
+        s = maximumTextBox.getText();
+        s = s.replace("\u2212", "-");
+        try
+        {
+            axisData.maximum = Double.parseDouble(s);
+        }
+        catch(NumberFormatException e) { }
+        if(axisData.maximum <= axisData.minimum)
+        {
+            JOptionPane.showMessageDialog(this, "The minimum must be less than the maximum.", "Java Scientific Calculator", 0);
+            return false;
+        }
+        s = majorUnitTextBox.getText();
+        s = s.replace("\u2212", "-");
+        try
+        {
+            axisData.majorUnit = Double.parseDouble(s);
+        }
+        catch(NumberFormatException e) { }
+        s = minorUnitTextBox.getText();
+        s = s.replace("\u2212", "-");
+        try
+        {
+            axisData.minorUnit = Double.parseDouble(s);
+        }
+        catch(NumberFormatException e) { }
+        if(axisData.majorUnit < axisData.minorUnit)
+        {
+            JOptionPane.showMessageDialog(this, "The major unit must be no less than the minor unit.", "Java Scientific Calculator", 0);
+            return false;
+        }
+        double ratio = axisData.majorUnit / axisData.minorUnit;
+        if(ratio != Math.floor(ratio))
+        {
+            JOptionPane.showMessageDialog(this, "The major unit must be an integer multiple the minor unit.", "Java Scientific Calculator", 0);
+            return false;
+        }
+        axisData.majorVisible = majorCheckBox.isSelected();
+        axisData.minorVisible = minorCheckBox.isSelected();
+        if(axisData.equals((AxisData)stack.peekFirst()))
+            return true;
+        boolean forceUpdate = !axisData.minMaxMatches((AxisData)stack.peekFirst());
+        stack.addFirst(axisData);
+        undoButton.setEnabled(true);
+        double origin = (axisData.maximum + axisData.minimum) / 2D;
+        double width = axisData.maximum - axisData.minimum;
+        if(x)
+        {
+            view.getTransformation().setOriginX(origin);
+            view.getTransformation().setScaleX((double)view.getWidth() / width);
+            view.getTransformation().setXMajorUnit(axisData.majorUnit);
+            view.getTransformation().setXMinorUnit(axisData.minorUnit);
+        } else
+        {
+            view.getTransformation().setOriginY(origin);
+            view.getTransformation().setScaleY((double)view.getHeight() / width);
+            view.getTransformation().setYMajorUnit(axisData.majorUnit);
+            view.getTransformation().setYMinorUnit(axisData.minorUnit);
+        }
+        axis.setShowMajorUnit(axisData.majorVisible);
+        axis.setShowMinorUnit(axisData.minorVisible);
+        if(forceUpdate)
+            view.forceUpdate();
+        view.repaint();
+        return true;
+    }
+
+    private boolean undo()
+    {
+        if(stack.size() <= 1)
+            return false;
+        AxisData oldData = (AxisData)stack.remove();
+        if(stack.size() <= 1)
+            undoButton.setEnabled(false);
+        NumberFormat f = NumberFormat.getNumberInstance();
+        if(f instanceof DecimalFormat)
+        {
+            DecimalFormat d = (DecimalFormat)f;
+            d.setNegativePrefix("\u2212");
+        }
+        AxisData axisData = (AxisData)stack.peekFirst();
+        minimumTextBox.setText(f.format(axisData.minimum));
+        maximumTextBox.setText(f.format(axisData.maximum));
+        majorUnitTextBox.setText(Double.toString(axisData.majorUnit));
+        minorUnitTextBox.setText(Double.toString(axisData.minorUnit));
+        majorCheckBox.setSelected(axisData.majorVisible);
+        minorCheckBox.setSelected(axisData.minorVisible);
+        double origin = (axisData.maximum + axisData.minimum) / 2D;
+        double width = axisData.maximum - axisData.minimum;
+        if(x)
+        {
+            view.getTransformation().setOriginX(origin);
+            view.getTransformation().setScaleX((double)view.getWidth() / width);
+            view.getTransformation().setXMajorUnit(axisData.majorUnit);
+            view.getTransformation().setXMinorUnit(axisData.minorUnit);
+        } else
+        {
+            view.getTransformation().setOriginY(origin);
+            view.getTransformation().setScaleY((double)view.getHeight() / width);
+            view.getTransformation().setYMajorUnit(axisData.majorUnit);
+            view.getTransformation().setYMinorUnit(axisData.minorUnit);
+        }
+        axis.setShowMajorUnit(axisData.majorVisible);
+        axis.setShowMinorUnit(axisData.minorVisible);
+        if(!oldData.minMaxMatches((AxisData)stack.peekFirst()))
+            view.forceUpdate();
+        view.repaint();
+        return true;
+    }
+
+    private void cancel()
+    {
+        AxisData axisData = (AxisData)stack.removeLast();
+        double origin = (axisData.maximum + axisData.minimum) / 2D;
+        double width = axisData.maximum - axisData.minimum;
+        if(x)
+        {
+            view.getTransformation().setOriginX(origin);
+            view.getTransformation().setScaleX((double)view.getWidth() / width);
+            view.getTransformation().setXMajorUnit(axisData.majorUnit);
+            view.getTransformation().setXMinorUnit(axisData.minorUnit);
+        } else
+        {
+            view.getTransformation().setOriginY(origin);
+            view.getTransformation().setScaleY((double)view.getHeight() / width);
+            view.getTransformation().setYMajorUnit(axisData.majorUnit);
+            view.getTransformation().setYMinorUnit(axisData.minorUnit);
+        }
+        axis.setShowMajorUnit(axisData.majorVisible);
+        axis.setShowMinorUnit(axisData.minorVisible);
+        view.forceUpdate();
+        view.repaint();
+    }
+
+    private JLabel minimumLabel;
+    private JLabel maximumLabel;
+    private JLabel majorUnitLabel;
+    private JLabel minorUnitLabel;
+    private JTextField minimumTextBox;
+    private JTextField maximumTextBox;
+    private JTextField majorUnitTextBox;
+    private JTextField minorUnitTextBox;
+    private JLabel majorVisible;
+    private JLabel minorVisible;
+    private JCheckBox majorCheckBox;
+    private JCheckBox minorCheckBox;
+    private JButton applyButton;
+    private JButton undoButton;
+    private JButton okButton;
+    private JButton cancelButton;
+    private Spring smallGap;
+    private Spring gap;
+    private Spring buttonWidth;
+    private Spring buttonHeight;
+    private Spring textBoxWidth;
+    private Spring labelWidth;
+    private Spring visibleWidth;
+    private ReadOnlyCalculatorApplet applet;
+    private View view;
+    private Axis axis;
+    private ArrayDeque stack;
+    private final boolean x;
+    SpringLayout springLayout;
+    private static final long serialVersionUID = 1L;
+
+
+
+
+}

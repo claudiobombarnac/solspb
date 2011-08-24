@@ -1,0 +1,61 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JavaFileFilter.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.impl;
+
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.ServiceSourceLanguage;
+import java.io.File;
+import javax.swing.filechooser.FileFilter;
+
+public class JavaFileFilter extends FileFilter
+{
+
+    public JavaFileFilter(ServiceSourceLanguage serviceSourceLanguage)
+    {
+        extension = "java";
+        if(serviceSourceLanguage == ServiceSourceLanguage.MQ4)
+            extension = "mq4";
+        if(serviceSourceLanguage == ServiceSourceLanguage.MQ5)
+            extension = "mq5";
+    }
+
+    public JavaFileFilter()
+    {
+        extension = "java";
+    }
+
+    public boolean accept(File f)
+    {
+        if(f.isDirectory())
+            return true;
+        String extension = getExtension(f);
+        if(extension != null)
+            return extension.equals(this.extension);
+        else
+            return false;
+    }
+
+    public String getExtension(File f)
+    {
+        String ext = null;
+        String s = f.getName();
+        int i = s.lastIndexOf('.');
+        if(i > 0 && i < s.length() - 1)
+            ext = s.substring(i + 1).toLowerCase();
+        return ext;
+    }
+
+    public String getDescription()
+    {
+        return (new StringBuilder()).append("*.").append(extension).toString();
+    }
+
+    public String getExtension()
+    {
+        return extension;
+    }
+
+    protected String extension;
+}

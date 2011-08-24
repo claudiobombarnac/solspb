@@ -1,0 +1,600 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractDataSequence.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.api.Period;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.indicators.IIndicator;
+import com.dukascopy.api.indicators.OutputParameterInfo;
+import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import java.lang.reflect.Array;
+import java.lang.reflect.Method;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider:
+//            IDataSequence
+
+public abstract class AbstractDataSequence
+    implements IDataSequence
+{
+    protected static class FormulasMinMax
+    {
+
+        final double min;
+        final double max;
+
+        public FormulasMinMax(double curMin, double curMax)
+        {
+            min = curMin;
+            max = curMax;
+        }
+    }
+
+
+    public AbstractDataSequence(Period period, long from, long to, int extraBefore, int extraAfter, 
+            Data data[], long gaps[][], Map formulaOutputs, Map indicators, boolean latestDataVisible, boolean includesLatestData)
+    {
+        min = 1.0D;
+        max = 2D;
+        this.period = period;
+        this.from = from;
+        this.to = to;
+        this.data = data;
+        this.gaps = gaps;
+        this.formulaOutputs = formulaOutputs;
+        this.indicators = indicators;
+        this.latestDataVisible = latestDataVisible;
+        this.includesLatestData = includesLatestData;
+        this.extraBefore = extraBefore;
+        this.extraAfter = extraAfter;
+        if(formulaOutputs != null)
+            formulaOutputsMinMax = new HashMap((int)((double)formulaOutputs.size() / 0.75D + 1.0D), 0.75F);
+        else
+            formulaOutputsMinMax = null;
+    }
+
+    public double getMin()
+    {
+        return min;
+    }
+
+    public double getMax()
+    {
+        return max;
+    }
+
+    public long[][] getGaps()
+    {
+        return gaps;
+    }
+
+    public long getFrom()
+    {
+        return from;
+    }
+
+    public long getTo()
+    {
+        return to;
+    }
+
+    public Data[] getData()
+    {
+        return data;
+    }
+
+    public boolean isEmpty()
+    {
+        return data.length == 0;
+    }
+
+    public Data getData(int dataUnitIndex)
+    {
+        return getData(dataUnitIndex, false);
+    }
+
+    public Data getData(int dataUnitIndex, boolean extra)
+    {
+        if(dataUnitIndex < 0 || dataUnitIndex >= size(extra))
+            return null;
+        if(extra)
+            return getData()[dataUnitIndex];
+        else
+            return getData()[getExtraBefore() + dataUnitIndex];
+    }
+
+    public Data getData(long dataTime)
+    {
+        Data tmpData = new Data(dataTime) {
+
+            public void toBytes(int i, long l, double d, byte abyte0[], int j)
+            {
+            }
+
+            public int getBytesCount(int version)
+            {
+                return 0;
+            }
+
+            final AbstractDataSequence this$0;
+
+            
+            {
+                this$0 = AbstractDataSequence.this;
+                super(x0);
+            }
+        };
+        int index = Arrays.binarySearch(data, tmpData, new Comparator() {
+
+            public int compare(Data o1, Data o2)
+            {
+                return (int)(o1.time - o2.time);
+            }
+
+            public volatile int compare(Object x0, Object x1)
+            {
+                return compare((Data)x0, (Data)x1);
+            }
+
+            final AbstractDataSequence this$0;
+
+            
+            {
+                this$0 = AbstractDataSequence.this;
+                super();
+            }
+        });
+        if(index > 0)
+            return data[index];
+        else
+            return null;
+    }
+
+    public Data getLastData()
+    {
+        if(isEmpty())
+            return null;
+        else
+            return getData(size() - 1);
+    }
+
+    public int size()
+    {
+        return size(false);
+    }
+
+    public int size(boolean extra)
+    {
+        if(extra)
+            return getData().length;
+        else
+            return getData().length - getExtraBefore() - getExtraAfter();
+    }
+
+    public boolean isLatestDataVisible()
+    {
+        return latestDataVisible;
+    }
+
+    public boolean isIncludesLatestData()
+    {
+        return includesLatestData;
+    }
+
+    protected void calculateMinMax()
+    {
+        if(minMaxCalculated)
+        {
+            return;
+        } else
+        {
+            calculateMasterDataMinMax();
+            calculateSlaveDataMinMax();
+            minMaxCalculated = true;
+            return;
+        }
+    }
+
+    public abstract void calculateMasterDataMinMax();
+
+    protected void calculateSlaveDataMinMax()
+    {
+        if(formulaOutputs == null)
+            return;
+        Integer indicatorId;
+        for(Iterator i$ = formulaOutputs.keySet().iterator(); i$.hasNext(); calculateSingleForumulaMinMax(indicatorId))
+            indicatorId = (Integer)i$.next();
+
+    }
+
+    private void calculateSingleForumulaMinMax(Integer indicatorId)
+    {
+        Object formulas[] = (Object[])formulaOutputs.get(indicatorId);
+        if(formulas[0] instanceof int[])
+        {
+            int firstValue[] = (int[])(int[])formulas[0];
+            if(firstValue.length == 0)
+                return;
+        } else
+        if(formulas[0] instanceof double[])
+        {
+            double firstValue[] = (double[])(double[])formulas[0];
+            if(firstValue.length == 0)
+                return;
+        }
+        IndicatorWrapper indicatorWrapper = (IndicatorWrapper)indicators.get(indicatorId);
+        boolean isHistogramUsed = false;
+        double curMin = (0.0D / 0.0D);
+        double curMax = (0.0D / 0.0D);
+        for(int i = 0; i < formulas.length; i++)
+        {
+            if(indicatorWrapper.getMinMaxMethod() != null)
+            {
+                double minMax[] = new double[0];
+                try
+                {
+                    minMax = (double[])(double[])indicatorWrapper.getMinMaxMethod().invoke(indicatorWrapper.getIndicator(), new Object[] {
+                        Integer.valueOf(i), formulas[i], Integer.valueOf(getFormulaExtraBefore() <= 0 ? 0 : getFormulaExtraBefore()), Integer.valueOf(Array.getLength(formulas[i]) - (getFormulaExtraAfter() <= 0 ? 0 : getFormulaExtraAfter()) - 1)
+                    });
+                }
+                catch(Throwable e)
+                {
+                    NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Exception in getMinMax method: ").append(StrategyWrapper.representError(indicatorWrapper.getIndicator(), e)).toString(), e, true);
+                }
+                if(minMax == null || minMax.length < 2)
+                    continue;
+                if(curMin != curMin)
+                    curMin = minMax[0];
+                else
+                if(minMax[0] == minMax[0])
+                    curMin = curMin <= minMax[0] ? curMin : minMax[0];
+                if(curMax != curMax)
+                    curMax = minMax[1];
+                else
+                if(minMax[1] == minMax[1])
+                    curMax = curMax <= minMax[1] ? minMax[1] : curMax;
+            } else
+            {
+                if(indicatorWrapper.getDrawingStyles()[i] == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.NONE)
+                    continue;
+                if(formulas[i] instanceof int[])
+                {
+                    int intValues[] = (int[])(int[])formulas[i];
+                    FormulasMinMax formulasMinMax = calculateIntegerMinMax(intValues);
+                    if(curMin == -2147483648D)
+                        curMin = formulasMinMax.min;
+                    else
+                    if(formulasMinMax.min != -2147483648D)
+                        curMin = curMin <= formulasMinMax.min ? curMin : formulasMinMax.min;
+                    if(curMax == -2147483648D)
+                        curMax = formulasMinMax.max;
+                    else
+                    if(formulasMinMax.max != -2147483648D)
+                        curMax = curMax <= formulasMinMax.max ? formulasMinMax.max : curMax;
+                } else
+                if(formulas[i] instanceof double[])
+                {
+                    double doubleValues[] = (double[])(double[])formulas[i];
+                    FormulasMinMax formulasMinMax = calculateDoubleMinMax(doubleValues);
+                    if(curMin != curMin)
+                        curMin = formulasMinMax.min;
+                    else
+                    if(formulasMinMax.min == formulasMinMax.min)
+                        curMin = curMin <= formulasMinMax.min ? curMin : formulasMinMax.min;
+                    if(curMax != curMax)
+                        curMax = formulasMinMax.max;
+                    else
+                    if(formulasMinMax.max == formulasMinMax.max)
+                        curMax = curMax <= formulasMinMax.max ? formulasMinMax.max : curMax;
+                }
+            }
+            if(indicatorWrapper.getDrawingStyles()[i] == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.HISTOGRAM)
+                isHistogramUsed = true;
+        }
+
+        if(isHistogramUsed && curMin > 0.0D)
+            curMin = 0.0D;
+        if(curMin != curMin)
+            curMin = 0.0D;
+        if(curMax != curMax)
+            curMax = 0.0D;
+        if(curMin == curMax)
+        {
+            curMin = 1.0D;
+            curMax = 2D;
+        }
+        formulaOutputsMinMax.put(indicatorId, new FormulasMinMax(curMin, curMax));
+    }
+
+    private FormulasMinMax calculateIntegerMinMax(int intValues[])
+    {
+        int curMin = 0x80000000;
+        int curMax = 0x80000000;
+        int i = getFormulaExtraBefore() <= 0 ? 0 : getFormulaExtraBefore() - 1;
+        for(int j = intValues.length - (getFormulaExtraAfter() <= 0 ? 0 : getFormulaExtraAfter() - 1); i < j; i++)
+        {
+            int curValue = intValues[i];
+            if(curValue == 0x80000000)
+                continue;
+            if(curMin == 0x80000000)
+                curMin = curValue;
+            if(curMax == 0x80000000)
+                curMax = curValue;
+            curMin = curMin <= curValue ? curMin : curValue;
+            curMax = curMax <= curValue ? curValue : curMax;
+        }
+
+        if(curMin == curMax)
+        {
+            curMin = 1;
+            curMax = 2;
+        }
+        return new FormulasMinMax(curMin, curMax);
+    }
+
+    private FormulasMinMax calculateDoubleMinMax(double doubleValues[])
+    {
+        double curMin = (0.0D / 0.0D);
+        double curMax = (0.0D / 0.0D);
+        int i = getFormulaExtraBefore() <= 0 ? 0 : getFormulaExtraBefore() - 1;
+        for(int j = doubleValues.length - (getFormulaExtraAfter() <= 0 ? 0 : getFormulaExtraAfter() - 1); i < j; i++)
+        {
+            double curValue = doubleValues[i];
+            if(curValue != curValue)
+                continue;
+            if(curMin != curMin)
+                curMin = curValue;
+            if(curMax != curMax)
+                curMax = curValue;
+            curMin = curMin <= curValue ? curMin : curValue;
+            curMax = curMax <= curValue ? curValue : curMax;
+        }
+
+        return new FormulasMinMax(curMin, curMax);
+    }
+
+    protected int getFormulaExtraBefore()
+    {
+        return extraBefore;
+    }
+
+    protected int getFormulaExtraAfter()
+    {
+        return extraAfter;
+    }
+
+    public int getExtraBefore()
+    {
+        return extraBefore;
+    }
+
+    public int getExtraAfter()
+    {
+        return extraAfter;
+    }
+
+    public double[] getFormulaOutputDouble(int id, int outputNumber)
+    {
+        if(formulaOutputs == null)
+            return emptyFormulasOutputs;
+        Object objects[] = (Object[])formulaOutputs.get(Integer.valueOf(id));
+        if(objects == null)
+            return emptyFormulasOutputs;
+        else
+            return (double[])(double[])objects[outputNumber];
+    }
+
+    public int[] getFormulaOutputInt(int id, int outputNumber)
+    {
+        if(formulaOutputs == null)
+            return new int[0];
+        Object formulaOutput[] = (Object[])formulaOutputs.get(Integer.valueOf(id));
+        if(formulaOutput == null)
+            return new int[0];
+        else
+            return (int[])(int[])formulaOutput[outputNumber];
+    }
+
+    public Object[] getFormulaOutputs(int id)
+    {
+        if(formulaOutputs == null)
+            return null;
+        else
+            return (Object[])formulaOutputs.get(Integer.valueOf(id));
+    }
+
+    public boolean isFormulasMinMaxEmpty(Integer indicatorId)
+    {
+        return formulaOutputsMinMax == null || formulaOutputsMinMax.get(indicatorId) == null;
+    }
+
+    public double getFormulasMinFor(Integer indicatorId)
+    {
+        if(formulaOutputsMinMax == null)
+            return 0.0D;
+        FormulasMinMax formulasMinMax = (FormulasMinMax)formulaOutputsMinMax.get(indicatorId);
+        if(formulasMinMax == null)
+            return 0.0D;
+        else
+            return formulasMinMax.min;
+    }
+
+    public double getFormulasMaxFor(Integer indicatorId)
+    {
+        if(formulaOutputsMinMax == null)
+            return 0.0D;
+        FormulasMinMax formulasMinMax = (FormulasMinMax)formulaOutputsMinMax.get(indicatorId);
+        if(formulasMinMax == null)
+            return 0.0D;
+        else
+            return formulasMinMax.max;
+    }
+
+    public int indexOf(long time)
+    {
+        if(data.length == 0)
+            return -1;
+        if(time < data[0].time)
+        {
+            int diff = (int)((data[0].time - time) / period.getInterval());
+            return diff - extraBefore;
+        }
+        if(time > data[data.length - 1].time)
+        {
+            int diff = (int)((time - data[data.length - 1].time) / period.getInterval());
+            return diff + extraAfter;
+        }
+        for(int i = 0; i < data.length; i++)
+            if(time <= data[i].time)
+                return i - extraBefore;
+
+        return -1;
+    }
+
+    protected int getIndicatorDataIndex(long time)
+    {
+        int i = 0;
+        for(int k = data.length; i < k; i++)
+            if(time <= data[i].time)
+                return i;
+
+        return -1;
+    }
+
+    public Object getFormulaValue(int indicatorId, int outputIdx, long time)
+    {
+        int index;
+        IndicatorWrapper wrapper;
+        OutputParameterInfo outputParameterInfo;
+        if(time < getFrom() || time > getTo())
+            return null;
+        index = getIndicatorDataIndex(time);
+        if(index < 0)
+            return null;
+        if(indicators == null)
+            return null;
+        wrapper = (IndicatorWrapper)indicators.get(Integer.valueOf(indicatorId));
+        if(wrapper == null)
+            return null;
+        IIndicator indicator = wrapper.getIndicator();
+        outputParameterInfo = indicator.getOutputParameterInfo(outputIdx);
+        static class _cls4
+        {
+
+            static final int $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type = new int[com.dukascopy.api.indicators.OutputParameterInfo.Type.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.INT.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.DOUBLE.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.OBJECT.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        _cls4..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[outputParameterInfo.getType().ordinal()];
+        JVM INSTR tableswitch 1 3: default 252
+    //                   1 124
+    //                   2 163
+    //                   3 216;
+           goto _L1 _L2 _L3 _L4
+_L2:
+        int formulaData[] = (int[])(int[])((Object[])formulaOutputs.get(Integer.valueOf(wrapper.getId())))[outputIdx];
+        return Integer.valueOf(formulaData[index]);
+_L3:
+        double value;
+        formulaData = (double[])(double[])((Object[])formulaOutputs.get(Integer.valueOf(wrapper.getId())))[outputIdx];
+        value = formulaData[index];
+        if(value != value)
+            return null;
+        return Double.valueOf(value);
+_L4:
+        formulaData = ((int []) ((Object[])(Object[])((Object[])formulaOutputs.get(Integer.valueOf(wrapper.getId())))[outputIdx]));
+        return formulaData[index];
+_L1:
+        return null;
+        IndexOutOfBoundsException ex;
+        ex;
+        LOGGER.debug("Error getting formula value.", ex);
+        return null;
+    }
+
+    public boolean intersects(long from, long to)
+    {
+        return to >= this.from && this.to >= from;
+    }
+
+    public String toString()
+    {
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("from=").append(DATE_FORMATTER.format(Long.valueOf(from))).append(", ");
+        buffer.append("to=").append(DATE_FORMATTER.format(Long.valueOf(to))).append(", ");
+        if(formulaOutputs != null)
+            buffer.append("formulaOutputs.size()=").append(formulaOutputs.size()).append(", ");
+        buffer.append("latestDataVisible=").append(latestDataVisible).append(", ");
+        buffer.append("extraBefore=").append(extraBefore).append(", ");
+        buffer.append("extraAfter=").append(extraAfter);
+        buffer.append("\n");
+        buffer.append("data.length=").append(data.length).append(", ");
+        if(data.length > 0)
+            buffer.append("data[0].time=").append(DATE_FORMATTER.format(Long.valueOf(data[0].time))).append(", ");
+        if(data.length > 1)
+            buffer.append("data[last].time=").append(DATE_FORMATTER.format(Long.valueOf(data[data.length - 1].time))).append(", ");
+        buffer.append("\n");
+        buffer.append("min=").append(min).append(", ");
+        buffer.append("max=").append(max).append(", ");
+        if(gaps != null)
+            buffer.append("gaps.length=").append(gaps.length);
+        else
+            buffer.append("gaps=null");
+        return buffer.toString();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/math/dataprovider/AbstractDataSequence);
+    protected static final SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ") {
+
+            
+            {
+                setTimeZone(TimeZone.getTimeZone("GMT 0"));
+            }
+    };
+    protected final Period period;
+    protected final Data data[];
+    protected double min;
+    protected double max;
+    protected long gaps[][];
+    protected final long from;
+    protected final long to;
+    protected final Map formulaOutputs;
+    protected final Map indicators;
+    protected final Map formulaOutputsMinMax;
+    protected final double emptyFormulasOutputs[] = new double[0];
+    private boolean minMaxCalculated;
+    private final boolean latestDataVisible;
+    private final boolean includesLatestData;
+    protected final int extraBefore;
+    protected final int extraAfter;
+    protected static final String LINE_SEPARATOR = "\n";
+
+}

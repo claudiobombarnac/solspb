@@ -1,0 +1,52 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterMessage.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.IMessage;
+import com.dukascopy.api.IOrder;
+
+public class TesterMessage
+    implements IMessage
+{
+
+    public TesterMessage(String content, com.dukascopy.api.IMessage.Type messageType, IOrder order, long creationTime)
+    {
+        this.content = content;
+        this.messageType = messageType;
+        this.order = order;
+        this.creationTime = creationTime;
+    }
+
+    public String getContent()
+    {
+        return content;
+    }
+
+    public com.dukascopy.api.IMessage.Type getType()
+    {
+        return messageType;
+    }
+
+    public IOrder getOrder()
+    {
+        return order;
+    }
+
+    public long getCreationTime()
+    {
+        return creationTime;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(messageType.name()).append(" - ").append(content).append(" order: ").append(order).toString();
+    }
+
+    private String content;
+    private com.dukascopy.api.IMessage.Type messageType;
+    private IOrder order;
+    private long creationTime;
+}

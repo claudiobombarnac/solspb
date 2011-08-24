@@ -1,0 +1,31 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterHistoryOrder.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.impl.HistoryOrder;
+import com.dukascopy.dds2.greed.util.AbstractCurrencyConverter;
+import java.util.Currency;
+
+public class TesterHistoryOrder extends HistoryOrder
+{
+
+    public TesterHistoryOrder(Instrument instrument, String label, String id, long fillTime, long closeTime, 
+            com.dukascopy.api.IEngine.OrderCommand orderCommand, double filledAmount, double openPrice, double closePrice, 
+            String comment, Currency accountCurrency, AbstractCurrencyConverter currencyConverter, double commission)
+    {
+        super(instrument, label, id, fillTime, closeTime, orderCommand, filledAmount, openPrice, closePrice, comment, accountCurrency, commission);
+        this.currencyConverter = currencyConverter;
+    }
+
+    protected AbstractCurrencyConverter getCurrencyConverter()
+    {
+        return currencyConverter;
+    }
+
+    private AbstractCurrencyConverter currencyConverter;
+}

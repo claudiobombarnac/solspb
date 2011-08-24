@@ -1,0 +1,76 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Market.java
+
+package com.dukascopy.dds2.greed.agent.strategy.objects;
+
+import com.dukascopy.dds2.greed.agent.history.HTick;
+import java.util.Date;
+import java.util.List;
+
+public class Market
+{
+
+    public Market(String instrument, HTick tick, List asks, List bids)
+    {
+        this.tick = null;
+        this.asks = null;
+        this.bids = null;
+        this.instrument = null;
+        this.tick = tick;
+        this.asks = asks;
+        this.bids = bids;
+        this.instrument = instrument;
+    }
+
+    public Date getTime()
+    {
+        return new Date(tick.time);
+    }
+
+    public String getSymbol()
+    {
+        return instrument;
+    }
+
+    public double getAsk()
+    {
+        return tick.ask;
+    }
+
+    public double getBid()
+    {
+        return tick.bid;
+    }
+
+    public double getBidVolume()
+    {
+        return tick.bidVol;
+    }
+
+    public double getAskVolume()
+    {
+        return tick.askVol;
+    }
+
+    public List getAskDepth()
+    {
+        return asks;
+    }
+
+    public List getBidDepth()
+    {
+        return bids;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("market ").append(instrument).append(" Ask ").append(getAsk()).append(" (").append(getAskVolume()).append(") / Bid ").append(getBid()).append(" (").append(getBidVolume()).append(")").toString();
+    }
+
+    private HTick tick;
+    private List asks;
+    private List bids;
+    private String instrument;
+}

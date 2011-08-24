@@ -1,0 +1,1291 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ScienceQueue.java
+
+package com.dukascopy.api.impl.execution;
+
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import java.io.*;
+import java.lang.reflect.Array;
+import java.util.*;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.execution:
+//            TaskTick, ScienceFuture, Task
+
+public class ScienceQueue extends AbstractQueue
+    implements BlockingDeque, Serializable
+{
+    private class DescendingItr extends AbstractItr
+    {
+
+        void advance()
+        {
+            ReentrantLock lock;
+            lock = ScienceQueue.this.lock;
+            lock.lock();
+            next = next != null ? next.prev : last;
+            nextItem = next != null ? (ScienceFuture)next.item : null;
+            lock.unlock();
+            break MISSING_BLOCK_LABEL_79;
+            Exception exception;
+            exception;
+            lock.unlock();
+            throw exception;
+        }
+
+        final ScienceQueue this$0;
+
+        private DescendingItr()
+        {
+            this$0 = ScienceQueue.this;
+            super();
+        }
+
+    }
+
+    private class Itr extends AbstractItr
+    {
+
+        void advance()
+        {
+            ReentrantLock lock;
+            lock = ScienceQueue.this.lock;
+            lock.lock();
+            next = next != null ? next.next : first;
+            nextItem = next != null ? (ScienceFuture)next.item : null;
+            lock.unlock();
+            break MISSING_BLOCK_LABEL_79;
+            Exception exception;
+            exception;
+            lock.unlock();
+            throw exception;
+        }
+
+        final ScienceQueue this$0;
+
+        private Itr()
+        {
+            this$0 = ScienceQueue.this;
+            super();
+        }
+
+    }
+
+    private abstract class AbstractItr
+        implements Iterator
+    {
+
+        abstract void advance();
+
+        public boolean hasNext()
+        {
+            return next != null;
+        }
+
+        public ScienceFuture next()
+        {
+            if(next == null)
+            {
+                throw new NoSuchElementException();
+            } else
+            {
+                lastRet = next;
+                ScienceFuture x = nextItem;
+                advance();
+                return x;
+            }
+        }
+
+        public void remove()
+        {
+            Node n = lastRet;
+            if(n == null)
+            {
+                throw new IllegalStateException();
+            } else
+            {
+                lastRet = null;
+                removeNode(n);
+                return;
+            }
+        }
+
+        public volatile Object next()
+        {
+            return next();
+        }
+
+        Node next;
+        ScienceFuture nextItem;
+        private Node lastRet;
+        final ScienceQueue this$0;
+
+        AbstractItr()
+        {
+            this$0 = ScienceQueue.this;
+            super();
+            advance();
+        }
+    }
+
+    static final class Node
+    {
+
+        Object item;
+        Node prev;
+        Node next;
+
+        Node(Object x, Node p, Node n)
+        {
+            item = x;
+            prev = p;
+            next = n;
+        }
+    }
+
+
+    private void dropOldTicks(ScienceFuture e)
+    {
+        Task task = e.getTask();
+        if(task.getType() == Task.Type.TICK)
+        {
+            if(count > 0)
+            {
+                TaskTick taskTick = (TaskTick)task;
+                long latestTicks[][] = new long[2][INSTRUMENTS_LENGTH];
+                long currentTime = taskTick.getTick().getTime();
+                latestTicks[0][taskTick.getInstrument().ordinal()] = currentTime;
+                latestTicks[1][taskTick.getInstrument().ordinal()] = 1L;
+                for(Node p = last; p != null; p = p.prev)
+                {
+                    ScienceFuture future = (ScienceFuture)p.item;
+                    Task queueTask = future.getTask();
+                    if(queueTask.getType() == Task.Type.TICK)
+                    {
+                        TaskTick queueTaskTick = (TaskTick)queueTask;
+                        if(latestTicks[0][queueTaskTick.getInstrument().ordinal()] != 0L)
+                        {
+                            if(currentTime - queueTaskTick.getTick().getTime() > 1000L || latestTicks[1][queueTaskTick.getInstrument().ordinal()] >= 3L)
+                            {
+                                unlink(p);
+                                if(LOGGER.isDebugEnabled())
+                                    LOGGER.debug((new StringBuilder()).append("old tick removed from the queue [").append(queueTaskTick.getTick()).append("], current time [").append(currentTime).append("], diff [").append(currentTime - queueTaskTick.getTick().getTime()).append("] tick waiting in queue [").append(latestTicks[1][queueTaskTick.getInstrument().ordinal()]).append("]").toString());
+                            } else
+                            {
+                                latestTicks[1][queueTaskTick.getInstrument().ordinal()] = latestTicks[1][queueTaskTick.getInstrument().ordinal()] + 1L;
+                            }
+                        } else
+                        {
+                            latestTicks[0][queueTaskTick.getInstrument().ordinal()] = queueTaskTick.getTick().getTime();
+                            latestTicks[1][queueTaskTick.getInstrument().ordinal()] = 1L;
+                        }
+                    }
+                }
+
+            }
+        } else
+        if(task.getType() == Task.Type.ACCOUNT && count > 0)
+        {
+            for(Node p = last; p != null; p = p.prev)
+            {
+                ScienceFuture future = (ScienceFuture)p.item;
+                Task queueTask = future.getTask();
+                if(queueTask.getType() == Task.Type.ACCOUNT)
+                    unlink(p);
+            }
+
+        }
+    }
+
+    private void dropOldTicksByCurrentTime()
+    {
+        long currentLocalTime = System.currentTimeMillis();
+        boolean latestTicksExist[] = new boolean[INSTRUMENTS_LENGTH];
+        for(Node p = last; p != null; p = p.prev)
+        {
+            ScienceFuture future = (ScienceFuture)p.item;
+            Task queueTask = future.getTask();
+            if(queueTask.getType() != Task.Type.TICK)
+                continue;
+            TaskTick queueTaskTick = (TaskTick)queueTask;
+            if(latestTicksExist[queueTaskTick.getInstrument().ordinal()])
+            {
+                if(currentLocalTime - queueTaskTick.getAddedTime() <= 1000L)
+                    continue;
+                unlink(p);
+                if(LOGGER.isDebugEnabled())
+                    LOGGER.debug((new StringBuilder()).append("old tick removed from the queue [").append(queueTaskTick.getTick()).append("], current local time [").append(currentLocalTime).append("], diff [").append(currentLocalTime - queueTaskTick.getAddedTime()).append("]").toString());
+            } else
+            {
+                latestTicksExist[queueTaskTick.getInstrument().ordinal()] = true;
+            }
+        }
+
+        if(count > 500 && lastOverloadWarning + 5000L < System.currentTimeMillis())
+        {
+            int ticks = 0;
+            int bars = 0;
+            int tasks = 0;
+            for(Node p = first; p != null; p = p.next)
+            {
+                ScienceFuture future = (ScienceFuture)p.item;
+                Task queueTask = future.getTask();
+                if(queueTask.getType() == Task.Type.TICK)
+                {
+                    ticks++;
+                    continue;
+                }
+                if(queueTask.getType() == Task.Type.BAR)
+                    bars++;
+                else
+                    tasks++;
+            }
+
+            if(count > 2000)
+                NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Strategy thread queue overloaded with tasks. Ticks in queue - ").append(ticks).append(", bars - ").append(bars).append(", other tasks - ").append(tasks).toString(), true);
+            else
+                NotificationUtilsProvider.getNotificationUtils().postWarningMessage((new StringBuilder()).append("Strategy thread queue overloaded with tasks. Ticks in queue - ").append(ticks).append(", bars - ").append(bars).append(", other tasks - ").append(tasks).toString(), true);
+            lastOverloadWarning = System.currentTimeMillis();
+        }
+    }
+
+    public ScienceQueue()
+    {
+        this(0x7fffffff);
+    }
+
+    public ScienceQueue(int capacity)
+    {
+        lastOverloadWarning = 0x8000000000000000L;
+        lock = new ReentrantLock();
+        notEmpty = lock.newCondition();
+        notFull = lock.newCondition();
+        if(capacity <= 0)
+        {
+            throw new IllegalArgumentException();
+        } else
+        {
+            this.capacity = capacity;
+            dropTicksThread = new Thread("SQOTD") {
+
+                public void run()
+                {
+_L2:
+                    ReentrantLock lock;
+                    if(stopThread)
+                        break; /* Loop/switch isn't completed */
+                    lock = ScienceQueue.this.lock;
+                    lock.lock();
+                    dropOldTicksByCurrentTime();
+                    lock.unlock();
+                    break MISSING_BLOCK_LABEL_43;
+                    Exception exception;
+                    exception;
+                    lock.unlock();
+                    throw exception;
+                    try
+                    {
+                        Thread.sleep(100L);
+                    }
+                    catch(InterruptedException e) { }
+                    if(true) goto _L2; else goto _L1
+_L1:
+                }
+
+                final ScienceQueue this$0;
+
+            
+            {
+                this$0 = ScienceQueue.this;
+                super(x0);
+            }
+            };
+            dropTicksThread.setDaemon(true);
+            dropTicksThread.start();
+            return;
+        }
+    }
+
+    protected void stop()
+    {
+        stopThread = true;
+        dropTicksThread.interrupt();
+    }
+
+    public ScienceQueue(Collection c)
+    {
+        this(0x7fffffff);
+        ScienceFuture e;
+        for(Iterator i$ = c.iterator(); i$.hasNext(); add(e))
+            e = (ScienceFuture)i$.next();
+
+    }
+
+    private boolean linkFirst(ScienceFuture e)
+    {
+        if(count >= capacity)
+            return false;
+        count++;
+        Node f = first;
+        Node x = new Node(e, null, f);
+        first = x;
+        if(last == null)
+            last = x;
+        else
+            f.prev = x;
+        notEmpty.signal();
+        return true;
+    }
+
+    private boolean linkLast(ScienceFuture e)
+    {
+        if(count >= capacity)
+            return false;
+        count++;
+        Node l = last;
+        Node x = new Node(e, l, null);
+        last = x;
+        if(first == null)
+            first = x;
+        else
+            l.next = x;
+        notEmpty.signal();
+        return true;
+    }
+
+    private ScienceFuture unlinkFirst()
+    {
+        Node f = first;
+        if(f == null)
+            return null;
+        Node n = f.next;
+        first = n;
+        if(n == null)
+            last = null;
+        else
+            n.prev = null;
+        count--;
+        notFull.signal();
+        return (ScienceFuture)f.item;
+    }
+
+    private ScienceFuture unlinkLast()
+    {
+        Node l = last;
+        if(l == null)
+            return null;
+        Node p = l.prev;
+        last = p;
+        if(p == null)
+            first = null;
+        else
+            p.next = null;
+        count--;
+        notFull.signal();
+        return (ScienceFuture)l.item;
+    }
+
+    private void unlink(Node x)
+    {
+        Node p = x.prev;
+        Node n = x.next;
+        if(p == null)
+        {
+            if(n == null)
+            {
+                first = last = null;
+            } else
+            {
+                n.prev = null;
+                first = n;
+            }
+        } else
+        if(n == null)
+        {
+            p.next = null;
+            last = p;
+        } else
+        {
+            p.next = n;
+            n.prev = p;
+        }
+        count--;
+        notFull.signalAll();
+    }
+
+    public void addFirst(ScienceFuture e)
+    {
+        if(!offerFirst(e))
+            throw new IllegalStateException("Deque full");
+        else
+            return;
+    }
+
+    public void addLast(ScienceFuture e)
+    {
+        if(!offerLast(e))
+            throw new IllegalStateException("Deque full");
+        else
+            return;
+    }
+
+    public boolean offerFirst(ScienceFuture e)
+    {
+        if(e == null)
+            throw new NullPointerException();
+        lock.lock();
+        boolean flag;
+        dropOldTicks(e);
+        flag = linkFirst(e);
+        lock.unlock();
+        return flag;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public boolean offerLast(ScienceFuture e)
+    {
+        if(e == null)
+            throw new NullPointerException();
+        lock.lock();
+        boolean flag;
+        dropOldTicks(e);
+        flag = linkLast(e);
+        lock.unlock();
+        return flag;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public void putFirst(ScienceFuture e)
+        throws InterruptedException
+    {
+        if(e == null)
+            throw new NullPointerException();
+        lock.lock();
+        dropOldTicks(e);
+        for(; !linkFirst(e); notFull.await());
+        lock.unlock();
+        break MISSING_BLOCK_LABEL_64;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public void putLast(ScienceFuture e)
+        throws InterruptedException
+    {
+        if(e == null)
+            throw new NullPointerException();
+        lock.lock();
+        dropOldTicks(e);
+        for(; !linkLast(e); notFull.await());
+        lock.unlock();
+        break MISSING_BLOCK_LABEL_64;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public boolean offerFirst(ScienceFuture e, long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        long nanos;
+        if(e == null)
+            throw new NullPointerException();
+        nanos = unit.toNanos(timeout);
+        lock.lockInterruptibly();
+        dropOldTicks(e);
+_L3:
+        if(!linkFirst(e)) goto _L2; else goto _L1
+_L1:
+        boolean flag = true;
+        lock.unlock();
+        return flag;
+_L2:
+        if(nanos > 0L)
+            break MISSING_BLOCK_LABEL_73;
+        flag = false;
+        lock.unlock();
+        return flag;
+        nanos = notFull.awaitNanos(nanos);
+          goto _L3
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public boolean offerLast(ScienceFuture e, long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        long nanos;
+        if(e == null)
+            throw new NullPointerException();
+        nanos = unit.toNanos(timeout);
+        lock.lockInterruptibly();
+        dropOldTicks(e);
+_L3:
+        if(!linkLast(e)) goto _L2; else goto _L1
+_L1:
+        boolean flag = true;
+        lock.unlock();
+        return flag;
+_L2:
+        if(nanos > 0L)
+            break MISSING_BLOCK_LABEL_73;
+        flag = false;
+        lock.unlock();
+        return flag;
+        nanos = notFull.awaitNanos(nanos);
+          goto _L3
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public ScienceFuture removeFirst()
+    {
+        ScienceFuture x = pollFirst();
+        if(x == null)
+            throw new NoSuchElementException();
+        else
+            return x;
+    }
+
+    public ScienceFuture removeLast()
+    {
+        ScienceFuture x = pollLast();
+        if(x == null)
+            throw new NoSuchElementException();
+        else
+            return x;
+    }
+
+    public ScienceFuture pollFirst()
+    {
+        lock.lock();
+        ScienceFuture sciencefuture = unlinkFirst();
+        lock.unlock();
+        return sciencefuture;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public ScienceFuture pollLast()
+    {
+        lock.lock();
+        ScienceFuture sciencefuture = unlinkLast();
+        lock.unlock();
+        return sciencefuture;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public ScienceFuture takeFirst()
+        throws InterruptedException
+    {
+        lock.lock();
+        ScienceFuture sciencefuture;
+        ScienceFuture x;
+        while((x = unlinkFirst()) == null) 
+            notEmpty.await();
+        sciencefuture = x;
+        lock.unlock();
+        return sciencefuture;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public ScienceFuture takeLast()
+        throws InterruptedException
+    {
+        lock.lock();
+        ScienceFuture sciencefuture;
+        ScienceFuture x;
+        while((x = unlinkLast()) == null) 
+            notEmpty.await();
+        sciencefuture = x;
+        lock.unlock();
+        return sciencefuture;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public ScienceFuture pollFirst(long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        long nanos;
+        nanos = unit.toNanos(timeout);
+        lock.lockInterruptibly();
+_L2:
+        ScienceFuture sciencefuture;
+        ScienceFuture x = unlinkFirst();
+        if(x == null)
+            break MISSING_BLOCK_LABEL_39;
+        sciencefuture = x;
+        lock.unlock();
+        return sciencefuture;
+        if(nanos > 0L)
+            break MISSING_BLOCK_LABEL_59;
+        sciencefuture = null;
+        lock.unlock();
+        return sciencefuture;
+        nanos = notEmpty.awaitNanos(nanos);
+        if(true) goto _L2; else goto _L1
+_L1:
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public ScienceFuture pollLast(long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        long nanos;
+        nanos = unit.toNanos(timeout);
+        lock.lockInterruptibly();
+_L2:
+        ScienceFuture sciencefuture;
+        ScienceFuture x = unlinkLast();
+        if(x == null)
+            break MISSING_BLOCK_LABEL_39;
+        sciencefuture = x;
+        lock.unlock();
+        return sciencefuture;
+        if(nanos > 0L)
+            break MISSING_BLOCK_LABEL_59;
+        sciencefuture = null;
+        lock.unlock();
+        return sciencefuture;
+        nanos = notEmpty.awaitNanos(nanos);
+        if(true) goto _L2; else goto _L1
+_L1:
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public ScienceFuture getFirst()
+    {
+        ScienceFuture x = peekFirst();
+        if(x == null)
+            throw new NoSuchElementException();
+        else
+            return x;
+    }
+
+    public ScienceFuture getLast()
+    {
+        ScienceFuture x = peekLast();
+        if(x == null)
+            throw new NoSuchElementException();
+        else
+            return x;
+    }
+
+    public ScienceFuture peekFirst()
+    {
+        lock.lock();
+        ScienceFuture sciencefuture = first != null ? (ScienceFuture)first.item : null;
+        lock.unlock();
+        return sciencefuture;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public ScienceFuture peekLast()
+    {
+        lock.lock();
+        ScienceFuture sciencefuture = last != null ? (ScienceFuture)last.item : null;
+        lock.unlock();
+        return sciencefuture;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public boolean removeFirstOccurrence(Object o)
+    {
+        if(o == null)
+            return false;
+        lock.lock();
+        Node p = first;
+_L1:
+        boolean flag1;
+        if(p == null)
+            break MISSING_BLOCK_LABEL_57;
+        if(!o.equals(p.item))
+            break MISSING_BLOCK_LABEL_49;
+        unlink(p);
+        flag1 = true;
+        lock.unlock();
+        return flag1;
+        p = p.next;
+          goto _L1
+        boolean flag = false;
+        lock.unlock();
+        return flag;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public boolean removeLastOccurrence(Object o)
+    {
+        if(o == null)
+            return false;
+        lock.lock();
+        Node p = last;
+_L1:
+        boolean flag1;
+        if(p == null)
+            break MISSING_BLOCK_LABEL_57;
+        if(!o.equals(p.item))
+            break MISSING_BLOCK_LABEL_49;
+        unlink(p);
+        flag1 = true;
+        lock.unlock();
+        return flag1;
+        p = p.prev;
+          goto _L1
+        boolean flag = false;
+        lock.unlock();
+        return flag;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public boolean add(ScienceFuture e)
+    {
+        addLast(e);
+        return true;
+    }
+
+    public boolean offer(ScienceFuture e)
+    {
+        return offerLast(e);
+    }
+
+    public void put(ScienceFuture e)
+        throws InterruptedException
+    {
+        putLast(e);
+    }
+
+    public boolean offer(ScienceFuture e, long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        return offerLast(e, timeout, unit);
+    }
+
+    public ScienceFuture remove()
+    {
+        return removeFirst();
+    }
+
+    public ScienceFuture poll()
+    {
+        return pollFirst();
+    }
+
+    public ScienceFuture take()
+        throws InterruptedException
+    {
+        return takeFirst();
+    }
+
+    public ScienceFuture poll(long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        return pollFirst(timeout, unit);
+    }
+
+    public ScienceFuture element()
+    {
+        return getFirst();
+    }
+
+    public ScienceFuture peek()
+    {
+        return peekFirst();
+    }
+
+    public int remainingCapacity()
+    {
+        lock.lock();
+        int i = capacity - count;
+        lock.unlock();
+        return i;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public int drainTo(Collection c)
+    {
+        if(c == null)
+            throw new NullPointerException();
+        if(c == this)
+            throw new IllegalArgumentException();
+        lock.lock();
+        int i;
+        for(Node p = first; p != null; p = p.next)
+            c.add(p.item);
+
+        int n = count;
+        count = 0;
+        first = last = null;
+        notFull.signalAll();
+        i = n;
+        lock.unlock();
+        return i;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public int drainTo(Collection c, int maxElements)
+    {
+        if(c == null)
+            throw new NullPointerException();
+        if(c == this)
+            throw new IllegalArgumentException();
+        lock.lock();
+        int i;
+        int n;
+        for(n = 0; n < maxElements && first != null; n++)
+        {
+            c.add(first.item);
+            first.prev = null;
+            first = first.next;
+            count--;
+        }
+
+        if(first == null)
+            last = null;
+        notFull.signalAll();
+        i = n;
+        lock.unlock();
+        return i;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public void push(ScienceFuture e)
+    {
+        addFirst(e);
+    }
+
+    public ScienceFuture pop()
+    {
+        return removeFirst();
+    }
+
+    public boolean remove(Object o)
+    {
+        return removeFirstOccurrence(o);
+    }
+
+    public int size()
+    {
+        lock.lock();
+        int i = count;
+        lock.unlock();
+        return i;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public boolean contains(Object o)
+    {
+        if(o == null)
+            return false;
+        lock.lock();
+        Node p = first;
+_L1:
+        boolean flag1;
+        if(p == null)
+            break MISSING_BLOCK_LABEL_52;
+        if(!o.equals(p.item))
+            break MISSING_BLOCK_LABEL_44;
+        flag1 = true;
+        lock.unlock();
+        return flag1;
+        p = p.next;
+          goto _L1
+        boolean flag = false;
+        lock.unlock();
+        return flag;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    boolean removeNode(Node e)
+    {
+        lock.lock();
+        Node p = first;
+_L1:
+        boolean flag1;
+        if(p == null)
+            break MISSING_BLOCK_LABEL_45;
+        if(p != e)
+            break MISSING_BLOCK_LABEL_37;
+        unlink(p);
+        flag1 = true;
+        lock.unlock();
+        return flag1;
+        p = p.next;
+          goto _L1
+        boolean flag = false;
+        lock.unlock();
+        return flag;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public Object[] toArray()
+    {
+        lock.lock();
+        Object aobj[];
+        Object a[] = new Object[count];
+        int k = 0;
+        for(Node p = first; p != null; p = p.next)
+            a[k++] = p.item;
+
+        aobj = a;
+        lock.unlock();
+        return aobj;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public Object[] toArray(Object a[])
+    {
+        lock.lock();
+        Object aobj[];
+        if(a.length < count)
+            a = (Object[])(Object[])Array.newInstance(((Object) (a)).getClass().getComponentType(), count);
+        int k = 0;
+        for(Node p = first; p != null; p = p.next)
+            a[k++] = p.item;
+
+        if(a.length > k)
+            a[k] = null;
+        aobj = a;
+        lock.unlock();
+        return aobj;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public String toString()
+    {
+        lock.lock();
+        String s = super.toString();
+        lock.unlock();
+        return s;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public void clear()
+    {
+        lock.lock();
+        first = last = null;
+        count = 0;
+        notFull.signalAll();
+        lock.unlock();
+        break MISSING_BLOCK_LABEL_51;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    public Iterator iterator()
+    {
+        return new Itr();
+    }
+
+    public Iterator descendingIterator()
+    {
+        return new DescendingItr();
+    }
+
+    private void writeObject(ObjectOutputStream s)
+        throws IOException
+    {
+        lock.lock();
+        s.defaultWriteObject();
+        for(Node p = first; p != null; p = p.next)
+            s.writeObject(p.item);
+
+        s.writeObject(null);
+        lock.unlock();
+        break MISSING_BLOCK_LABEL_61;
+        Exception exception;
+        exception;
+        lock.unlock();
+        throw exception;
+    }
+
+    private void readObject(ObjectInputStream s)
+        throws IOException, ClassNotFoundException
+    {
+        s.defaultReadObject();
+        count = 0;
+        first = null;
+        last = null;
+        do
+        {
+            ScienceFuture item = (ScienceFuture)s.readObject();
+            if(item != null)
+                add(item);
+            else
+                return;
+        } while(true);
+    }
+
+    public volatile Object element()
+    {
+        return element();
+    }
+
+    public volatile Object remove()
+    {
+        return remove();
+    }
+
+    public volatile boolean add(Object x0)
+    {
+        return add((ScienceFuture)x0);
+    }
+
+    public volatile Object peek()
+    {
+        return peek();
+    }
+
+    public volatile Object poll()
+    {
+        return poll();
+    }
+
+    public volatile boolean offer(Object x0)
+    {
+        return offer((ScienceFuture)x0);
+    }
+
+    public volatile void push(Object x0)
+    {
+        push((ScienceFuture)x0);
+    }
+
+    public volatile Object poll(long x0, TimeUnit x1)
+        throws InterruptedException
+    {
+        return poll(x0, x1);
+    }
+
+    public volatile Object take()
+        throws InterruptedException
+    {
+        return take();
+    }
+
+    public volatile boolean offer(Object x0, long x1, TimeUnit x2)
+        throws InterruptedException
+    {
+        return offer((ScienceFuture)x0, x1, x2);
+    }
+
+    public volatile void put(Object x0)
+        throws InterruptedException
+    {
+        put((ScienceFuture)x0);
+    }
+
+    public volatile Object pollLast(long x0, TimeUnit x1)
+        throws InterruptedException
+    {
+        return pollLast(x0, x1);
+    }
+
+    public volatile Object pollFirst(long x0, TimeUnit x1)
+        throws InterruptedException
+    {
+        return pollFirst(x0, x1);
+    }
+
+    public volatile Object takeLast()
+        throws InterruptedException
+    {
+        return takeLast();
+    }
+
+    public volatile Object takeFirst()
+        throws InterruptedException
+    {
+        return takeFirst();
+    }
+
+    public volatile boolean offerLast(Object x0, long x1, TimeUnit x2)
+        throws InterruptedException
+    {
+        return offerLast((ScienceFuture)x0, x1, x2);
+    }
+
+    public volatile boolean offerFirst(Object x0, long x1, TimeUnit x2)
+        throws InterruptedException
+    {
+        return offerFirst((ScienceFuture)x0, x1, x2);
+    }
+
+    public volatile void putLast(Object x0)
+        throws InterruptedException
+    {
+        putLast((ScienceFuture)x0);
+    }
+
+    public volatile void putFirst(Object x0)
+        throws InterruptedException
+    {
+        putFirst((ScienceFuture)x0);
+    }
+
+    public volatile boolean offerLast(Object x0)
+    {
+        return offerLast((ScienceFuture)x0);
+    }
+
+    public volatile boolean offerFirst(Object x0)
+    {
+        return offerFirst((ScienceFuture)x0);
+    }
+
+    public volatile void addLast(Object x0)
+    {
+        addLast((ScienceFuture)x0);
+    }
+
+    public volatile void addFirst(Object x0)
+    {
+        addFirst((ScienceFuture)x0);
+    }
+
+    public volatile Object pop()
+    {
+        return pop();
+    }
+
+    public volatile Object peekLast()
+    {
+        return peekLast();
+    }
+
+    public volatile Object peekFirst()
+    {
+        return peekFirst();
+    }
+
+    public volatile Object getLast()
+    {
+        return getLast();
+    }
+
+    public volatile Object getFirst()
+    {
+        return getFirst();
+    }
+
+    public volatile Object pollLast()
+    {
+        return pollLast();
+    }
+
+    public volatile Object pollFirst()
+    {
+        return pollFirst();
+    }
+
+    public volatile Object removeLast()
+    {
+        return removeLast();
+    }
+
+    public volatile Object removeFirst()
+    {
+        return removeFirst();
+    }
+
+    private static final long TICK_SURVIVE_TIME = 1000L;
+    private static final int INSTRUMENTS_LENGTH = Instrument.values().length;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/execution/ScienceQueue);
+    private Thread dropTicksThread;
+    private boolean stopThread;
+    private long lastOverloadWarning;
+    private static final long serialVersionUID = 0xfa9ddc6ce257fe26L;
+    private transient Node first;
+    private transient Node last;
+    private transient int count;
+    private final int capacity;
+    private final ReentrantLock lock;
+    private final Condition notEmpty;
+    private final Condition notFull;
+
+
+
+
+
+
+}

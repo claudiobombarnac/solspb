@@ -1,0 +1,1148 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Complex.java
+
+package com.dukascopy.calculator.complex;
+
+import com.dukascopy.calculator.*;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.util.Vector;
+
+// Referenced classes of package com.dukascopy.calculator.complex:
+//            DoubleFormat
+
+public class Complex extends OObject
+{
+    private class HTMLStringResult
+    {
+
+        public StringArray stringVector;
+        public Boolean parentheses;
+        final Complex this$0;
+
+        HTMLStringResult()
+        {
+            this$0 = Complex.this;
+            super();
+            stringVector = null;
+            parentheses = Boolean.valueOf(false);
+        }
+    }
+
+
+    public Complex()
+    {
+        this(0.0D, 0.0D);
+    }
+
+    public Complex(double real)
+    {
+        this(real, 0.0D);
+    }
+
+    public Complex(double real, double imaginary)
+    {
+        real_part = real;
+        imaginary_part = imaginary;
+    }
+
+    public static Complex polar(double r, double theta)
+    {
+        return new Complex(r * StrictMath.cos(theta), r * StrictMath.cos(theta));
+    }
+
+    public boolean isZero()
+    {
+        return real() == 0.0D && imaginary() == 0.0D;
+    }
+
+    public Long isInteger()
+    {
+        if(imaginary() == 0.0D)
+        {
+            long l = (long)real();
+            if((double)l == real())
+                return Long.valueOf(l);
+        }
+        return null;
+    }
+
+    public boolean isNegative()
+    {
+        return real() < 0.0D || real() == 0.0D && imaginary() < 0.0D;
+    }
+
+    public double real()
+    {
+        return real_part;
+    }
+
+    public double imaginary()
+    {
+        return imaginary_part;
+    }
+
+    public Complex conjugate()
+    {
+        return new Complex(real(), -imaginary());
+    }
+
+    public Complex negate()
+    {
+        return new Complex(-real(), -imaginary());
+    }
+
+    public double abs()
+    {
+        return StrictMath.hypot(real(), imaginary());
+    }
+
+    public double arg()
+    {
+        if(real() == 0.0D && imaginary() == 0.0D)
+            return 0.0D;
+        else
+            return StrictMath.atan2(imaginary(), real());
+    }
+
+    public Complex inverse()
+    {
+        if(real() == 0.0D && imaginary() == 0.0D)
+            return new Complex((1.0D / 0.0D), 0.0D);
+        if(Double.isInfinite(real()) || Double.isInfinite(imaginary()))
+        {
+            Complex one = new Complex(1.0D, 0.0D);
+            return one.divide(this);
+        } else
+        {
+            BigDecimal a = new BigDecimal(real());
+            BigDecimal b = new BigDecimal(imaginary());
+            BigDecimal s = a.multiply(a).add(b.multiply(b));
+            double c = a.divide(s, MathContext.DECIMAL64).doubleValue();
+            double d = b.negate().divide(s, MathContext.DECIMAL64).doubleValue();
+            return new Complex(c, d);
+        }
+    }
+
+    public Complex imultiply()
+    {
+        return new Complex(-imaginary(), real());
+    }
+
+    public Complex scale(double real)
+    {
+        return new Complex(real * real(), real * imaginary());
+    }
+
+    public Complex add(Complex complex)
+    {
+        return new Complex(real() + complex.real(), imaginary() + complex.imaginary());
+    }
+
+    public Complex subtract(Complex complex)
+    {
+        return new Complex(real() - complex.real(), imaginary() - complex.imaginary());
+    }
+
+    public Complex multiply(Complex complex)
+    {
+        if(Double.isInfinite(real()) || Double.isInfinite(imaginary()) || Double.isInfinite(complex.real()) || Double.isInfinite(complex.imaginary()))
+        {
+            double a = real();
+            double b = imaginary();
+            double c = complex.real();
+            double d = complex.imaginary();
+            double ac = a * c;
+            double bd = b * d;
+            double ad = a * d;
+            double bc = b * c;
+            if(Double.isNaN(ac) && (a == 0.0D || c == 0.0D))
+                ac = 0.0D;
+            if(Double.isNaN(bd) && (b == 0.0D || d == 0.0D))
+                bd = 0.0D;
+            if(Double.isNaN(ad) && (a == 0.0D || d == 0.0D))
+                ad = 0.0D;
+            if(Double.isNaN(bc) && (b == 0.0D || c == 0.0D))
+                bc = 0.0D;
+            double x = ac - bd;
+            double y = bc + ad;
+            if(x == 0.0D && y == 0.0D)
+                return new Complex((0.0D / 0.0D), (0.0D / 0.0D));
+            else
+                return new Complex(x, y);
+        }
+        if(Double.isNaN(real()) || Double.isNaN(imaginary()) || Double.isNaN(complex.real()) || Double.isNaN(complex.imaginary()))
+        {
+            return new Complex((0.0D / 0.0D), (0.0D / 0.0D));
+        } else
+        {
+            BigDecimal a = new BigDecimal(real());
+            BigDecimal b = new BigDecimal(imaginary());
+            BigDecimal c = new BigDecimal(complex.real());
+            BigDecimal d = new BigDecimal(complex.imaginary());
+            double x = a.multiply(c).subtract(b.multiply(d)).doubleValue();
+            double y = a.multiply(d).add(b.multiply(c)).doubleValue();
+            return new Complex(x, y);
+        }
+    }
+
+    public Complex divide(Complex complex)
+    {
+        if(complex.real() == 0.0D && complex.imaginary() == 0.0D)
+        {
+            if(real() == 0.0D && imaginary() == 0.0D)
+                return new Complex((0.0D / 0.0D));
+            double x = 0.0D;
+            if(real() > 0.0D)
+                x = (1.0D / 0.0D);
+            else
+            if(real() < 0.0D)
+                x = (-1.0D / 0.0D);
+            double y = 0.0D;
+            if(imaginary() > 0.0D)
+                y = (1.0D / 0.0D);
+            else
+            if(imaginary() < 0.0D)
+                y = (-1.0D / 0.0D);
+            return new Complex(x, y);
+        }
+        double test = complex.real() * complex.real() + complex.imaginary() * complex.imaginary();
+        if(Double.isNaN(test))
+            return new Complex((0.0D / 0.0D), (0.0D / 0.0D));
+        if(Double.isInfinite(test))
+        {
+            if(real() == 0.0D && imaginary() == 0.0D)
+                return new Complex((0.0D / 0.0D), (0.0D / 0.0D));
+            else
+                return new Complex();
+        } else
+        {
+            BigDecimal a = new BigDecimal(real());
+            BigDecimal b = new BigDecimal(imaginary());
+            BigDecimal c = new BigDecimal(complex.real());
+            BigDecimal d = new BigDecimal(complex.imaginary());
+            BigDecimal s = c.multiply(c).add(d.multiply(d));
+            double x = a.multiply(c).add(b.multiply(d)).divide(s, MathContext.DECIMAL64).doubleValue();
+            double y = b.multiply(c).subtract(a.multiply(d)).divide(s, MathContext.DECIMAL64).doubleValue();
+            return new Complex(x, y);
+        }
+    }
+
+    public Complex square()
+    {
+        return multiply(this);
+    }
+
+    public Complex cube()
+    {
+        return multiply(square());
+    }
+
+    public Complex sqrt()
+    {
+        if(real() == 0.0D && imaginary() == 0.0D)
+            return new Complex();
+        double x = StrictMath.abs(real());
+        double y = StrictMath.abs(imaginary());
+        double w = 0.0D;
+        if(x >= y)
+        {
+            double t = y / x;
+            w = StrictMath.sqrt(x) * StrictMath.sqrt(0.5D * (1.0D + StrictMath.sqrt(1.0D + t * t)));
+        } else
+        {
+            double t = x / y;
+            w = StrictMath.sqrt(y) * StrictMath.sqrt(0.5D * (t + StrictMath.sqrt(1.0D + t * t)));
+        }
+        if(real() >= 0.0D)
+        {
+            return new Complex(w, imaginary() / (2D * w));
+        } else
+        {
+            double vi = imaginary() < 0.0D ? -w : w;
+            return new Complex(imaginary() / (2D * vi), vi);
+        }
+    }
+
+    public Complex exp()
+    {
+        double rho = StrictMath.exp(real());
+        double theta = imaginary();
+        return new Complex(rho * StrictMath.cos(theta), rho * StrictMath.sin(theta));
+    }
+
+    public Complex tenx()
+    {
+        return multiply(LOG10).exp();
+    }
+
+    private double logabs()
+    {
+        double xabs = StrictMath.abs(real());
+        double yabs = StrictMath.abs(imaginary());
+        double max;
+        double u;
+        if(xabs >= yabs)
+        {
+            max = xabs;
+            u = yabs / xabs;
+        } else
+        {
+            max = yabs;
+            u = xabs / yabs;
+        }
+        return StrictMath.log(max) + 0.5D * StrictMath.log1p(u * u);
+    }
+
+    private Complex pow(int r)
+    {
+        Complex p = new Complex(real(), imaginary());
+        Complex y = new Complex(1.0D, 0.0D);
+        boolean flag = false;
+        while(r > 0) 
+        {
+            if(r % 2 == 1)
+                if(flag)
+                {
+                    y = y.multiply(p);
+                } else
+                {
+                    flag = true;
+                    y = new Complex(p.real(), p.imaginary());
+                }
+            r /= 2;
+            p = p.square();
+        }
+        return y;
+    }
+
+    private Complex root(int r)
+    {
+        double abs_error = 2.2204460492503131E-016D;
+        int limit = 10;
+        if(r == 2)
+            return sqrt();
+        double logr = logabs();
+        double theta = arg();
+        double rho = StrictMath.exp(logr / (double)r);
+        double beta = theta / (double)r;
+        Complex x = new Complex(rho * StrictMath.cos(beta), rho * StrictMath.sin(beta));
+        int count = 0;
+        for(double error = 1.0D; error > 2.2204460492503131E-016D && count < 10; count++)
+        {
+            Complex x_next = x.scale(r - 1).add(divide(x.pow(r - 1)));
+            x_next = x_next.scale(1.0D / (double)r);
+            error = subtract(x_next.pow(r)).abs() + x_next.subtract(x).abs();
+            x = new Complex(x_next.real(), x_next.imaginary());
+        }
+
+        return x;
+    }
+
+    public Complex pow(Complex r)
+    {
+        if(real() == 0.0D && imaginary() == 0.0D)
+            if(r.real() == 0.0D && r.imaginary() == 0.0D)
+                return new Complex(1.0D, 0.0D);
+            else
+                return new Complex();
+        if(r.imaginary() == 0.0D)
+        {
+            int n = (int)r.real();
+            if(r.real() == (double)n)
+                if(n > 0)
+                    return pow(n);
+                else
+                    return pow(-n).inverse();
+        }
+        double logr = logabs();
+        double theta = arg();
+        double rr = r.real();
+        double ri = r.imaginary();
+        double rho = StrictMath.exp(logr * rr - ri * theta);
+        double beta = theta * rr + ri * logr;
+        return new Complex(rho * StrictMath.cos(beta), rho * StrictMath.sin(beta));
+    }
+
+    public Complex root(Complex r)
+    {
+        if(r.imaginary() == 0.0D)
+        {
+            if(r.real() == 0.0D)
+            {
+                if(arg() != 0.0D)
+                    return new Complex((0.0D / 0.0D), (0.0D / 0.0D));
+                if(abs() == 1.0D)
+                    return new Complex(1.0D, 0.0D);
+                if(abs() < 1.0D)
+                    return new Complex(0.0D, 0.0D);
+                if(abs() > 1.0D)
+                    return new Complex((1.0D / 0.0D), 0.0D);
+                else
+                    return null;
+            }
+            int n = (int)r.real();
+            if(r.real() == (double)n)
+                if(n > 0)
+                    return root(n);
+                else
+                    return root(n).inverse();
+        }
+        return pow(r.inverse());
+    }
+
+    public Complex log()
+    {
+        double logr = logabs();
+        double theta = arg();
+        return new Complex(logr, theta);
+    }
+
+    public Complex log10()
+    {
+        double sc = 1.0D / StrictMath.log(10D);
+        return log().scale(sc);
+    }
+
+    public Complex cuberoot()
+    {
+        return root(3);
+    }
+
+    public Complex sin()
+    {
+        double r = real();
+        double i = imaginary();
+        if(i == 0.0D)
+            return new Complex(StrictMath.sin(r), 0.0D);
+        else
+            return new Complex(StrictMath.sin(r) * StrictMath.cosh(i), StrictMath.cos(r) * StrictMath.sinh(i));
+    }
+
+    public Complex cos()
+    {
+        double r = real();
+        double i = imaginary();
+        if(i == 0.0D)
+            return new Complex(StrictMath.cos(r), 0.0D);
+        else
+            return new Complex(StrictMath.cos(r) * StrictMath.cosh(i), StrictMath.sin(r) * StrictMath.sinh(-i));
+    }
+
+    public Complex tan()
+    {
+        double r = real();
+        double i = imaginary();
+        if(i == 0.0D)
+        {
+            double s = 2D * r - 3.1415926535897931D;
+            long t = StrictMath.round(s / 3.1415926535897931D);
+            if(t % 2L == 0L && s == (double)t * 3.1415926535897931D)
+                return new Complex((0.0D / 0.0D), (0.0D / 0.0D));
+            else
+                return new Complex(StrictMath.tan(r), 0.0D);
+        }
+        if(StrictMath.abs(i) < 1.0D)
+        {
+            double cr = StrictMath.cos(r);
+            double si = StrictMath.sinh(i);
+            double d = cr * cr + si * si;
+            return new Complex((0.5D * StrictMath.sin(2D * r)) / d, (0.5D * StrictMath.sinh(2D * i)) / d);
+        } else
+        {
+            double u = StrictMath.exp(-i);
+            double c = (2D * u) / (1.0D - u * u);
+            double cr = StrictMath.cos(r);
+            double s = c * c;
+            double d = 1.0D + cr * cr * s;
+            double t = 1.0D / StrictMath.tanh(i);
+            return new Complex((0.5D * StrictMath.sin(2D * r) * s) / d, t / d);
+        }
+    }
+
+    private double acosh_real(double y)
+    {
+        return StrictMath.log(y + StrictMath.sqrt(y * y - 1.0D));
+    }
+
+    private Complex asin_real(double a)
+    {
+        if(StrictMath.abs(a) <= 1.0D)
+            return new Complex(StrictMath.asin(a), 0.0D);
+        if(a < 0.0D)
+            return new Complex(-1.5707963267948966D, acosh_real(-a));
+        else
+            return new Complex(1.5707963267948966D, -acosh_real(a));
+    }
+
+    public Complex asin()
+    {
+        double R = real();
+        double I = imaginary();
+        if(I == 0.0D)
+            return asin_real(R);
+        double x = StrictMath.abs(R);
+        double y = StrictMath.abs(I);
+        double r = StrictMath.hypot(x + 1.0D, y);
+        double s = StrictMath.hypot(x - 1.0D, y);
+        double A = 0.5D * (r + s);
+        double B = x / A;
+        double y2 = y * y;
+        double A_crossover = 1.5D;
+        double B_crossover = 0.64170000000000005D;
+        double real;
+        if(B <= 0.64170000000000005D)
+            real = StrictMath.asin(B);
+        else
+        if(x <= 1.0D)
+        {
+            double D = 0.5D * (A + x) * (y2 / (r + x + 1.0D) + (s + (1.0D - x)));
+            real = StrictMath.atan(x / StrictMath.sqrt(D));
+        } else
+        {
+            double Apx = A + x;
+            double D = 0.5D * (Apx / (r + x + 1.0D) + Apx / (s + (x - 1.0D)));
+            real = StrictMath.atan(x / (y * StrictMath.sqrt(D)));
+        }
+        double imag;
+        if(A <= 1.5D)
+        {
+            double Am1;
+            if(x < 1.0D)
+                Am1 = 0.5D * (y2 / (r + (x + 1.0D)) + y2 / (s + (1.0D - x)));
+            else
+                Am1 = 0.5D * (y2 / (r + (x + 1.0D)) + (s + (x - 1.0D)));
+            imag = StrictMath.log1p(Am1 + StrictMath.sqrt(Am1 * (A + 1.0D)));
+        } else
+        {
+            imag = StrictMath.log(A + StrictMath.sqrt(A * A - 1.0D));
+        }
+        return new Complex(R < 0.0D ? -real : real, I < 0.0D ? -imag : imag);
+    }
+
+    private Complex acos_real(double a)
+    {
+        if(StrictMath.abs(a) <= 1.0D)
+            return new Complex(StrictMath.acos(a), 0.0D);
+        if(a < 0.0D)
+            return new Complex(3.1415926535897931D, -acosh_real(-a));
+        else
+            return new Complex(0.0D, acosh_real(a));
+    }
+
+    public Complex acos()
+    {
+        double R = real();
+        double I = imaginary();
+        if(I == 0.0D)
+            return acos_real(R);
+        double x = StrictMath.abs(R);
+        double y = StrictMath.abs(I);
+        double r = StrictMath.hypot(x + 1.0D, y);
+        double s = StrictMath.hypot(x - 1.0D, y);
+        double A = 0.5D * (r + s);
+        double B = x / A;
+        double y2 = y * y;
+        double A_crossover = 1.5D;
+        double B_crossover = 0.64170000000000005D;
+        double real;
+        if(B <= 0.64170000000000005D)
+            real = StrictMath.acos(B);
+        else
+        if(x <= 1.0D)
+        {
+            double D = 0.5D * (A + x) * (y2 / (r + x + 1.0D) + (s + (1.0D - x)));
+            real = StrictMath.atan(StrictMath.sqrt(D) / x);
+        } else
+        {
+            double Apx = A + x;
+            double D = 0.5D * (Apx / (r + x + 1.0D) + Apx / (s + (x - 1.0D)));
+            real = StrictMath.atan((y * StrictMath.sqrt(D)) / x);
+        }
+        double imag;
+        if(A <= 1.5D)
+        {
+            double Am1;
+            if(x < 1.0D)
+                Am1 = 0.5D * (y2 / (r + (x + 1.0D)) + y2 / (s + (1.0D - x)));
+            else
+                Am1 = 0.5D * (y2 / (r + (x + 1.0D)) + (s + (x - 1.0D)));
+            imag = StrictMath.log1p(Am1 + StrictMath.sqrt(Am1 * (A + 1.0D)));
+        } else
+        {
+            imag = StrictMath.log(A + StrictMath.sqrt(A * A - 1.0D));
+        }
+        return new Complex(R < 0.0D ? 3.1415926535897931D - real : real, I < 0.0D ? imag : -imag);
+    }
+
+    public Complex atan()
+    {
+        double R = real();
+        double I = imaginary();
+        if(I == 0.0D)
+            return new Complex(StrictMath.atan(R), 0.0D);
+        double r = StrictMath.hypot(R, I);
+        double u = (2D * I) / (1.0D + r * r);
+        double imag;
+        if(StrictMath.abs(u) < 0.10000000000000001D)
+        {
+            imag = 0.25D * (StrictMath.log1p(u) - StrictMath.log1p(-u));
+        } else
+        {
+            double A = StrictMath.hypot(R, I + 1.0D);
+            double B = StrictMath.hypot(R, I - 1.0D);
+            imag = 0.5D * StrictMath.log(A / B);
+        }
+        if(R == 0.0D)
+        {
+            if(I > 1.0D)
+                return new Complex(1.5707963267948966D, imag);
+            if(I < -1D)
+                return new Complex(-1.5707963267948966D, imag);
+            else
+                return new Complex(0.0D, imag);
+        } else
+        {
+            return new Complex(0.5D * StrictMath.atan2(2D * R, (1.0D + r) * (1.0D - r)), imag);
+        }
+    }
+
+    public Complex and(Complex z)
+    {
+        return new Complex(and(real(), z.real()), and(imaginary(), z.imaginary()));
+    }
+
+    private static double and(double x, double y)
+    {
+        if(Double.isNaN(x) || Double.isNaN(y) || Double.isInfinite(x) || Double.isInfinite(y))
+            throw new RuntimeException("Boolean Error");
+        if(StrictMath.abs(y) > StrictMath.abs(x))
+        {
+            double tmp = x;
+            x = y;
+            y = tmp;
+        }
+        long x_bits = Double.doubleToLongBits(x);
+        boolean x_sign = x_bits >> 63 == 0L;
+        int x_exponent = (int)(x_bits >> 52 & 2047L);
+        long x_significand = x_exponent != 0 ? x_bits & 0xfffffffffffffL | 0x10000000000000L : (x_bits & 0xfffffffffffffL) << 1;
+        long y_bits = Double.doubleToLongBits(y);
+        boolean y_sign = y_bits >> 63 == 0L;
+        int y_exponent = (int)(y_bits >> 52 & 2047L);
+        long y_significand = y_exponent != 0 ? y_bits & 0xfffffffffffffL | 0x10000000000000L : (y_bits & 0xfffffffffffffL) << 1;
+        y_significand >>= x_exponent - y_exponent;
+        x_significand &= y_significand;
+        if(x_exponent == 0)
+        {
+            x_significand >>= 1;
+        } else
+        {
+            if(x_significand == 0L)
+                return 0.0D;
+            do
+            {
+                if((x_significand & 0x10000000000000L) != 0L)
+                    break;
+                x_significand <<= 1;
+                if(--x_exponent != 0)
+                    continue;
+                x_significand >>= 1;
+                break;
+            } while(true);
+            x_significand &= 0xfffffffffffffL;
+        }
+        x_bits = (long)x_exponent << 52;
+        x_bits |= x_significand;
+        double result = Double.longBitsToDouble(x_bits);
+        if((!x_sign) & (!y_sign))
+            result = -result;
+        return result;
+    }
+
+    public Complex or(Complex z)
+    {
+        return new Complex(or(real(), z.real()), or(imaginary(), z.imaginary()));
+    }
+
+    public static double or(double x, double y)
+    {
+        if(Double.isNaN(x) || Double.isNaN(y) || Double.isInfinite(x) || Double.isInfinite(y))
+            throw new RuntimeException("Boolean Error");
+        if(StrictMath.abs(y) > StrictMath.abs(x))
+        {
+            double tmp = x;
+            x = y;
+            y = tmp;
+        }
+        long x_bits = Double.doubleToLongBits(x);
+        boolean x_sign = x_bits >> 63 == 0L;
+        int x_exponent = (int)(x_bits >> 52 & 2047L);
+        long x_significand = x_exponent != 0 ? x_bits & 0xfffffffffffffL | 0x10000000000000L : (x_bits & 0xfffffffffffffL) << 1;
+        long y_bits = Double.doubleToLongBits(y);
+        boolean y_sign = y_bits >> 63 == 0L;
+        int y_exponent = (int)(y_bits >> 52 & 2047L);
+        long y_significand = y_exponent != 0 ? y_bits & 0xfffffffffffffL | 0x10000000000000L : (y_bits & 0xfffffffffffffL) << 1;
+        y_significand >>= x_exponent - y_exponent;
+        x_significand |= y_significand;
+        if(x_exponent == 0)
+        {
+            x_significand >>= 1;
+        } else
+        {
+            if(x_significand == 0L)
+                return 0.0D;
+            do
+            {
+                if((x_significand & 0x10000000000000L) != 0L)
+                    break;
+                x_significand <<= 1;
+                if(--x_exponent != 0)
+                    continue;
+                x_significand >>= 1;
+                break;
+            } while(true);
+            x_significand &= 0xfffffffffffffL;
+        }
+        x_bits = (long)x_exponent << 52;
+        x_bits |= x_significand;
+        double result = Double.longBitsToDouble(x_bits);
+        if((!x_sign) | (!y_sign))
+            result = -result;
+        return result;
+    }
+
+    public Complex xor(Complex z)
+    {
+        return new Complex(xor(real(), z.real()), xor(imaginary(), z.imaginary()));
+    }
+
+    public double xor(double x, double y)
+    {
+        if(Double.isNaN(x) || Double.isNaN(y) || Double.isInfinite(x) || Double.isInfinite(y))
+            throw new RuntimeException("Boolean Error");
+        if(StrictMath.abs(y) > StrictMath.abs(x))
+        {
+            double tmp = x;
+            x = y;
+            y = tmp;
+        }
+        long x_bits = Double.doubleToLongBits(x);
+        boolean x_sign = x_bits >> 63 == 0L;
+        int x_exponent = (int)(x_bits >> 52 & 2047L);
+        long x_significand = x_exponent != 0 ? x_bits & 0xfffffffffffffL | 0x10000000000000L : (x_bits & 0xfffffffffffffL) << 1;
+        long y_bits = Double.doubleToLongBits(y);
+        boolean y_sign = y_bits >> 63 == 0L;
+        int y_exponent = (int)(y_bits >> 52 & 2047L);
+        long y_significand = y_exponent != 0 ? y_bits & 0xfffffffffffffL | 0x10000000000000L : (y_bits & 0xfffffffffffffL) << 1;
+        y_significand >>= x_exponent - y_exponent;
+        x_significand ^= y_significand;
+        if(x_exponent == 0)
+        {
+            x_significand >>= 1;
+        } else
+        {
+            if(x_significand == 0L)
+                return 0.0D;
+            do
+            {
+                if((x_significand & 0x10000000000000L) != 0L)
+                    break;
+                x_significand <<= 1;
+                if(--x_exponent != 0)
+                    continue;
+                x_significand >>= 1;
+                break;
+            } while(true);
+            x_significand &= 0xfffffffffffffL;
+        }
+        x_bits = (long)x_exponent << 52;
+        x_bits |= x_significand;
+        double result = Double.longBitsToDouble(x_bits);
+        if(x_sign ^ y_sign)
+            result = -result;
+        return result;
+    }
+
+    public Complex factorial()
+    {
+        double x;
+        x = real();
+        if(imaginary() != 0.0D || x < 0.0D || (double)StrictMath.round(x) - x != 0.0D)
+            throw new ArithmeticException("Factorial error");
+        if(x > 1024D)
+            return new Complex((1.0D / 0.0D));
+        return new Complex(factorial(StrictMath.round(x)), 0.0D);
+        Exception e;
+        e;
+        throw new ArithmeticException("Factorial error");
+    }
+
+    private static double factorial(long x)
+    {
+        if(x == 0L)
+            return 1.0D;
+        else
+            return (double)x * factorial(x - 1L);
+    }
+
+    public Complex combination(Complex z)
+    {
+        double x;
+        double y;
+        x = real();
+        y = z.real();
+        if(imaginary() != 0.0D || x < 0.0D || (double)StrictMath.round(x) - x != 0.0D)
+            throw new ArithmeticException("Combination error");
+        if(z.imaginary() != 0.0D || y < 0.0D || y > x || (double)StrictMath.round(y) - y != 0.0D)
+            throw new ArithmeticException("Combination error");
+        return new Complex(combination(StrictMath.round(x), StrictMath.round(y)), 0.0D);
+        Exception e;
+        e;
+        throw new ArithmeticException("Combination error");
+    }
+
+    private static double combination(long x, long y)
+    {
+        if(y == 0L)
+            return 1.0D;
+        else
+            return ((double)x / (double)y) * combination(x - 1L, y - 1L);
+    }
+
+    public Complex permutation(Complex z)
+    {
+        double x;
+        double y;
+        x = real();
+        y = z.real();
+        if(imaginary() != 0.0D || x < 0.0D || (double)StrictMath.round(x) - x != 0.0D)
+            throw new ArithmeticException("Combination error");
+        if(z.imaginary() != 0.0D || y < 0.0D || y > x || (double)StrictMath.round(y) - y != 0.0D)
+            throw new ArithmeticException("Combination error");
+        return new Complex(permutation(StrictMath.round(x), StrictMath.round(y)), 0.0D);
+        Exception e;
+        e;
+        throw new ArithmeticException("Permutation error");
+    }
+
+    private static double permutation(long x, long y)
+    {
+        if(y == 0L)
+            return 1.0D;
+        else
+            return (double)x * permutation(x - 1L, y - 1L);
+    }
+
+    public StringArray toHTMLSubString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray result = new StringArray();
+        if(Double.isNaN(real()) || Double.isNaN(imaginary()))
+        {
+            String error[] = {
+                "E", "r", "r", "o", "r"
+            };
+            result.add(error);
+            return result;
+        }
+        if(maxChars < 4)
+            throw new RuntimeException("Complex.toHTMLStringmaxChars must be at least four");
+        if(precision < 1)
+            throw new RuntimeException("Complex.toHTMLStringprecision must be positive");
+        Notation n = new Notation();
+        if(notation.standard())
+            n.setStandard();
+        else
+            n.setScientific();
+        if(notation.complex())
+            n.setComplex();
+        else
+            n.setNonComplex();
+        if(notation.rectangular())
+            n.setRectangular();
+        else
+            n.setPolar();
+        if(n.standard())
+        {
+            result = tryHTMLString(maxChars, precision, base, n).stringVector;
+            if(result != null)
+                return result;
+        }
+        n.setScientific();
+        result = tryHTMLString(maxChars, precision, base, n).stringVector;
+        if(result != null)
+        {
+            return result;
+        } else
+        {
+            result = new StringArray();
+            String overflow[] = {
+                "O", "v", "e", "r", "f", "l", "o", "w"
+            };
+            result.add(overflow);
+            return result;
+        }
+    }
+
+    public StringArray toHTMLParenString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray v = new StringArray();
+        if(Double.isNaN(real()) || Double.isNaN(imaginary()))
+        {
+            String error[] = {
+                "E", "r", "r", "o", "r"
+            };
+            v.add(error);
+            return v;
+        }
+        if(maxChars < 4)
+            throw new RuntimeException("Complex.toHTMLStringmaxChars must be at least four");
+        if(precision < 1)
+            throw new RuntimeException("Complex.toHTMLStringprecision must be positive");
+        Notation n = new Notation();
+        if(notation.standard())
+            n.setStandard();
+        else
+            n.setScientific();
+        if(notation.complex())
+            n.setComplex();
+        else
+            n.setNonComplex();
+        if(notation.rectangular())
+            n.setRectangular();
+        else
+            n.setPolar();
+        HTMLStringResult result;
+        if(n.standard())
+        {
+            result = tryHTMLString(maxChars, precision, base, n);
+            if(result.stringVector != null)
+                if(result.parentheses.booleanValue())
+                {
+                    v.add("(");
+                    v.addAll(result.stringVector);
+                    v.add(")");
+                    return v;
+                } else
+                {
+                    return result.stringVector;
+                }
+        }
+        n.setScientific();
+        result = tryHTMLString(maxChars, precision, base, n);
+        if(result.stringVector != null)
+        {
+            if(result.parentheses.booleanValue())
+            {
+                v.add("(");
+                v.addAll(result.stringVector);
+                v.add(")");
+                return v;
+            } else
+            {
+                return result.stringVector;
+            }
+        } else
+        {
+            String overflow[] = {
+                "O", "v", "e", "r", "f", "l", "o", "w"
+            };
+            v.add(overflow);
+            return v;
+        }
+    }
+
+    private HTMLStringResult tryHTMLString(int maxChars, int precision, Base base, Notation notation)
+    {
+        HTMLStringResult result = new HTMLStringResult();
+        Notation xn = new Notation();
+        Notation yn = new Notation();
+        DoubleFormat x;
+        DoubleFormat y;
+        if(notation.rectangular())
+        {
+            x = new DoubleFormat(real(), base);
+            y = new DoubleFormat(imaginary(), base);
+            if(notation.scientific())
+            {
+                xn.setScientific();
+                yn.setScientific();
+            }
+        } else
+        {
+            x = new DoubleFormat(abs(), base);
+            y = new DoubleFormat(arg(), base);
+            if(notation.scientific())
+                xn.setScientific();
+        }
+        x.setNotation(xn);
+        y.setNotation(yn);
+        int a = precision;
+        for(int b = precision; b > 0;)
+        {
+            DoubleFormat.HTMLStringRepresentation xr = x.NullRepresentation;
+            DoubleFormat.HTMLStringRepresentation yr = y.NullRepresentation;
+            if(notation.complex() || y.getAbsNumber() > 1E-010D)
+            {
+                y.setPrecision(b);
+                yr = y.representation();
+            }
+            if(yr == y.NullRepresentation || notation.complex() || x.getAbsNumber() != (double)(notation.rectangular() ? 0 : 1) || notation.polar() && notation.scientific())
+            {
+                x.setPrecision(a);
+                xr = x.representation();
+            }
+            int length = xr.length + yr.length;
+            if(notation.rectangular())
+            {
+                if(xr != x.NullRepresentation && yr != y.NullRepresentation && imaginary() >= 0.0D)
+                    length++;
+                if(yr != y.NullRepresentation)
+                    length++;
+                if(yr.isOne() || yr.isMinusOne())
+                    length--;
+            } else
+            {
+                if(yr != y.NullRepresentation)
+                {
+                    length++;
+                    length++;
+                }
+                if(yr.isOne() || yr.isMinusOne())
+                    length--;
+            }
+            if(length <= maxChars)
+            {
+                StringArray stringBuffer = new StringArray();
+                stringBuffer.addAll(xr.string);
+                if(notation.rectangular())
+                {
+                    if(xr != x.NullRepresentation && yr != y.NullRepresentation)
+                    {
+                        result.parentheses = Boolean.valueOf(true);
+                        if(imaginary() >= 0.0D)
+                            stringBuffer.add(DoubleFormat.plus);
+                    }
+                } else
+                if(yr != y.NullRepresentation)
+                {
+                    stringBuffer.add(DoubleFormat.argumentPrefix);
+                    ((Vector)stringBuffer.lastElement()).setElementAt(((String)((Vector)stringBuffer.lastElement()).lastElement()).concat("<sup>"), ((Vector)stringBuffer.lastElement()).size() - 1);
+                }
+                if(!yr.string.equals("1"))
+                    if(yr.isMinusOne())
+                        stringBuffer.add(DoubleFormat.minus);
+                    else
+                        stringBuffer.addAll(yr.string);
+                if(notation.rectangular())
+                {
+                    if(yr != y.NullRepresentation)
+                        stringBuffer.add(DoubleFormat.imPrefix);
+                } else
+                if(yr != y.NullRepresentation)
+                {
+                    stringBuffer.add(DoubleFormat.imPrefix);
+                    ((Vector)stringBuffer.lastElement()).setElementAt(((String)((Vector)stringBuffer.lastElement()).lastElement()).concat("</sup>"), ((Vector)stringBuffer.lastElement()).size() - 1);
+                }
+                result.stringVector = new StringArray();
+                result.stringVector.addAll(stringBuffer);
+                return result;
+            }
+            if(a == b)
+                b--;
+            else
+                a--;
+        }
+
+        return result;
+    }
+
+    private static int min(int x, int y)
+    {
+        return x <= y ? x : y;
+    }
+
+    public int compareTo(Complex complex)
+    {
+        double a = abs();
+        double b = complex.abs();
+        if(a < b)
+            return -1;
+        if(a > b)
+            return 1;
+        a = arg();
+        b = complex.arg();
+        if(a > b)
+            return -1;
+        return a >= b ? 0 : 1;
+    }
+
+    public volatile OObject conjugate()
+    {
+        return conjugate();
+    }
+
+    public volatile OObject tenx()
+    {
+        return tenx();
+    }
+
+    public volatile OObject cuberoot()
+    {
+        return cuberoot();
+    }
+
+    public volatile OObject sqrt()
+    {
+        return sqrt();
+    }
+
+    public volatile OObject log()
+    {
+        return log();
+    }
+
+    public volatile OObject log10()
+    {
+        return log10();
+    }
+
+    public volatile OObject exp()
+    {
+        return exp();
+    }
+
+    public volatile OObject negate()
+    {
+        return negate();
+    }
+
+    public volatile OObject factorial()
+    {
+        return factorial();
+    }
+
+    public volatile OObject cube()
+    {
+        return cube();
+    }
+
+    public volatile OObject square()
+    {
+        return square();
+    }
+
+    public volatile OObject inverse()
+    {
+        return inverse();
+    }
+
+    private final double real_part;
+    private final double imaginary_part;
+    private static final Complex THIRD = new Complex(0.33333333333333331D);
+    private static final Complex LOG10 = new Complex(StrictMath.log(10D));
+    public static final Complex I = new Complex(0.0D, 1.0D);
+    public static final double smallImaginary = 1E-010D;
+
+}

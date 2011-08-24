@@ -1,0 +1,54 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DateTableCellRenderer.java
+
+package com.dukascopy.dds2.greed.gui.table.renderers;
+
+import java.awt.Component;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
+import javax.swing.JLabel;
+import javax.swing.JTable;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.table.renderers:
+//            AbstractTableCellRenderer
+
+public class DateTableCellRenderer extends AbstractTableCellRenderer
+{
+
+    public DateTableCellRenderer(SimpleDateFormat format)
+    {
+        this.format = format;
+        this.format.setTimeZone(TIME_ZONE);
+    }
+
+    public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column)
+    {
+        JLabel label = (JLabel)super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+        Date date = (Date)value;
+        if(date != null)
+            label.setText(format.format(date));
+        return label;
+    }
+
+    private static final TimeZone TIME_ZONE = TimeZone.getTimeZone("GMT0");
+    public static final SimpleDateFormat SHORT_FORMAT = new SimpleDateFormat("HH:mm:ss") {
+
+            
+            {
+                setTimeZone(DateTableCellRenderer.TIME_ZONE);
+            }
+    };
+    public static final SimpleDateFormat LONG_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss") {
+
+            
+            {
+                setTimeZone(DateTableCellRenderer.TIME_ZONE);
+            }
+    };
+    private final SimpleDateFormat format;
+
+
+}

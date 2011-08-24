@@ -1,0 +1,219 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PriceAmountTextFieldM.java
+
+package com.dukascopy.dds2.greed.gui.component;
+
+import com.dukascopy.dds2.greed.gui.l10n.components.JLocalizableLabel;
+import com.dukascopy.dds2.greed.util.PlatformSpecific;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.component:
+//            PriceAmountTextField
+
+public class PriceAmountTextFieldM extends JPanel
+    implements PlatformSpecific
+{
+
+    public PriceAmountTextFieldM()
+    {
+        label = new JLocalizableLabel();
+        setName("ID_JP_PRICEPANEL");
+    }
+
+    public PriceAmountTextFieldM(int length)
+    {
+        this();
+        setOpaque(false);
+        build(length, 0);
+    }
+
+    public PriceAmountTextFieldM(int length, int precision)
+    {
+        this();
+        build(length, precision);
+    }
+
+    private void build(int length, int precision)
+    {
+        textField = new PriceAmountTextField(length, precision);
+        if(MACOSX)
+        {
+            textField.putClientProperty("JComponent.sizeVariant", "small");
+            label.putClientProperty("JComponent.sizeVariant", "small");
+        }
+        setLayout(new BoxLayout(this, 1));
+        add(textField);
+        add(label);
+        label.setVisible(false);
+        label.setForeground(Color.RED);
+        label.addMouseListener(new MouseAdapter() {
+
+            public void mouseClicked(MouseEvent e)
+            {
+                hideMessage();
+            }
+
+            public void mousePressed(MouseEvent e)
+            {
+                hideMessage();
+            }
+
+            public void mouseEntered(MouseEvent e)
+            {
+                setCursor(Cursor.getPredefinedCursor(12));
+            }
+
+            public void mouseExited(MouseEvent e)
+            {
+                setCursor(Cursor.getDefaultCursor());
+            }
+
+            final PriceAmountTextFieldM this$0;
+
+            
+            {
+                this$0 = PriceAmountTextFieldM.this;
+                super();
+            }
+        });
+        timer = new Timer(5000, new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                hideMessage();
+            }
+
+            final PriceAmountTextFieldM this$0;
+
+            
+            {
+                this$0 = PriceAmountTextFieldM.this;
+                super();
+            }
+        });
+        timer.setRepeats(false);
+    }
+
+    public void showMessage(String message)
+    {
+        label.setText(message);
+        if(timer.isRunning())
+        {
+            timer.restart();
+        } else
+        {
+            java.awt.Dimension dim = textField.getSize();
+            textField.setVisible(false);
+            label.setPreferredSize(dim);
+            label.setVisible(true);
+            timer.start();
+        }
+    }
+
+    private void hideMessage()
+    {
+        if(timer.isRunning())
+            timer.stop();
+        label.setVisible(false);
+        textField.setVisible(true);
+    }
+
+    public void setEnabled(boolean enabled)
+    {
+        textField.setEnabled(enabled);
+    }
+
+    public void setMargin(Insets m)
+    {
+        textField.setMargin(m);
+    }
+
+    public Insets getMargin()
+    {
+        return textField.getMargin();
+    }
+
+    public void setColumns(int columns)
+    {
+        textField.setColumns(columns);
+    }
+
+    public void setValue(Object value)
+    {
+        textField.setValue(value);
+    }
+
+    public void setFormatterFactory(javax.swing.JFormattedTextField.AbstractFormatterFactory afFactory)
+    {
+        textField.setFormatterFactory(afFactory);
+    }
+
+    public void setInputVerifier(InputVerifier inputVerifier)
+    {
+        textField.setInputVerifier(inputVerifier);
+    }
+
+    public void setFocusLostBehavior(int behav)
+    {
+        textField.setFocusLostBehavior(behav);
+    }
+
+    public void setText(String text)
+    {
+        textField.setText(text);
+    }
+
+    public String getText()
+    {
+        return textField.getText();
+    }
+
+    public void setHorizontalAlignment(int alignment)
+    {
+        textField.setHorizontalAlignment(alignment);
+    }
+
+    public void setCaretPosition(int caretPosition)
+    {
+        textField.setCaretPosition(caretPosition);
+    }
+
+    public int getCaretPosition()
+    {
+        return textField.getCaretPosition();
+    }
+
+    public void clear()
+    {
+        textField.clear();
+    }
+
+    public void onAccountInfo(AccountInfoMessage accountInfo)
+    {
+        if(accountInfo.isMiniFx())
+            textField.setPrecision(6);
+        else
+            textField.setPrecision(2);
+    }
+
+    public void setTextField(PriceAmountTextField textField)
+    {
+        this.textField = textField;
+    }
+
+    public PriceAmountTextField getTextField()
+    {
+        return textField;
+    }
+
+    public static final String ID_JP_PRICEPANEL = "ID_JP_PRICEPANEL";
+    private PriceAmountTextField textField;
+    private JLocalizableLabel label;
+    private Timer timer;
+
+}

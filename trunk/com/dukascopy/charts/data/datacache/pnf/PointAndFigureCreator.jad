@@ -1,0 +1,314 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PointAndFigureCreator.java
+
+package com.dukascopy.charts.data.datacache.pnf;
+
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationCreator;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.pnf:
+//            PointAndFigureData, IPointAndFigureLiveFeedListener
+
+public class PointAndFigureCreator extends AbstractPriceAggregationCreator
+{
+
+    public PointAndFigureCreator(double boxSize, double reversalAmount, int desiredBoxCount, boolean directOrder, OfferSide offerSide, 
+            boolean liveCreation, IPointAndFigureLiveFeedListener pointAndFigureLiveFeedListener)
+    {
+        super(pointAndFigureLiveFeedListener, desiredBoxCount);
+        this.boxSize = boxSize;
+        reversalDistance = boxSize * reversalAmount;
+        this.directOrder = directOrder;
+        this.liveCreation = liveCreation;
+        this.offerSide = offerSide;
+        reset();
+    }
+
+    public boolean analyse(TickData data)
+    {
+        if(currentBoxColumn == null)
+        {
+            if(isAllDesiredDataLoaded())
+                return true;
+            currentBoxColumn = startNewBoxColumn(data, previousBoxColumn);
+            addNewElement(currentBoxColumn);
+        } else
+        if(canContinueCurrentDataConstruction(currentBoxColumn, data))
+        {
+            currentBoxColumn = continueCurrentBoxColumn(data, currentBoxColumn, previousBoxColumn);
+        } else
+        {
+            previousBoxColumn = finishCurrentBoxColumn(data, currentBoxColumn, previousBoxColumn);
+            fireCurrentBoxCreationFinished(previousBoxColumn);
+            if(isAllDesiredDataLoaded())
+                return true;
+            currentBoxColumn = startNewBoxColumn(data, previousBoxColumn);
+            addNewElement(currentBoxColumn);
+        }
+        return false;
+    }
+
+    protected double roundToNearestHighLevel(double high)
+    {
+        double boxCount = round(high / getBoxSize());
+        if(boxCount == (double)(int)boxCount)
+        {
+            return high;
+        } else
+        {
+            int boxCountInt = 1 + (int)boxCount;
+            double result = round((double)boxCountInt * getBoxSize());
+            return result;
+        }
+    }
+
+    protected double roundToNearestLowLevel(double low)
+    {
+        double boxCount = round(low / getBoxSize());
+        int boxCountInt = (int)boxCount;
+        return round((double)boxCountInt * getBoxSize());
+    }
+
+    private void fireCurrentBoxCreationFinished(PointAndFigureData data)
+    {
+        if(isLiveCreation())
+            super.fireNewBarCreated(data);
+    }
+
+    public void reset()
+    {
+        resetResultArray();
+        lastElementIndex = -1;
+    }
+
+    protected void resetResultArray()
+    {
+        result = new PointAndFigureData[getDesiredDatasCount()];
+    }
+
+    protected void addNewElement(PointAndFigureData element)
+    {
+        lastElementIndex++;
+        ((PointAndFigureData[])result)[getLastElementIndex()] = element;
+    }
+
+    public boolean isAllDesiredDataLoaded()
+    {
+        return getLastElementIndex() + 1 >= getDesiredDatasCount();
+    }
+
+    public boolean isDirectOrder()
+    {
+        return directOrder;
+    }
+
+    public double getReversalDistance()
+    {
+        return reversalDistance;
+    }
+
+    private boolean isFlat(PointAndFigureData data)
+    {
+        return data.getHigh() == data.getLow();
+    }
+
+    protected boolean canContinueCurrentBoxColumn(PointAndFigureData currentBoxColumn, double price, long nextDataTime)
+    {
+        boolean isTheSameTradingSession = DataCacheUtils.isTheSameTradingSession(currentBoxColumn.getTime(), nextDataTime);
+        if(!isTheSameTradingSession)
+            return false;
+        if(Boolean.TRUE.equals(currentBoxColumn.isRising()))
+        {
+            double diff = round(currentBoxColumn.getHigh() - getReversalDistance());
+            if(diff > price && !isFlat(currentBoxColumn))
+                return false;
+        } else
+        if(Boolean.FALSE.equals(currentBoxColumn.isRising()))
+        {
+            double diff = round(currentBoxColumn.getLow() + getReversalDistance());
+            if(diff < price && !isFlat(currentBoxColumn))
+                return false;
+        }
+        return true;
+    }
+
+    protected PointAndFigureData continueCurrentBoxColumn(TickData tickData, PointAndFigureData currentBoxColumn, PointAndFigureData previousBoxColumn)
+    {
+        long time = tickData.getTime();
+        double price = getPrice(tickData);
+        double volume = getVolume(tickData);
+        currentBoxColumn.setVolume(round(currentBoxColumn.getVolume() + volume));
+        if(currentBoxColumn.getHigh() < roundToNearestHighLevel(price))
+            currentBoxColumn.setHigh(roundToNearestHighLevel(price));
+        else
+        if(currentBoxColumn.getLow() > roundToNearestLowLevel(price))
+            currentBoxColumn.setLow(roundToNearestLowLevel(price));
+        currentBoxColumn.setFormedElementsCount(currentBoxColumn.getFormedElementsCount() + 1L);
+        if(isDirectOrder())
+        {
+            currentBoxColumn.setEndTime(time);
+            currentBoxColumn.setClose(price);
+        } else
+        {
+            currentBoxColumn.setTime(time);
+            currentBoxColumn.setOpen(price);
+        }
+        if(currentBoxColumn.isRising() == null)
+            currentBoxColumn = setupRising(currentBoxColumn, previousBoxColumn);
+        return currentBoxColumn;
+    }
+
+    private PointAndFigureData setupRising(PointAndFigureData currentBoxColumn, PointAndFigureData previousBoxColumn)
+    {
+        if(previousBoxColumn == null)
+        {
+            if(currentBoxColumn.getOpen() > currentBoxColumn.getClose())
+                currentBoxColumn.setRising(new Boolean(false));
+            else
+            if(currentBoxColumn.getOpen() <= currentBoxColumn.getClose())
+                currentBoxColumn.setRising(new Boolean(true));
+        } else
+        {
+            currentBoxColumn.setRising(new Boolean(!previousBoxColumn.isRising().booleanValue()));
+        }
+        return currentBoxColumn;
+    }
+
+    public boolean isLiveCreation()
+    {
+        return liveCreation;
+    }
+
+    public void setupLastData(PointAndFigureData data)
+    {
+        ((PointAndFigureData[])getResult())[getLastElementIndex()] = data;
+    }
+
+    protected double getBoxSize()
+    {
+        return boxSize;
+    }
+
+    protected PointAndFigureData finishCurrentBoxColumn(TickData data, PointAndFigureData currentBoxColumn, PointAndFigureData previousBoxColumn)
+    {
+        return currentBoxColumn;
+    }
+
+    protected PointAndFigureData startNewBoxColumn(TickData data, PointAndFigureData previousBoxColumn)
+    {
+        double price = round(getPrice(data));
+        double open = 0.0D;
+        double high = 0.0D;
+        double low = 0.0D;
+        double close = 0.0D;
+        open = high = low = close = price;
+        if(previousBoxColumn != null)
+        {
+            double previousePrice = 0.0D;
+            if(Boolean.TRUE.equals(previousBoxColumn.isRising()))
+            {
+                previousePrice = previousBoxColumn.high - getBoxSize();
+                high = round(Math.max(price, previousePrice));
+                low = roundToNearestLowLevel(low);
+            } else
+            {
+                previousePrice = previousBoxColumn.low + getBoxSize();
+                low = round(Math.min(price, previousePrice));
+                high = roundToNearestHighLevel(high);
+            }
+        }
+        double volume = getVolume(data);
+        long time = data.getTime();
+        PointAndFigureData boxColumn = new PointAndFigureData();
+        boxColumn.setFormedElementsCount(1L);
+        boxColumn.setHigh(high);
+        boxColumn.setLow(low);
+        boxColumn.setOpen(open);
+        boxColumn.setClose(close);
+        boxColumn.setTime(time);
+        boxColumn.setEndTime(time);
+        boxColumn.setVolume(round(volume));
+        boxColumn = setupRising(boxColumn, previousBoxColumn);
+        return boxColumn;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    private double getPrice(TickData data)
+    {
+        if(OfferSide.ASK.equals(getOfferSide()))
+            return data.getAsk();
+        else
+            return data.getBid();
+    }
+
+    private double getVolume(TickData data)
+    {
+        if(OfferSide.ASK.equals(getOfferSide()))
+            return data.getAskVolume();
+        else
+            return data.getBidVolume();
+    }
+
+    public boolean canContinueCurrentDataConstruction(PointAndFigureData currentData, TickData sourceData)
+    {
+        double price = getPrice(sourceData);
+        long nextDataTime = sourceData.getTime();
+        boolean isTheSameTradingSession = DataCacheUtils.isTheSameTradingSession(currentData.getTime(), nextDataTime);
+        if(!isTheSameTradingSession)
+            return false;
+        if(Boolean.TRUE.equals(currentData.isRising()))
+        {
+            double diff = round(currentData.getHigh() - getReversalDistance());
+            if(diff > price && !isFlat(currentData))
+                return false;
+        } else
+        if(Boolean.FALSE.equals(currentData.isRising()))
+        {
+            double diff = round(currentData.getLow() + getReversalDistance());
+            if(diff < price && !isFlat(currentData))
+                return false;
+        }
+        return true;
+    }
+
+    public PointAndFigureData getLastCompletedData()
+    {
+        return (PointAndFigureData)getLastData();
+    }
+
+    public volatile boolean canContinueCurrentDataConstruction(AbstractPriceAggregationData x0, Data x1)
+    {
+        return canContinueCurrentDataConstruction((PointAndFigureData)x0, (TickData)x1);
+    }
+
+    public volatile void setupLastData(AbstractPriceAggregationData x0)
+    {
+        setupLastData((PointAndFigureData)x0);
+    }
+
+    public volatile AbstractPriceAggregationData getLastCompletedData()
+    {
+        return getLastCompletedData();
+    }
+
+    public volatile boolean analyse(Data x0)
+    {
+        return analyse((TickData)x0);
+    }
+
+    private final boolean directOrder;
+    private final double reversalDistance;
+    private final boolean liveCreation;
+    private final double boxSize;
+    private final OfferSide offerSide;
+    protected PointAndFigureData currentBoxColumn;
+    private PointAndFigureData previousBoxColumn;
+}

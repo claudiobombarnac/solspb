@@ -1,0 +1,633 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyReport.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.util.AbstractCurrencyConverter;
+import java.io.*;
+import java.math.BigDecimal;
+import java.text.*;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            TesterOrder, ITesterReport, InstrumentReportData, TesterReportData
+
+public class StrategyReport
+{
+    private static class CurrencyConverter extends AbstractCurrencyConverter
+    {
+
+        protected double getLastMarketPrice(Instrument instrument, OfferSide side)
+        {
+            InstrumentReportData report = testerReportData.getInstrumentReportData(instrument);
+            if(side == OfferSide.ASK)
+                return report.lastTick.getAsk();
+            else
+                return report.lastTick.getBid();
+        }
+
+        private ITesterReport testerReportData;
+
+        private CurrencyConverter(ITesterReport testerReportData)
+        {
+            this.testerReportData = testerReportData;
+        }
+
+    }
+
+    private static class PerfStatsData
+        implements Comparable
+    {
+
+        public int compareTo(PerfStatsData p)
+        {
+            if(time < p.time)
+                return 1;
+            return time <= p.time ? 0 : -1;
+        }
+
+        public volatile int compareTo(Object x0)
+        {
+            return compareTo((PerfStatsData)x0);
+        }
+
+        public ITesterReport.PerfStats perfStat;
+        public long time;
+        public double percent;
+        public int count;
+
+        private PerfStatsData()
+        {
+        }
+
+    }
+
+
+    public StrategyReport()
+    {
+    }
+
+    public static void createReport(File tempFile, ITesterReport testerReportData, Currency accountCurrency, boolean addEventLog)
+        throws IOException
+    {
+        Writer out = new BufferedWriter(new FileWriter(tempFile));
+        CurrencyConverter currencyConverter = new CurrencyConverter(testerReportData);
+        DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        DecimalFormat decFormat = new DecimalFormat("0.##");
+        BigDecimal openPositionsProfitLoss = BigDecimal.ZERO;
+        StringBuilder content = new StringBuilder();
+        Instrument arr$[] = Instrument.values();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Instrument instrument = arr$[i$];
+            InstrumentReportData instrumentReportData = testerReportData.getInstrumentReportData(instrument);
+            if(instrumentReportData == null)
+                continue;
+            content.append("<BR>");
+            content.append("<h2>Instrument ").append(instrument).append("</h2><BR>");
+            content.append("<table class=\"simple\" width=\"400px\">");
+            content.append("\n<tr><th>First tick time</th><td>").append(format.format(new Date(instrumentReportData.firstTick.getTime()))).append("</td></tr>");
+            content.append("\n<tr><th>First tick bid value</th><td>").append(instrumentReportData.firstTick.getBid()).append("</td></tr>");
+            content.append("\n<tr><th>First tick ask value</th><td>").append(instrumentReportData.firstTick.getAsk()).append("</td></tr>");
+            content.append("\n<tr><th>Last tick time</th><td>").append(format.format(new Date(instrumentReportData.lastTick.getTime()))).append("</td></tr>");
+            content.append("\n<tr><th>Last tick bid value</th><td>").append(instrumentReportData.lastTick.getBid()).append("</td></tr>");
+            content.append("\n<tr><th>Last tick ask value</th><td>").append(instrumentReportData.lastTick.getAsk()).append("</td></tr>");
+            content.append("\n<tr><th>Positions total</th><td>").append(instrumentReportData.positionsTotal).append("</td></tr>");
+            content.append("\n<tr><th>Closed positions</th><td>").append(instrumentReportData.closedOrders.size()).append("</td></tr>");
+            content.append("\n<tr><th>Orders total</th><td>").append(instrumentReportData.ordersTotal).append("</td></tr>");
+            BigDecimal bought = BigDecimal.ZERO;
+            BigDecimal sold = BigDecimal.ZERO;
+            Iterator i$;
+            for(i$ = instrumentReportData.closedOrders.iterator(); i$.hasNext();)
+            {
+                IOrder order = (IOrder)i$.next();
+                bought = bought.add(BigDecimal.valueOf(((TesterOrder)order).getInitiallyFilledAmount()));
+                sold = sold.add(BigDecimal.valueOf(((TesterOrder)order).getInitiallyFilledAmount()));
+            }
+
+            i$ = instrumentReportData.openedOrders.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                IOrder order = (IOrder)i$.next();
+                if(order.getState() == com.dukascopy.api.IOrder.State.FILLED)
+                    if(order.isLong())
+                        bought = bought.add(BigDecimal.valueOf(order.getAmount()));
+                    else
+                        sold = sold.add(BigDecimal.valueOf(order.getAmount()));
+            } while(true);
+            content.append("\n<tr><th>Bought</th><td>").append(bought.setScale(2, 6)).append("</td></tr>");
+            content.append("\n<tr><th>Sold</th><td>").append(sold.setScale(2, 6)).append("</td></tr>");
+            content.append("\n<tr><th>Turnover in USD</th><td>").append(decFormat.format(instrumentReportData.turnover));
+            content.append("</td></tr>");
+            content.append("\n<tr><th>Comission in USD</th><td>").append(instrumentReportData.commission);
+            content.append("</td></tr>");
+            content.append("\n</table>");
+            content.append("<BR>");
+            content.append("<h3>Opened orders:</h3><br>");
+            content.append("\n<TABLE class=\"simple\">");
+            content.append("\n<TR>\n\t<th>Label</th>\n\t<th>Amount</th><th>Direction</th>\n\t<th>Open price</th>\n\t<th>Profit/Loss at the end</th>\n\t<th>Profit/Loss at the end in pips</th>\n\t<th>Open date</th>\n\t<th>Comment</th>\n</TR>");
+            i$ = instrumentReportData.openedOrders.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                IOrder order = (IOrder)i$.next();
+                if(order.getState() == com.dukascopy.api.IOrder.State.FILLED)
+                {
+                    BigDecimal profLossInPips;
+                    BigDecimal profLossInSecondaryCCY;
+                    if(order.getOrderCommand().isLong())
+                    {
+                        profLossInSecondaryCCY = BigDecimal.valueOf(instrumentReportData.lastTick.getBid()).subtract(BigDecimal.valueOf(order.getOpenPrice())).multiply(BigDecimal.valueOf(((TesterOrder)order).getAmountInUnits())).setScale(2, 6);
+                        profLossInPips = BigDecimal.valueOf(instrumentReportData.lastTick.getBid()).subtract(BigDecimal.valueOf(order.getOpenPrice())).divide(BigDecimal.valueOf(order.getInstrument().getPipValue()), 1, 6);
+                    } else
+                    {
+                        profLossInSecondaryCCY = BigDecimal.valueOf(order.getOpenPrice()).subtract(BigDecimal.valueOf(instrumentReportData.lastTick.getAsk())).multiply(BigDecimal.valueOf(((TesterOrder)order).getAmountInUnits())).setScale(2, 6);
+                        profLossInPips = BigDecimal.valueOf(order.getOpenPrice()).subtract(BigDecimal.valueOf(instrumentReportData.lastTick.getAsk())).divide(BigDecimal.valueOf(order.getInstrument().getPipValue()), 1, 6);
+                    }
+                    OfferSide side = order.getOrderCommand().isLong() ? OfferSide.ASK : OfferSide.BID;
+                    BigDecimal convertedProfLoss = currencyConverter.convert(profLossInSecondaryCCY, instrument.getSecondaryCurrency(), accountCurrency, side).setScale(2, 6);
+                    openPositionsProfitLoss = openPositionsProfitLoss.add(convertedProfLoss);
+                    TesterOrder testerOrder = (TesterOrder)order;
+                    if(testerOrder.getClosePriceTotal() != 0.0D)
+                    {
+                        convertedProfLoss = convertedProfLoss.add(BigDecimal.valueOf(testerOrder.getProfitLossInAccountCCY()));
+                        double closedAmount = testerOrder.getClosedAmount();
+                        if(testerOrder.isLong())
+                            profLossInPips = profLossInPips.multiply(BigDecimal.valueOf(testerOrder.getAmount())).add(BigDecimal.valueOf(testerOrder.getProfitLossInPips()).multiply(BigDecimal.valueOf(closedAmount))).divide(BigDecimal.valueOf(testerOrder.getAmountInUnits() + closedAmount), 2, 6);
+                        else
+                            profLossInPips = profLossInPips.multiply(BigDecimal.valueOf(testerOrder.getAmount())).add(BigDecimal.valueOf(testerOrder.getProfitLossInPips()).multiply(BigDecimal.valueOf(closedAmount))).divide(BigDecimal.valueOf(testerOrder.getAmountInUnits() + closedAmount), 2, 6);
+                    }
+                    content.append("\n<TR>\n\t<TD>").append(order.getLabel()).append("</TD>\n\t<TD>").append(order.getAmount()).append("</TD>\n\t<TD>").append(order.getOrderCommand().isLong() ? "BUY" : "SELL").append("</TD>\n\t<TD>").append(order.getOpenPrice()).append("</TD>\n\t<TD>").append(convertedProfLoss.toPlainString()).append("</TD>\n\t<TD>").append(profLossInPips.toPlainString()).append("</TD>\n\t<TD>").append(format.format(new Date(order.getFillTime()))).append("</TD>\n\t<TD>").append(order.getComment() != null ? order.getComment() : "").append("</TD>\n</TR>");
+                }
+            } while(true);
+            content.append("</TABLE><BR>");
+            content.append("<h3>Closed orders:</h3><BR>");
+            content.append("<TABLE class=\"simple\">");
+            content.append("\n<TR>\n\t<th>Label</th>\n\t<th>Amount</th>\n\t<th>Direction</th>\n\t<th>Open price</th>\n\t<th>Close price</th>\n\t<th>Profit/Loss</th>\n\t<th>Profit/Loss in pips</th>\n\t<th>Open date</th>\n\t<th>Close date</th>\n\t<th>Comment</th>\n</TR>");
+            i$ = instrumentReportData.closedOrders.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                IOrder order = (IOrder)i$.next();
+                if(order.getState() == com.dukascopy.api.IOrder.State.CLOSED)
+                {
+                    BigDecimal convertedProfLoss = BigDecimal.valueOf(((TesterOrder)order).getProfitLossInAccountCCY());
+                    content.append("<TR>\n\t<TD>").append(order.getLabel()).append("</TD>\n\t<TD>").append(((TesterOrder)order).getInitiallyFilledAmount()).append("</TD>\n\t<TD>").append(order.getOrderCommand().isLong() ? "BUY" : "SELL").append("</TD>\n\t<TD>").append(order.getOpenPrice()).append("</TD>\n\t<TD>").append(((TesterOrder)order).getClosePriceTotal() != 0.0D ? (new StringBuilder()).append(((TesterOrder)order).getClosePriceTotal()).append(((TesterOrder)order).wasMerged() ? " + MERGED" : "").toString() : ((TesterOrder)order).wasMerged() ? "MERGED" : "ERROR").append("</TD>\n\t<TD>").append(convertedProfLoss.toPlainString()).append("</TD>\n\t<TD>").append(((TesterOrder)order).getProfitLossInPips()).append("</TD>\n\t<TD>").append(format.format(new Date(order.getFillTime()))).append("</TD>\n\t<TD>").append(((TesterOrder)order).getClosePriceTotal() != 0.0D ? (new StringBuilder()).append(format.format(new Date(order.getCloseTime()))).append(((TesterOrder)order).wasMerged() ? " + MERGED" : "").toString() : ((TesterOrder)order).wasMerged() ? "MERGED" : "ERROR").append("</TD>\n\t<TD>").append(order.getComment() != null ? order.getComment() : "").append("</TD>\n</TR>");
+                }
+            } while(true);
+            content.append("</TABLE>\n<BR>\n");
+        }
+
+        long perfStats[] = testerReportData.getPerfStats();
+        if(perfStats != null)
+        {
+            content.append("<h2>Processing statistic:</h2>").append("<BR>");
+            content.append("\n<TABLE class=\"simple\">\n");
+            content.append("<TR>\n\t<th>Function</th>\n\t<th>Time</th>\n\t<th>Calls</th>\n\t<th>Percent</th>\n</TR>");
+            PerfStatsData perfStatsData[] = new PerfStatsData[ITesterReport.PerfStats.values().length];
+            long totalTime = 0L;
+            long arr$[] = perfStats;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                long time = arr$[i$];
+                totalTime += time;
+            }
+
+            for(int i = 0; i < perfStats.length; i++)
+            {
+                perfStatsData[i] = new PerfStatsData();
+                perfStatsData[i].perfStat = ITesterReport.PerfStats.values()[i];
+                perfStatsData[i].count = testerReportData.getPerfStatCounts()[i];
+                if(perfStats[i] == 0L)
+                {
+                    perfStatsData[i].time = 0L;
+                    perfStatsData[i].percent = 0.0D;
+                } else
+                {
+                    perfStatsData[i].time = perfStats[i];
+                    perfStatsData[i].percent = ((double)perfStats[i] / (double)totalTime) * 100D;
+                }
+            }
+
+            Arrays.sort(perfStatsData);
+            i = perfStatsData;
+            len$ = i.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                PerfStatsData perfStat = i[i$];
+                content.append("<TR>\n\t<TD>").append(perfStat.perfStat);
+                long nanos = perfStat.time;
+                long days = nanos / 0x4e94914f0000L;
+                nanos -= days * 24L * 60L * 60L * 1000L * 0xf4240L;
+                long hours = nanos / 0x34630b8a000L;
+                nanos -= hours * 60L * 60L * 1000L * 0xf4240L;
+                long mins = nanos / 0xdf8475800L;
+                nanos -= mins * 60L * 1000L * 0xf4240L;
+                long secs = nanos / 0x3b9aca00L;
+                nanos -= secs * 1000L * 0xf4240L;
+                long millis = nanos / 0xf4240L;
+                nanos -= millis * 0xf4240L;
+                long millisParts = nanos / 10000L;
+                nanos -= millisParts * 10000L;
+                content.append("</TD>\n\t<TD>");
+                if(days > 0L)
+                    content.append(days).append("d ");
+                if(hours > 0L)
+                    content.append(hours).append("h ");
+                if(mins > 0L)
+                    content.append(mins).append("m ");
+                if(secs > 0L)
+                    content.append(secs).append("s ");
+                if(millis > 0L)
+                {
+                    content.append(millis);
+                    if(millisParts > 0L)
+                    {
+                        content.append(".");
+                        if(millisParts < 10L)
+                            content.append("0");
+                        content.append(millisParts);
+                    }
+                    content.append("ms");
+                }
+                content.append("</TD>\n\t<TD>").append(perfStat.count).append("</TD>\n\t<TD>").append(decFormat.format(perfStat.percent)).append("%");
+                content.append("</TD>\n</TR>");
+            }
+
+            content.append("\n</TABLE>");
+        }
+        if(addEventLog)
+        {
+            content.append("<h2>Event log:</h2>").append("<BR>");
+            content.append("\n<TABLE class=\"simple\">\n");
+            content.append("<TR>\n\t<th>Time</th>\n\t<th>Event type</th>\n\t<th>Event text</th>\n</TR>");
+            for(Iterator i$ = testerReportData.getEvents().iterator(); i$.hasNext(); content.append("</TD>\n</TR>"))
+            {
+                TesterReportData.TesterEvent event = (TesterReportData.TesterEvent)i$.next();
+                content.append("<TR>\n\t<TD>").append(format.format(new Date(event.time)));
+                static class _cls1
+                {
+
+                    static final int $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[];
+                    static final int $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$OpenTrigger[];
+                    static final int $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[];
+
+                    static 
+                    {
+                        $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType = new int[TesterReportData.TesterEvent.EventType.values().length];
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.MARGIN_CALL.ordinal()] = 1;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.MARGIN_CUT.ordinal()] = 2;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.MESSAGE.ordinal()] = 3;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.EXCEPTION.ordinal()] = 4;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.ORDER_CANCEL.ordinal()] = 5;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.CANCELED_BY_USER.ordinal()] = 6;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.ORDER_CLOSE.ordinal()] = 7;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.ORDER_ENTRY.ordinal()] = 8;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.ORDER_CHANGED.ordinal()] = 9;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.ORDER_FILLED.ordinal()] = 10;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.COMMISSIONS.ordinal()] = 11;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.OVERNIGHTS.ordinal()] = 12;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$EventType[TesterReportData.TesterEvent.EventType.ORDERS_MERGED.ordinal()] = 13;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$OpenTrigger = new int[TesterReportData.TesterEvent.OpenTrigger.values().length];
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$OpenTrigger[TesterReportData.TesterEvent.OpenTrigger.OPEN_BY_MC.ordinal()] = 1;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$OpenTrigger[TesterReportData.TesterEvent.OpenTrigger.OPEN_BY_STRATEGY.ordinal()] = 2;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger = new int[TesterReportData.TesterEvent.CloseTrigger.values().length];
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CANCEL_BY_MC.ordinal()] = 1;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CANCEL_BY_VALIDATION.ordinal()] = 2;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CANCEL_BY_NO_MARGIN.ordinal()] = 3;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CANCEL_BY_STRATEGY.ordinal()] = 4;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CANCEL_BY_TIMEOUT.ordinal()] = 5;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CANCEL_BY_NO_LIQUIDITY.ordinal()] = 6;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CLOSE_BY_MC.ordinal()] = 7;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CLOSE_BY_TAKE_PROFIT.ordinal()] = 8;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CLOSE_BY_STOP_LOSS.ordinal()] = 9;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.CLOSE_BY_STRATEGY.ordinal()] = 10;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.MERGE_BY_MC.ordinal()] = 11;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$tester$TesterReportData$TesterEvent$CloseTrigger[TesterReportData.TesterEvent.CloseTrigger.MERGE_BY_STRATEGY.ordinal()] = 12;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                    }
+                }
+
+                switch(_cls1..SwitchMap.com.dukascopy.dds2.greed.agent.strategy.tester.TesterReportData.TesterEvent.EventType[event.type.ordinal()])
+                {
+                default:
+                    break;
+
+                case 1: // '\001'
+                    content.append("</TD>\n\t<TD>").append("Margin Call").append("</TD>\n\t<TD>").append(event.text);
+                    break;
+
+                case 2: // '\002'
+                    content.append("</TD>\n\t<TD>").append("Margin Cut").append("</TD>\n\t<TD>").append(event.text);
+                    break;
+
+                case 3: // '\003'
+                    content.append("</TD>\n\t<TD>").append("Message").append("</TD><TD>").append(event.text);
+                    break;
+
+                case 4: // '\004'
+                    content.append("</TD>\n\t<TD><FONT COLOR=\"Red\">").append("Exception").append("</FONT></TD><TD><FONT COLOR=\"Red\">").append(event.text).append("</FONT>");
+                    break;
+
+                case 5: // '\005'
+                    content.append("</TD>\n\t<TD>").append("Order canceled").append("</TD>\n\t<TD>").append("Order [").append(event.label).append(", ").append(event.instrument).append(", ").append(event.orderCommand.name()).append(", ").append(event.amount).append(" at ").append(event.openPrice).append("] canceled ");
+                    switch(_cls1..SwitchMap.com.dukascopy.dds2.greed.agent.strategy.tester.TesterReportData.TesterEvent.CloseTrigger[event.closeTrigger.ordinal()])
+                    {
+                    case 1: // '\001'
+                        content.append("because of margin call");
+                        break;
+
+                    case 2: // '\002'
+                        content.append("because of failed validation");
+                        break;
+
+                    case 3: // '\003'
+                        content.append("because no margin available");
+                        break;
+
+                    case 4: // '\004'
+                        content.append("in result of strategy request");
+                        break;
+
+                    case 5: // '\005'
+                        content.append("because of timeout");
+                        break;
+
+                    case 6: // '\006'
+                        content.append("because of no liquidity at the price");
+                        break;
+                    }
+                    break;
+
+                case 6: // '\006'
+                    content.append("</TD>\n\t<TD><FONT COLOR=\"Red\">").append("Canceled").append("</FONT></TD><TD><FONT COLOR=\"Red\">").append(event.text).append("</FONT>");
+                    break;
+
+                case 7: // '\007'
+                    content.append("</TD>\n\t<TD>").append("Order closed").append("</TD>\n\t<TD>").append("Order [").append(event.label).append(", ").append(event.instrument).append(", ").append(event.orderCommand.name()).append(", ").append(event.amount).append(" at ").append(event.openPrice).append("] closed ");
+                    switch(_cls1..SwitchMap.com.dukascopy.dds2.greed.agent.strategy.tester.TesterReportData.TesterEvent.CloseTrigger[event.closeTrigger.ordinal()])
+                    {
+                    case 7: // '\007'
+                        content.append("because of margin call");
+                        break;
+
+                    case 8: // '\b'
+                        content.append("by take profit event");
+                        break;
+
+                    case 9: // '\t'
+                        content.append("by stop loss event");
+                        break;
+
+                    case 10: // '\n'
+                        content.append("in result of strategy request");
+                        break;
+                    }
+                    content.append(", amount ").append(event.closeAmount).append(" at ").append(event.closePrice);
+                    break;
+
+                case 8: // '\b'
+                    content.append("</TD>\n\t<TD>").append("Order submitted").append("</TD>\n\t<TD>").append("Order [").append(event.label).append(", ").append(event.instrument).append(", ").append(event.orderCommand.name()).append(", ").append(event.amount).append(" at ").append(event.openPrice).append("] submitted ");
+                    switch(_cls1..SwitchMap.com.dukascopy.dds2.greed.agent.strategy.tester.TesterReportData.TesterEvent.OpenTrigger[event.openTrigger.ordinal()])
+                    {
+                    case 1: // '\001'
+                        content.append("by the margin cut procedure");
+                        break;
+
+                    case 2: // '\002'
+                        content.append("by the strategy");
+                        break;
+                    }
+                    break;
+
+                case 9: // '\t'
+                    content.append("</TD>\n\t<TD>").append("Order changed").append("</TD>\n\t<TD>").append("Order [").append(event.label).append(", ").append(event.instrument).append(", ").append(event.orderCommand.name()).append(", ").append(event.amount).append(" at ").append(event.openPrice).append("] changed by strategy");
+                    break;
+
+                case 10: // '\n'
+                    content.append("</TD>\n\t<TD>").append("Order filled").append("</TD>\n\t<TD>").append("Order [").append(event.label).append(", ").append(event.instrument).append(", ").append(event.orderCommand.name()).append(", ").append(event.amount).append(" at ").append(event.openPrice).append("] filled");
+                    break;
+
+                case 11: // '\013'
+                    content.append("</TD>\n\t<TD>").append("Commissions").append("</TD>\n\t<TD>").append("Commissions [").append(event.amount).append("]");
+                    break;
+
+                case 12: // '\f'
+                    content.append("</TD>\n\t<TD>").append("Overnights").append("</TD>\n\t<TD>").append("Overnight commission [").append(decFormat.format(event.openPrice)).append("] pips applied to order [").append(event.label).append(", ").append(event.instrument).append(", ").append(event.orderCommand.name()).append(", ").append(event.amount).append("]");
+                    break;
+
+                case 13: // '\r'
+                    content.append("</TD><TD>").append("Order merged").append("</TD><TD>");
+                    content.append("Orders ");
+                    IOrder arr$[] = event.ordersMerged;
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        IOrder order = arr$[i$];
+                        content.append(order.getLabel()).append(", ");
+                    }
+
+                    content.setLength(content.length() - 2);
+                    if(event.amount != 0.0D)
+                        content.append(" merged into order [").append(event.label).append(", ").append(event.instrument).append(", ").append(event.orderCommand.name()).append(", ").append(event.amount).append(" at ").append(event.openPrice).append("]");
+                    else
+                        content.append(" merged with no amount left in result");
+                    switch(_cls1..SwitchMap.com.dukascopy.dds2.greed.agent.strategy.tester.TesterReportData.TesterEvent.CloseTrigger[event.closeTrigger.ordinal()])
+                    {
+                    case 11: // '\013'
+                        content.append(" of the margin call procedure");
+                        break;
+
+                    case 12: // '\f'
+                        content.append(" of the strategy request");
+                        break;
+                    }
+                    break;
+                }
+            }
+
+            content.append("\n</TABLE>");
+        }
+        content.append("\n<br><br><br><br><br><br><br><br></BODY>\n</HTML>");
+        StringBuilder headerContent = new StringBuilder();
+        headerContent.append("<HTML><HEAD>");
+        headerContent.append("<style>\n.header{\nbackground-image:url(http://www.dukascopy.com/swiss/inc/images/headline_bg_menu.gif);\nbackground-repeat:repeat-x;\nclear:both;\ncolor:#FFFFFF;\nfont-size:12pt;\nfont-weight:bold;\nheight:13pt;\nmargin-bottom:10px;\npadding-left:30px;\npadding-bottom:3px;\ntext-align:left;}\nbody{\nmargin:0px;\nfont-size:11pt;\n}\ntable.simple{\nborder-collapse:collapse;\nwidth:890px;\nfont-size:0.95em;\n}\ntable.simple caption {\ncolor:#000000;\nfont-size:0.95em;\npadding-bottom:5px;\ntext-align:left;\n}\ntable.simple th {\nbackground:#E8F1F0 none repeat scroll 0% 0% !important;\nborder:1px solid #D6D6D6 !important;\npadding:2px 3px;\n}\ntable.simple td {\nborder:1px solid #D6D6D6;\npadding:3px;\ntext-align:center;\n}\ntable.simple.left td {\nborder:1px solid #999999;\npadding:3px;\ntext-align:left;\n}\ntable.simple tr.odd td {\nbackground-color:#EEEEEE;\n}\ntable.simple tr td.highlight {\nbackground:#FACDCE none repeat scroll 0% 0%;\n}\ntable.simple.numbers td {\nwhite-space:nowrap;\n}\n#content{\npadding-left:50px;\n}\nh3 {\nborder-bottom:1px solid #CCCCCC;width:890px;\ncolor:#000000;\nfont-size:0.9em;\npadding-bottom:1px;\nmargin-bottom:0px;}\nh2 {\nborder-bottom:1px solid #CCCCCC;width:890px;\ncolor:#000000;\nfont-size:1.1em;\npadding-bottom:1px;\nmargin-bottom:0px;}\nh1 {\nborder-bottom:1px solid #CCCCCC;\ncolor:#000000;font-size:1.45em;\nmargin:0pt;\nmargin-bottom:10px;\npadding-bottom:1px;\npadding-left:20px;\nwidth:900px;}\n</style>\n");
+        headerContent.append("</HEAD>\n<BODY>");
+        headerContent.append("\n<div style=\"background:url('http://www.dukascopy.com/pics/topBackground.png') repeat-x;\"><img src=\"http://www.dukascopy.com/swiss/inc/images/logo_bh40.gif\" style=\"display:block;border:none;\"></div>");
+        headerContent.append("\n<div class=\"header\">&nbsp;</div>");
+        headerContent.append("\n<div id=\"content\"><h1>").append(testerReportData.getStrategyName()).append(" strategy report for ");
+        Instrument arr$[] = Instrument.values();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Instrument instrument = arr$[i$];
+            InstrumentReportData instrumentReportData = testerReportData.getInstrumentReportData(instrument);
+            if(instrumentReportData != null)
+                headerContent.append(instrument).append(", ");
+        }
+
+        headerContent.setLength(headerContent.length() - 2);
+        headerContent.append(" instrument(s) from ").append(format.format(Long.valueOf(testerReportData.getFrom()))).append(" to ").append(format.format(Long.valueOf(testerReportData.getTo()))).append("</h1>");
+        headerContent.append("<table class=\"simple\" width=\"400px\">");
+        headerContent.append("<tr><th>Initial deposit</th><td>").append(decFormat.format(testerReportData.getInitialDeposit())).append("</td></tr>");
+        headerContent.append("<tr><th>Finish deposit</th><td>").append(decFormat.format(BigDecimal.valueOf(testerReportData.getFinishDeposit()).add(openPositionsProfitLoss).doubleValue())).append("</td></tr>");
+        headerContent.append("\n<tr><th>Turnover in USD</th><td>").append(decFormat.format(testerReportData.getTurnover()));
+        headerContent.append("</td></tr>");
+        headerContent.append("\n<tr><th>Comission in USD</th><td>").append(testerReportData.getCommission());
+        headerContent.append("\n</table>");
+        if(testerReportData.getParameterValues() != null)
+        {
+            headerContent.append("<h2>Parameters</h2><BR>");
+            headerContent.append("<table class=\"simple\" width=\"400px\">");
+            String value[];
+            for(Iterator i$ = testerReportData.getParameterValues().iterator(); i$.hasNext(); headerContent.append("<tr><th>").append(value[0]).append("</th><td>").append(value[1]).append("</td></tr>"))
+                value = (String[])i$.next();
+
+            headerContent.append("\n</table>");
+        }
+        content.insert(0, headerContent);
+        out.write(content.toString());
+        try
+        {
+            out.close();
+        }
+        catch(IOException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_4452;
+        Exception exception;
+        exception;
+        try
+        {
+            out.close();
+        }
+        catch(IOException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        throw exception;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/StrategyReport);
+
+}

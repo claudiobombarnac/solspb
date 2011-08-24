@@ -1,0 +1,44 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ITesterGuiImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.system.tester.ITesterChartController;
+import com.dukascopy.api.system.tester.ITesterGui;
+import javax.swing.JPanel;
+
+public class ITesterGuiImpl
+    implements ITesterGui
+{
+
+    public ITesterGuiImpl()
+    {
+        chartPanel = null;
+        testerChartController = null;
+    }
+
+    public JPanel getChartPanel()
+    {
+        return chartPanel;
+    }
+
+    public ITesterChartController getTesterChartController()
+    {
+        return testerChartController;
+    }
+
+    public void setChartPanel(JPanel chartPanel)
+    {
+        this.chartPanel = chartPanel;
+    }
+
+    public void setTesterChartControl(ITesterChartController testerChartControl)
+    {
+        testerChartController = testerChartControl;
+    }
+
+    private JPanel chartPanel;
+    private ITesterChartController testerChartController;
+}

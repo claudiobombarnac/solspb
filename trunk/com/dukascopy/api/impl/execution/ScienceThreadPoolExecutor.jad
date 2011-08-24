@@ -1,0 +1,941 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ScienceThreadPoolExecutor.java
+
+package com.dukascopy.api.impl.execution;
+
+import com.dukascopy.api.IContext;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
+
+// Referenced classes of package com.dukascopy.api.impl.execution:
+//            ScienceFuture, ScienceQueue, ScienceRejectedExecutionHandler, ScienceWaitForUpdate, 
+//            Task
+
+public class ScienceThreadPoolExecutor extends AbstractExecutorService
+{
+    private final class Worker
+        implements Runnable
+    {
+
+        boolean isActive()
+        {
+            return runLock.isLocked();
+        }
+
+        void interruptIfIdle()
+        {
+            ReentrantLock runLock;
+            runLock = this.runLock;
+            if(!runLock.tryLock())
+                break MISSING_BLOCK_LABEL_43;
+            if(thread != Thread.currentThread())
+                thread.interrupt();
+            runLock.unlock();
+            break MISSING_BLOCK_LABEL_43;
+            Exception exception;
+            exception;
+            runLock.unlock();
+            throw exception;
+        }
+
+        void interruptNow()
+        {
+            thread.interrupt();
+        }
+
+        private void runTask(Runnable task)
+        {
+            ReentrantLock runLock;
+            runLock = this.runLock;
+            runLock.lock();
+            if(runState < 2 && Thread.interrupted() && runState >= 2)
+                thread.interrupt();
+            boolean ran = false;
+            beforeExecute(thread, task);
+            try
+            {
+                task.run();
+                ran = true;
+                afterExecute(task, null);
+                completedTasks++;
+            }
+            catch(RuntimeException ex)
+            {
+                if(!ran)
+                    afterExecute(task, ex);
+                throw ex;
+            }
+            runLock.unlock();
+            break MISSING_BLOCK_LABEL_123;
+            Exception exception;
+            exception;
+            runLock.unlock();
+            throw exception;
+        }
+
+        public void run()
+        {
+            Runnable task = firstTask;
+            firstTask = null;
+            for(; task != null || (task = getTask()) != null; task = null)
+                runTask(task);
+
+            workerDone(this);
+            break MISSING_BLOCK_LABEL_58;
+            Exception exception;
+            exception;
+            workerDone(this);
+            throw exception;
+        }
+
+        private final ReentrantLock runLock = new ReentrantLock();
+        private Runnable firstTask;
+        volatile long completedTasks;
+        Thread thread;
+        final ScienceThreadPoolExecutor this$0;
+
+        Worker(Runnable firstTask)
+        {
+            this$0 = ScienceThreadPoolExecutor.this;
+            super();
+            this.firstTask = firstTask;
+        }
+    }
+
+
+    public ScienceThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue workQueue)
+    {
+        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, Executors.defaultThreadFactory(), defaultHandler);
+    }
+
+    public ScienceThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue workQueue, ThreadFactory threadFactory)
+    {
+        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, defaultHandler);
+    }
+
+    public ScienceThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue workQueue, ScienceRejectedExecutionHandler handler)
+    {
+        this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, Executors.defaultThreadFactory(), handler);
+    }
+
+    public ScienceThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue workQueue, ThreadFactory threadFactory, 
+            ScienceRejectedExecutionHandler handler)
+    {
+        mainLock = new ReentrantLock();
+        termination = mainLock.newCondition();
+        workers = new HashSet();
+        if(corePoolSize < 0 || maximumPoolSize <= 0 || maximumPoolSize < corePoolSize || keepAliveTime < 0L)
+            throw new IllegalArgumentException();
+        if(workQueue == null || threadFactory == null || handler == null)
+        {
+            throw new NullPointerException();
+        } else
+        {
+            this.corePoolSize = corePoolSize;
+            this.maximumPoolSize = maximumPoolSize;
+            this.workQueue = workQueue;
+            this.keepAliveTime = unit.toNanos(keepAliveTime);
+            this.threadFactory = threadFactory;
+            this.handler = handler;
+            return;
+        }
+    }
+
+    public void execute(Runnable command)
+    {
+        if(command == null)
+            throw new NullPointerException();
+        if(poolSize >= corePoolSize || !addIfUnderCorePoolSize(command))
+            if(runState == 0 && workQueue.offer(command))
+            {
+                if(runState != 0 || poolSize == 0)
+                    ensureQueuedTaskHandled(command);
+            } else
+            if(!addIfUnderMaximumPoolSize(command))
+                reject(command);
+    }
+
+    private Thread addThread(Runnable firstTask)
+    {
+        Worker w = new Worker(firstTask);
+        Thread t = threadFactory.newThread(w);
+        if(t != null)
+        {
+            w.thread = t;
+            workers.add(w);
+            int nt = ++poolSize;
+            if(nt > largestPoolSize)
+                largestPoolSize = nt;
+        }
+        return t;
+    }
+
+    private boolean addIfUnderCorePoolSize(Runnable firstTask)
+    {
+        Thread t;
+        ReentrantLock mainLock;
+        t = null;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        if(poolSize < corePoolSize && runState == 0)
+            t = addThread(firstTask);
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_51;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+        if(t == null)
+        {
+            return false;
+        } else
+        {
+            t.start();
+            return true;
+        }
+    }
+
+    private boolean addIfUnderMaximumPoolSize(Runnable firstTask)
+    {
+        Thread t;
+        ReentrantLock mainLock;
+        t = null;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        if(poolSize < maximumPoolSize && runState == 0)
+            t = addThread(firstTask);
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_51;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+        if(t == null)
+        {
+            return false;
+        } else
+        {
+            t.start();
+            return true;
+        }
+    }
+
+    private void ensureQueuedTaskHandled(Runnable command)
+    {
+        ReentrantLock mainLock;
+        boolean reject;
+        Thread t;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        reject = false;
+        t = null;
+        int state = runState;
+        if(state != 0 && workQueue.remove(command))
+            reject = true;
+        else
+        if(state < 2 && poolSize < Math.max(corePoolSize, 1) && !workQueue.isEmpty())
+            t = addThread(null);
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_99;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+        if(reject)
+            reject(command);
+        else
+        if(t != null)
+            t.start();
+        return;
+    }
+
+    void reject(Runnable command)
+    {
+        handler.rejectedExecution(command, this);
+    }
+
+    public final void runExceptTicksAndBars(ScienceWaitForUpdate waitForUpdate, long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        long startTime;
+        long timeoutMillis;
+        startTime = System.currentTimeMillis();
+        timeoutMillis = unit.toMillis(timeout);
+_L2:
+        Runnable task;
+        boolean ran;
+        if((task = getTask(timeoutMillis - (System.currentTimeMillis() - startTime))) == null)
+            break MISSING_BLOCK_LABEL_217;
+        if(runState < 2 && Thread.interrupted() && runState >= 2)
+            Thread.currentThread().interrupt();
+        if((task instanceof ScienceFuture) && (((ScienceFuture)task).getTask().getType() == Task.Type.TICK || ((ScienceFuture)task).getTask().getType() == Task.Type.BAR))
+            continue; /* Loop/switch isn't completed */
+        ran = false;
+        beforeExecute(Thread.currentThread(), task);
+        ReentrantLock mainLock;
+        task.run();
+        ran = true;
+        afterExecute(task, null);
+        mainLock = this.mainLock;
+        mainLock.lock();
+        completedTaskCount++;
+        mainLock.unlock();
+        continue; /* Loop/switch isn't completed */
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+        RuntimeException ex;
+        ex;
+        if(!ran)
+            afterExecute(task, ex);
+        throw ex;
+        if(!waitForUpdate.updated() && System.currentTimeMillis() - startTime <= timeoutMillis) goto _L2; else goto _L1
+_L1:
+        return;
+    }
+
+    Runnable getTask()
+    {
+_L2:
+        int state = runState;
+        if(state > 1)
+            return null;
+        Runnable r;
+        if(state == 1)
+            r = (Runnable)workQueue.poll();
+        else
+        if(poolSize > corePoolSize || allowCoreThreadTimeOut)
+            r = (Runnable)workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS);
+        else
+            r = (Runnable)workQueue.take();
+        if(r != null)
+            return r;
+        if(!workerCanExit())
+            continue; /* Loop/switch isn't completed */
+        if(runState >= 1)
+            interruptIdleWorkers();
+        return null;
+        InterruptedException ie;
+        ie;
+        if(true) goto _L2; else goto _L1
+_L1:
+    }
+
+    protected RunnableFuture newTaskFor(Callable callable)
+    {
+        return new ScienceFuture(callable);
+    }
+
+    Runnable getTask(long timeout)
+    {
+        int state = runState;
+        if(state > 1)
+            return null;
+        Runnable r;
+        if(state == 1)
+            r = (Runnable)workQueue.poll();
+        else
+            r = (Runnable)workQueue.poll(timeout, TimeUnit.MILLISECONDS);
+        if(r != null)
+            return r;
+        if(!workerCanExit())
+            break MISSING_BLOCK_LABEL_85;
+        if(runState >= 1)
+            interruptIdleWorkers();
+        return null;
+        InterruptedException ie;
+        ie;
+        return null;
+    }
+
+    private boolean workerCanExit()
+    {
+        ReentrantLock mainLock;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        boolean canExit = runState >= 2 || workQueue.isEmpty() || allowCoreThreadTimeOut && poolSize > Math.max(1, corePoolSize);
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_71;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+        return canExit;
+    }
+
+    void interruptIdleWorkers()
+    {
+        ReentrantLock mainLock;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        Worker w;
+        for(Iterator i$ = workers.iterator(); i$.hasNext(); w.interruptIfIdle())
+            w = (Worker)i$.next();
+
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_59;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    void workerDone(Worker w)
+    {
+        ReentrantLock mainLock;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        completedTaskCount += w.completedTasks;
+        workers.remove(w);
+        if(--poolSize == 0)
+            tryTerminate();
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_63;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    private void tryTerminate()
+    {
+        if(poolSize == 0)
+        {
+            int state = runState;
+            if(state < 2 && !workQueue.isEmpty())
+            {
+                state = 0;
+                Thread t = addThread(null);
+                if(t != null)
+                    t.start();
+            }
+            if(state == 2 || state == 1)
+            {
+                runState = 3;
+                termination.signalAll();
+                terminated();
+            }
+        }
+    }
+
+    public void kill()
+    {
+        ReentrantLock mainLock;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        if(poolSize != 0)
+        {
+            SecurityManager security = System.getSecurityManager();
+            if(security != null)
+            {
+                Worker w;
+                for(Iterator i$ = workers.iterator(); i$.hasNext(); security.checkAccess(w.thread))
+                    w = (Worker)i$.next();
+
+            }
+            if(runState < 2)
+                runState = 2;
+            drainQueue();
+            Worker w;
+            for(Iterator i$ = workers.iterator(); i$.hasNext(); w.thread.stop())
+                w = (Worker)i$.next();
+
+            runState = 3;
+            termination.signalAll();
+            terminated();
+        } else
+        {
+            shutdownNow();
+        }
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_163;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    public void shutdown()
+    {
+        SecurityManager security;
+        ReentrantLock mainLock;
+        security = System.getSecurityManager();
+        if(security != null)
+            security.checkPermission(shutdownPerm);
+        mainLock = this.mainLock;
+        mainLock.lock();
+        if(security != null)
+        {
+            Worker w;
+            for(Iterator i$ = workers.iterator(); i$.hasNext(); security.checkAccess(w.thread))
+                w = (Worker)i$.next();
+
+        }
+        int state = runState;
+        if(state < 1)
+            runState = 1;
+        try
+        {
+            Worker w;
+            for(Iterator i$ = workers.iterator(); i$.hasNext(); w.interruptIfIdle())
+                w = (Worker)i$.next();
+
+        }
+        catch(SecurityException se)
+        {
+            runState = state;
+            throw se;
+        }
+        tryTerminate();
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_155;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+        if(workQueue instanceof ScienceQueue)
+            ((ScienceQueue)workQueue).stop();
+        return;
+    }
+
+    public List shutdownNow()
+    {
+        SecurityManager security;
+        ReentrantLock mainLock;
+        security = System.getSecurityManager();
+        if(security != null)
+            security.checkPermission(shutdownPerm);
+        mainLock = this.mainLock;
+        mainLock.lock();
+        List list;
+        if(security != null)
+        {
+            Worker w;
+            for(Iterator i$ = workers.iterator(); i$.hasNext(); security.checkAccess(w.thread))
+                w = (Worker)i$.next();
+
+        }
+        int state = runState;
+        if(state < 2)
+            runState = 2;
+        try
+        {
+            Worker w;
+            for(Iterator i$ = workers.iterator(); i$.hasNext(); w.interruptNow())
+                w = (Worker)i$.next();
+
+        }
+        catch(SecurityException se)
+        {
+            runState = state;
+            throw se;
+        }
+        List tasks = drainQueue();
+        tryTerminate();
+        list = tasks;
+        mainLock.unlock();
+        return list;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    private List drainQueue()
+    {
+        List taskList = new ArrayList();
+        workQueue.drainTo(taskList);
+        do
+        {
+            if(workQueue.isEmpty())
+                break;
+            Iterator it = workQueue.iterator();
+            try
+            {
+                if(it.hasNext())
+                {
+                    Runnable r = (Runnable)it.next();
+                    if(workQueue.remove(r))
+                        taskList.add(r);
+                }
+            }
+            catch(ConcurrentModificationException ignore) { }
+        } while(true);
+        return taskList;
+    }
+
+    public boolean isShutdown()
+    {
+        return runState != 0;
+    }
+
+    public boolean isTerminating()
+    {
+        int state = runState;
+        return state == 1 || state == 2;
+    }
+
+    public boolean isTerminated()
+    {
+        return runState == 3;
+    }
+
+    public boolean awaitTermination(long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        long nanos;
+        ReentrantLock mainLock;
+        nanos = unit.toNanos(timeout);
+        mainLock = this.mainLock;
+        mainLock.lock();
+_L2:
+        boolean flag;
+        if(runState != 3)
+            break MISSING_BLOCK_LABEL_37;
+        flag = true;
+        mainLock.unlock();
+        return flag;
+        if(nanos > 0L)
+            break MISSING_BLOCK_LABEL_55;
+        flag = false;
+        mainLock.unlock();
+        return flag;
+        nanos = termination.awaitNanos(nanos);
+        if(true) goto _L2; else goto _L1
+_L1:
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    protected void finalize()
+    {
+        shutdown();
+    }
+
+    public void setThreadFactory(ThreadFactory threadFactory)
+    {
+        if(threadFactory == null)
+        {
+            throw new NullPointerException();
+        } else
+        {
+            this.threadFactory = threadFactory;
+            return;
+        }
+    }
+
+    public ThreadFactory getThreadFactory()
+    {
+        return threadFactory;
+    }
+
+    public void setRejectedExecutionHandler(ScienceRejectedExecutionHandler handler)
+    {
+        if(handler == null)
+        {
+            throw new NullPointerException();
+        } else
+        {
+            this.handler = handler;
+            return;
+        }
+    }
+
+    public ScienceRejectedExecutionHandler getRejectedExecutionHandler()
+    {
+        return handler;
+    }
+
+    public void setCorePoolSize(int corePoolSize)
+    {
+        ReentrantLock mainLock;
+        if(corePoolSize < 0)
+            throw new IllegalArgumentException();
+        mainLock = this.mainLock;
+        mainLock.lock();
+        int extra = this.corePoolSize - corePoolSize;
+        this.corePoolSize = corePoolSize;
+        if(extra < 0)
+        {
+            int n = workQueue.size();
+            do
+            {
+                if(extra++ >= 0 || n-- <= 0 || poolSize >= corePoolSize)
+                    break;
+                Thread t = addThread(null);
+                if(t == null)
+                    break;
+                t.start();
+            } while(true);
+        } else
+        if(extra > 0 && poolSize > corePoolSize)
+            try
+            {
+                for(Iterator it = workers.iterator(); it.hasNext() && extra-- > 0 && poolSize > corePoolSize && workQueue.remainingCapacity() == 0; ((Worker)it.next()).interruptIfIdle());
+            }
+            catch(SecurityException ignore) { }
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_189;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    public int getCorePoolSize()
+    {
+        return corePoolSize;
+    }
+
+    public boolean prestartCoreThread()
+    {
+        return addIfUnderCorePoolSize(null);
+    }
+
+    public int prestartAllCoreThreads()
+    {
+        int n;
+        for(n = 0; addIfUnderCorePoolSize(null); n++);
+        return n;
+    }
+
+    public boolean allowsCoreThreadTimeOut()
+    {
+        return allowCoreThreadTimeOut;
+    }
+
+    public void allowCoreThreadTimeOut(boolean value)
+    {
+        if(value && keepAliveTime <= 0L)
+        {
+            throw new IllegalArgumentException("Core threads must have nonzero keep alive times");
+        } else
+        {
+            allowCoreThreadTimeOut = value;
+            return;
+        }
+    }
+
+    public void setMaximumPoolSize(int maximumPoolSize)
+    {
+        ReentrantLock mainLock;
+        if(maximumPoolSize <= 0 || maximumPoolSize < corePoolSize)
+            throw new IllegalArgumentException();
+        mainLock = this.mainLock;
+        mainLock.lock();
+        int extra = this.maximumPoolSize - maximumPoolSize;
+        this.maximumPoolSize = maximumPoolSize;
+        if(extra > 0 && poolSize > maximumPoolSize)
+            try
+            {
+                for(Iterator it = workers.iterator(); it.hasNext() && extra > 0 && poolSize > maximumPoolSize; extra--)
+                    ((Worker)it.next()).interruptIfIdle();
+
+            }
+            catch(SecurityException ignore) { }
+        mainLock.unlock();
+        break MISSING_BLOCK_LABEL_124;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    public int getMaximumPoolSize()
+    {
+        return maximumPoolSize;
+    }
+
+    public void setKeepAliveTime(long time, TimeUnit unit)
+    {
+        if(time < 0L)
+            throw new IllegalArgumentException();
+        if(time == 0L && allowsCoreThreadTimeOut())
+        {
+            throw new IllegalArgumentException("Core threads must have nonzero keep alive times");
+        } else
+        {
+            keepAliveTime = unit.toNanos(time);
+            return;
+        }
+    }
+
+    public long getKeepAliveTime(TimeUnit unit)
+    {
+        return unit.convert(keepAliveTime, TimeUnit.NANOSECONDS);
+    }
+
+    public BlockingQueue getQueue()
+    {
+        return workQueue;
+    }
+
+    public boolean remove(Runnable task)
+    {
+        return getQueue().remove(task);
+    }
+
+    public void purge()
+    {
+        try
+        {
+            Iterator it = getQueue().iterator();
+            do
+            {
+                if(!it.hasNext())
+                    break;
+                Runnable r = (Runnable)it.next();
+                if(r instanceof Future)
+                {
+                    Future c = (Future)r;
+                    if(c.isCancelled())
+                        it.remove();
+                }
+            } while(true);
+        }
+        catch(ConcurrentModificationException ex)
+        {
+            return;
+        }
+    }
+
+    public int getPoolSize()
+    {
+        return poolSize;
+    }
+
+    public int getActiveCount()
+    {
+        ReentrantLock mainLock;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        int i;
+        int n = 0;
+        Iterator i$ = workers.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Worker w = (Worker)i$.next();
+            if(w.isActive())
+                n++;
+        } while(true);
+        i = n;
+        mainLock.unlock();
+        return i;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    public int getLargestPoolSize()
+    {
+        ReentrantLock mainLock;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        int i = largestPoolSize;
+        mainLock.unlock();
+        return i;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    public long getTaskCount()
+    {
+        ReentrantLock mainLock;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        long l;
+        long n = completedTaskCount;
+        Iterator i$ = workers.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Worker w = (Worker)i$.next();
+            n += w.completedTasks;
+            if(w.isActive())
+                n++;
+        } while(true);
+        l = n + (long)workQueue.size();
+        mainLock.unlock();
+        return l;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    public long getCompletedTaskCount()
+    {
+        ReentrantLock mainLock;
+        mainLock = this.mainLock;
+        mainLock.lock();
+        long l;
+        long n = completedTaskCount;
+        for(Iterator i$ = workers.iterator(); i$.hasNext();)
+        {
+            Worker w = (Worker)i$.next();
+            n += w.completedTasks;
+        }
+
+        l = n;
+        mainLock.unlock();
+        return l;
+        Exception exception;
+        exception;
+        mainLock.unlock();
+        throw exception;
+    }
+
+    protected void beforeExecute(Thread thread, Runnable runnable)
+    {
+    }
+
+    protected void afterExecute(Runnable runnable, Throwable throwable)
+    {
+    }
+
+    protected void terminated()
+    {
+    }
+
+    private static final RuntimePermission shutdownPerm = new RuntimePermission("modifyThread");
+    volatile int runState;
+    static final int RUNNING = 0;
+    static final int SHUTDOWN = 1;
+    static final int STOP = 2;
+    static final int TERMINATED = 3;
+    private final BlockingQueue workQueue;
+    private final ReentrantLock mainLock;
+    private final Condition termination;
+    private final HashSet workers;
+    private volatile long keepAliveTime;
+    private volatile boolean allowCoreThreadTimeOut;
+    private volatile int corePoolSize;
+    private volatile int maximumPoolSize;
+    private volatile int poolSize;
+    private volatile ScienceRejectedExecutionHandler handler;
+    private volatile ThreadFactory threadFactory;
+    private int largestPoolSize;
+    private long completedTaskCount;
+    private static final ScienceRejectedExecutionHandler defaultHandler = new ScienceRejectedExecutionHandler(null, null) {
+
+        public void rejectedExecution(Runnable r, ScienceThreadPoolExecutor executor)
+        {
+            throw new RejectedExecutionException();
+        }
+
+    };
+
+}

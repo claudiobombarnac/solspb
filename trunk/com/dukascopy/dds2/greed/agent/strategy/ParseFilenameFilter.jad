@@ -1,0 +1,44 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ParseFilenameFilter.java
+
+package com.dukascopy.dds2.greed.agent.strategy;
+
+import java.io.File;
+import java.io.FilenameFilter;
+import java.util.StringTokenizer;
+
+public class ParseFilenameFilter
+    implements FilenameFilter
+{
+
+    public ParseFilenameFilter(String template)
+    {
+        this.template = template;
+    }
+
+    public boolean accept(File dir, String name)
+    {
+        StringTokenizer st = new StringTokenizer(template, "*");
+        if(!template.startsWith("*"))
+        {
+            String start = st.nextToken();
+            if(name.startsWith(start))
+                name = name.substring(name.indexOf(start) + start.length());
+            else
+                return false;
+        }
+        while(st.hasMoreTokens()) 
+        {
+            String shouldContain = st.nextToken();
+            if(name.contains(shouldContain))
+                name = name.substring(name.indexOf(shouldContain) + shouldContain.length());
+            else
+                return false;
+        }
+        return template.endsWith("*") || name.length() == 0;
+    }
+
+    final String template;
+}

@@ -1,0 +1,654 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractCalculatorPanel.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.button.AnsButton;
+import com.dukascopy.calculator.button.BinButton;
+import com.dukascopy.calculator.button.CalculatorButton;
+import com.dukascopy.calculator.button.CopyButton;
+import com.dukascopy.calculator.button.CplxButton;
+import com.dukascopy.calculator.button.DecButton;
+import com.dukascopy.calculator.button.DelButton;
+import com.dukascopy.calculator.button.DownButton;
+import com.dukascopy.calculator.button.EqualsButton;
+import com.dukascopy.calculator.button.GraphButton;
+import com.dukascopy.calculator.button.HexButton;
+import com.dukascopy.calculator.button.InfoButton;
+import com.dukascopy.calculator.button.LeftButton;
+import com.dukascopy.calculator.button.MclButton;
+import com.dukascopy.calculator.button.MminusButton;
+import com.dukascopy.calculator.button.ModeButton;
+import com.dukascopy.calculator.button.MplusButton;
+import com.dukascopy.calculator.button.OctButton;
+import com.dukascopy.calculator.button.OffButton;
+import com.dukascopy.calculator.button.OnButton;
+import com.dukascopy.calculator.button.OrigButton;
+import com.dukascopy.calculator.button.PolButton;
+import com.dukascopy.calculator.button.RCLButton;
+import com.dukascopy.calculator.button.RightButton;
+import com.dukascopy.calculator.button.STOButton;
+import com.dukascopy.calculator.button.SciButton;
+import com.dukascopy.calculator.button.SclButton;
+import com.dukascopy.calculator.button.ShiftButton;
+import com.dukascopy.calculator.button.SminusButton;
+import com.dukascopy.calculator.button.SplusButton;
+import com.dukascopy.calculator.button.UpButton;
+import java.awt.*;
+import java.util.*;
+import javax.swing.*;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            PlainPanel, ShiftPanel, StatPanel, ShiftStatPanel, 
+//            HexPanel, ShiftHexPanel, SpecialButtonType, MainCalculatorPanel, 
+//            Base
+
+public abstract class AbstractCalculatorPanel extends JPanel
+    implements Runnable
+{
+
+    public static AbstractCalculatorPanel createPanel(MainCalculatorPanel applet, SpecialButtonType sbt, Color colour)
+    {
+        AbstractCalculatorPanel p = null;
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$calculator$SpecialButtonType[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$calculator$SpecialButtonType = new int[SpecialButtonType.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.NONE.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.SHIFT.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.STAT.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.SHIFT_STAT.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.HEX.ordinal()] = 5;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.SHIFT_HEX.ordinal()] = 6;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+        {
+        case 1: // '\001'
+            p = new PlainPanel(applet, sbt, colour);
+            p.run();
+            return p;
+
+        case 2: // '\002'
+            p = new ShiftPanel(applet, sbt, colour);
+            break;
+
+        case 3: // '\003'
+            p = new StatPanel(applet, sbt, colour);
+            break;
+
+        case 4: // '\004'
+            p = new ShiftStatPanel(applet, sbt, colour);
+            break;
+
+        case 5: // '\005'
+            p = new HexPanel(applet, sbt, colour);
+            break;
+
+        case 6: // '\006'
+            p = new ShiftHexPanel(applet, sbt, colour);
+            break;
+
+        default:
+            p = null;
+            break;
+        }
+        Thread t = new Thread(p);
+        t.setPriority(1);
+        t.start();
+        return p;
+    }
+
+    public synchronized void run()
+    {
+        setUp();
+    }
+
+    protected AbstractCalculatorPanel(MainCalculatorPanel applet, SpecialButtonType sbt, Color colour)
+    {
+        this.applet = applet;
+        this.sbt = sbt;
+        this.colour = colour;
+    }
+
+    public synchronized void paintComponent(Graphics graphics)
+    {
+        super.paintComponent(graphics);
+    }
+
+    private void setUp()
+    {
+        keyMap = new HashMap();
+        layout = new SpringLayout();
+        setLayout(layout);
+        buttons = new Vector();
+        for(int i = 0; i < 45; i++)
+        {
+            CalculatorButton button = null;
+            if(i == 0)
+                button = new OffButton(applet);
+            else
+            if(i == 5)
+                button = new ModeButton(applet);
+            else
+            if(i == 10)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 4: // '\004'
+                case 6: // '\006'
+                    button = new OrigButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 5: // '\005'
+                default:
+                    button = new ShiftButton(applet);
+                    break;
+                }
+            else
+            if(i == 14)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 4: // '\004'
+                case 6: // '\006'
+                    button = new GraphButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 5: // '\005'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 15)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 4: // '\004'
+                case 6: // '\006'
+                    button = new CopyButton(applet);
+                    break;
+
+                case 1: // '\001'
+                case 3: // '\003'
+                case 5: // '\005'
+                    button = new STOButton(applet);
+                    break;
+
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 16)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 4: // '\004'
+                case 6: // '\006'
+                    button = new SciButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 5: // '\005'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 20)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 1: // '\001'
+                case 3: // '\003'
+                case 5: // '\005'
+                    button = new RCLButton(applet);
+                    break;
+
+                case 2: // '\002'
+                case 4: // '\004'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 21)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 4: // '\004'
+                case 6: // '\006'
+                    button = new PolButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 5: // '\005'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 25)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 6: // '\006'
+                    button = new MminusButton(applet);
+                    break;
+
+                case 3: // '\003'
+                    button = new SplusButton(applet);
+                    break;
+
+                case 4: // '\004'
+                    button = new SminusButton(applet);
+                    break;
+
+                case 5: // '\005'
+                default:
+                    button = new MplusButton(applet);
+                    break;
+                }
+            else
+            if(i == 26)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 4: // '\004'
+                case 6: // '\006'
+                    button = new CplxButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 5: // '\005'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 30)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 1: // '\001'
+                case 3: // '\003'
+                case 5: // '\005'
+                    button = new DelButton(applet);
+                    break;
+
+                case 2: // '\002'
+                case 4: // '\004'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 32)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 6: // '\006'
+                    button = new HexButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 4: // '\004'
+                case 5: // '\005'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 33)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 6: // '\006'
+                    button = new DecButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 4: // '\004'
+                case 5: // '\005'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 34)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 1: // '\001'
+                case 3: // '\003'
+                case 5: // '\005'
+                    button = new AnsButton(applet);
+                    break;
+
+                case 2: // '\002'
+                case 4: // '\004'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 35)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 6: // '\006'
+                    button = new MclButton(applet);
+                    break;
+
+                case 4: // '\004'
+                    button = new SclButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 5: // '\005'
+                default:
+                    button = new OnButton(applet);
+                    break;
+                }
+            else
+            if(i == 37)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 6: // '\006'
+                    button = new BinButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 4: // '\004'
+                case 5: // '\005'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 38)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 2: // '\002'
+                case 6: // '\006'
+                    button = new OctButton(applet);
+                    break;
+
+                case 3: // '\003'
+                case 4: // '\004'
+                case 5: // '\005'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 39)
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[sbt.ordinal()])
+                {
+                case 1: // '\001'
+                case 3: // '\003'
+                case 5: // '\005'
+                    button = new EqualsButton(applet);
+                    break;
+
+                case 2: // '\002'
+                case 4: // '\004'
+                default:
+                    button = new CalculatorButton(applet);
+                    break;
+                }
+            else
+            if(i == 40)
+                button = new LeftButton(applet);
+            else
+            if(i == 41)
+                button = new RightButton(applet);
+            else
+            if(i == 42)
+            {
+                button = new InfoButton(applet);
+                button.setVisible(false);
+            } else
+            if(i == 43)
+                button = new UpButton(applet);
+            else
+            if(i == 44)
+                button = new DownButton(applet);
+            else
+                button = new CalculatorButton(applet);
+            buttons.add(button);
+            add(button);
+        }
+
+        setButtons();
+        layoutSprings();
+    }
+
+    protected abstract void setButtons();
+
+    public synchronized void layoutSprings()
+    {
+        xBorderSpring = Spring.constant(0, applet.strutSize(), 0x7fffffff);
+        yBorderSpring = Spring.constant(0, applet.strutSize(), 0x7fffffff);
+        strutX = Spring.constant(applet.strutSize());
+        strutY = Spring.constant(applet.strutSize());
+        minX = Spring.constant(applet.minSize());
+        minY = Spring.constant(applet.minSize());
+        buttonWidthSpring = Spring.constant(applet.buttonWidth());
+        narrowButtonWidthSpring = Spring.constant(applet.buttonWidth() - applet.strutSize() * 2 - (applet.minSize() + applet.buttonHeight()) / 2);
+        thinButtonWidthSpring = Spring.constant(applet.buttonHeight());
+        buttonHeightSpring = Spring.constant(applet.buttonHeight());
+        int width3 = applet.buttonHeight();
+        if((applet.minSize() - width3) % 2 != 0)
+            width3++;
+        int width23 = applet.buttonWidth() + (applet.minSize() - width3) / 2;
+        shortButtonHeightSpring = Spring.constant(applet.buttonHeight() - applet.minSize());
+        shortButtonWidthSpring = Spring.constant(applet.buttonHeight() - applet.minSize());
+        displayWidthSpring = Spring.scale(buttonWidthSpring, 6F);
+        displayWidthSpring = Spring.sum(displayWidthSpring, strutX);
+        displayWidthSpring = Spring.sum(displayWidthSpring, Spring.scale(minX, 4F));
+        displayHeightSpring = Spring.constant(applet.displayHeight());
+        Spring panelWidthSpring = Spring.scale(xBorderSpring, 2.0F);
+        panelWidthSpring = Spring.sum(panelWidthSpring, Spring.scale(buttonWidthSpring, 8F));
+        panelWidthSpring = Spring.sum(panelWidthSpring, Spring.scale(strutX, 2.0F));
+        panelWidthSpring = Spring.sum(panelWidthSpring, Spring.scale(minX, 5F));
+        Spring panelHeightSpring = Spring.scale(yBorderSpring, 2.0F);
+        panelHeightSpring = Spring.sum(panelHeightSpring, displayHeightSpring);
+        panelHeightSpring = Spring.sum(panelHeightSpring, strutY);
+        panelHeightSpring = Spring.sum(panelHeightSpring, Spring.scale(buttonHeightSpring, 5F));
+        panelHeightSpring = Spring.sum(panelHeightSpring, Spring.scale(minY, 4F));
+        javax.swing.SpringLayout.Constraints constraints = layout.getConstraints(this);
+        constraints.setWidth(panelWidthSpring);
+        constraints.setHeight(panelHeightSpring);
+        Spring x2 = Spring.sum(xBorderSpring, Spring.sum(buttonWidthSpring, minX));
+        Spring x3 = Spring.sum(x2, Spring.sum(buttonWidthSpring, minX));
+        Spring x4 = Spring.sum(x3, Spring.sum(buttonWidthSpring, strutX));
+        Spring x5 = Spring.sum(x4, Spring.sum(buttonWidthSpring, minX));
+        Spring x6 = Spring.sum(x5, Spring.sum(buttonWidthSpring, minX));
+        Spring x7 = Spring.sum(x6, Spring.sum(buttonWidthSpring, strutX));
+        Spring x8 = Spring.sum(x7, Spring.sum(buttonWidthSpring, minX));
+        Spring y1 = Spring.sum(yBorderSpring, Spring.sum(displayHeightSpring, strutY));
+        Spring y2 = Spring.sum(y1, Spring.sum(buttonHeightSpring, minY));
+        Spring y3 = Spring.sum(y2, Spring.sum(buttonHeightSpring, minY));
+        Spring y4 = Spring.sum(y3, Spring.sum(buttonHeightSpring, minY));
+        Spring y5 = Spring.sum(y4, Spring.sum(buttonHeightSpring, minY));
+        for(int i = 0; i < 40; i++)
+        {
+            constraints = layout.getConstraints((Component)buttons().elementAt(i));
+            constraints.setWidth(buttonWidthSpring);
+            constraints.setHeight(buttonHeightSpring);
+            if(i < 5)
+                constraints.setX(xBorderSpring);
+            else
+            if(i < 10)
+                constraints.setX(x2);
+            else
+            if(i < 15)
+                constraints.setX(x3);
+            else
+            if(i < 20)
+                constraints.setX(x4);
+            else
+            if(i < 25)
+                constraints.setX(x5);
+            else
+            if(i < 30)
+                constraints.setX(x6);
+            else
+            if(i < 35)
+                constraints.setX(x7);
+            else
+                constraints.setX(x8);
+            int r = i % 5;
+            if(r == 0)
+            {
+                constraints.setY(y1);
+                continue;
+            }
+            if(r == 1)
+            {
+                constraints.setY(y2);
+                continue;
+            }
+            if(r == 2)
+            {
+                constraints.setY(y3);
+                continue;
+            }
+            if(r == 3)
+                constraints.setY(y4);
+            else
+                constraints.setY(y5);
+        }
+
+        Spring s4ym = Spring.constant(applet.strutSize() + (applet.displayHeight() - applet.buttonHeight()) / 2);
+        constraints = layout.getConstraints((Component)buttons().elementAt(40));
+        constraints.setWidth(shortButtonWidthSpring);
+        constraints.setHeight(shortButtonHeightSpring);
+        Spring s40x = Spring.sum(Spring.sum(Spring.constant(7), displayWidthSpring), Spring.scale(strutX, 4F));
+        constraints.setX(s40x);
+        constraints.setY(s4ym);
+        constraints = layout.getConstraints((Component)buttons().elementAt(43));
+        constraints.setWidth(shortButtonWidthSpring);
+        constraints.setHeight(shortButtonHeightSpring);
+        Spring s434x = Spring.sum(Spring.constant(width23), Spring.sum(displayWidthSpring, Spring.scale(strutX, 2.0F)));
+        constraints.setX(s434x);
+        constraints.setY(strutY);
+        constraints = layout.getConstraints((Component)buttons().elementAt(44));
+        constraints.setWidth(shortButtonWidthSpring);
+        constraints.setHeight(shortButtonHeightSpring);
+        constraints.setX(s434x);
+        Spring s44y = Spring.sum(Spring.scale(minY, 1.0F), Spring.sum(shortButtonHeightSpring, Spring.sum(buttonHeightSpring, strutY)));
+        constraints.setY(s44y);
+        constraints = layout.getConstraints((Component)buttons().elementAt(41));
+        constraints.setWidth(shortButtonWidthSpring);
+        constraints.setHeight(shortButtonHeightSpring);
+        Spring s41x = Spring.sum(Spring.sum(Spring.constant(5), s434x), shortButtonWidthSpring);
+        constraints.setX(s41x);
+        constraints.setY(s4ym);
+    }
+
+    public synchronized void setDisplayPanel()
+    {
+        remove(applet.displayPanel());
+        add(applet.displayPanel());
+        javax.swing.SpringLayout.Constraints constraints = ((SpringLayout)getLayout()).getConstraints(applet.displayPanel());
+        constraints = layout.getConstraints(applet.displayPanel());
+        constraints.setX(xBorderSpring);
+        constraints.setY(yBorderSpring);
+        constraints.setWidth(displayWidthSpring);
+        constraints.setHeight(displayHeightSpring);
+    }
+
+    public synchronized Vector buttons()
+    {
+        return buttons;
+    }
+
+    public synchronized HashMap keyMap()
+    {
+        return keyMap;
+    }
+
+    protected void createKeyMap()
+    {
+        Iterator i$ = buttons.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            CalculatorButton o = (CalculatorButton)i$.next();
+            if(o.shortcut() != 0)
+            {
+                if(!keyMap.containsKey(Character.valueOf(o.shortcut())));
+                keyMap.put(Character.valueOf(o.shortcut()), o);
+            }
+        } while(true);
+    }
+
+    public Base base()
+    {
+        return base;
+    }
+
+    public void base(Base base)
+    {
+        this.base = base;
+    }
+
+    private static final long serialVersionUID = 1L;
+    private Base base;
+    protected Color colour;
+    private Spring xBorderSpring;
+    private Spring yBorderSpring;
+    private Spring strutX;
+    private Spring strutY;
+    private Spring minX;
+    private Spring minY;
+    private Spring buttonWidthSpring;
+    private Spring narrowButtonWidthSpring;
+    private Spring thinButtonWidthSpring;
+    private Spring buttonHeightSpring;
+    private Spring shortButtonHeightSpring;
+    private Spring shortButtonWidthSpring;
+    private Spring displayWidthSpring;
+    private Spring displayHeightSpring;
+    protected final MainCalculatorPanel applet;
+    protected final SpecialButtonType sbt;
+    protected SpringLayout layout;
+    protected Vector buttons;
+    protected HashMap keyMap;
+}

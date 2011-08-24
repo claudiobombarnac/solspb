@@ -1,0 +1,21 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PriceRangeDataSequence.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation.pricerange;
+
+import com.dukascopy.api.Period;
+import com.dukascopy.charts.data.datacache.rangebar.PriceRangeData;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.AbstractPriceAggregationDataSequence;
+import java.util.Map;
+
+public class PriceRangeDataSequence extends AbstractPriceAggregationDataSequence
+{
+
+    public PriceRangeDataSequence(long from, long to, int extraBefore, int extraAfter, PriceRangeData data[], 
+            long gaps[][], Map formulaOutputs, Map indicators, boolean latestDataVisible, boolean includesLatestData)
+    {
+        super(Period.TICK, from, to, extraBefore, extraAfter, data, gaps, formulaOutputs, indicators, latestDataVisible, includesLatestData);
+    }
+}

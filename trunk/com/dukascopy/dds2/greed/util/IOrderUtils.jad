@@ -1,0 +1,46 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IOrderUtils.java
+
+package com.dukascopy.dds2.greed.util;
+
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.charts.persistence.ChartBean;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import java.awt.Color;
+import java.awt.Stroke;
+import java.awt.Window;
+import java.awt.event.ActionListener;
+import java.math.BigDecimal;
+
+public interface IOrderUtils
+{
+
+    public abstract boolean cancelOrder(String s);
+
+    public abstract void editOrder(String s, ActionListener actionlistener, ChartBean chartbean);
+
+    public abstract void editOrder(String s, double d, ActionListener actionlistener, ChartBean chartbean);
+
+    public abstract void addStopLoss(String s, String s1);
+
+    public abstract void addTakeProfit(String s, String s1);
+
+    public abstract void closeOrder(String s);
+
+    public abstract void condCloseOrder(String s);
+
+    public abstract void createNewOrder(Window window, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand ordercommand, double d, Integer integer);
+
+    public abstract void selectGroupIds(java.util.List list);
+
+    public abstract AccountInfoMessage getAccountInfo();
+
+    public abstract void orderChangePreview(ChartBean chartbean, String s, BigDecimal bigdecimal, String s1, Color color, Stroke stroke);
+
+    public abstract void cancelOrderChangePreview(ChartBean chartbean, String s);
+
+    public abstract void setOrderLinesVisible(ChartBean chartbean, String s, boolean flag);
+}

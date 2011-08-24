@@ -1,0 +1,218 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PointList.java
+
+package com.dukascopy.calculator.graph;
+
+import java.awt.*;
+import java.awt.geom.Path2D;
+import java.io.PrintStream;
+import java.util.Vector;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            Point
+
+public class PointList extends Vector
+{
+    static class MyView extends JPanel
+    {
+
+        public void paint(Graphics g)
+        {
+            Graphics2D graphics2d = (Graphics2D)g;
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.draw(path);
+        }
+
+        java.awt.geom.Path2D.Double path;
+        private static final long serialVersionUID = 1L;
+
+        MyView(java.awt.geom.Path2D.Double path)
+        {
+            this.path = path;
+        }
+    }
+
+
+    public PointList()
+    {
+    }
+
+    public void addToPath(java.awt.geom.Path2D.Double path, AtomicBoolean restart)
+    {
+        System.out.println("add to path");
+        if(size() == 0)
+            return;
+        if(size() == 1)
+        {
+            Point p = (Point)firstElement();
+            path.moveTo(p.getX(), p.getY());
+        } else
+        {
+            double c[][] = controlPoints(restart);
+            if(restart.get())
+                return;
+            Point p = (Point)firstElement();
+            double x0 = p.getX();
+            double y0 = p.getY();
+            path.moveTo(x0, y0);
+            for(int j = 1; j < size(); j++)
+            {
+                double x1 = c[0][2 * j - 2];
+                double x2 = c[0][2 * j - 1];
+                double y1 = c[1][2 * j - 2];
+                double y2 = c[1][2 * j - 1];
+                p = (Point)elementAt(j);
+                double x3 = p.getX();
+                double y3 = p.getY();
+                path.curveTo(x1, y1, x2, y2, x3, y3);
+                x0 = x3;
+                y0 = y3;
+            }
+
+        }
+    }
+
+    private double gradient(int j, double derivative2[])
+    {
+        if(j == 0)
+        {
+            Point pjm = (Point)elementAt(j);
+            Point pj = (Point)elementAt(j + 1);
+            double x = pj.getX() - pjm.getX();
+            double y = pj.getY() - pjm.getY();
+            return (y / x - (x * (derivative2[j + 1] - derivative2[j])) / 6D) + (x * derivative2[j + 1]) / 2D;
+        } else
+        {
+            Point pjm = (Point)elementAt(j - 1);
+            Point pj = (Point)elementAt(j);
+            double x = pj.getX() - pjm.getX();
+            double y = pj.getY() - pjm.getY();
+            return y / x - (x * (derivative2[j] - derivative2[j - 1])) / 6D - (x * derivative2[j - 1]) / 2D;
+        }
+    }
+
+    private double[][] controlPoints(AtomicBoolean restart)
+    {
+        int N = size();
+        double c[][] = new double[2][2 * N - 2];
+        double A[][] = new double[2 * N - 2][2 * N - 2];
+        A[0][0] = 3D;
+        for(int i = 1; i < N - 1; i++)
+        {
+            if(restart.get())
+                return (double[][])null;
+            A[2 * i - 1][2 * i - 2] = 1.0D;
+            A[2 * i - 1][2 * i - 1] = -2D;
+            A[2 * i - 1][2 * i] = 2D;
+            A[2 * i - 1][2 * i + 1] = -1D;
+            A[2 * i][2 * i - 1] = 1.0D;
+            A[2 * i][2 * i] = 1.0D;
+        }
+
+        A[2 * N - 3][2 * N - 3] = 3D;
+        LU_decompose(A, restart);
+        if(restart.get())
+            return (double[][])null;
+        double b[] = new double[2 * N - 2];
+        b[0] = 2D * ((Point)elementAt(0)).getX() + ((Point)elementAt(1)).getX();
+        for(int i = 1; i < N - 1; i++)
+        {
+            if(restart.get())
+                return (double[][])null;
+            b[2 * i] = 2D * ((Point)elementAt(i)).getX();
+        }
+
+        b[2 * N - 3] = ((Point)elementAt(N - 2)).getX() + 2D * ((Point)elementAt(N - 1)).getX();
+        c[0] = LU_solve(A, b, restart);
+        if(restart.get())
+            return (double[][])null;
+        b[0] = 2D * ((Point)elementAt(0)).getY() + ((Point)elementAt(1)).getY();
+        for(int i = 1; i < N - 1; i++)
+            b[2 * i] = 2D * ((Point)elementAt(i)).getY();
+
+        b[2 * N - 3] = ((Point)elementAt(N - 2)).getY() + 2D * ((Point)elementAt(N - 1)).getY();
+        c[1] = LU_solve(A, b, restart);
+        if(restart.get())
+            return (double[][])null;
+        else
+            return c;
+    }
+
+    private static void LU_decompose(double A[][], AtomicBoolean restart)
+    {
+        int n = A.length;
+        for(int i = 0; i < n - 1; i++)
+        {
+            for(int j = i + 1; j < n; j++)
+            {
+                if(restart.get())
+                    return;
+                A[j][i] /= A[i][i];
+                for(int k = i + 1; k < n; k++)
+                    A[j][k] -= A[j][i] * A[i][k];
+
+            }
+
+        }
+
+    }
+
+    private static double[] LU_solve(double LU[][], double b[], AtomicBoolean restart)
+    {
+        int n = b.length;
+        double x[] = new double[n];
+        x[0] = b[0];
+        for(int i = 1; i < n; i++)
+        {
+            if(restart.get())
+                return null;
+            double total = 0.0D;
+            for(int j = 0; j < i; j++)
+                total += LU[i][j] * x[j];
+
+            x[i] = b[i] - total;
+        }
+
+        x[n - 1] /= LU[n - 1][n - 1];
+        for(int i = n - 2; i >= 0; i--)
+        {
+            if(restart.get())
+                return null;
+            double total = 0.0D;
+            for(int j = i + 1; j < n; j++)
+                total += LU[i][j] * x[j];
+
+            x[i] -= total;
+            x[i] /= LU[i][i];
+        }
+
+        return x;
+    }
+
+    public static void main(String args[])
+    {
+        java.awt.geom.Path2D.Double path = new java.awt.geom.Path2D.Double();
+        PointList pointList = new PointList();
+        pointList.add(new Point(100D, 280D));
+        pointList.add(new Point(200D, 220D));
+        pointList.add(new Point(300D, 200D));
+        pointList.add(new Point(400D, 180D));
+        pointList.add(new Point(500D, 120D));
+        AtomicBoolean restart = new AtomicBoolean(false);
+        pointList.addToPath(path, restart);
+        MyView view = new MyView(path);
+        JFrame frame = new JFrame("PointList Test");
+        frame.setSize(600, 400);
+        frame.setContentPane(view);
+        frame.setDefaultCloseOperation(3);
+        frame.setVisible(true);
+    }
+
+    private final double eps = 1E-010D;
+    private static final long serialVersionUID = 1L;
+}

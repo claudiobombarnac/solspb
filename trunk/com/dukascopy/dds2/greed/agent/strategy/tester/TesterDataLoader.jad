@@ -1,0 +1,228 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterDataLoader.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class TesterDataLoader
+{
+
+    public TesterDataLoader(long from, long to, Set instruments, LoadingProgressListener loadingProgressListener)
+        throws IllegalArgumentException
+    {
+        this.from = from;
+        this.to = to;
+        if(to <= from)
+        {
+            DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            throw new IllegalArgumentException((new StringBuilder()).append("Incorrect time interval. [").append(format.format(Long.valueOf(from))).append("] >= [").append(format.format(Long.valueOf(to))).append("]").toString());
+        } else
+        {
+            this.instruments = new HashSet(instruments);
+            period = Period.TICK;
+            this.loadingProgressListener = loadingProgressListener;
+            return;
+        }
+    }
+
+    public void loadData()
+    {
+        final Iterator selectedInstrumentsIterator = instruments.iterator();
+        int selectedInstrumentsCount = instruments.size();
+        final Instrument instrument;
+        if(selectedInstrumentsIterator.hasNext())
+            instrument = (Instrument)selectedInstrumentsIterator.next();
+        else
+            return;
+        int value = 0;
+        for(int i = 0; i < selectedInstrumentsCount; i++)
+        {
+            int j = this.period != Period.TICK ? 1 : 0;
+            for(int k = Period.values().length; j < k; j++)
+            {
+                Period period = Period.values()[j];
+                if(period == Period.TICK)
+                {
+                    value += DataCacheUtils.separateChunksForCache(period, from, to).length;
+                    continue;
+                }
+                if(!DataCacheUtils.isCandleBasicFast(period))
+                    continue;
+                long firstCandle = DataCacheUtils.getCandleStartFast(period, from);
+                long lastCandle = DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, to));
+                if(firstCandle <= lastCandle)
+                    value += DataCacheUtils.separateChunksForCache(period, firstCandle, lastCandle).length * 2;
+            }
+
+        }
+
+        final int totalValue = value;
+        IFeedDataProvider feedDataProvider = FeedDataProvider.getDefaultInstance();
+        LoadingProgressListener loadingProgressWrapper = new LoadingProgressListener() {
+
+            public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+            {
+                long value;
+                if(currentPeriod == Period.TICK)
+                    value = ((currentValue + DataCacheUtils.separateChunksForCache(currentPeriod, startTime, currentTime).length) * 100) / totalValue;
+                else
+                    value = ((currentValue + DataCacheUtils.separateChunksForCache(currentPeriod, DataCacheUtils.getCandleStartFast(currentPeriod, startTime), DataCacheUtils.getPreviousCandleStartFast(currentPeriod, DataCacheUtils.getCandleStartFast(currentPeriod, currentTime))).length) * 100) / totalValue;
+                loadingProgressListener.dataLoaded(0L, 100L, value, information);
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception ex)
+            {
+                if(allDataLoaded)
+                {
+                    if(currentPeriod == Period.TICK)
+                        currentValue += DataCacheUtils.separateChunksForCache(currentPeriod, startTime, currentTime).length;
+                    else
+                        currentValue += DataCacheUtils.separateChunksForCache(currentPeriod, DataCacheUtils.getCandleStartFast(currentPeriod, startTime), DataCacheUtils.getPreviousCandleStartFast(currentPeriod, DataCacheUtils.getCandleStartFast(currentPeriod, currentTime))).length;
+                    if(currentPeriod == Period.TICK || currentSide == OfferSide.BID)
+                    {
+                        currentSide = OfferSide.ASK;
+                        Period newPeriod = null;
+                        int i = currentPeriod.ordinal() + 1;
+                        for(int j = Period.values().length; i < j; i++)
+                        {
+                            Period period = Period.values()[i];
+                            if(!DataCacheUtils.isCandleBasicFast(period))
+                                continue;
+                            long firstCandle = DataCacheUtils.getCandleStartFast(period, from);
+                            long lastCandle = DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, to));
+                            if(firstCandle > lastCandle)
+                                continue;
+                            newPeriod = period;
+                            break;
+                        }
+
+                        if(newPeriod == null)
+                            currentPeriod = TesterDataLoader.this.period != Period.TICK ? Period.TEN_SECS : Period.TICK;
+                        else
+                            currentPeriod = newPeriod;
+                    } else
+                    {
+                        currentSide = OfferSide.BID;
+                    }
+                    if((currentPeriod == Period.TICK || TesterDataLoader.this.period != Period.TICK && currentPeriod == Period.TEN_SECS) && currentSide == OfferSide.ASK)
+                        if(selectedInstrumentsIterator.hasNext())
+                            currentInstrument = (Instrument)selectedInstrumentsIterator.next();
+                        else
+                            currentInstrument = null;
+                    if(currentInstrument != null)
+                    {
+                        IFeedDataProvider feedDataProvider = FeedDataProvider.getDefaultInstance();
+                        if(currentPeriod == Period.TICK)
+                        {
+                            if(TesterDataLoader.LOGGER.isDebugEnabled())
+                            {
+                                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                                TesterDataLoader.LOGGER.debug((new StringBuilder()).append("Loading ticks for instrument [").append(currentInstrument).append("], from [").append(dateFormat.format(new Date(from))).append("], to [").append(dateFormat.format(new Date(to))).append("]").toString());
+                            }
+                            feedDataProvider.loadTicksDataInCacheSynched(currentInstrument, from, to, this);
+                        } else
+                        {
+                            long firstCandle = DataCacheUtils.getCandleStartFast(currentPeriod, from);
+                            long lastCandle = DataCacheUtils.getPreviousCandleStartFast(currentPeriod, DataCacheUtils.getCandleStartFast(currentPeriod, to));
+                            if(TesterDataLoader.LOGGER.isDebugEnabled())
+                            {
+                                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                                TesterDataLoader.LOGGER.debug((new StringBuilder()).append("Loading ticks for instrument [").append(currentInstrument).append("], period [").append(currentPeriod).append("], side [").append(currentSide).append("], from [").append(dateFormat.format(new Date(firstCandle))).append("], to [").append(dateFormat.format(new Date(lastCandle))).append("]").toString());
+                            }
+                            feedDataProvider.loadCandlesDataInCacheSynched(currentInstrument, currentPeriod, currentSide, firstCandle, lastCandle, this);
+                        }
+                        return;
+                    }
+                    break MISSING_BLOCK_LABEL_722;
+                }
+                if(ex != null)
+                    TesterDataLoader.LOGGER.error(ex.getMessage(), ex);
+                long value = allDataLoaded ? 100L : (currentValue * 100) / totalValue;
+                loadingProgressListener.loadingFinished(allDataLoaded, 0L, 100L, value, ex);
+                break MISSING_BLOCK_LABEL_788;
+                Exception e;
+                e;
+                TesterDataLoader.LOGGER.error(e.getMessage(), e);
+            }
+
+            public boolean stopJob()
+            {
+                return loadingProgressListener.stopJob();
+            }
+
+            private Instrument currentInstrument;
+            private int currentValue;
+            private Period currentPeriod;
+            private OfferSide currentSide;
+            final Instrument val$instrument;
+            final int val$totalValue;
+            final Iterator val$selectedInstrumentsIterator;
+            final TesterDataLoader this$0;
+
+            
+            {
+                this$0 = TesterDataLoader.this;
+                instrument = instrument1;
+                totalValue = i;
+                selectedInstrumentsIterator = iterator;
+                super();
+                currentInstrument = instrument;
+                currentValue = 0;
+                currentPeriod = period != Period.TICK ? Period.TEN_SECS : period;
+                currentSide = OfferSide.ASK;
+            }
+        };
+        try
+        {
+            if(this.period == Period.TICK)
+            {
+                if(LOGGER.isDebugEnabled())
+                {
+                    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    LOGGER.debug((new StringBuilder()).append("Loading ticks for instrument [").append(instrument).append("], from [").append(dateFormat.format(new Date(from))).append("], to [").append(dateFormat.format(new Date(to))).append("]").toString());
+                }
+                feedDataProvider.loadTicksDataInCacheSynched(instrument, from, to, loadingProgressWrapper);
+            } else
+            {
+                if(LOGGER.isDebugEnabled())
+                {
+                    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    LOGGER.debug((new StringBuilder()).append("Loading ticks for instrument [").append(instrument).append("], period [").append(this.period).append("], from [").append(dateFormat.format(new Date(from))).append("], to [").append(dateFormat.format(new Date(to))).append("]").toString());
+                }
+                feedDataProvider.loadCandlesDataInCacheSynched(instrument, Period.TEN_SECS, OfferSide.ASK, DataCacheUtils.getCandleStartFast(Period.TEN_SECS, from), DataCacheUtils.getCandleStartFast(Period.TEN_SECS, to), loadingProgressWrapper);
+            }
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/TesterDataLoader);
+    private long from;
+    private long to;
+    private Set instruments;
+    private Period period;
+    private LoadingProgressListener loadingProgressListener;
+
+
+
+
+
+
+}

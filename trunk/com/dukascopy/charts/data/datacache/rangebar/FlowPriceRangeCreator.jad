@@ -1,0 +1,49 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   FlowPriceRangeCreator.java
+
+package com.dukascopy.charts.data.datacache.rangebar;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.rangebar:
+//            PriceRangeCreator, PriceRangeData
+
+public class FlowPriceRangeCreator extends PriceRangeCreator
+{
+
+    public FlowPriceRangeCreator(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        super(instrument, offerSide, 0x7fffffff, priceRange, false, null, true);
+    }
+
+    public boolean isAllDesiredDataLoaded()
+    {
+        return false;
+    }
+
+    protected void resetResulArray()
+    {
+        result = new PriceRangeData[1];
+    }
+
+    public int getLastElementIndex()
+    {
+        return 0;
+    }
+
+    public void setupLastData(PriceRangeData data)
+    {
+        ((PriceRangeData[])getResult())[((PriceRangeData[])getResult()).length - 1] = data;
+        setLastElementIndex(0);
+        setAnalysedTicksCount(1L);
+        setLoadedPriceRangeCount(1);
+    }
+
+    public volatile void setupLastData(AbstractPriceAggregationData x0)
+    {
+        setupLastData((PriceRangeData)x0);
+    }
+}

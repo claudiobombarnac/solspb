@@ -1,0 +1,112 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EditorStatusBar.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.impl;
+
+import java.awt.*;
+import javax.swing.*;
+import javax.swing.event.*;
+import javax.swing.text.*;
+
+public class EditorStatusBar extends JPanel
+    implements CaretListener, DocumentListener
+{
+
+    public EditorStatusBar()
+    {
+        lblCharactersCount = new JLabel((new StringBuilder()).append("nb char: ").append(charactersCount).toString());
+        lblTextType = new JLabel("Text type: plain text");
+        lblRowColumnSel = new JLabel(createLabel());
+        lblEncoding = new JLabel("enc: UTF-8");
+        lblCharactersCount.setBorder(BorderFactory.createEtchedBorder());
+        lblTextType.setBorder(BorderFactory.createEtchedBorder());
+        lblRowColumnSel.setBorder(BorderFactory.createEtchedBorder());
+        lblEncoding.setBorder(BorderFactory.createEtchedBorder());
+        setLayout(new GridBagLayout());
+        add(lblCharactersCount, new GridBagConstraints(0, 0, 1, 1, 0.25D, 1.0D, 10, 1, new Insets(0, 29, 0, 0), 0, 0));
+        add(lblTextType, new GridBagConstraints(1, 0, 1, 1, 0.25D, 1.0D, 10, 1, new Insets(0, 0, 0, 0), 0, 0));
+        add(lblRowColumnSel, new GridBagConstraints(2, 0, 1, 1, 0.25D, 1.0D, 10, 1, new Insets(0, 0, 0, 0), 0, 0));
+        add(lblEncoding, new GridBagConstraints(3, 0, 1, 1, 0.25D, 1.0D, 10, 1, new Insets(0, 0, 0, 0), 0, 0));
+    }
+
+    public void updateCharactersCount(int length)
+    {
+        charactersCount += length;
+        lblCharactersCount.setText((new StringBuilder()).append("nb char: ").append(charactersCount).toString());
+    }
+
+    public void updateRowPosition(int newRowPosition)
+    {
+        rowPosition = newRowPosition + 1;
+        String label = createLabel();
+        lblRowColumnSel.setText(label);
+    }
+
+    public void updateColumnPosition(int newColPosition)
+    {
+        columnPosition = newColPosition + 1;
+        String label = createLabel();
+        lblRowColumnSel.setText(label);
+    }
+
+    public int getColumnAtCaret(JTextComponent caretEvent)
+    {
+        int caretPosition = caretEvent.getCaretPosition();
+        Element root = caretEvent.getDocument().getDefaultRootElement();
+        int line = root.getElementIndex(caretPosition);
+        int lineStart = root.getElement(line).getStartOffset();
+        return caretPosition - lineStart;
+    }
+
+    public int getLineAtCaret(JTextComponent caretEvent)
+    {
+        int caretPosition = caretEvent.getCaretPosition();
+        Element root = caretEvent.getDocument().getDefaultRootElement();
+        return root.getElementIndex(caretPosition);
+    }
+
+    private String createLabel()
+    {
+        StringBuilder label = new StringBuilder();
+        label.append("Ln: ").append(rowPosition);
+        label.append("  Col: ").append(columnPosition);
+        return label.toString();
+    }
+
+    public void caretUpdate(CaretEvent caretEvent)
+    {
+        JTextComponent jTextArea = (JTextComponent)caretEvent.getSource();
+        int lineAtCaret = getLineAtCaret(jTextArea);
+        updateRowPosition(lineAtCaret);
+        int columnAtCaret = getColumnAtCaret(jTextArea);
+        updateColumnPosition(columnAtCaret);
+    }
+
+    public void insertUpdate(DocumentEvent documentEvent)
+    {
+        updateCharactersCount(documentEvent.getLength());
+    }
+
+    public void removeUpdate(DocumentEvent documentEvent)
+    {
+        updateCharactersCount(-documentEvent.getLength());
+    }
+
+    public void changedUpdate(DocumentEvent documentevent)
+    {
+    }
+
+    private static final String NB_CHAR_LABEL = "nb char: ";
+    private static final String LN_LABEL = "Ln: ";
+    private static final String COL_LABEL = "  Col: ";
+    private JLabel lblCharactersCount;
+    private JLabel lblTextType;
+    private JLabel lblRowColumnSel;
+    private JLabel lblEncoding;
+    private int charactersCount;
+    private int rowPosition;
+    private int columnPosition;
+    private int charactersSelected;
+}

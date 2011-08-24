@@ -1,0 +1,80 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractPriceAggregationDataLoadingThread.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.dataload;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.data.datacache.priceaggregation.IPriceAggregationLiveFeedListener;
+import java.util.concurrent.BlockingQueue;
+import org.slf4j.Logger;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester.dataload:
+//            AbstractDataLoadingThread
+
+public abstract class AbstractPriceAggregationDataLoadingThread extends AbstractDataLoadingThread
+{
+
+    public AbstractPriceAggregationDataLoadingThread(String name, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, BlockingQueue queue, long from, 
+            long to, IFeedDataProvider feedDataProvider)
+    {
+        super(name, instrument, jForexPeriod, offerSide, queue, from, DataCacheUtils.getTradingSessionStart(to) != to ? to : DataCacheUtils.getPreviousPriceAggregationBarStart(to), feedDataProvider);
+    }
+
+    public void run()
+    {
+        boolean needToWaitUntilInProgressBarIsLoaded;
+        IPriceAggregationLiveFeedListener inProgressListener;
+        needToWaitUntilInProgressBarIsLoaded = false;
+        inProgressListener = createInProgressAdapter();
+        AbstractPriceAggregationData inProgressBar = getInProgressBar();
+        if(inProgressBar == null)
+        {
+            boolean isLoadingNow = isInProgressBarLoadingNow();
+            if(!isLoadingNow)
+            {
+                addInProgressBarListener(inProgressListener);
+                needToWaitUntilInProgressBarIsLoaded = true;
+            }
+        }
+        if(needToWaitUntilInProgressBarIsLoaded)
+            while(isInProgressBarLoadingNow()) 
+                try
+                {
+                    Thread.sleep(100L);
+                }
+                catch(InterruptedException e)
+                {
+                    LOGGER.error(e.getLocalizedMessage(), e);
+                }
+        executeRun();
+        removeInProgressBarListener(inProgressListener);
+        break MISSING_BLOCK_LABEL_96;
+        Exception exception;
+        exception;
+        removeInProgressBarListener(inProgressListener);
+        throw exception;
+    }
+
+    protected long checkToTimeRightBound(long toTime)
+    {
+        toTime = toTime < getInProgressBar().getTime() ? toTime : DataCacheUtils.getPreviousPriceAggregationBarStart(getInProgressBar().getTime());
+        return toTime;
+    }
+
+    protected abstract AbstractPriceAggregationData getInProgressBar();
+
+    protected abstract void addInProgressBarListener(IPriceAggregationLiveFeedListener ipriceaggregationlivefeedlistener);
+
+    protected abstract void removeInProgressBarListener(IPriceAggregationLiveFeedListener ipriceaggregationlivefeedlistener);
+
+    protected abstract boolean isInProgressBarLoadingNow();
+
+    protected abstract IPriceAggregationLiveFeedListener createInProgressAdapter();
+
+    protected abstract void executeRun();
+}

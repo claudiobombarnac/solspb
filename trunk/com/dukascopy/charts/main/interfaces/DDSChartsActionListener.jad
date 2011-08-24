@@ -1,0 +1,88 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DDSChartsActionListener.java
+
+package com.dukascopy.charts.main.interfaces;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.presentation.*;
+import com.dukascopy.dds2.greed.gui.table.ColumnDescriptor;
+import java.util.List;
+
+public interface DDSChartsActionListener
+{
+
+    public abstract void indicatorAdded(IndicatorWrapper indicatorwrapper, int i);
+
+    public abstract void indicatorChanged(IndicatorWrapper indicatorwrapper, int i);
+
+    public abstract void indicatorRemoved(IndicatorWrapper indicatorwrapper);
+
+    public abstract void indicatorsRemoved(List list);
+
+    public abstract void periodChanged(Period period);
+
+    public abstract void offerSideChanged(OfferSide offerside);
+
+    public abstract void filterChanged(Filter filter);
+
+    public abstract void drawingAdded(IChartObject ichartobject);
+
+    public abstract void drawingAdded(int i, IChartObject ichartobject);
+
+    public abstract void drawingRemoved(IChartObject ichartobject);
+
+    public abstract void drawingRemoved(int i, IChartObject ichartobject);
+
+    public abstract void drawingsRemoved(List list);
+
+    public abstract void drawingChanged(IChartObject ichartobject);
+
+    public abstract void timeFrameMoved(long l, long l1, boolean flag, int i);
+
+    public abstract void candleTypeChanged(TimePeriodAggregationPresentationType timeperiodaggregationpresentationtype);
+
+    public abstract void tickTypeChanged(TicksPresentationType tickspresentationtype);
+
+    public abstract void gridVisibilityChanged(boolean flag);
+
+    public abstract void mouseCursorVisibilityChanged(boolean flag);
+
+    public abstract void lastCandleVisibilityChanged(boolean flag);
+
+    public abstract void verticalChartMovementChanged(boolean flag);
+
+    public abstract void timeFrameMoved(boolean flag);
+
+    public abstract void timeFrameMoved(int i, int j, int k, int l, boolean flag);
+
+    public abstract void timeFrameMoved(boolean flag, int i);
+
+    public abstract void zoomOutEnabled(boolean flag);
+
+    public abstract void zoomInEnabled(boolean flag);
+
+    public abstract void instrumentChanged(Instrument instrument);
+
+    public abstract void chartObjectCreatedForNewDrawing(IChartObject ichartobject);
+
+    public abstract void dataTypeChanged(DataType datatype);
+
+    public abstract void priceRangesPresentationTypeChanged(PriceRangeAggregationPresentationType pricerangeaggregationpresentationtype);
+
+    public abstract void priceRangeChanged(PriceRange pricerange);
+
+    public abstract void jForexPeriodChanged(JForexPeriod jforexperiod);
+
+    public abstract void reversalAmountChanged(ReversalAmount reversalamount);
+
+    public abstract void pointAndFigurePresentationTypeChanged(PointAndFigurePresentationType pointandfigurepresentationtype);
+
+    public abstract void tickBarPresentationTypeChanged(TickBarPresentationType tickbarpresentationtype);
+
+    public abstract void dataChanged(ColumnDescriptor columndescriptor, Data data, Object obj, Object obj1);
+}

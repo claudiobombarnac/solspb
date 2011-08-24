@@ -1,0 +1,112 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DailyFilterLastAvailableListener.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.util.Calendar;
+import java.util.TimeZone;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            CandleData, LiveFeedListener
+
+public class DailyFilterLastAvailableListener
+    implements LiveFeedListener
+{
+
+    public DailyFilterLastAvailableListener(LiveFeedListener candleListener)
+    {
+        this.candleListener = candleListener;
+    }
+
+    public void newTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        candleListener.newTick(instrument, time, ask, bid, askVol, bidVol);
+    }
+
+    public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+            double close, double low, double high, double vol)
+    {
+        if(period == Period.DAILY_SKIP_SUNDAY)
+        {
+            Calendar calendar = (Calendar)calendars.get();
+            calendar.setTimeInMillis(time);
+            if(calendar.get(7) == 1)
+                process = true;
+            else
+            if(process)
+            {
+                if(!$assertionsDisabled && calendar.get(7) != 7)
+                    throw new AssertionError();
+                process = false;
+                candleListener.newCandle(instrument, period, side, time + 0x5265c00L, close, close, close, close, 0.0D);
+                candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+            } else
+            {
+                candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+            }
+        } else
+        if(period == Period.DAILY_SUNDAY_IN_MONDAY)
+        {
+            Calendar calendar = (Calendar)calendars.get();
+            calendar.setTimeInMillis(time);
+            if(calendar.get(7) == 2)
+            {
+                process = true;
+                mondayCandle = new CandleData(time, open, close, low, high, vol);
+                sundayCandle = null;
+            } else
+            if(process)
+            {
+                if(calendar.get(7) == 1)
+                {
+                    if(!$assertionsDisabled && sundayCandle != null)
+                        throw new AssertionError();
+                    sundayCandle = new CandleData(time, open, close, low, high, vol);
+                } else
+                {
+                    if(!$assertionsDisabled && calendar.get(7) != 7)
+                        throw new AssertionError();
+                    process = false;
+                    mondayCandle.open = sundayCandle.open;
+                    mondayCandle.high = Math.max(mondayCandle.high, sundayCandle.high);
+                    mondayCandle.low = Math.min(mondayCandle.low, sundayCandle.low);
+                    mondayCandle.vol = StratUtils.roundHalfEven(mondayCandle.vol + sundayCandle.vol, 7);
+                    candleListener.newCandle(instrument, period, side, time + 0xa4cb800L, mondayCandle.open, mondayCandle.close, mondayCandle.low, mondayCandle.high, mondayCandle.vol);
+                    candleListener.newCandle(instrument, period, side, time + 0x5265c00L, close, close, close, close, 0.0D);
+                    candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+                }
+            } else
+            {
+                candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+            }
+        } else
+        {
+            candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+        }
+    }
+
+    private static ThreadLocal calendars = new ThreadLocal() {
+
+        protected Calendar initialValue()
+        {
+            return Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+        }
+
+        protected volatile Object initialValue()
+        {
+            return initialValue();
+        }
+
+    };
+    private LiveFeedListener candleListener;
+    private boolean process;
+    private CandleData mondayCandle;
+    private CandleData sundayCandle;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/datacache/DailyFilterLastAvailableListener.desiredAssertionStatus();
+
+}

@@ -1,0 +1,35 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IOrdersProvider.java
+
+package com.dukascopy.charts.data.orders;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.charts.data.datacache.ICurvesProtocolHandler;
+import com.dukascopy.charts.data.datacache.OrdersListener;
+import com.dukascopy.dds2.greed.util.IOrderUtils;
+import java.util.Collection;
+import java.util.Map;
+
+public interface IOrdersProvider
+{
+
+    public abstract Map getOrdersForInstrument(Instrument instrument);
+
+    public abstract Collection getOpenOrdersForInstrument(Instrument instrument, long l, long l1);
+
+    public abstract Collection[] processHistoricalData(Instrument instrument, long l, long l1, com.dukascopy.charts.data.datacache.ICurvesProtocolHandler.OrdersDataStruct ordersdatastruct);
+
+    public abstract IOrderUtils getOrderUtils();
+
+    public abstract void addOrdersListener(Instrument instrument, OrdersListener orderslistener);
+
+    public abstract void removeOrdersListener(OrdersListener orderslistener);
+
+    public abstract void close();
+
+    public abstract double recalculateEquity();
+
+    public abstract void clear();
+}

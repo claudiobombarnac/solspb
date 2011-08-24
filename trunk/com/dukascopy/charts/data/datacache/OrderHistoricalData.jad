@@ -1,0 +1,1060 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OrderHistoricalData.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.IEngine;
+import com.dukascopy.transport.util.Bits;
+import java.io.*;
+import java.math.BigDecimal;
+import java.util.*;
+
+public class OrderHistoricalData
+    implements com.dukascopy.transport.util.Bits.BitsSerializable
+{
+    public static class OpenData
+        implements com.dukascopy.transport.util.Bits.BitsSerializable
+    {
+
+        public String getOrderId()
+        {
+            return orderId;
+        }
+
+        protected void setOrderId(String orderId)
+        {
+            this.orderId = orderId;
+        }
+
+        public BigDecimal getOpenPrice()
+        {
+            return openPrice;
+        }
+
+        protected void setOpenPrice(BigDecimal openPrice)
+        {
+            this.openPrice = openPrice;
+        }
+
+        public long getCreationTime()
+        {
+            return creationTime;
+        }
+
+        protected void setCreationTime(long creationTime)
+        {
+            this.creationTime = creationTime;
+        }
+
+        public long getFillTime()
+        {
+            return fillTime;
+        }
+
+        protected void setFillTime(long fillTime)
+        {
+            this.fillTime = fillTime;
+        }
+
+        public BigDecimal getOpenSlippage()
+        {
+            return openSlippage;
+        }
+
+        protected void setOpenSlippage(BigDecimal openSlippage)
+        {
+            this.openSlippage = openSlippage;
+        }
+
+        public com.dukascopy.api.IEngine.OrderCommand getSide()
+        {
+            return side;
+        }
+
+        protected void setSide(com.dukascopy.api.IEngine.OrderCommand side)
+        {
+            this.side = side;
+        }
+
+        public BigDecimal getStopLossPrice()
+        {
+            return stopLossPrice;
+        }
+
+        protected void setStopLossPrice(BigDecimal stopLossPrice)
+        {
+            this.stopLossPrice = stopLossPrice;
+        }
+
+        public BigDecimal getStopLossSlippage()
+        {
+            return stopLossSlippage;
+        }
+
+        protected void setStopLossSlippage(BigDecimal stopLossSlippage)
+        {
+            this.stopLossSlippage = stopLossSlippage;
+        }
+
+        public String getStopLossOrderId()
+        {
+            return stopLossOrderId;
+        }
+
+        protected void setStopLossOrderId(String stopLossOrderId)
+        {
+            this.stopLossOrderId = stopLossOrderId;
+        }
+
+        public boolean isStopLossByBid()
+        {
+            return stopLossByBid;
+        }
+
+        protected void setStopLossByBid(boolean stopLossByBid)
+        {
+            this.stopLossByBid = stopLossByBid;
+        }
+
+        public BigDecimal getTrailingStep()
+        {
+            return trailingStep;
+        }
+
+        protected void setTrailingStep(BigDecimal trailingStep)
+        {
+            this.trailingStep = trailingStep;
+        }
+
+        public BigDecimal getTakeProfitPrice()
+        {
+            return takeProfitPrice;
+        }
+
+        protected void setTakeProfitPrice(BigDecimal takeProfitPrice)
+        {
+            this.takeProfitPrice = takeProfitPrice;
+        }
+
+        public BigDecimal getTakeProfitSlippage()
+        {
+            return takeProfitSlippage;
+        }
+
+        protected void setTakeProfitSlippage(BigDecimal takeProfitSlippage)
+        {
+            this.takeProfitSlippage = takeProfitSlippage;
+        }
+
+        public String getTakeProfitOrderId()
+        {
+            return takeProfitOrderId;
+        }
+
+        protected void setTakeProfitOrderId(String takeProfitOrderId)
+        {
+            this.takeProfitOrderId = takeProfitOrderId;
+        }
+
+        public long getGoodTillTime()
+        {
+            return goodTillTime;
+        }
+
+        protected void setGoodTillTime(long goodTillTime)
+        {
+            this.goodTillTime = goodTillTime;
+        }
+
+        public boolean isExecuting()
+        {
+            return executing;
+        }
+
+        protected void setExecuting(boolean executing)
+        {
+            this.executing = executing;
+        }
+
+        public String getLabel()
+        {
+            return label;
+        }
+
+        protected void setLabel(String label)
+        {
+            this.label = label;
+        }
+
+        public String getComment()
+        {
+            return comment;
+        }
+
+        protected void setComment(String comment)
+        {
+            this.comment = comment;
+        }
+
+        public BigDecimal getAmount()
+        {
+            return amount;
+        }
+
+        protected void setAmount(BigDecimal amount)
+        {
+            this.amount = amount;
+        }
+
+        public String[] getMergedFrom()
+        {
+            return mergedFrom;
+        }
+
+        protected void setMergedFrom(String mergedFrom[])
+        {
+            this.mergedFrom = mergedFrom;
+        }
+
+        public String toString()
+        {
+            StringBuilder str = new StringBuilder();
+            str.append("orderId: ").append(orderId).append("\n");
+            str.append("label: ").append(label).append("\n");
+            str.append("side: ").append(side).append("\n");
+            str.append("openPrice: ").append(openPrice).append("\n");
+            str.append("creationTime: ").append(creationTime).append("\n");
+            str.append("fillTime: ").append(fillTime).append("\n");
+            str.append("openSlippage: ").append(openSlippage).append("\n");
+            str.append("amount: ").append(amount).append("\n");
+            str.append("stopLossPrice: ").append(stopLossPrice).append("\n");
+            str.append("stopLossSlippage: ").append(stopLossSlippage).append("\n");
+            str.append("stopLossOrderId: ").append(stopLossOrderId).append("\n");
+            str.append("stopLossByBid: ").append(stopLossByBid).append("\n");
+            str.append("takeProfitPrice: ").append(takeProfitPrice).append("\n");
+            str.append("takeProfitSlippage: ").append(takeProfitSlippage).append("\n");
+            str.append("takeProfitOrderId: ").append(takeProfitOrderId).append("\n");
+            str.append("goodTillTime: ").append(goodTillTime).append("\n");
+            str.append("executing: ").append(executing).append("\n");
+            str.append("comment: ").append(comment).append("\n");
+            str.append("mergedFrom: ");
+            if(mergedFrom != null)
+            {
+                str.append("{");
+                String arr$[] = mergedFrom;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    String openData = arr$[i$];
+                    str.append(openData);
+                    str.append(", ");
+                }
+
+                str.append("}");
+            } else
+            {
+                str.append(mergedFrom);
+            }
+            return str.toString();
+        }
+
+        public boolean equals(Object o)
+        {
+            if(this == o)
+                return true;
+            if(o == null || getClass() != o.getClass())
+                return false;
+            OpenData openData = (OpenData)o;
+            if(creationTime != openData.creationTime)
+                return false;
+            if(executing != openData.executing)
+                return false;
+            if(fillTime != openData.fillTime)
+                return false;
+            if(goodTillTime != openData.goodTillTime)
+                return false;
+            if(stopLossByBid != openData.stopLossByBid)
+                return false;
+            if(amount == null ? openData.amount != null : !amount.equals(openData.amount))
+                return false;
+            if(comment == null ? openData.comment != null : !comment.equals(openData.comment))
+                return false;
+            if(label == null ? openData.label != null : !label.equals(openData.label))
+                return false;
+            if(!Arrays.equals(mergedFrom, openData.mergedFrom))
+                return false;
+            if(openPrice == null ? openData.openPrice != null : !openPrice.equals(openData.openPrice))
+                return false;
+            if(openSlippage == null ? openData.openSlippage != null : !openSlippage.equals(openData.openSlippage))
+                return false;
+            if(orderId == null ? openData.orderId != null : !orderId.equals(openData.orderId))
+                return false;
+            if(side != openData.side)
+                return false;
+            if(stopLossOrderId == null ? openData.stopLossOrderId != null : !stopLossOrderId.equals(openData.stopLossOrderId))
+                return false;
+            if(stopLossPrice == null ? openData.stopLossPrice != null : !stopLossPrice.equals(openData.stopLossPrice))
+                return false;
+            if(stopLossSlippage == null ? openData.stopLossSlippage != null : !stopLossSlippage.equals(openData.stopLossSlippage))
+                return false;
+            if(takeProfitOrderId == null ? openData.takeProfitOrderId != null : !takeProfitOrderId.equals(openData.takeProfitOrderId))
+                return false;
+            if(takeProfitPrice == null ? openData.takeProfitPrice != null : !takeProfitPrice.equals(openData.takeProfitPrice))
+                return false;
+            if(takeProfitSlippage == null ? openData.takeProfitSlippage != null : !takeProfitSlippage.equals(openData.takeProfitSlippage))
+                return false;
+            return trailingStep == null ? openData.trailingStep == null : trailingStep.equals(openData.trailingStep);
+        }
+
+        public int hashCode()
+        {
+            int result = orderId == null ? 0 : orderId.hashCode();
+            result = 31 * result + (openPrice == null ? 0 : openPrice.hashCode());
+            result = 31 * result + (int)(creationTime ^ creationTime >>> 32);
+            result = 31 * result + (int)(fillTime ^ fillTime >>> 32);
+            result = 31 * result + (openSlippage == null ? 0 : openSlippage.hashCode());
+            result = 31 * result + (side == null ? 0 : side.hashCode());
+            result = 31 * result + (stopLossPrice == null ? 0 : stopLossPrice.hashCode());
+            result = 31 * result + (stopLossSlippage == null ? 0 : stopLossSlippage.hashCode());
+            result = 31 * result + (stopLossOrderId == null ? 0 : stopLossOrderId.hashCode());
+            result = 31 * result + (stopLossByBid ? 1 : 0);
+            result = 31 * result + (trailingStep == null ? 0 : trailingStep.hashCode());
+            result = 31 * result + (takeProfitPrice == null ? 0 : takeProfitPrice.hashCode());
+            result = 31 * result + (takeProfitSlippage == null ? 0 : takeProfitSlippage.hashCode());
+            result = 31 * result + (takeProfitOrderId == null ? 0 : takeProfitOrderId.hashCode());
+            result = 31 * result + (int)(goodTillTime ^ goodTillTime >>> 32);
+            result = 31 * result + (executing ? 1 : 0);
+            result = 31 * result + (label == null ? 0 : label.hashCode());
+            result = 31 * result + (comment == null ? 0 : comment.hashCode());
+            result = 31 * result + (amount == null ? 0 : amount.hashCode());
+            result = 31 * result + (mergedFrom == null ? 0 : Arrays.hashCode(mergedFrom));
+            return result;
+        }
+
+        public void writeObject(OutputStream os)
+            throws IOException
+        {
+            os.write("OHD.OD".getBytes());
+            os.write(3);
+            Bits.writeObject(os, orderId);
+            Bits.writeObject(os, openPrice);
+            os.write(Bits.longBytes(creationTime));
+            os.write(Bits.longBytes(fillTime));
+            Bits.writeObject(os, openSlippage);
+            Bits.writeObject(os, side);
+            Bits.writeObject(os, stopLossPrice);
+            Bits.writeObject(os, stopLossSlippage);
+            Bits.writeObject(os, stopLossOrderId);
+            os.write(Bits.booleanBytes(stopLossByBid));
+            Bits.writeObject(os, trailingStep);
+            Bits.writeObject(os, takeProfitPrice);
+            Bits.writeObject(os, takeProfitSlippage);
+            Bits.writeObject(os, takeProfitOrderId);
+            os.write(Bits.longBytes(goodTillTime));
+            os.write(Bits.booleanBytes(executing));
+            Bits.writeObject(os, label);
+            Bits.writeObject(os, comment);
+            Bits.writeObject(os, amount);
+            Bits.writeObject(os, mergedFrom);
+        }
+
+        public void readObject(InputStream is)
+            throws IOException
+        {
+            byte header[] = Bits.read(is, new byte["OHD.OD".length()]);
+            if(!Arrays.equals(header, "OHD.OD".getBytes()))
+                throw new StreamCorruptedException((new StringBuilder()).append("Deserialization error, unknown header [").append(new String(header, "UTF-8")).append("]").toString());
+            int version = is.read();
+            if(version != 3)
+            {
+                throw new StreamCorruptedException((new StringBuilder()).append("Versions doesn't match, stream version [").append(version).append("], class version [").append(3).append("]").toString());
+            } else
+            {
+                orderId = (String)Bits.readObject(is, java/lang/String);
+                openPrice = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                creationTime = Bits.getLong(Bits.read(is, new byte[8]));
+                fillTime = Bits.getLong(Bits.read(is, new byte[8]));
+                openSlippage = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                side = (com.dukascopy.api.IEngine.OrderCommand)Bits.readObject(is, com/dukascopy/api/IEngine$OrderCommand);
+                stopLossPrice = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                stopLossSlippage = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                stopLossOrderId = (String)Bits.readObject(is, java/lang/String);
+                stopLossByBid = Bits.getBoolean((byte)is.read());
+                trailingStep = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                takeProfitPrice = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                takeProfitSlippage = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                takeProfitOrderId = (String)Bits.readObject(is, java/lang/String);
+                goodTillTime = Bits.getLong(Bits.read(is, new byte[8]));
+                executing = Bits.getBoolean((byte)is.read());
+                label = (String)Bits.readObject(is, java/lang/String);
+                comment = (String)Bits.readObject(is, java/lang/String);
+                amount = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                mergedFrom = (String[])Bits.readObject(is, [Ljava/lang/String;);
+                return;
+            }
+        }
+
+        protected static final String HEADER = "OHD.OD";
+        private String orderId;
+        private BigDecimal openPrice;
+        private long creationTime;
+        private long fillTime;
+        private BigDecimal openSlippage;
+        private com.dukascopy.api.IEngine.OrderCommand side;
+        private BigDecimal stopLossPrice;
+        private BigDecimal stopLossSlippage;
+        private String stopLossOrderId;
+        private boolean stopLossByBid;
+        private BigDecimal trailingStep;
+        private BigDecimal takeProfitPrice;
+        private BigDecimal takeProfitSlippage;
+        private String takeProfitOrderId;
+        private long goodTillTime;
+        private boolean executing;
+        private String label;
+        private String comment;
+        private BigDecimal amount;
+        private String mergedFrom[];
+
+        public OpenData()
+        {
+            openPrice = OrderHistoricalData.NEG_ONE;
+            stopLossPrice = OrderHistoricalData.NEG_ONE;
+            takeProfitPrice = OrderHistoricalData.NEG_ONE;
+            amount = BigDecimal.ZERO;
+        }
+
+        public OpenData(OpenData openData)
+        {
+            orderId = openData.orderId;
+            openPrice = openData.openPrice;
+            creationTime = openData.creationTime;
+            fillTime = openData.fillTime;
+            openSlippage = openData.openSlippage;
+            side = openData.side;
+            stopLossPrice = openData.stopLossPrice;
+            stopLossSlippage = openData.stopLossSlippage;
+            stopLossOrderId = openData.stopLossOrderId;
+            stopLossByBid = openData.stopLossByBid;
+            trailingStep = openData.trailingStep;
+            takeProfitPrice = openData.takeProfitPrice;
+            takeProfitSlippage = openData.takeProfitSlippage;
+            takeProfitOrderId = openData.takeProfitOrderId;
+            goodTillTime = openData.goodTillTime;
+            executing = openData.executing;
+            label = openData.label;
+            comment = openData.comment;
+            amount = openData.amount;
+            if(openData.mergedFrom == null)
+                mergedFrom = null;
+            else
+                mergedFrom = (String[])Arrays.copyOf(openData.mergedFrom, openData.mergedFrom.length);
+        }
+    }
+
+    public static class CloseData
+        implements com.dukascopy.transport.util.Bits.BitsSerializable
+    {
+
+        public long getCloseTime()
+        {
+            return closeTime;
+        }
+
+        protected void setCloseTime(long closeTime)
+        {
+            this.closeTime = closeTime;
+        }
+
+        public BigDecimal getClosePrice()
+        {
+            return closePrice;
+        }
+
+        protected void setClosePrice(BigDecimal closePrice)
+        {
+            this.closePrice = closePrice;
+        }
+
+        public BigDecimal getAmount()
+        {
+            return amount;
+        }
+
+        protected void setAmount(BigDecimal amount)
+        {
+            this.amount = amount;
+        }
+
+        public String toString()
+        {
+            StringBuilder str = new StringBuilder();
+            str.append("closeTime: ").append(closeTime).append("\n");
+            str.append("closePrice: ").append(closePrice).append("\n");
+            str.append("amount: ").append(amount).append("\n");
+            return str.toString();
+        }
+
+        public boolean equals(Object o)
+        {
+            if(this == o)
+                return true;
+            if(o == null || getClass() != o.getClass())
+                return false;
+            CloseData closeData = (CloseData)o;
+            if(closeTime != closeData.closeTime)
+                return false;
+            if(amount == null ? closeData.amount != null : !amount.equals(closeData.amount))
+                return false;
+            return closePrice == null ? closeData.closePrice == null : closePrice.equals(closeData.closePrice);
+        }
+
+        public int hashCode()
+        {
+            int result = (int)(closeTime ^ closeTime >>> 32);
+            result = 31 * result + (closePrice == null ? 0 : closePrice.hashCode());
+            result = 31 * result + (amount == null ? 0 : amount.hashCode());
+            return result;
+        }
+
+        public void writeObject(OutputStream os)
+            throws IOException
+        {
+            os.write("OHD.CD".getBytes());
+            os.write(3);
+            os.write(Bits.longBytes(closeTime));
+            Bits.writeObject(os, closePrice);
+            Bits.writeObject(os, amount);
+        }
+
+        public void readObject(InputStream is)
+            throws IOException
+        {
+            byte header[] = Bits.read(is, new byte["OHD.CD".length()]);
+            if(!Arrays.equals(header, "OHD.CD".getBytes()))
+                throw new StreamCorruptedException("Deserialization error, unknown header");
+            int version = is.read();
+            if(version != 3)
+            {
+                throw new StreamCorruptedException((new StringBuilder()).append("Versions doesn't match, stream version [").append(version).append("], class version [").append(3).append("]").toString());
+            } else
+            {
+                closeTime = Bits.getLong(Bits.read(is, new byte[8]));
+                closePrice = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                amount = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+                return;
+            }
+        }
+
+        protected static final String HEADER = "OHD.CD";
+        private long closeTime;
+        private BigDecimal closePrice;
+        private BigDecimal amount;
+
+        public CloseData()
+        {
+            closePrice = OrderHistoricalData.NEG_ONE;
+            amount = BigDecimal.ZERO;
+        }
+
+        public CloseData(CloseData closeData)
+        {
+            closeTime = closeData.closeTime;
+            closePrice = closeData.closePrice;
+            amount = closeData.amount;
+        }
+    }
+
+
+    public OrderHistoricalData()
+    {
+        commission = BigDecimal.ZERO;
+        mergedToTime = 0x8000000000000000L;
+        closeDataMap = new LinkedHashMap();
+        pendingOrders = new ArrayList(1);
+        historyStart = 0x7fffffffffffffffL;
+        historyEnd = 0x8000000000000000L;
+    }
+
+    public OrderHistoricalData(OrderHistoricalData orderHistoricalData)
+    {
+        commission = BigDecimal.ZERO;
+        mergedToGroupId = orderHistoricalData.mergedToGroupId;
+        mergedToTime = orderHistoricalData.mergedToTime;
+        orderGroupId = orderHistoricalData.orderGroupId;
+        setCloseDataMap(orderHistoricalData.closeDataMap);
+        setEntryOrder(orderHistoricalData.entryOrder);
+        setPendingOrders(orderHistoricalData.pendingOrders);
+        opened = orderHistoricalData.opened;
+        closed = orderHistoricalData.closed;
+        isOco = orderHistoricalData.isOco;
+        historyStart = orderHistoricalData.historyStart;
+        historyEnd = orderHistoricalData.historyEnd;
+        commission = orderHistoricalData.commission;
+    }
+
+    public String getMergedToGroupId()
+    {
+        return mergedToGroupId;
+    }
+
+    protected void setMergedToGroupId(String mergedToGroupId)
+    {
+        this.mergedToGroupId = mergedToGroupId;
+    }
+
+    public long getMergedToTime()
+    {
+        return mergedToTime;
+    }
+
+    protected void setMergedToTime(long mergedToTime)
+    {
+        this.mergedToTime = mergedToTime;
+    }
+
+    public String getOrderGroupId()
+    {
+        return orderGroupId;
+    }
+
+    protected void setOrderGroupId(String orderGroupId)
+    {
+        this.orderGroupId = orderGroupId;
+    }
+
+    public Map getCloseDataMap()
+    {
+        return Collections.unmodifiableMap(closeDataMap);
+    }
+
+    protected void setCloseDataMap(Map closeDataMap)
+    {
+        LinkedHashMap closeDatas = new LinkedHashMap(closeDataMap.size());
+        for(Iterator i$ = closeDataMap.entrySet().iterator(); i$.hasNext();)
+        {
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            CloseData closeData = (CloseData)entry.getValue();
+            if(closeData.getClass().equals(com/dukascopy/charts/data/datacache/OrderHistoricalData$CloseData))
+                closeDatas.put(entry.getKey(), closeData);
+            else
+                closeDatas.put(entry.getKey(), new CloseData(closeData));
+        }
+
+        this.closeDataMap = closeDatas;
+    }
+
+    public OpenData getEntryOrder()
+    {
+        return entryOrder;
+    }
+
+    protected void setEntryOrder(OpenData entryOrder)
+    {
+        this.entryOrder = entryOrder != null ? new OpenData(entryOrder) : null;
+    }
+
+    public List getPendingOrders()
+    {
+        return Collections.unmodifiableList(pendingOrders);
+    }
+
+    protected void setPendingOrders(List pendingOrders)
+    {
+        ArrayList orders = new ArrayList(pendingOrders.size());
+        for(Iterator i$ = pendingOrders.iterator(); i$.hasNext();)
+        {
+            OpenData openData = (OpenData)i$.next();
+            if(openData.getClass().equals(com/dukascopy/charts/data/datacache/OrderHistoricalData$OpenData))
+                orders.add(openData);
+            else
+                orders.add(new OpenData(openData));
+        }
+
+        this.pendingOrders = orders;
+    }
+
+    public boolean isOpened()
+    {
+        return opened;
+    }
+
+    protected void setOpened(boolean opened)
+    {
+        this.opened = opened;
+    }
+
+    public boolean isClosed()
+    {
+        return closed;
+    }
+
+    protected void setClosed(boolean closed)
+    {
+        this.closed = closed;
+    }
+
+    public boolean isOco()
+    {
+        return isOco;
+    }
+
+    protected void setOco(boolean oco)
+    {
+        isOco = oco;
+    }
+
+    public long getHistoryStart()
+    {
+        return historyStart;
+    }
+
+    protected void setHistoryStart(long historyStart)
+    {
+        this.historyStart = historyStart;
+    }
+
+    public long getHistoryEnd()
+    {
+        return historyEnd;
+    }
+
+    protected void setHistoryEnd(long historyEnd)
+    {
+        this.historyEnd = historyEnd;
+    }
+
+    public BigDecimal getCommission()
+    {
+        return commission;
+    }
+
+    public void setCommission(BigDecimal commission)
+    {
+        this.commission = commission != null ? commission : BigDecimal.ZERO;
+    }
+
+    public String toString()
+    {
+        StringBuilder str = new StringBuilder();
+        str.append("Order info:\n");
+        str.append("orderGroupId: ").append(orderGroupId).append("\n");
+        str.append("opened: ").append(opened).append("\n");
+        str.append("closed: ").append(closed).append("\n");
+        str.append("isOco: ").append(isOco).append("\n");
+        str.append("mergedToGroupId: ").append(mergedToGroupId).append("\n");
+        str.append("mergedToTime: ").append(mergedToTime).append("\n");
+        str.append("pendingOrders: {");
+        StringBuilder strOrder;
+        for(Iterator i$ = pendingOrders.iterator(); i$.hasNext(); ident(strOrder.toString(), str))
+        {
+            OpenData openData = (OpenData)i$.next();
+            str.append("\n");
+            strOrder = new StringBuilder();
+            strOrder.append("[");
+            strOrder.append(openData.toString());
+            strOrder.append("]");
+        }
+
+        str.append("}\n");
+        str.append("entryOrder: ");
+        if(entryOrder != null)
+        {
+            str.append("\n");
+            ident(entryOrder.toString(), str);
+        } else
+        {
+            str.append(entryOrder);
+        }
+        str.append("\n");
+        str.append("close data map: {");
+        StringBuilder strOrder;
+        for(Iterator i$ = closeDataMap.entrySet().iterator(); i$.hasNext(); ident(strOrder.toString(), str))
+        {
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            String orderId = (String)entry.getKey();
+            CloseData closeData = (CloseData)entry.getValue();
+            str.append("\n");
+            strOrder = new StringBuilder();
+            strOrder.append("orderId: ").append(orderId).append("->").append("[");
+            strOrder.append("\n");
+            ident(closeData.toString(), strOrder);
+            strOrder.append("]");
+        }
+
+        str.append("}");
+        str.append("\n");
+        str.append("commission: ").append(commission);
+        return str.toString();
+    }
+
+    public static void ident(String str, StringBuilder strBuff)
+    {
+        StringTokenizer strTok = new StringTokenizer(str, "\n");
+        do
+        {
+            if(!strTok.hasMoreTokens())
+                break;
+            String tok = strTok.nextToken();
+            strBuff.append("    ").append(tok);
+            if(strTok.hasMoreTokens())
+                strBuff.append("\n");
+        } while(true);
+    }
+
+    public static String getOpenPriceText(String orderGroupId, boolean isOco, com.dukascopy.api.IEngine.OrderCommand orderCommand, BigDecimal openPrice, BigDecimal openSlippage)
+    {
+        if(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID)
+            return (new StringBuilder()).append("BID ").append(openPrice.toPlainString()).toString();
+        if(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+            return (new StringBuilder()).append("OFFER ").append(openPrice.toPlainString()).toString();
+        StringBuilder openPriceText = new StringBuilder(orderGroupId);
+        if(isOco)
+            openPriceText.append(" OCO");
+        openPriceText.append(" ENTRY");
+        if(orderCommand.isConditional())
+        {
+            static class _cls1
+            {
+
+                static final int $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[];
+
+                static 
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand = new int[com.dukascopy.api.IEngine.OrderCommand.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID.ordinal()] = 3;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK.ordinal()] = 4;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYSTOP.ordinal()] = 5;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYSTOP_BYBID.ordinal()] = 6;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLSTOP.ordinal()] = 7;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK.ordinal()] = 8;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                }
+            }
+
+            switch(_cls1..SwitchMap.com.dukascopy.api.IEngine.OrderCommand[orderCommand.ordinal()])
+            {
+            default:
+                break;
+
+            case 1: // '\001'
+            case 2: // '\002'
+            case 3: // '\003'
+            case 4: // '\004'
+                if(openSlippage != null && openSlippage.compareTo(BigDecimal.ZERO) == 0)
+                    openPriceText.append(" LIMIT");
+                else
+                    openPriceText.append(" MIT");
+                break;
+
+            case 5: // '\005'
+                openPriceText.append(" ASK \u2265");
+                break;
+
+            case 6: // '\006'
+                openPriceText.append(" BID \u2265");
+                break;
+
+            case 7: // '\007'
+                openPriceText.append(" BID \u2264");
+                break;
+
+            case 8: // '\b'
+                openPriceText.append(" ASK \u2264");
+                break;
+            }
+            openPriceText.append(" ").append(openPrice.stripTrailingZeros().toPlainString());
+            if(openSlippage != null)
+            {
+                BigDecimal priceWithSlippage = orderCommand.isLong() ? openPrice.add(openSlippage) : openPrice.subtract(openSlippage);
+                openPriceText.append(" (").append(priceWithSlippage.stripTrailingZeros().toPlainString()).append(")");
+            }
+            return openPriceText.toString();
+        } else
+        {
+            return openPriceText.append(" @ MARKET").toString();
+        }
+    }
+
+    public static String getStopLossPriceText(String stopLossOrderId, com.dukascopy.api.IEngine.OrderCommand orderCommand, BigDecimal stopLossPrice, BigDecimal stopLossSlippage, boolean stopLossByBid)
+    {
+        StringBuilder openPriceText = new StringBuilder(stopLossOrderId);
+        openPriceText.append(" SL");
+        if(stopLossByBid)
+            openPriceText.append(" BID");
+        else
+            openPriceText.append(" ASK");
+        if(orderCommand.isLong())
+            openPriceText.append(" \u2264");
+        else
+            openPriceText.append(" \u2265");
+        openPriceText.append(" ").append(stopLossPrice.stripTrailingZeros().toPlainString());
+        if(stopLossSlippage != null)
+        {
+            BigDecimal priceWithSlippage = orderCommand.isLong() ? stopLossPrice.subtract(stopLossSlippage) : stopLossPrice.add(stopLossSlippage);
+            openPriceText.append(" (").append(priceWithSlippage.stripTrailingZeros().toPlainString()).append(")");
+        }
+        return openPriceText.toString();
+    }
+
+    public static String getTakeProfitPriceText(String takeProfitOrderId, com.dukascopy.api.IEngine.OrderCommand orderCommand, BigDecimal takeProfitPrice, BigDecimal takeProfitSlippage)
+    {
+        StringBuilder priceText = new StringBuilder(takeProfitOrderId);
+        priceText.append(" TP ");
+        priceText.append(takeProfitPrice.stripTrailingZeros().toPlainString());
+        if(takeProfitSlippage != null)
+        {
+            BigDecimal priceWithSlippage = orderCommand.isLong() ? takeProfitPrice.subtract(takeProfitSlippage) : takeProfitPrice.add(takeProfitSlippage);
+            priceText.append(" (").append(priceWithSlippage.stripTrailingZeros().toPlainString()).append(")");
+        }
+        return priceText.toString();
+    }
+
+    public boolean equals(Object o)
+    {
+        if(this == o)
+            return true;
+        if(o == null || getClass() != o.getClass())
+            return false;
+        OrderHistoricalData that = (OrderHistoricalData)o;
+        if(closed != that.closed)
+            return false;
+        if(historyEnd != that.historyEnd)
+            return false;
+        if(historyStart != that.historyStart)
+            return false;
+        if(isOco != that.isOco)
+            return false;
+        if(opened != that.opened)
+            return false;
+        if(closeDataMap == null ? that.closeDataMap != null : !closeDataMap.equals(that.closeDataMap))
+            return false;
+        if(entryOrder == null ? that.entryOrder != null : !entryOrder.equals(that.entryOrder))
+            return false;
+        if(mergedToGroupId == null ? that.mergedToGroupId != null : !mergedToGroupId.equals(that.mergedToGroupId))
+            return false;
+        if(mergedToTime != that.mergedToTime)
+            return false;
+        if(orderGroupId == null ? that.orderGroupId != null : !orderGroupId.equals(that.orderGroupId))
+            return false;
+        if(pendingOrders == null ? that.pendingOrders != null : !pendingOrders.equals(that.pendingOrders))
+            return false;
+        return commission == null ? that.commission == null : commission.equals(that.commission);
+    }
+
+    public int hashCode()
+    {
+        int result = mergedToGroupId == null ? 0 : mergedToGroupId.hashCode();
+        result = 31 * result + (int)(mergedToTime ^ mergedToTime >>> 32);
+        result = 31 * result + (orderGroupId == null ? 0 : orderGroupId.hashCode());
+        result = 31 * result + (closeDataMap == null ? 0 : closeDataMap.hashCode());
+        result = 31 * result + (entryOrder == null ? 0 : entryOrder.hashCode());
+        result = 31 * result + (pendingOrders == null ? 0 : pendingOrders.hashCode());
+        result = 31 * result + (opened ? 1 : 0);
+        result = 31 * result + (closed ? 1 : 0);
+        result = 31 * result + (isOco ? 1 : 0);
+        result = 31 * result + (int)(historyStart ^ historyStart >>> 32);
+        result = 31 * result + (int)(historyEnd ^ historyEnd >>> 32);
+        result = 31 * result + (commission == null ? 0 : commission.hashCode());
+        return result;
+    }
+
+    public void writeObject(OutputStream os)
+        throws IOException
+    {
+        os.write("OhD".getBytes());
+        os.write(3);
+        Bits.writeObject(os, mergedToGroupId);
+        os.write(Bits.longBytes(mergedToTime));
+        Bits.writeObject(os, orderGroupId);
+        Bits.writeObject(os, closeDataMap);
+        Bits.writeObject(os, entryOrder);
+        Bits.writeObject(os, pendingOrders);
+        os.write(Bits.booleanBytes(opened));
+        os.write(Bits.booleanBytes(closed));
+        os.write(Bits.booleanBytes(isOco));
+        os.write(Bits.longBytes(historyStart));
+        os.write(Bits.longBytes(historyEnd));
+        Bits.writeObject(os, commission);
+    }
+
+    public void readObject(InputStream is)
+        throws IOException
+    {
+        byte header[] = Bits.read(is, new byte["OhD".length()]);
+        if(!Arrays.equals(header, "OhD".getBytes()))
+            throw new StreamCorruptedException("Deserialization error, unknown header");
+        int version = is.read();
+        if(version != 3)
+        {
+            throw new StreamCorruptedException((new StringBuilder()).append("Versions doesn't match, stream version [").append(version).append("], class version [").append(3).append("]").toString());
+        } else
+        {
+            mergedToGroupId = (String)Bits.readObject(is, java/lang/String);
+            mergedToTime = Bits.getLong(Bits.read(is, new byte[8]));
+            orderGroupId = (String)Bits.readObject(is, java/lang/String);
+            closeDataMap = (Map)Bits.readObject(is, java/util/LinkedHashMap, java/lang/String, com/dukascopy/charts/data/datacache/OrderHistoricalData$CloseData);
+            entryOrder = (OpenData)Bits.readObject(is, com/dukascopy/charts/data/datacache/OrderHistoricalData$OpenData);
+            pendingOrders = (List)Bits.readObject(is, java/util/ArrayList, com/dukascopy/charts/data/datacache/OrderHistoricalData$OpenData);
+            opened = Bits.getBoolean((byte)is.read());
+            closed = Bits.getBoolean((byte)is.read());
+            isOco = Bits.getBoolean((byte)is.read());
+            historyStart = Bits.getLong(Bits.read(is, new byte[8]));
+            historyEnd = Bits.getLong(Bits.read(is, new byte[8]));
+            commission = (BigDecimal)Bits.readObject(is, java/math/BigDecimal);
+            return;
+        }
+    }
+
+    public static final int VERSION = 3;
+    protected static final String HEADER = "OhD";
+    public static final BigDecimal NEG_ONE = new BigDecimal("-1");
+    private String mergedToGroupId;
+    private long mergedToTime;
+    private String orderGroupId;
+    protected Map closeDataMap;
+    protected OpenData entryOrder;
+    protected List pendingOrders;
+    private boolean opened;
+    private boolean closed;
+    private boolean isOco;
+    private long historyStart;
+    private long historyEnd;
+    private BigDecimal commission;
+
+}

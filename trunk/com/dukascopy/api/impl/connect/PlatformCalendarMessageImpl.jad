@@ -1,0 +1,228 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   PlatformCalendarMessageImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.transport.common.msg.news.CalendarEvent;
+import com.dukascopy.transport.common.msg.news.CalendarEventDetail;
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            PlatformNewsMessageImpl
+
+public class PlatformCalendarMessageImpl extends PlatformNewsMessageImpl
+    implements ICalendarMessage
+{
+    class PlatformCalendarDetail
+        implements com.dukascopy.api.ICalendarMessage.Detail
+    {
+
+        public String getActual()
+        {
+            return actual;
+        }
+
+        public String getDelta()
+        {
+            return delta;
+        }
+
+        public String getDescription()
+        {
+            return description;
+        }
+
+        public String getExpected()
+        {
+            return expected;
+        }
+
+        public String getId()
+        {
+            return id;
+        }
+
+        public String getPrevious()
+        {
+            return previous;
+        }
+
+        private String actual;
+        private String delta;
+        private String description;
+        private String id;
+        private String expected;
+        private String previous;
+        final PlatformCalendarMessageImpl this$0;
+
+        public PlatformCalendarDetail(String id, String actual, String delta, String description, String expected, String previous)
+        {
+            this$0 = PlatformCalendarMessageImpl.this;
+            super();
+            this.actual = null;
+            this.delta = null;
+            this.description = null;
+            this.id = null;
+            this.expected = null;
+            this.previous = null;
+            this.id = id;
+            this.actual = actual;
+            this.delta = delta;
+            this.description = description;
+            this.id = id;
+            this.expected = expected;
+            this.previous = previous;
+        }
+    }
+
+
+    public PlatformCalendarMessageImpl(CalendarEvent calendarEvent, String copyright, String header, String newsId, long publishDate, boolean endOfStory, 
+            boolean isHot, Set currencies, Set geoRegions, Set marketSectors, Set stockIndicies)
+    {
+        super(calendarEvent != null ? calendarEvent.getDescription() : null, copyright, header, newsId, publishDate, endOfStory, isHot, currencies, geoRegions, marketSectors, stockIndicies);
+        if(calendarEvent != null)
+        {
+            id = calendarEvent.getEventId();
+            action = calendarEvent.getAction();
+        } else
+        {
+            id = null;
+            action = null;
+        }
+        if(getAction() == null || getAction() == com.dukascopy.api.INewsMessage.Action.DELETE)
+        {
+            companyURL = null;
+            country = null;
+            eventCode = null;
+            eventDate = 0L;
+            eventURL = null;
+            ISIN = null;
+            organisation = null;
+            period = null;
+            ticker = null;
+            venue = null;
+            isConfirmed = false;
+        } else
+        {
+            companyURL = calendarEvent.getCompanyUrl();
+            country = calendarEvent.getCountry();
+            if(calendarEvent.getCalendarType() != null)
+                eventCode = calendarEvent.getCalendarType().name();
+            else
+                eventCode = null;
+            eventDate = calendarEvent.getEventDate().getTime();
+            eventURL = calendarEvent.getEventUrl();
+            ISIN = calendarEvent.getIsin();
+            organisation = calendarEvent.getOrganisation();
+            period = calendarEvent.getPeriod();
+            ticker = calendarEvent.getTicker();
+            venue = calendarEvent.getVenue();
+            isConfirmed = calendarEvent.isConfirmed();
+            CalendarEventDetail calendarEventDetail;
+            for(Iterator i$ = calendarEvent.getDetails().iterator(); i$.hasNext(); details.add(new PlatformCalendarDetail(calendarEventDetail.getDetailId(), calendarEventDetail.getActual(), calendarEventDetail.getDelta(), calendarEventDetail.getDescription(), calendarEventDetail.getExpected(), calendarEventDetail.getPrevious())))
+                calendarEventDetail = (CalendarEventDetail)i$.next();
+
+        }
+    }
+
+    public String getCompanyURL()
+    {
+        return companyURL;
+    }
+
+    public String getCountry()
+    {
+        return country;
+    }
+
+    public List getDetails()
+    {
+        return details;
+    }
+
+    public String getEventCode()
+    {
+        return eventCode;
+    }
+
+    public long getEventDate()
+    {
+        return eventDate;
+    }
+
+    public String getISIN()
+    {
+        return ISIN;
+    }
+
+    public String getOrganisation()
+    {
+        return organisation;
+    }
+
+    public String getPeriod()
+    {
+        return period;
+    }
+
+    public String getTicker()
+    {
+        return ticker;
+    }
+
+    public String getEventURL()
+    {
+        return eventURL;
+    }
+
+    public String getVenue()
+    {
+        return venue;
+    }
+
+    public boolean isConfirmed()
+    {
+        return isConfirmed;
+    }
+
+    public com.dukascopy.api.INewsMessage.Action getAction()
+    {
+        if(action == null)
+            return null;
+        else
+            return com.dukascopy.api.INewsMessage.Action.valueOf(action);
+    }
+
+    public String getId()
+    {
+        return id;
+    }
+
+    public com.dukascopy.api.IMessage.Type getType()
+    {
+        return com.dukascopy.api.IMessage.Type.CALENDAR;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(super.toString()).append(" code : ").append(getEventCode()).toString();
+    }
+
+    private final String action;
+    private final String companyURL;
+    private final String country;
+    private final String eventCode;
+    private long eventDate;
+    private final String id;
+    private final String eventURL;
+    private final String ISIN;
+    private final String organisation;
+    private final String period;
+    private final String ticker;
+    private final String venue;
+    private final boolean isConfirmed;
+    private final List details = new ArrayList();
+}

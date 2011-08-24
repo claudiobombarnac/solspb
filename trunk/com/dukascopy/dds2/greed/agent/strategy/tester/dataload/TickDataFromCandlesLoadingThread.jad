@@ -1,0 +1,287 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TickDataFromCandlesLoadingThread.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.dataload;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.TimedData;
+import com.dukascopy.api.system.ITesterClient;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.agent.strategy.tester.CubicSplineInterpolation;
+import java.util.concurrent.BlockingQueue;
+import org.slf4j.Logger;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester.dataload:
+//            AbstractDataLoadingThread
+
+public class TickDataFromCandlesLoadingThread extends AbstractDataLoadingThread
+{
+
+    public TickDataFromCandlesLoadingThread(String name, Instrument instrument, JForexPeriod candlesJForexPeriod, OfferSide candlesOfferSide, BlockingQueue queue, long from, 
+            long to, IFeedDataProvider feedDataProvider, com.dukascopy.api.system.ITesterClient.InterpolationMethod interpolationMethod)
+    {
+        super(name, instrument, new JForexPeriod(DataType.TICKS, Period.TICK), null, queue, from, to, feedDataProvider);
+        this.interpolationMethod = interpolationMethod;
+        this.candlesJForexPeriod = candlesJForexPeriod;
+        this.candlesOfferSide = candlesOfferSide;
+    }
+
+    public void run()
+    {
+        LiveFeedListener feedListener = new LiveFeedListener() {
+
+            public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                    double close, double low, double high, double vol)
+            {
+                static class _cls2
+                {
+
+                    static final int $SwitchMap$com$dukascopy$api$system$ITesterClient$InterpolationMethod[];
+
+                    static 
+                    {
+                        $SwitchMap$com$dukascopy$api$system$ITesterClient$InterpolationMethod = new int[com.dukascopy.api.system.ITesterClient.InterpolationMethod.values().length];
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$api$system$ITesterClient$InterpolationMethod[com.dukascopy.api.system.ITesterClient.InterpolationMethod.OPEN_TICK.ordinal()] = 1;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$api$system$ITesterClient$InterpolationMethod[com.dukascopy.api.system.ITesterClient.InterpolationMethod.CLOSE_TICK.ordinal()] = 2;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$api$system$ITesterClient$InterpolationMethod[com.dukascopy.api.system.ITesterClient.InterpolationMethod.FOUR_TICKS.ordinal()] = 3;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$api$system$ITesterClient$InterpolationMethod[com.dukascopy.api.system.ITesterClient.InterpolationMethod.CUBIC_SPLINE.ordinal()] = 4;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                    }
+                }
+
+                if(!isStop())
+                    switch(_cls2..SwitchMap.com.dukascopy.api.system.ITesterClient.InterpolationMethod[interpolationMethod.ordinal()])
+                    {
+                    case 1: // '\001'
+                    {
+                        double spreadInPipsAsk = (side != OfferSide.ASK ? 2D : 0.0D) * instrument.getPipValue();
+                        double spreadInPipsBid = (side != OfferSide.ASK ? 0.0D : -2D) * instrument.getPipValue();
+                        double ask = StratUtils.round(open + spreadInPipsAsk, 5);
+                        double bid = StratUtils.round(open + spreadInPipsBid, 5);
+                        putDataToQueue(new TickData(time, ask, bid, vol, vol, new double[] {
+                            ask
+                        }, new double[] {
+                            bid
+                        }, new double[] {
+                            vol
+                        }, new double[] {
+                            vol
+                        }));
+                        return;
+                    }
+
+                    case 2: // '\002'
+                    {
+                        double spreadInPipsAsk = (side != OfferSide.ASK ? 2D : 0.0D) * instrument.getPipValue();
+                        double spreadInPipsBid = (side != OfferSide.ASK ? 0.0D : -2D) * instrument.getPipValue();
+                        double ask = StratUtils.round(close + spreadInPipsAsk, 5);
+                        double bid = StratUtils.round(close + spreadInPipsBid, 5);
+                        putDataToQueue(new TickData(DataCacheUtils.getNextCandleStartFast(period, time) - 1L, ask, bid, vol, vol, new double[] {
+                            ask
+                        }, new double[] {
+                            bid
+                        }, new double[] {
+                            vol
+                        }, new double[] {
+                            vol
+                        }));
+                        return;
+                    }
+
+                    case 3: // '\003'
+                    {
+                        candle2ITickFourTicks(time, open, high, low, close, vol, instrument, period, side);
+                        break;
+                    }
+
+                    case 4: // '\004'
+                    {
+                        candle2ITickCubicSpline(time, open, high, low, close, vol, instrument, period, side);
+                        break;
+                    }
+                    }
+            }
+
+            public void newTick(Instrument instrument1, long l, double d, double d1, 
+                    double d2, double d3)
+            {
+            }
+
+            final TickDataFromCandlesLoadingThread this$0;
+
+            
+            {
+                this$0 = TickDataFromCandlesLoadingThread.this;
+                super();
+            }
+        };
+        LoadingProgressListener loadingProgressListener = createLoadingProgressListener();
+        try
+        {
+            getFeedDataProvider().loadCandlesDataBlockingSynched(getInstrument(), getCandlesJForexPeriod().getPeriod(), getCandlesOfferSide(), getFrom(), getTo(), feedListener, loadingProgressListener);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getLocalizedMessage(), e);
+        }
+    }
+
+    private void candle2ITickCubicSpline(long time, double open, double high, double low, double close, double volume, Instrument instrument, Period period, 
+            OfferSide side)
+    {
+        double spreadInPips = 2D;
+        long length = period.getInterval();
+        long step = length / 4L;
+        long baseTime = time;
+        long x1 = length;
+        long x4 = x1 + length;
+        long x2 = x1 + step;
+        long x3 = x2 + step;
+        double y1 = open;
+        double y2 = open <= close ? high : low;
+        double y3 = open <= close ? low : high;
+        double y4 = close;
+        CubicSplineInterpolation cubicSplineInterpolation = new CubicSplineInterpolation(new double[] {
+            (double)x1, (double)x2, (double)x3, (double)x4
+        }, new double[] {
+            y1, y2, y3, y4
+        });
+        double pip = instrument.getPipValue();
+        long ticksNumber = (long)((high - low) / (pip / 2D));
+        if(ticksNumber == 0L)
+            ticksNumber = 1L;
+        step = length / ticksNumber;
+        double vol = StratUtils.roundHalfEven(volume / (double)ticksNumber, 2);
+        for(int i = 0; (long)i < ticksNumber + 1L; i++)
+        {
+            long xx = x1 + step * (long)i;
+            double ask;
+            double bid;
+            if(side == OfferSide.ASK)
+            {
+                ask = StratUtils.round(cubicSplineInterpolation.interpolate(xx), 5);
+                bid = StratUtils.round(ask - pip * spreadInPips, 5);
+            } else
+            {
+                bid = StratUtils.round(cubicSplineInterpolation.interpolate(xx), 5);
+                ask = StratUtils.round(bid + pip * spreadInPips, 5);
+            }
+            if(!isStop())
+                putDataToQueue(new TickData(baseTime + step * (long)i, ask, bid, vol, vol, new double[] {
+                    ask
+                }, new double[] {
+                    bid
+                }, new double[] {
+                    vol
+                }, new double[] {
+                    vol
+                }));
+        }
+
+    }
+
+    private void candle2ITickFourTicks(long time, double open, double high, double low, double close, double volume, Instrument instrument, Period period, 
+            OfferSide side)
+    {
+        double spreadInPipsAsk = (side != OfferSide.ASK ? 2D : 0.0D) * instrument.getPipValue();
+        double spreadInPipsBid = (side != OfferSide.ASK ? 0.0D : -2D) * instrument.getPipValue();
+        double length = period.getInterval();
+        double step = length / 8D;
+        double ask = StratUtils.round(open + spreadInPipsAsk, 5);
+        double bid = StratUtils.round(open + spreadInPipsBid, 5);
+        double vol = StratUtils.round(volume / 4D, 5);
+        if(!isStop())
+            putDataToQueue(new TickData((long)((double)time + step), ask, bid, vol, vol, new double[] {
+                ask
+            }, new double[] {
+                bid
+            }, new double[] {
+                vol
+            }, new double[] {
+                vol
+            }));
+        double lowhigh = close >= open ? low : high;
+        ask = StratUtils.round(lowhigh + spreadInPipsAsk, 5);
+        bid = StratUtils.round(lowhigh + spreadInPipsBid, 5);
+        if(!isStop())
+            putDataToQueue(new TickData((long)((double)time + step * 3D), ask, bid, vol, vol, new double[] {
+                ask
+            }, new double[] {
+                bid
+            }, new double[] {
+                vol
+            }, new double[] {
+                vol
+            }));
+        lowhigh = close >= open ? high : low;
+        ask = StratUtils.round(lowhigh + spreadInPipsAsk, 5);
+        bid = StratUtils.round(lowhigh + spreadInPipsBid, 5);
+        if(!isStop())
+            putDataToQueue(new TickData((long)((double)time + step * 5D), ask, bid, vol, vol, new double[] {
+                ask
+            }, new double[] {
+                bid
+            }, new double[] {
+                vol
+            }, new double[] {
+                vol
+            }));
+        ask = StratUtils.round(close + spreadInPipsAsk, 5);
+        bid = StratUtils.round(close + spreadInPipsBid, 5);
+        if(!isStop())
+            putDataToQueue(new TickData((long)((double)time + step * 7D), ask, bid, vol, vol, new double[] {
+                ask
+            }, new double[] {
+                bid
+            }, new double[] {
+                vol
+            }, new double[] {
+                vol
+            }));
+    }
+
+    protected TickData createEmptyBar()
+    {
+        return new TickData(0x8000000000000000L, -1D, -1D, -1D, -1D, null, null, null, null);
+    }
+
+    private JForexPeriod getCandlesJForexPeriod()
+    {
+        return candlesJForexPeriod;
+    }
+
+    private OfferSide getCandlesOfferSide()
+    {
+        return candlesOfferSide;
+    }
+
+    protected volatile TimedData createEmptyBar()
+    {
+        return createEmptyBar();
+    }
+
+    private final com.dukascopy.api.system.ITesterClient.InterpolationMethod interpolationMethod;
+    private final JForexPeriod candlesJForexPeriod;
+    private final OfferSide candlesOfferSide;
+
+
+
+}

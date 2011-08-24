@@ -1,0 +1,567 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OrdersDataProvider.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider:
+//            OrdersDataChangeListener, IOrdersDataProvider
+
+public class OrdersDataProvider
+    implements IOrdersDataProvider
+{
+    protected class LoadDataProgressListener
+        implements LoadingProgressListener
+    {
+
+        public boolean done()
+        {
+            return done;
+        }
+
+        public void dataLoaded(long l, long l1, long l2, String s)
+        {
+        }
+
+        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                Exception e)
+        {
+            done = true;
+            OrdersDataProvider.this.dataLoaded(allDataLoaded, dataCacheRequestData, e);
+        }
+
+        public boolean stopJob()
+        {
+            return dataCacheRequestData.cancel;
+        }
+
+        private DataCacheRequestData dataCacheRequestData;
+        private boolean done;
+        final OrdersDataProvider this$0;
+
+        public LoadDataProgressListener(DataCacheRequestData dataCacheRequestData)
+        {
+            this$0 = OrdersDataProvider.this;
+            super();
+            this.dataCacheRequestData = dataCacheRequestData;
+        }
+    }
+
+    protected static class LoadDataListener
+        implements OrdersListener
+    {
+
+        public void newOrder(Instrument instrument, OrderHistoricalData orderData)
+        {
+            if(!dataCacheRequestData.cancel)
+            {
+                if(prevTime > orderData.getHistoryStart())
+                    throw new RuntimeException("Received orders from data cache are not in ascending order");
+                dataCacheRequestData.dataLoaded.add(orderData);
+                prevTime = orderData.getHistoryStart();
+            } else
+            {
+                dataCacheRequestData.dataLoaded = null;
+                dataCacheRequestData.progressListener = null;
+            }
+        }
+
+        public void orderChange(Instrument instrument1, OrderHistoricalData orderhistoricaldata)
+        {
+        }
+
+        public void orderMerge(Instrument instrument1, OrderHistoricalData orderhistoricaldata, List list)
+        {
+        }
+
+        public void ordersInvalidated(Instrument instrument1)
+        {
+        }
+
+        private DataCacheRequestData dataCacheRequestData;
+        long prevTime;
+
+        public LoadDataListener(DataCacheRequestData dataCacheRequestData)
+        {
+            prevTime = 0x8000000000000000L;
+            this.dataCacheRequestData = dataCacheRequestData;
+        }
+    }
+
+    protected static class DataCacheRequestData
+    {
+
+        public String toString()
+        {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            StringBuilder stamp = new StringBuilder();
+            stamp.append(format.format(Long.valueOf(from))).append(" - ");
+            stamp.append(format.format(Long.valueOf(to))).append(" loadedSize - ").append(dataLoaded.size());
+            return stamp.toString();
+        }
+
+        public long from;
+        public long to;
+        public boolean autoshift;
+        public LoadingProgressListener progressListener;
+        public boolean cancel;
+        public List dataLoaded;
+
+        protected DataCacheRequestData()
+        {
+            dataLoaded = new ArrayList();
+        }
+    }
+
+
+    public OrdersDataProvider(Instrument instrument, long maxIntervalInMilliseconds, IFeedDataProvider feedDataProvider)
+    {
+        dataChangeListeners = Collections.synchronizedList(new ArrayList());
+        loadedFrom = 0x7fffffffffffffffL;
+        loadedTo = 0x8000000000000000L;
+        autoshift = false;
+        loadedData = NO_ORDERS;
+        ordersCachingVariable = new ArrayList();
+        this.instrument = instrument;
+        this.maxIntervalInMilliseconds = maxIntervalInMilliseconds;
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    public void start()
+    {
+        firstDataListener = new OrdersListener() {
+
+            public void newOrder(Instrument instrument, OrderHistoricalData orderData)
+            {
+                synchronized(OrdersDataProvider.this)
+                {
+                    if(dataCacheRequestData != null && dataCacheRequestData.autoshift)
+                    {
+                        dataCacheRequestData.cancel = true;
+                        requestHistoryData(dataCacheRequestData.from, dataCacheRequestData.to, dataCacheRequestData.from, dataCacheRequestData.to, dataCacheRequestData.autoshift);
+                    }
+                    if(autoshift || orderData.getHistoryStart() <= loadedTo || orderData.getHistoryEnd() <= loadedTo)
+                    {
+                        OrderHistoricalData newLoadedData[] = new OrderHistoricalData[loadedData.length + 1];
+                        System.arraycopy(loadedData, 0, newLoadedData, 0, loadedData.length);
+                        newLoadedData[loadedData.length] = orderData;
+                        loadedData = newLoadedData;
+                        if(autoshift && loadedTo < orderData.getHistoryEnd())
+                            loadedTo = orderData.getHistoryEnd();
+                        fireOrdersChanged(orderData.getHistoryStart(), orderData.getHistoryEnd());
+                    }
+                }
+            }
+
+            public void orderChange(Instrument instrument, OrderHistoricalData orderData)
+            {
+                synchronized(OrdersDataProvider.this)
+                {
+                    int i = loadedData.length - 1;
+                    do
+                    {
+                        if(i < 0)
+                            break;
+                        OrderHistoricalData orderToCheck = loadedData[i];
+                        if(orderToCheck.getOrderGroupId().equals(orderData.getOrderGroupId()))
+                        {
+                            if(orderData.isClosed() && !orderData.isOpened())
+                            {
+                                OrderHistoricalData newLoadedData[] = new OrderHistoricalData[loadedData.length - 1];
+                                System.arraycopy(loadedData, 0, newLoadedData, 0, i);
+                                System.arraycopy(loadedData, i + 1, newLoadedData, i, loadedData.length - i - 1);
+                                loadedData = newLoadedData;
+                            } else
+                            {
+                                loadedData[i] = orderData;
+                            }
+                            if(orderData.getHistoryStart() == 0x7fffffffffffffffL || orderToCheck.getHistoryStart() == 0x7fffffffffffffffL)
+                                fireOrdersChanged();
+                            else
+                                fireOrdersChanged(orderData.getHistoryStart(), orderData.getHistoryEnd());
+                            break;
+                        }
+                        i--;
+                    } while(true);
+                }
+            }
+
+            public void orderMerge(Instrument instrument, OrderHistoricalData resultingOrder, List mergedOrdersData)
+            {
+                synchronized(OrdersDataProvider.this)
+                {
+                    if(dataCacheRequestData != null && dataCacheRequestData.autoshift)
+                    {
+                        dataCacheRequestData.cancel = true;
+                        requestHistoryData(dataCacheRequestData.from, dataCacheRequestData.to, dataCacheRequestData.from, dataCacheRequestData.to, dataCacheRequestData.autoshift);
+                    }
+                    if(resultingOrder.getHistoryStart() <= loadedTo || autoshift)
+                    {
+                        boolean found = false;
+                        int i = loadedData.length - 1;
+                        do
+                        {
+                            if(i < 0)
+                                break;
+                            OrderHistoricalData orderToCheck = loadedData[i];
+                            if(orderToCheck.getOrderGroupId().equals(resultingOrder.getOrderGroupId()))
+                            {
+                                loadedData[i] = resultingOrder;
+                                found = true;
+                                break;
+                            }
+                            i--;
+                        } while(true);
+                        if(!found)
+                        {
+                            OrderHistoricalData newLoadedData[] = new OrderHistoricalData[loadedData.length + 1];
+                            System.arraycopy(loadedData, 0, newLoadedData, 0, loadedData.length);
+                            newLoadedData[loadedData.length] = resultingOrder;
+                            loadedData = newLoadedData;
+                            if(loadedTo < resultingOrder.getHistoryEnd())
+                                loadedTo = resultingOrder.getHistoryEnd();
+                        }
+                    }
+                    Iterator i$ = mergedOrdersData.iterator();
+                    do
+                    {
+                        if(!i$.hasNext())
+                            break;
+                        OrderHistoricalData mergedOrder = (OrderHistoricalData)i$.next();
+                        boolean found = false;
+                        int i = loadedData.length - 1;
+                        do
+                        {
+                            if(i < 0)
+                                break;
+                            OrderHistoricalData orderToCheck = loadedData[i];
+                            if(orderToCheck.getOrderGroupId().equals(mergedOrder.getOrderGroupId()))
+                            {
+                                loadedData[i] = mergedOrder;
+                                found = true;
+                                break;
+                            }
+                            i--;
+                        } while(true);
+                        if(!found)
+                        {
+                            OrderHistoricalData newLoadedData[] = new OrderHistoricalData[loadedData.length + 1];
+                            System.arraycopy(loadedData, 0, newLoadedData, 0, loadedData.length);
+                            newLoadedData[loadedData.length] = resultingOrder;
+                            loadedData = newLoadedData;
+                            if(loadedTo < resultingOrder.getHistoryEnd())
+                                loadedTo = resultingOrder.getHistoryEnd();
+                        }
+                    } while(true);
+                    fireOrdersChanged();
+                }
+            }
+
+            public void ordersInvalidated(Instrument instrument)
+            {
+                synchronized(OrdersDataProvider.this)
+                {
+                    if(loadedFrom != 0x7fffffffffffffffL && loadedTo != 0x8000000000000000L)
+                        requestHistoryData(loadedTo - loadedFrom <= maxIntervalInMilliseconds ? loadedFrom : loadedTo - maxIntervalInMilliseconds, loadedTo, loadedFrom, loadedTo, autoshift);
+                }
+            }
+
+            final OrdersDataProvider this$0;
+
+            
+            {
+                this$0 = OrdersDataProvider.this;
+                super();
+            }
+        };
+        feedDataProvider.subscribeToOrdersNotifications(instrument, firstDataListener);
+        ticksListener = new LiveFeedListener() {
+
+            public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                    double d1, double d2, double d3, double d4)
+            {
+            }
+
+            public void newTick(Instrument instrument, long time, double ask, double bid, 
+                    double askVol, double bidVol)
+            {
+                synchronized(OrdersDataProvider.this)
+                {
+                    if(autoshift && loadedTo < time)
+                        loadedTo = time;
+                }
+            }
+
+            final OrdersDataProvider this$0;
+
+            
+            {
+                this$0 = OrdersDataProvider.this;
+                super();
+            }
+        };
+        feedDataProvider.subscribeToLiveFeed(instrument, ticksListener);
+    }
+
+    public synchronized OrderHistoricalData[] getOrdersData(long from, long to, boolean autoshift)
+    {
+        boolean onlyOpenOrders = false;
+        if(to - from > maxIntervalInMilliseconds)
+            onlyOpenOrders = true;
+        if(from > to)
+            throw new IllegalArgumentException((new StringBuilder()).append("Requested interval has from time [").append(from).append("] bigger than to time [").append(to).append("]").toString());
+        long currentTime = feedDataProvider.getCurrentTime();
+        if(currentTime != 0x8000000000000000L && to > currentTime + 10000L)
+        {
+            to = currentTime;
+            if(from > to)
+                return new OrderHistoricalData[0];
+        }
+        if(onlyOpenOrders)
+            return getRequestedOrders(from, to, onlyOpenOrders, autoshift);
+        if(from < loadedFrom || to < loadedFrom || !this.autoshift && (from > loadedTo || to > loadedTo))
+        {
+            long requestFrom = from - (to - from) * 3L;
+            long requestTo = to + (to - from) * 3L;
+            if(requestTo - requestFrom > maxIntervalInMilliseconds)
+            {
+                requestFrom = from - (maxIntervalInMilliseconds - (to - from) / 2L);
+                requestTo = to + (maxIntervalInMilliseconds - (to - from) / 2L);
+            }
+            requestHistoryData(requestFrom, requestTo, from, to, autoshift);
+            return getRequestedOrders(from, to, onlyOpenOrders, autoshift);
+        }
+        if(dataCacheRequestData == null)
+            this.autoshift = autoshift;
+        return getRequestedOrders(from, to, onlyOpenOrders, autoshift);
+    }
+
+    public void addOrdersDataChangeListener(OrdersDataChangeListener dataChangeListener)
+    {
+        dataChangeListeners.add(dataChangeListener);
+    }
+
+    public void removeOrdersDataChangeListener(OrdersDataChangeListener dataChangeListener)
+    {
+        dataChangeListeners.remove(dataChangeListener);
+    }
+
+    private OrderHistoricalData[] getRequestedOrders(long from, long to, boolean onlyOpenOrders, boolean autoshift)
+    {
+        long currentTime = feedDataProvider.getCurrentTime(instrument);
+        ordersCachingVariable.clear();
+        OrderHistoricalData arr$[] = loadedData;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            OrderHistoricalData orderData = arr$[i$];
+            if((orderData.getHistoryEnd() >= from && orderData.getHistoryStart() <= to || orderData.getHistoryStart() == 0x7fffffffffffffffL || !orderData.isClosed() && orderData.isOpened() && (orderData.getEntryOrder().getStopLossPrice().compareTo(BigDecimal.ZERO) >= 0 || orderData.getEntryOrder().getTakeProfitPrice().compareTo(BigDecimal.ZERO) >= 0) || (autoshift || to == currentTime) && orderData.getHistoryStart() > to) && (!onlyOpenOrders || orderData.getHistoryStart() == 0x7fffffffffffffffL || orderData.isOpened() && !orderData.isClosed()))
+                ordersCachingVariable.add(orderData);
+        }
+
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Returning [").append(ordersCachingVariable.size()).append("] orders as the result to the request from [").append(from).append("] to [").append(to).append("]").toString());
+        }
+        return (OrderHistoricalData[])ordersCachingVariable.toArray(new OrderHistoricalData[ordersCachingVariable.size()]);
+    }
+
+    private void requestHistoryData(long from, long to, long requestedFrom, long requestedTo, boolean autoshift)
+    {
+        if(dataCacheRequestData != null && !dataCacheRequestData.cancel)
+        {
+            if(requestedFrom >= dataCacheRequestData.from && (dataCacheRequestData.autoshift || requestedTo <= dataCacheRequestData.to))
+                return;
+            if(LOGGER.isDebugEnabled())
+            {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                LOGGER.debug((new StringBuilder()).append("Canceling orders request for instrument [").append(instrument).append("] from [").append(dateFormat.format(Long.valueOf(dataCacheRequestData.from))).append("], to [").append(dateFormat.format(Long.valueOf(dataCacheRequestData.to))).append("]").toString());
+            }
+            dataCacheRequestData.cancel = true;
+            dataCacheRequestData = null;
+        }
+        fireLoadingStarted();
+        dataCacheRequestData = new DataCacheRequestData();
+        dataCacheRequestData.from = from;
+        dataCacheRequestData.to = to;
+        dataCacheRequestData.autoshift = autoshift;
+        dataCacheRequestData.cancel = false;
+        if(feedDataProvider != null)
+        {
+            try
+            {
+                LoadDataProgressListener loadDataProgressListener = new LoadDataProgressListener(dataCacheRequestData);
+                if(LOGGER.isDebugEnabled())
+                {
+                    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    LOGGER.debug((new StringBuilder()).append("Requesting orders for instrument [").append(instrument).append("], from [").append(dateFormat.format(Long.valueOf(dataCacheRequestData.from))).append("], to [").append(dateFormat.format(Long.valueOf(dataCacheRequestData.to))).append("]").toString());
+                }
+                feedDataProvider.loadOrdersHistoricalData(instrument, from, to, new LoadDataListener(dataCacheRequestData), loadDataProgressListener);
+                return;
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            return;
+        } else
+        {
+            return;
+        }
+    }
+
+    protected synchronized void dataLoaded(boolean allDataLoaded, DataCacheRequestData requestData, Exception e)
+    {
+        if(LOGGER.isDebugEnabled())
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("dataLoaded, instrument [").append(instrument).append("] from [").append(dateFormat.format(Long.valueOf(requestData.from))).append("], to [").append(dateFormat.format(Long.valueOf(requestData.to))).append("], canceled [").append(requestData.cancel).append("], size [").append(requestData.dataLoaded != null ? ((Object) (Integer.valueOf(requestData.dataLoaded.size()))) : "null").append("]").toString());
+        }
+        if(dataCacheRequestData == requestData)
+        {
+            dataCacheRequestData = null;
+            fireLoadingFinished();
+        }
+        if(!requestData.cancel && allDataLoaded)
+        {
+            loadedFrom = requestData.from;
+            loadedTo = requestData.to;
+            autoshift = true;
+            loadedData = (OrderHistoricalData[])requestData.dataLoaded.toArray(new OrderHistoricalData[requestData.dataLoaded.size()]);
+            fireOrdersChanged();
+        } else
+        if(!allDataLoaded && e != null)
+            LOGGER.error(e.getMessage(), e);
+    }
+
+    private void fireOrdersChanged()
+    {
+        OrdersDataChangeListener listeners[] = (OrdersDataChangeListener[])dataChangeListeners.toArray(new OrdersDataChangeListener[dataChangeListeners.size()]);
+        OrdersDataChangeListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            OrdersDataChangeListener listener = arr$[i$];
+            listener.dataChanged(instrument, loadedFrom, loadedTo);
+        }
+
+    }
+
+    private void fireOrdersChanged(long from, long to)
+    {
+        OrdersDataChangeListener listeners[] = (OrdersDataChangeListener[])dataChangeListeners.toArray(new OrdersDataChangeListener[dataChangeListeners.size()]);
+        OrdersDataChangeListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            OrdersDataChangeListener listener = arr$[i$];
+            listener.dataChanged(instrument, from, to);
+        }
+
+    }
+
+    protected void fireLoadingStarted()
+    {
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("fireLoadingStarted, instrument [").append(instrument).append("]").toString());
+        OrdersDataChangeListener listeners[] = (OrdersDataChangeListener[])dataChangeListeners.toArray(new OrdersDataChangeListener[dataChangeListeners.size()]);
+        OrdersDataChangeListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            OrdersDataChangeListener listener = arr$[i$];
+            listener.loadingStarted(instrument);
+        }
+
+    }
+
+    protected void fireLoadingFinished()
+    {
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("fireLoadingFinished, instrument [").append(instrument).append("]").toString());
+        OrdersDataChangeListener listeners[] = (OrdersDataChangeListener[])dataChangeListeners.toArray(new OrdersDataChangeListener[dataChangeListeners.size()]);
+        OrdersDataChangeListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            OrdersDataChangeListener listener = arr$[i$];
+            listener.loadingFinished(instrument);
+        }
+
+    }
+
+    public synchronized void dispose()
+    {
+        stop();
+        dataChangeListeners.clear();
+    }
+
+    private synchronized void stop()
+    {
+        if(firstDataListener != null)
+            feedDataProvider.unsubscribeToOrdersNotifications(instrument, firstDataListener);
+        if(ticksListener != null)
+            feedDataProvider.unsubscribeToLiveFeed(instrument, ticksListener);
+    }
+
+    public void changeInstrument(Instrument instrument)
+    {
+        stop();
+        reset();
+        this.instrument = instrument;
+        start();
+        fireOrdersChanged();
+    }
+
+    private void reset()
+    {
+        loadedFrom = 0x7fffffffffffffffL;
+        loadedTo = 0x8000000000000000L;
+        loadedData = NO_ORDERS;
+        ordersCachingVariable = new ArrayList();
+        autoshift = false;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/math/dataprovider/OrdersDataProvider);
+    private static final OrderHistoricalData NO_ORDERS[] = new OrderHistoricalData[0];
+    private List dataChangeListeners;
+    private Instrument instrument;
+    private long loadedFrom;
+    private long loadedTo;
+    private boolean autoshift;
+    private OrderHistoricalData loadedData[];
+    private long maxIntervalInMilliseconds;
+    private List ordersCachingVariable;
+    protected DataCacheRequestData dataCacheRequestData;
+    private IFeedDataProvider feedDataProvider;
+    private OrdersListener firstDataListener;
+    private LiveFeedListener ticksListener;
+
+
+
+
+
+
+
+
+
+
+
+}

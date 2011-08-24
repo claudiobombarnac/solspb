@@ -1,0 +1,339 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DataLoadingThread.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.util.concurrent.BlockingQueue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            CubicSplineInterpolation
+
+/**
+ * @deprecated Class DataLoadingThread is deprecated
+ */
+
+public class DataLoadingThread extends Thread
+{
+
+    public DataLoadingThread(Instrument instrument, BlockingQueue queue, String name, long from, long to, 
+            IFeedDataProvider feedDataProvider)
+    {
+        super(name);
+        this.instrument = instrument;
+        period = Period.TICK;
+        side = null;
+        this.queue = queue;
+        this.from = from;
+        this.to = to;
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    public DataLoadingThread(Instrument instrument, Period period, OfferSide side, BlockingQueue queue, String name, long from, 
+            long to, IFeedDataProvider feedDataProvider)
+    {
+        super(name);
+        this.instrument = instrument;
+        this.period = period;
+        this.side = side;
+        this.queue = queue;
+        this.from = from;
+        this.to = to;
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    public void run()
+    {
+        LiveFeedListener feedListener = new LiveFeedListener() {
+
+            public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                    double d1, double d2, double d3, double d4)
+            {
+            }
+
+            public void newTick(Instrument instrument, long time, double ask, double bid, 
+                    double askVol, double bidVol)
+            {
+                if(!stop)
+                    try
+                    {
+                        queue.put(new TickData(time, ask, bid, askVol, bidVol, new double[] {
+                            ask
+                        }, new double[] {
+                            bid
+                        }, new double[] {
+                            askVol
+                        }, new double[] {
+                            bidVol
+                        }));
+                    }
+                    catch(InterruptedException e) { }
+            }
+
+            final DataLoadingThread this$0;
+
+            
+            {
+                this$0 = DataLoadingThread.this;
+                super();
+            }
+        };
+        LoadingProgressListener loadingProgressListener = new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception ex)
+            {
+                if(allDataLoaded)
+                    try
+                    {
+                        queue.put(new TickData(0x8000000000000000L, -1D, -1D, -1D, -1D, null, null, null, null));
+                    }
+                    catch(InterruptedException e) { }
+                else
+                if(ex != null)
+                    DataLoadingThread.LOGGER.error(ex.getMessage(), ex);
+            }
+
+            public boolean stopJob()
+            {
+                return stop;
+            }
+
+            final DataLoadingThread this$0;
+
+            
+            {
+                this$0 = DataLoadingThread.this;
+                super();
+            }
+        };
+        try
+        {
+            if(period == Period.TICK)
+            {
+                if(selectedPeriod == Period.TICK)
+                    feedDataProvider.loadTicksDataBlockingSynched(instrument, from, to, feedListener, loadingProgressListener);
+                else
+                    feedDataProvider.loadCandlesDataBlockingSynched(instrument, selectedPeriod, selectedOfferSide, from, to, feedListener, loadingProgressListener);
+            } else
+            {
+                long firstCandle = DataCacheUtils.getCandleStartFast(period, from);
+                long lastCandle = DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, to));
+                if(firstCandle <= lastCandle)
+                    feedDataProvider.loadCandlesDataBlockingSynched(instrument, period, side, firstCandle, lastCandle, feedListener, loadingProgressListener);
+                else
+                    try
+                    {
+                        queue.put(new TickData(0x8000000000000000L, -1D, -1D, -1D, -1D, null, null, null, null));
+                    }
+                    catch(InterruptedException e) { }
+            }
+        }
+        catch(DataCacheException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            try
+            {
+                queue.put(new TickData(0x8000000000000000L, -1D, -1D, -1D, -1D, null, null, null, null));
+            }
+            catch(InterruptedException e1) { }
+        }
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public Period getPeriod()
+    {
+        return period;
+    }
+
+    public OfferSide getSide()
+    {
+        return side;
+    }
+
+    public BlockingQueue getQueue()
+    {
+        return queue;
+    }
+
+    public void stopThread()
+    {
+        stop = true;
+        while(queue.poll() != null) ;
+    }
+
+    private void candle2ITickCubicSpline(long time, double open, double high, double low, double close, double volume, Instrument instrument, Period period, 
+            OfferSide side, BlockingQueue queue)
+    {
+        double spreadInPips = 2D;
+        long length = period.getInterval();
+        long step = length / 4L;
+        long baseTime = time;
+        long x1 = length;
+        long x4 = x1 + length;
+        long x2 = x1 + step;
+        long x3 = x2 + step;
+        double y1 = open;
+        double y2 = open <= close ? high : low;
+        double y3 = open <= close ? low : high;
+        double y4 = close;
+        CubicSplineInterpolation cubicSplineInterpolation = new CubicSplineInterpolation(new double[] {
+            (double)x1, (double)x2, (double)x3, (double)x4
+        }, new double[] {
+            y1, y2, y3, y4
+        });
+        double pip = instrument.getPipValue();
+        long ticksNumber = (long)((high - low) / (pip / 2D));
+        if(ticksNumber == 0L)
+            ticksNumber = 1L;
+        step = length / ticksNumber;
+        double vol = StratUtils.roundHalfEven(volume / (double)ticksNumber, 2);
+        for(int i = 0; (long)i < ticksNumber + 1L; i++)
+        {
+            long xx = x1 + step * (long)i;
+            double ask;
+            double bid;
+            if(side == OfferSide.ASK)
+            {
+                ask = StratUtils.round(cubicSplineInterpolation.interpolate(xx), 5);
+                bid = StratUtils.round(ask - pip * spreadInPips, 5);
+            } else
+            {
+                bid = StratUtils.round(cubicSplineInterpolation.interpolate(xx), 5);
+                ask = StratUtils.round(bid + pip * spreadInPips, 5);
+            }
+            if(stop)
+                continue;
+            try
+            {
+                queue.put(new TickData(baseTime + step * (long)i, ask, bid, vol, vol, new double[] {
+                    ask
+                }, new double[] {
+                    bid
+                }, new double[] {
+                    vol
+                }, new double[] {
+                    vol
+                }));
+            }
+            catch(InterruptedException e) { }
+        }
+
+    }
+
+    private void candle2ITickFourTicks(long time, double open, double high, double low, double close, double volume, Instrument instrument, Period period, 
+            OfferSide side, BlockingQueue queue)
+    {
+        double spreadInPipsAsk = (side != OfferSide.ASK ? 2D : 0.0D) * instrument.getPipValue();
+        double spreadInPipsBid = (side != OfferSide.ASK ? 0.0D : -2D) * instrument.getPipValue();
+        double length = period.getInterval();
+        double step = length / 8D;
+        double ask = StratUtils.round(open + spreadInPipsAsk, 5);
+        double bid = StratUtils.round(open + spreadInPipsBid, 5);
+        double vol = StratUtils.round(volume / 4D, 5);
+        if(!stop)
+            try
+            {
+                queue.put(new TickData((long)((double)time + step), ask, bid, vol, vol, new double[] {
+                    ask
+                }, new double[] {
+                    bid
+                }, new double[] {
+                    vol
+                }, new double[] {
+                    vol
+                }));
+            }
+            catch(InterruptedException e) { }
+        double lowhigh = close >= open ? low : high;
+        ask = StratUtils.round(lowhigh + spreadInPipsAsk, 5);
+        bid = StratUtils.round(lowhigh + spreadInPipsBid, 5);
+        if(!stop)
+            try
+            {
+                queue.put(new TickData((long)((double)time + step * 3D), ask, bid, vol, vol, new double[] {
+                    ask
+                }, new double[] {
+                    bid
+                }, new double[] {
+                    vol
+                }, new double[] {
+                    vol
+                }));
+            }
+            catch(InterruptedException e) { }
+        lowhigh = close >= open ? high : low;
+        ask = StratUtils.round(lowhigh + spreadInPipsAsk, 5);
+        bid = StratUtils.round(lowhigh + spreadInPipsBid, 5);
+        if(!stop)
+            try
+            {
+                queue.put(new TickData((long)((double)time + step * 5D), ask, bid, vol, vol, new double[] {
+                    ask
+                }, new double[] {
+                    bid
+                }, new double[] {
+                    vol
+                }, new double[] {
+                    vol
+                }));
+            }
+            catch(InterruptedException e) { }
+        ask = StratUtils.round(close + spreadInPipsAsk, 5);
+        bid = StratUtils.round(close + spreadInPipsBid, 5);
+        if(!stop)
+            try
+            {
+                queue.put(new TickData((long)((double)time + step * 7D), ask, bid, vol, vol, new double[] {
+                    ask
+                }, new double[] {
+                    bid
+                }, new double[] {
+                    vol
+                }, new double[] {
+                    vol
+                }));
+            }
+            catch(InterruptedException e) { }
+    }
+
+    public void setSelectedPeriod(Period selectedPeriod)
+    {
+        this.selectedPeriod = selectedPeriod;
+    }
+
+    public void setSelectedOfferSide(OfferSide selectedOfferSide)
+    {
+        this.selectedOfferSide = selectedOfferSide;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/DataLoadingThread);
+    private final Instrument instrument;
+    private final Period period;
+    private final OfferSide side;
+    private final BlockingQueue queue;
+    private boolean stop;
+    private final long from;
+    private final long to;
+    private final IFeedDataProvider feedDataProvider;
+    private Period selectedPeriod;
+    private OfferSide selectedOfferSide;
+
+
+
+
+}

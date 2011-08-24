@@ -1,0 +1,383 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   HistoryUtils.java
+
+package com.dukascopy.api.impl.util;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.feed.*;
+import com.dukascopy.api.impl.History;
+import com.dukascopy.charts.data.datacache.DataCacheUtils;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
+import com.dukascopy.charts.data.datacache.priceaggregation.*;
+import java.security.PrivilegedActionException;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class HistoryUtils
+{
+    public static interface Loadable
+    {
+
+        public abstract List load(long l, long l1)
+            throws Exception;
+
+        public abstract long correctTime(long l);
+
+        public abstract long getStep();
+    }
+
+
+    public HistoryUtils()
+    {
+    }
+
+    public static void throwJFException(PrivilegedActionException e)
+        throws JFException
+    {
+        Exception ex = e.getException();
+        if(ex instanceof JFException)
+            throw (JFException)ex;
+        if(ex instanceof RuntimeException)
+        {
+            throw (RuntimeException)ex;
+        } else
+        {
+            LOGGER.error(ex.getMessage(), ex);
+            throw new JFException(ex);
+        }
+    }
+
+    public static List convert(List bars)
+    {
+        if(bars == null)
+            return null;
+        List result = new ArrayList(bars.size());
+        AbstractPriceAggregationData bar;
+        for(Iterator i$ = bars.iterator(); i$.hasNext(); result.add(bar))
+            bar = (AbstractPriceAggregationData)i$.next();
+
+        return result;
+    }
+
+    public static InProgressDataLoaddedChecker createInProgressRangeBarLoaddedChecker(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        return new InProgressDataLoaddedChecker(feedDataProvider, instrument, offerSide, priceRange) {
+
+            public boolean isLoadingInProgress()
+            {
+                return feedDataProvider.isInProgressPriceRangeLoadingNow(instrument, offerSide, priceRange);
+            }
+
+            public IRangeBar getInProgressData()
+            {
+                return feedDataProvider.getInProgressPriceRange(instrument, offerSide, priceRange);
+            }
+
+            public volatile IPriceAggregationBar getInProgressData()
+            {
+                return getInProgressData();
+            }
+
+            final FeedDataProvider val$feedDataProvider;
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final PriceRange val$priceRange;
+
+            
+            {
+                feedDataProvider = feeddataprovider;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                super();
+            }
+        };
+    }
+
+    public static InProgressDataLoaddedChecker createInProgressTickBarLoaddedChecker(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        return new InProgressDataLoaddedChecker(feedDataProvider, instrument, offerSide, tickBarSize) {
+
+            public ITickBar getInProgressData()
+            {
+                return feedDataProvider.getInProgressTickBar(instrument, offerSide, tickBarSize);
+            }
+
+            public boolean isLoadingInProgress()
+            {
+                return feedDataProvider.isInProgressTickBarLoadingNow(instrument, offerSide, tickBarSize);
+            }
+
+            public volatile IPriceAggregationBar getInProgressData()
+            {
+                return getInProgressData();
+            }
+
+            final FeedDataProvider val$feedDataProvider;
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final TickBarSize val$tickBarSize;
+
+            
+            {
+                feedDataProvider = feeddataprovider;
+                instrument = instrument1;
+                offerSide = offerside;
+                tickBarSize = tickbarsize;
+                super();
+            }
+        };
+    }
+
+    public static InProgressDataLoaddedChecker createInProgressPointAndFigureLoaddedChecker(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        return new InProgressDataLoaddedChecker(feedDataProvider, instrument, offerSide, priceRange, reversalAmount) {
+
+            public boolean isLoadingInProgress()
+            {
+                return feedDataProvider.isInProgressPointAndFigureLoadingNow(instrument, offerSide, priceRange, reversalAmount);
+            }
+
+            public PointAndFigureData getInProgressData()
+            {
+                return feedDataProvider.getInProgressPointAndFigure(instrument, offerSide, priceRange, reversalAmount);
+            }
+
+            public volatile IPriceAggregationBar getInProgressData()
+            {
+                return getInProgressData();
+            }
+
+            final FeedDataProvider val$feedDataProvider;
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final PriceRange val$priceRange;
+            final ReversalAmount val$reversalAmount;
+
+            
+            {
+                feedDataProvider = feeddataprovider;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                reversalAmount = reversalamount;
+                super();
+            }
+        };
+    }
+
+    public static void checkInProgressDataLoaded(InProgressDataLoaddedChecker checker, String dataTypeNameForErrorMessage)
+        throws JFException
+    {
+        IPriceAggregationBar inProgressData = checker.getInProgressData();
+        if(inProgressData == null)
+        {
+            boolean isInProgress = checker.isLoadingInProgress();
+            if(!isInProgress)
+            {
+                inProgressData = checker.getInProgressData();
+                if(inProgressData == null)
+                    throw new JFException((new StringBuilder()).append("Can not load historical ").append(dataTypeNameForErrorMessage).append(" data, please, subscribe to ").append(dataTypeNameForErrorMessage).append(" live notification first").toString());
+            } else
+            {
+                while(checker.isLoadingInProgress()) 
+                    try
+                    {
+                        Thread.sleep(100L);
+                    }
+                    catch(InterruptedException e) { }
+            }
+        }
+    }
+
+    public static boolean isIntervalValid(FeedDataProvider feedDataProvider, Instrument instrument, long from, long to)
+    {
+        long lastKnownTime = feedDataProvider.getCurrentTime();
+        long firstKnownTime = feedDataProvider.getTimeOfFirstCandle(instrument, Period.TICK);
+        return from <= to && lastKnownTime >= to && firstKnownTime <= from;
+    }
+
+    public static void validateTimeInterval(FeedDataProvider feedDataProvider, Instrument instrument, long from, long to)
+        throws JFException
+    {
+        if(!isIntervalValid(feedDataProvider, instrument, from, to))
+        {
+            String fromStr = DATE_FORMAT.format(new Long(from));
+            String toStr = DATE_FORMAT.format(new Long(to));
+            throw new JFException((new StringBuilder()).append("Requested time interval from [").append(fromStr).append("] to [").append(toStr).append("] GMT is not valid").toString());
+        } else
+        {
+            return;
+        }
+    }
+
+    public static void validatePointAndFigureParams(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+        throws JFException
+    {
+        if(instrument == null || offerSide == null || priceRange == null || reversalAmount == null)
+            throw new JFException((new StringBuilder()).append("Params could not be null: Instrument=").append(instrument).append(" OfferSide=").append(offerSide).append(" PriceRange=").append(priceRange).append(" ReversalAmount=").append(reversalAmount).toString());
+        else
+            return;
+    }
+
+    public static void validatePointAndFigureParams(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, IPointAndFigureFeedListener listener, LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        validatePointAndFigureParams(instrument, offerSide, priceRange, reversalAmount);
+        if(listener == null)
+            throw new JFException("PointAndFigureFeedListener could not be null");
+        if(loadingProgress == null)
+            throw new JFException("LoadingProgressListener could not be null");
+        else
+            return;
+    }
+
+    public static void validateTickBarParams(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+        throws JFException
+    {
+        if(instrument == null || offerSide == null || tickBarSize == null)
+            throw new JFException((new StringBuilder()).append("Params could not be null: Instrument=").append(instrument).append(" OfferSide=").append(offerSide).append(" TickBarSize=").append(tickBarSize).toString());
+        else
+            return;
+    }
+
+    public static void validateTickBarParams(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, ITickBarFeedListener listener, LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        validateTickBarParams(instrument, offerSide, tickBarSize);
+        if(listener == null)
+            throw new JFException("TickBarFeedListener could not be null");
+        if(loadingProgress == null)
+            throw new JFException("LoadingProgressListener could not be null");
+        else
+            return;
+    }
+
+    public static void validateRangeBarParams(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+        throws JFException
+    {
+        if(instrument == null || offerSide == null || priceRange == null)
+            throw new JFException((new StringBuilder()).append("Params could not be null: Instrument=").append(instrument).append(" OfferSide=").append(offerSide).append(" PriceRange=").append(priceRange).toString());
+        else
+            return;
+    }
+
+    public static void validateRangeBarParams(Instrument instrument, OfferSide offerSide, PriceRange priceRange, IRangeBarFeedListener listener, LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        validateRangeBarParams(instrument, offerSide, priceRange);
+        if(listener == null)
+            throw new JFException("RangeBarFeedListener could not be null");
+        if(loadingProgress == null)
+            throw new JFException("LoadingProgressListener could not be null");
+        else
+            return;
+    }
+
+    public static void validateBeforeTimeAfter(FeedDataProvider feedDataProvider, Instrument instrument, int numberOfBarsBefore, long time, int numberOfBarsAfter)
+        throws JFException
+    {
+        if(numberOfBarsBefore < 0)
+            throw new JFException("NumberOfBarsBefore must be >= 0");
+        if(numberOfBarsAfter < 0)
+            throw new JFException("NumberOfBarsAfter must be >= 0");
+        long lastKnownTime = feedDataProvider.getCurrentTime();
+        long firstKnownTime = feedDataProvider.getTimeOfFirstCandle(instrument, Period.TICK);
+        if(lastKnownTime < time || firstKnownTime > time)
+            throw new JFException((new StringBuilder()).append("Passed Time [").append(DATE_FORMAT.format(new Long(time))).append("] has to be in interval [").append(DATE_FORMAT.format(new Long(firstKnownTime))).append("; ").append(DATE_FORMAT.format(new Long(lastKnownTime))).append("]").toString());
+        else
+            return;
+    }
+
+    public static void checkInProgressRangeBarIsLoaded(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+        throws JFException
+    {
+        InProgressDataLoaddedChecker ckecker = createInProgressRangeBarLoaddedChecker(feedDataProvider, instrument, offerSide, priceRange);
+        checkInProgressDataLoaded(ckecker, "Range Bar");
+    }
+
+    public static void checkInProgressTickBarIsLoaded(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+        throws JFException
+    {
+        InProgressDataLoaddedChecker ckecker = createInProgressTickBarLoaddedChecker(feedDataProvider, instrument, offerSide, tickBarSize);
+        checkInProgressDataLoaded(ckecker, "Tick Bar");
+    }
+
+    public static void checkInProgressPointAndFigureIsLoaded(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+        throws JFException
+    {
+        InProgressDataLoaddedChecker ckecker = createInProgressPointAndFigureLoaddedChecker(feedDataProvider, instrument, offerSide, priceRange, reversalAmount);
+        checkInProgressDataLoaded(ckecker, "Point and Figure");
+    }
+
+    public static long correctRequestTime(long time, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        Period period;
+        if(reversalAmount != null)
+            period = TimeDataUtils.getSuitablePeriod(priceRange, reversalAmount);
+        else
+            period = TimeDataUtils.getSuitablePeriod(priceRange);
+        long value = Period.TICK.equals(period) ? time : DataCacheUtils.getCandleStartFast(period, time);
+        return value;
+    }
+
+    public static long correctRequestTime(long time, PriceRange priceRange)
+    {
+        return correctRequestTime(time, priceRange, null);
+    }
+
+    public static void validateShift(int shift)
+        throws JFException
+    {
+        if(shift < 0)
+            throw new JFException("shift < 0");
+        else
+            return;
+    }
+
+    public static Object getByShift(Loadable loadable, long inProgressBarTime, int shift)
+        throws Exception
+    {
+        int barsCount = 0;
+        long from = inProgressBarTime;
+label0:
+        for(long to = inProgressBarTime - 1L; barsCount < shift; to = from - 1L)
+        {
+            from = to - loadable.getStep();
+            from = loadable.correctTime(from);
+            to = loadable.correctTime(to);
+            List bars = loadable.load(from, to);
+            if(barsCount + bars.size() < shift)
+            {
+                barsCount += bars.size();
+                continue;
+            }
+            Collections.reverse(bars);
+            Iterator i$ = bars.iterator();
+            Object tick;
+            do
+            {
+                if(!i$.hasNext())
+                    continue label0;
+                tick = i$.next();
+            } while(++barsCount != shift);
+            return tick;
+        }
+
+        return null;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/History);
+    private static final SimpleDateFormat DATE_FORMAT;
+
+    static 
+    {
+        DATE_FORMAT = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
+    }
+}

@@ -1,0 +1,26 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IStrategyRateDataNotificationFactory.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification;
+
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.dds2.greed.agent.strategy.notification.candle.IStrategyCandleNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.pnf.IStrategyPointAndFigureNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.pr.IStrategyPriceRangeNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.tickbar.IStrategyTickBarNotificationManager;
+
+public interface IStrategyRateDataNotificationFactory
+{
+
+    public abstract IStrategyCandleNotificationManager getCandleNotificationManager();
+
+    public abstract IStrategyPriceRangeNotificationManager getPriceRangeNotificationManager();
+
+    public abstract IStrategyPointAndFigureNotificationManager getPointAndFigureNotificationManager();
+
+    public abstract IStrategyTickBarNotificationManager getTickBarNotificationManager();
+
+    public abstract void unsubscribeFromAll(IStrategy istrategy);
+}

@@ -1,0 +1,131 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EditorFileHandler.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.impl;
+
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.io.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class EditorFileHandler
+{
+
+    public EditorFileHandler()
+    {
+    }
+
+    public String reloadFile()
+    {
+        return readFromFile(file);
+    }
+
+    public String readFromFile(File newFile)
+    {
+        String content;
+        int size;
+        byte data[];
+        FileInputStream fis;
+        content = "";
+        if(!newFile.exists())
+            return content;
+        size = (int)newFile.length();
+        if(size <= 0 && !newFile.exists())
+            return content;
+        data = new byte[size];
+        fis = null;
+        fis = new FileInputStream(newFile);
+        for(int bytes_read = 0; bytes_read < size; bytes_read += fis.read(data, bytes_read, size - bytes_read));
+        file = newFile;
+        content = new String(data, "UTF-8");
+        if(fis != null)
+            try
+            {
+                fis.close();
+            }
+            catch(IOException ignorableException) { }
+        break MISSING_BLOCK_LABEL_172;
+        Exception e;
+        e;
+        String s;
+        LOGGER.error(e.getMessage(), e);
+        s = content;
+        if(fis != null)
+            try
+            {
+                fis.close();
+            }
+            catch(IOException ignorableException) { }
+        return s;
+        Exception exception;
+        exception;
+        if(fis != null)
+            try
+            {
+                fis.close();
+            }
+            catch(IOException ignorableException) { }
+        throw exception;
+        content = content.replaceAll("\r\n?", "\n");
+        return content;
+    }
+
+    public void writeToFile(String text)
+    {
+        writeToFile(file, text);
+    }
+
+    public void writeToFile(File file, String content)
+    {
+        FileOutputStream fileOutputStream = null;
+        if(!file.exists())
+            file.createNewFile();
+        fileOutputStream = new FileOutputStream(file);
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(content.getBytes("UTF-8"));
+        StratUtils.turboPipe(byteArrayInputStream, fileOutputStream);
+        this.file = file;
+        if(fileOutputStream != null)
+            try
+            {
+                fileOutputStream.close();
+            }
+            catch(Exception ignorableException) { }
+        break MISSING_BLOCK_LABEL_117;
+        Throwable e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        if(fileOutputStream != null)
+            try
+            {
+                fileOutputStream.close();
+            }
+            catch(Exception ignorableException) { }
+        break MISSING_BLOCK_LABEL_117;
+        Exception exception;
+        exception;
+        if(fileOutputStream != null)
+            try
+            {
+                fileOutputStream.close();
+            }
+            catch(Exception ignorableException) { }
+        throw exception;
+    }
+
+    public boolean contentWasModified(String text)
+    {
+        String savedContent = readFromFile(file);
+        return !savedContent.equals(text);
+    }
+
+    public File getFile()
+    {
+        return file;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/ide/impl/EditorFileHandler);
+    File file;
+
+}

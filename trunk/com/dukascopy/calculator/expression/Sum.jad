@@ -1,0 +1,329 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Sum.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.*;
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.function.Variable;
+import java.io.PrintStream;
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            SumOrProduct, Expression, Product, Variable
+
+public class Sum extends SumOrProduct
+    implements Cloneable
+{
+
+    public Sum(Expression expression)
+    {
+        if(expression instanceof Sum)
+        {
+            Sum sum = (Sum)expression;
+            complex = sum.complex;
+            expressionList = sum.expressionList;
+        }
+        complex = new Complex();
+        expressionList = new LinkedList();
+        expressionList.add(expression);
+    }
+
+    public Sum()
+    {
+        complex = new Complex();
+        expressionList = new LinkedList();
+    }
+
+    public Sum add(Complex z)
+    {
+        Sum sum = clone();
+        sum.complex = complex.add(z);
+        return sum;
+    }
+
+    public Sum clone()
+    {
+        Sum copy = new Sum();
+        copy.complex = new Complex(complex.real(), complex.imaginary());
+        copy.expressionList = new LinkedList();
+        for(ListIterator i = getExpressionList().listIterator(); i.hasNext(); copy.expressionList.add(i.next()));
+        return copy;
+    }
+
+    public boolean isNegative()
+    {
+        if(complex.isZero())
+        {
+            if(expressionList.isEmpty())
+                return false;
+            else
+                return ((Expression)expressionList.getFirst()).isNegative();
+        } else
+        {
+            return complex.isNegative();
+        }
+    }
+
+    public StringArray toHTMLSubString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray s = new StringArray();
+        boolean displayPlus = false;
+        for(ListIterator i = expressionList.listIterator(); i.hasNext();)
+        {
+            Expression expression = (Expression)i.next();
+            StringArray u = expression.toHTMLSubString(maxChars, precision, base, notation, polarFactor);
+            if(displayPlus && (!expression.isNegative() || u.size() > 0 && ((String)((Vector)u.firstElement()).firstElement()).equals("(")))
+                s.add("+");
+            s.addAll(u);
+            displayPlus = true;
+        }
+
+        StringArray t = complex.toHTMLSubString(maxChars, precision, base, notation, polarFactor);
+        if(!t.isZero())
+        {
+            if(displayPlus && !complex.isNegative())
+                s.add("+");
+            s.addAll(t);
+        }
+        return s;
+    }
+
+    public StringArray toHTMLParenString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        if(getExpressionList().isEmpty())
+            return complex.toHTMLParenString(maxChars, precision, base, notation, polarFactor);
+        if(complex.isZero() && getExpressionList().size() == 1)
+        {
+            return ((Expression)getExpressionList().getFirst()).toHTMLParenString(maxChars, precision, base, notation, polarFactor);
+        } else
+        {
+            StringArray s = new StringArray();
+            s.add("(");
+            s.addAll(toHTMLSubString(maxChars, precision, base, notation, polarFactor));
+            s.add(")");
+            return s;
+        }
+    }
+
+    public OObject add(Product x)
+    {
+        System.out.println("Adding product to sum: FIXME");
+        Sum sum = clone();
+        System.out.println("Clone complete: FIXME");
+        OObject o = x.unBox();
+        if(o instanceof Complex)
+            sum.complex = sum.complex.add((Complex)o);
+        else
+        if(o instanceof Expression)
+            sum.expressionList.add((Expression)o);
+        else
+            return new Error("Sum.add() error");
+        return sum;
+    }
+
+    public OObject add(Sum x)
+    {
+        Sum s = clone();
+        s.complex = s.complex.add(x.complex);
+        OObject sum = s;
+        for(ListIterator i = x.expressionList.listIterator(); i.hasNext();)
+            sum = sum.add((OObject)i.next());
+
+        return sum;
+    }
+
+    public Sum negate()
+    {
+        Sum p = new Sum();
+        p.complex = complex.negate();
+        for(ListIterator i = expressionList.listIterator(); i.hasNext(); p.expressionList.add(((Expression)i.next()).negate()));
+        return p;
+    }
+
+    private OObject rMultiply(OObject o)
+    {
+        if(!(o instanceof Complex) && !(o instanceof Expression))
+            return new Error("Error in Sum.rMultiply");
+        Sum s = new Sum();
+        OObject p = o.multiply(complex);
+        if(p instanceof Complex)
+            s.complex = s.complex.add((Complex)p);
+        else
+        if(p instanceof Expression)
+            s.expressionList.add((Expression)p);
+        else
+            return new Error("Error in Sum.lMultiply");
+        for(ListIterator i = getExpressionList().listIterator(); i.hasNext();)
+        {
+            p = ((Expression)i.next()).multiply(o);
+            if(p instanceof Complex)
+                s.complex = s.complex.add((Complex)p);
+            else
+            if(p instanceof Expression)
+                s.expressionList.add((Expression)p);
+            else
+                return new Error("Error in Sum.rMultiply");
+        }
+
+        return s;
+    }
+
+    OObject multiply(Sum t)
+    {
+        Sum s = new Sum();
+        OObject p = rMultiply(t.complex);
+        if(p instanceof Complex)
+            s.complex = s.complex.add((Complex)p);
+        else
+        if(p instanceof Expression)
+            s.expressionList.add((Expression)p);
+        else
+            return new Error("Error in Sum.multiply");
+        for(ListIterator i = t.getExpressionList().listIterator(); i.hasNext();)
+        {
+            Expression e = (Expression)i.next();
+            p = rMultiply(e);
+            if(p instanceof Complex)
+                s.complex = s.complex.add((Complex)p);
+            else
+            if(p instanceof Expression)
+                s.expressionList.add((Expression)p);
+            else
+                return new Error("Error in Sum.multiply");
+        }
+
+        return s;
+    }
+
+    public OObject unBox()
+    {
+        if(expressionList.size() == 1 && complex.isZero())
+            return (OObject)expressionList.getFirst();
+        if(expressionList.isEmpty())
+            return complex;
+        else
+            return this;
+    }
+
+    public int compareTo(Sum sum)
+    {
+        sort();
+        int r = compare(expressionList, sum.expressionList);
+        if(r != 0)
+            return r;
+        else
+            return complex.compareTo(sum.complex);
+    }
+
+    public OObject auto_simplify()
+    {
+        ListIterator i;
+        for(i = expressionList.listIterator(); i.hasNext();)
+        {
+            OObject o = ((Expression)i.next()).auto_simplify();
+            if(o instanceof Complex)
+            {
+                complex = complex.multiply((Complex)o);
+                i.remove();
+            } else
+            if(o instanceof Expression)
+                i.set((Expression)o);
+            else
+                return new Error("Product.auto_simplify() error");
+        }
+
+        sort();
+        if(expressionList.isEmpty())
+            return unBox();
+        i = expressionList.listIterator();
+        Expression f = null;
+        for(Expression e = (Expression)i.next(); i.hasNext(); e = f)
+        {
+            Product product_e = null;
+            if(e instanceof Product)
+                product_e = (Product)e;
+            else
+                product_e = new Product(e, false);
+            f = (Expression)i.next();
+            Product product_f = null;
+            if(f instanceof Product)
+                product_f = (Product)f;
+            else
+                product_f = new Product(f, false);
+            if(product_e.compareTo(product_f) != 0)
+                continue;
+            System.out.println("Adding comparable expressions");
+            Product product = new Product(product_e, false);
+            product.setComplex(product_e.getComplex().add(product_f.getComplex()));
+            OObject o = product.unBox();
+            if(o instanceof Complex)
+            {
+                complex = complex.add((Complex)o);
+                i.remove();
+                i.previous();
+                i.remove();
+                if(i.hasNext())
+                    e = (Expression)i.next();
+                continue;
+            }
+            if(o instanceof Expression)
+            {
+                i.remove();
+                i.previous();
+                i.set((Expression)o);
+                f = (Expression)i.next();
+            } else
+            {
+                return new Error("Sum.auto_simplify() error");
+            }
+        }
+
+        return unBox();
+    }
+
+    public OObject substitute(Substitution substitution)
+    {
+        Sum s = clone();
+        for(ListIterator i = s.expressionList.listIterator(); i.hasNext();)
+        {
+            Expression expression = (Expression)i.next();
+            OObject o = expression.substitute(substitution);
+            if(o instanceof Complex)
+            {
+                i.remove();
+                s.complex = s.complex.add((Complex)o);
+            } else
+            if(o instanceof Expression)
+                i.set((Expression)o);
+            else
+                return new Error("Product.substitution() Error");
+        }
+
+        return s.auto_simplify();
+    }
+
+    public static void main(String args[])
+    {
+        com.dukascopy.calculator.expression.Variable x = new com.dukascopy.calculator.expression.Variable(new Variable('x'));
+        Sum s = new Sum(x);
+    }
+
+    public volatile Expression negate()
+    {
+        return negate();
+    }
+
+    public volatile OObject negate()
+    {
+        return negate();
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+}

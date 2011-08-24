@@ -1,0 +1,55 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ResizableIcon.java
+
+package com.dukascopy.dds2.greed.gui.resizing.components;
+
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.gui.resizing.Resizable;
+import com.dukascopy.dds2.greed.gui.resizing.ResizingManager;
+import javax.swing.ImageIcon;
+
+public class ResizableIcon extends ImageIcon
+    implements Resizable
+{
+
+    public ResizableIcon()
+    {
+        imageName = "";
+        ResizingManager.addResizable(this);
+    }
+
+    public ResizableIcon(String imageName)
+    {
+        this.imageName = imageName;
+        ResizingManager.addResizable(this);
+    }
+
+    public Object getDefaultSize()
+    {
+        return com.dukascopy.dds2.greed.gui.resizing.ResizingManager.SizeMode.SMALL;
+    }
+
+    public void setSizeMode(Object object)
+    {
+        setImage(StratUtils.loadImage(getImagePath()));
+    }
+
+    private String getImagePath()
+    {
+        StringBuffer resultPath = new StringBuffer(getSizeModesPath());
+        if(imageName != null)
+            resultPath.append(imageName);
+        return resultPath.toString();
+    }
+
+    private String getSizeModesPath()
+    {
+        return "rc/media/";
+    }
+
+    private static final String SMALL_PATH = "rc/media/";
+    private static final String DEFAULT_ICON = "systray_question_mark.png";
+    private final String imageName;
+}

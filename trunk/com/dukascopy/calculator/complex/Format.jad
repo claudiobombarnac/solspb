@@ -1,0 +1,1138 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Format.java
+
+package com.dukascopy.calculator.complex;
+
+import com.dukascopy.calculator.Base;
+import java.io.PrintStream;
+import java.util.Vector;
+
+// Referenced classes of package com.dukascopy.calculator.complex:
+//            Complex
+
+public class Format
+{
+    private static class DoubleFormat
+    {
+
+        public void round(int sigDigits)
+        {
+            if(sigDigits >= digits.size())
+                return;
+            boolean carry = false;
+            for(int i = digits.size() - 1; i >= 0; i--)
+            {
+                if(i > sigDigits)
+                {
+                    digits.removeElementAt(i);
+                    continue;
+                }
+                int digit;
+                if(i == sigDigits)
+                {
+                    digit = ((Integer)digits.elementAt(i)).intValue();
+                    digits.removeElementAt(i);
+                    if(2 * digit < base)
+                        break;
+                    continue;
+                }
+                digit = ((Integer)digits.elementAt(i)).intValue();
+                digit = (digit + 1) % base;
+                digits.setElementAt(Integer.valueOf(digit), i);
+                if(digit != 0)
+                    break;
+                carry = i == 0;
+            }
+
+            if(carry)
+            {
+                digits.add(0, Integer.valueOf(1));
+                digits.removeElementAt(sigDigits);
+                if(exponentNegative)
+                {
+                    int i = exponentDigits.size() - 1;
+                    do
+                    {
+                        if(i < 0)
+                            break;
+                        int digit = ((Integer)exponentDigits.elementAt(i)).intValue();
+                        digit = (digit - 1) % base;
+                        exponentDigits.setElementAt(Integer.valueOf(digit), i);
+                        if(digit == 0)
+                            break;
+                        carry = i == 0;
+                        i--;
+                    } while(true);
+                    if(carry)
+                        exponentDigits.removeElementAt(0);
+                } else
+                {
+                    int i = exponentDigits.size() - 1;
+                    do
+                    {
+                        if(i < 0)
+                            break;
+                        int digit = ((Integer)exponentDigits.elementAt(i)).intValue();
+                        digit = (digit + 1) % base;
+                        exponentDigits.setElementAt(Integer.valueOf(digit), i);
+                        if(digit != 0)
+                            break;
+                        carry = i == 0;
+                        i--;
+                    } while(true);
+                }
+                if(carry)
+                    exponentDigits.insertElementAt(Integer.valueOf(1), 0);
+            }
+        }
+
+        public int precision(int maxLength)
+        {
+            if(NaN)
+                return maxLength <= 2 ? 0 : 1;
+            if(zero)
+                return maxLength <= 0 ? 0 : 1;
+            if(infinity)
+                if(negative)
+                    return maxLength <= 1 ? 0 : 1;
+                else
+                    return maxLength <= 0 ? 0 : 1;
+            int length = digits.size();
+            for(int i = digits.size() - 1; ((Integer)digits.elementAt(i)).intValue() == 0; i--)
+                length--;
+
+            if(exponentNegative)
+            {
+                length += exponent + 1;
+                if(negative)
+                    length++;
+                int result = digits.size() - (length - maxLength);
+                if(result > digits.size())
+                    result = digits.size();
+                if(result < 0)
+                    result = 0;
+                return result;
+            }
+            if(length > exponent + 1)
+            {
+                int basedigits = length - (exponent + 1);
+                length++;
+                if(negative)
+                    length++;
+                if(length <= maxLength)
+                    return digits.size();
+                if(length - maxLength > basedigits + 1)
+                    return 0;
+                if(length - maxLength == basedigits + 1)
+                    return digits.size() - basedigits;
+                else
+                    return digits.size() - (length - maxLength);
+            }
+            length = exponent + 1;
+            if(negative)
+                length++;
+            if(length <= maxLength)
+                return digits.size();
+            else
+                return 0;
+        }
+
+        public int scientificPrecision(int maxLength)
+        {
+            if(NaN)
+                return maxLength <= 2 ? 0 : 1;
+            if(zero)
+                return maxLength <= 0 ? 0 : 1;
+            if(infinity)
+                if(negative)
+                    return maxLength <= 1 ? 0 : 1;
+                else
+                    return maxLength <= 0 ? 0 : 1;
+            int z = digits.size();
+            for(int i = digits.size() - 1; ((Integer)digits.elementAt(i)).intValue() == 0; i--)
+                z--;
+
+            int length = scientificLength();
+            if(maxLength >= length)
+                return z;
+            if(length - maxLength < z - 1)
+                return z - (length - maxLength);
+            return length - maxLength > z ? 0 : 1;
+        }
+
+        public int scientificBPrecision(int maxLength)
+        {
+            if(NaN)
+                return maxLength <= 2 ? 0 : 1;
+            if(zero)
+                return maxLength <= 0 ? 0 : 1;
+            if(infinity)
+                if(negative)
+                    return maxLength <= 1 ? 0 : 1;
+                else
+                    return maxLength <= 0 ? 0 : 1;
+            int z = digits.size();
+            for(int i = digits.size() - 1; ((Integer)digits.elementAt(i)).intValue() == 0; i--)
+                z--;
+
+            int length = scientificBLength();
+            if(maxLength >= length)
+                return z;
+            if(length - maxLength < z - 1)
+                return z - (length - maxLength);
+            return length - maxLength > z ? 0 : 1;
+        }
+
+        public int length()
+        {
+            if(NaN)
+                return 3;
+            if(zero)
+                return 1;
+            if(infinity)
+                return !negative ? 1 : 2;
+            int length = digits.size();
+            for(int i = digits.size() - 1; ((Integer)digits.elementAt(i)).intValue() == 0; i--)
+                length--;
+
+            if(exponentNegative)
+                length += exponent + 1;
+            else
+            if(length > exponent + 1)
+                length++;
+            else
+                length = exponent + 1;
+            if(negative)
+                length++;
+            return length;
+        }
+
+        public int scientificLength()
+        {
+            if(NaN)
+                return 3;
+            if(zero)
+                return 1;
+            if(infinity)
+                return !negative ? 1 : 2;
+            int length = 4;
+            if(negative)
+                length++;
+            if(exponentNegative)
+                length++;
+            int z = digits.size();
+            for(int i = digits.size() - 1; ((Integer)digits.elementAt(i)).intValue() == 0; i--)
+                z--;
+
+            length += z;
+            if(z == 1)
+                length--;
+            z = 0;
+            for(int i = 0; i < exponentDigits.size() && ((Integer)exponentDigits.elementAt(i)).intValue() == 0; i++)
+                z++;
+
+            length += exponentDigits.size() - z;
+            return length;
+        }
+
+        public int exponentDigits()
+        {
+            int z = 0;
+            for(int i = 0; i < exponentDigits.size() && ((Integer)exponentDigits.elementAt(i)).intValue() == 0; i++)
+                z++;
+
+            return exponentDigits.size() - z;
+        }
+
+        public String standard()
+        {
+            if(NaN)
+                return "NaN";
+            if(zero)
+                return "0";
+            if(infinity)
+                if(negative)
+                    return "-&#8734;";
+                else
+                    return "&#8734;";
+            StringBuilder stringBuffer = new StringBuilder();
+            int z = digits.size();
+            if(z > 0)
+            {
+                for(int i = digits.size() - 1; ((Integer)digits.elementAt(i)).intValue() == 0; i--)
+                    z--;
+
+            }
+            if(negative)
+                stringBuffer.append("-");
+            if(exponentNegative)
+            {
+                stringBuffer.append("0.");
+                for(int i = 0; i < exponent - 1; i++)
+                    stringBuffer.append("0");
+
+                for(int i = 0; i < z; i++)
+                    stringBuffer.append(getDigit(((Integer)digits.elementAt(i)).intValue()));
+
+            } else
+            {
+                for(int i = 0; i < Math.max(exponent, digits.size()) && i < Math.max(exponent + 1, z); i++)
+                {
+                    if(i == exponent + 1)
+                        stringBuffer.append(".");
+                    if(i < digits.size())
+                        stringBuffer.append(getDigit(((Integer)digits.elementAt(i)).intValue()));
+                    else
+                        stringBuffer.append("0");
+                }
+
+            }
+            return stringBuffer.toString();
+        }
+
+        public String scientific()
+        {
+            if(NaN)
+                return "NaN";
+            if(zero)
+                return "0&#215;10<sup>0</sup>";
+            if(infinity)
+                if(negative)
+                    return "-&#8734;";
+                else
+                    return "&#8734;";
+            StringBuilder stringBuffer = new StringBuilder();
+            int z = digits.size();
+            for(int i = digits.size() - 1; ((Integer)digits.elementAt(i)).intValue() == 0; i--)
+                z--;
+
+            if(negative)
+                stringBuffer.append("-");
+            stringBuffer.append(getDigit(((Integer)digits.elementAt(0)).intValue()));
+            if(z > 1)
+                stringBuffer.append(".");
+            for(int i = 1; i < z; i++)
+                stringBuffer.append(getDigit(((Integer)digits.elementAt(i)).intValue()));
+
+            stringBuffer.append("&#215;10<sup>");
+            if(exponent == 0)
+            {
+                stringBuffer.append("0");
+            } else
+            {
+                if(exponentNegative)
+                    stringBuffer.append("-");
+                z = 0;
+                for(int i = 0; ((Integer)exponentDigits.elementAt(i)).intValue() == 0; i++)
+                    z++;
+
+                for(int i = z; i < exponentDigits.size(); i++)
+                    stringBuffer.append(getDigit(((Integer)exponentDigits.elementAt(i)).intValue()));
+
+            }
+            stringBuffer.append("</sup>");
+            return stringBuffer.toString();
+        }
+
+        public String scientificB()
+        {
+            if(base != 2)
+                return scientific();
+            String s = scientific();
+            String t = "";
+            int i;
+            for(i = 0; s.charAt(i) != ';'; i++)
+                t = (new StringBuilder()).append(t).append(s.charAt(i)).toString();
+
+            t = (new StringBuilder()).append(t).append(";2<sup>").toString();
+            i++;
+            i++;
+            i++;
+            i++;
+            i++;
+            i++;
+            i++;
+            if(s.charAt(++i) == '-')
+                i++;
+            int exp = 0;
+            for(; s.charAt(i) != '<'; i++)
+            {
+                exp <<= 1;
+                if(s.charAt(i) == '1')
+                    exp |= 1;
+            }
+
+            t = (new StringBuilder()).append(t).append(Integer.toString(exp)).toString();
+            t = (new StringBuilder()).append(t).append("</sup>").toString();
+            return t;
+        }
+
+        public int scientificBLength()
+        {
+            if(base != 2)
+                return scientificLength();
+            int l = scientificLength();
+            String s = scientific();
+            int b = 0;
+            int i;
+            for(i = 0; s.charAt(i) != ';'; i++);
+            i++;
+            i++;
+            i++;
+            i++;
+            i++;
+            i++;
+            i++;
+            if(s.charAt(++i) == '-')
+                i++;
+            int exp = 0;
+            for(; s.charAt(i) != '<'; i++)
+            {
+                b++;
+                exp <<= 1;
+                if(s.charAt(i) == '1')
+                    exp |= 1;
+            }
+
+            int d = (int)Math.floor(Math.log10(exp));
+            return ((l - b) + d) - 1;
+        }
+
+        private void formatDec(double number)
+        {
+            if(Double.isNaN(number))
+            {
+                NaN = true;
+                return;
+            }
+            if(Double.isInfinite(number))
+            {
+                infinity = true;
+                long bits = Double.doubleToRawLongBits(number);
+                negative = (bits & 0x8000000000000000L) != 0L;
+                return;
+            }
+            if(number == 0.0D)
+            {
+                zero = true;
+                return;
+            }
+            String s = Double.toString(number);
+            boolean readingSignificand = true;
+            boolean readPoint = false;
+            boolean firstDigitRead = false;
+            int leadingDigits = 0;
+            exponent = 0;
+            exponentNegative = false;
+            negative = false;
+            char arr$[] = s.toCharArray();
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Character c = Character.valueOf(arr$[i$]);
+                if(readingSignificand)
+                {
+                    if(c.charValue() == '-')
+                    {
+                        negative = true;
+                        continue;
+                    }
+                    if(!readPoint && c.charValue() == '.')
+                    {
+                        readPoint = true;
+                        continue;
+                    }
+                    if(c.charValue() == 'E')
+                    {
+                        readingSignificand = false;
+                        continue;
+                    }
+                    int digit = getInt(c.charValue());
+                    if(firstDigitRead)
+                    {
+                        firstDigitRead = true;
+                        if(digit != 0)
+                            leadingDigits++;
+                    } else
+                    if(!readPoint)
+                        leadingDigits++;
+                    digits.add(Integer.valueOf(digit));
+                    continue;
+                }
+                if(c.charValue() == '-')
+                {
+                    exponentNegative = true;
+                } else
+                {
+                    int digit = getInt(c.charValue());
+                    exponent *= 10;
+                    exponent += digit;
+                }
+            }
+
+            exponent += leadingDigits - 1;
+            arr$ = Integer.toString(exponent).toCharArray();
+            len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Character c = Character.valueOf(arr$[i$]);
+                exponentDigits.add(Integer.valueOf(getInt(c.charValue())));
+            }
+
+        }
+
+        private void formatHex(double number)
+        {
+            long bits = Double.doubleToRawLongBits(number);
+            negative = (bits & 0x8000000000000000L) != 0L;
+            long exponent = (bits & 0x7ff0000000000000L) >>> 52;
+            long significand = bits & 0xfffffffffffffL;
+            exponent -= 1023L;
+            boolean denormalised = exponent == -1023L;
+            exponentNegative = exponent < 0L;
+            if(exponentNegative)
+                exponent = -exponent;
+            if(!denormalised)
+            {
+                significand |= 0x10000000000000L;
+            } else
+            {
+                significand <<= 1;
+                if(significand != 0L)
+                    for(; (significand & 0x8000000000000L) == 0L; significand <<= 1)
+                        exponent++;
+
+            }
+            while(exponent % 4L != 0L) 
+            {
+                significand <<= 1;
+                if(exponentNegative)
+                    exponent++;
+                else
+                    exponent--;
+            }
+            exponent >>>= 2;
+            exponent = (int)exponent;
+            for(int i = 0; i < 14; i++)
+            {
+                int digit = (int)(significand & 15L);
+                digits.add(0, Integer.valueOf(digit));
+                significand >>>= 4;
+            }
+
+            for(int i = 0; i < 3; i++)
+            {
+                int digit = (int)(exponent & 15L);
+                exponentDigits.add(0, Integer.valueOf(digit));
+                exponent >>>= 4;
+            }
+
+        }
+
+        private void formatOct(double number)
+        {
+            long bits = Double.doubleToRawLongBits(number);
+            negative = (bits & 0x8000000000000000L) != 0L;
+            long exponent = (bits & 0x7ff0000000000000L) >>> 52;
+            long significand = bits & 0xfffffffffffffL;
+            exponent -= 1023L;
+            boolean denormalised = exponent == -1023L;
+            exponentNegative = exponent < 0L;
+            if(exponentNegative)
+                exponent = -exponent;
+            if(!denormalised)
+            {
+                significand |= 0x10000000000000L;
+            } else
+            {
+                significand <<= 1;
+                if(significand != 0L)
+                    for(; (significand & 0x8000000000000L) == 0L; significand <<= 1)
+                        exponent++;
+
+            }
+            while(exponent % 3L != 0L) 
+            {
+                significand <<= 1;
+                if(exponentNegative)
+                    exponent++;
+                else
+                    exponent--;
+            }
+            exponent /= 3L;
+            exponent = (int)exponent;
+            significand <<= 2;
+            for(int i = 0; i < 19; i++)
+            {
+                int digit = (int)(significand & 7L);
+                digits.add(0, Integer.valueOf(digit));
+                significand >>>= 3;
+            }
+
+            for(int i = 0; i < 4; i++)
+            {
+                int digit = (int)(exponent & 7L);
+                exponentDigits.add(0, Integer.valueOf(digit));
+                exponent >>>= 3;
+            }
+
+        }
+
+        private void formatBin(double number)
+        {
+            long bits = Double.doubleToRawLongBits(number);
+            negative = (bits & 0x8000000000000000L) != 0L;
+            long exponent = (bits & 0x7ff0000000000000L) >>> 52;
+            long significand = bits & 0xfffffffffffffL;
+            exponent -= 1023L;
+            boolean denormalised = exponent == -1023L;
+            exponentNegative = exponent < 0L;
+            if(exponentNegative)
+                exponent = -exponent;
+            if(!denormalised)
+            {
+                significand |= 0x10000000000000L;
+            } else
+            {
+                significand <<= 1;
+                if(significand != 0L)
+                    for(; (significand & 0x8000000000000L) == 0L; significand <<= 1)
+                        exponent++;
+
+            }
+            exponent = (int)exponent;
+            for(int i = 0; i < 53; i++)
+            {
+                int digit = (int)(significand & 1L);
+                digits.add(0, Integer.valueOf(digit));
+                significand >>>= 1;
+            }
+
+            for(int i = 0; i < 9; i++)
+            {
+                int digit = (int)(exponent & 1L);
+                exponentDigits.add(0, Integer.valueOf(digit));
+                exponent >>>= 1;
+            }
+
+        }
+
+        private static int getInt(char c)
+        {
+            switch(c)
+            {
+            case 48: // '0'
+                return 0;
+
+            case 49: // '1'
+                return 1;
+
+            case 50: // '2'
+                return 2;
+
+            case 51: // '3'
+                return 3;
+
+            case 52: // '4'
+                return 4;
+
+            case 53: // '5'
+                return 5;
+
+            case 54: // '6'
+                return 6;
+
+            case 55: // '7'
+                return 7;
+
+            case 56: // '8'
+                return 8;
+
+            case 57: // '9'
+                return 9;
+            }
+            return -1;
+        }
+
+        private static char getDigit(int d)
+        {
+            switch(d)
+            {
+            case 0: // '\0'
+                return '0';
+
+            case 1: // '\001'
+                return '1';
+
+            case 2: // '\002'
+                return '2';
+
+            case 3: // '\003'
+                return '3';
+
+            case 4: // '\004'
+                return '4';
+
+            case 5: // '\005'
+                return '5';
+
+            case 6: // '\006'
+                return '6';
+
+            case 7: // '\007'
+                return '7';
+
+            case 8: // '\b'
+                return '8';
+
+            case 9: // '\t'
+                return '9';
+
+            case 10: // '\n'
+                return 'A';
+
+            case 11: // '\013'
+                return 'B';
+
+            case 12: // '\f'
+                return 'C';
+
+            case 13: // '\r'
+                return 'D';
+
+            case 14: // '\016'
+                return 'E';
+
+            case 15: // '\017'
+                return 'F';
+            }
+            return '?';
+        }
+
+        public boolean negative;
+        public Vector digits;
+        public boolean exponentNegative;
+        public Vector exponentDigits;
+        public int exponent;
+        public boolean infinity;
+        public boolean NaN;
+        public boolean zero;
+        public int base;
+        public static final long BIAS = 1023L;
+        public static final long E_MAX = 1023L;
+        public static final long E_MIN = -1022L;
+
+        DoubleFormat(double number, Base base)
+        {
+            digits = new Vector();
+            exponentDigits = new Vector();
+            infinity = Double.isInfinite(number);
+            NaN = Double.isNaN(number);
+            zero = number == 0.0D;
+            switch(_cls1..SwitchMap.com.dukascopy.calculator.Base[base.ordinal()])
+            {
+            case 1: // '\001'
+                this.base = 2;
+                formatBin(number);
+                break;
+
+            case 2: // '\002'
+                this.base = 8;
+                formatOct(number);
+                break;
+
+            case 3: // '\003'
+                this.base = 16;
+                formatHex(number);
+                break;
+
+            default:
+                this.base = 10;
+                formatDec(number);
+                break;
+            }
+        }
+    }
+
+    public static final class Notation extends Enum
+    {
+
+        public static Notation[] values()
+        {
+            return (Notation[])$VALUES.clone();
+        }
+
+        public static Notation valueOf(String name)
+        {
+            return (Notation)Enum.valueOf(com/dukascopy/calculator/complex/Format$Notation, name);
+        }
+
+        public static final Notation STANDARD;
+        public static final Notation SCIENTIFIC;
+        public static final Notation SCIENTIFICB;
+        public static final Notation NONE;
+        private static final Notation $VALUES[];
+
+        static 
+        {
+            STANDARD = new Notation("STANDARD", 0);
+            SCIENTIFIC = new Notation("SCIENTIFIC", 1);
+            SCIENTIFICB = new Notation("SCIENTIFICB", 2);
+            NONE = new Notation("NONE", 3);
+            $VALUES = (new Notation[] {
+                STANDARD, SCIENTIFIC, SCIENTIFICB, NONE
+            });
+        }
+
+        private Notation(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    public Format(Complex z, Base b)
+    {
+        this.z = z;
+        real = new DoubleFormat(z.real(), b);
+        imaginary = new DoubleFormat(Math.abs(z.imaginary()), b);
+        abs = new DoubleFormat(z.abs(), b);
+        argument = new DoubleFormat(z.arg(), b);
+        imaginarySign = z.imaginary() < 0.0D;
+        realSign = z.real() < 0.0D;
+    }
+
+    private static String correctMinus(String s)
+    {
+        return s;
+    }
+
+    public String formatStandard(Base base, int sigDigits, int maxLength, boolean showComplex, boolean rectangularComplex)
+    {
+        if(rectangularComplex)
+        {
+            int rDigits = sigDigits;
+            int p = real.precision(1000);
+            if(p < rDigits)
+                rDigits = p;
+            int iDigits = sigDigits;
+            int p = imaginary.precision(1000);
+            if(p < iDigits)
+                iDigits = p;
+            real = new DoubleFormat(z.real(), base);
+            real.round(rDigits);
+            imaginary = new DoubleFormat(Math.abs(z.imaginary()), base);
+            imaginary.round(iDigits);
+            if(showComplex)
+            {
+                int ml = maxLength - 2;
+                int il = ml / 2;
+                int rl = il;
+                if(il + rl < ml && realSign)
+                    rl++;
+                Notation ifm = Notation.STANDARD;
+                if(imaginary.precision(il) < iDigits)
+                    if(imaginary.scientificPrecision(il) < iDigits)
+                    {
+                        if(base == Base.BINARY)
+                        {
+                            if(imaginary.scientificPrecision(il) < iDigits)
+                                ifm = Notation.NONE;
+                            else
+                                ifm = Notation.SCIENTIFICB;
+                        } else
+                        {
+                            ifm = Notation.NONE;
+                        }
+                    } else
+                    {
+                        ifm = Notation.SCIENTIFIC;
+                    }
+                Notation rfm = Notation.STANDARD;
+                if(real.precision(rl) < rDigits)
+                    if(real.scientificPrecision(rl) < rDigits)
+                    {
+                        if(base == Base.BINARY)
+                        {
+                            if(real.scientificPrecision(rl) < rDigits)
+                                rfm = Notation.NONE;
+                            else
+                                rfm = Notation.SCIENTIFICB;
+                        } else
+                        {
+                            rfm = Notation.NONE;
+                        }
+                    } else
+                    {
+                        rfm = Notation.SCIENTIFIC;
+                    }
+                do
+                {
+                    if(rfm != Notation.NONE && ifm != Notation.NONE)
+                        break;
+                    if(rfm == Notation.NONE && ifm == Notation.NONE)
+                    {
+                        rDigits--;
+                        iDigits--;
+                        if(base == Base.BINARY)
+                        {
+                            if(imaginary.scientificBPrecision(il) >= iDigits)
+                                ifm = Notation.SCIENTIFICB;
+                            if(real.scientificBPrecision(rl) >= rDigits)
+                                rfm = Notation.SCIENTIFICB;
+                        } else
+                        {
+                            if(imaginary.scientificPrecision(il) >= iDigits)
+                                ifm = Notation.SCIENTIFIC;
+                            if(real.scientificPrecision(rl) >= rDigits)
+                                rfm = Notation.SCIENTIFIC;
+                        }
+                    } else
+                    if(rfm == Notation.NONE)
+                    {
+                        if(base == Base.BINARY)
+                            for(; imaginary.scientificBPrecision(il - 1) >= iDigits; il--);
+                        else
+                            for(; imaginary.scientificPrecision(il - 1) >= iDigits; il--);
+                        if(rl + il < ml)
+                        {
+                            rl = ml - il;
+                            if(base == Base.BINARY)
+                            {
+                                if(real.scientificBPrecision(rl) >= rDigits)
+                                    rfm = Notation.SCIENTIFICB;
+                            } else
+                            if(real.scientificPrecision(rl) >= rDigits)
+                                rfm = Notation.SCIENTIFIC;
+                        } else
+                        if(iDigits == rDigits)
+                            rDigits--;
+                        else
+                            iDigits--;
+                    } else
+                    {
+                        if(base == Base.BINARY)
+                            for(; real.scientificBPrecision(rl - 1) >= rDigits; rl--);
+                        else
+                            for(; real.scientificPrecision(rl - 1) >= rDigits; rl--);
+                        if(rl + il < ml)
+                        {
+                            il = ml - rl;
+                            if(base == Base.BINARY)
+                            {
+                                if(imaginary.scientificBPrecision(il) >= iDigits)
+                                    ifm = Notation.SCIENTIFICB;
+                            } else
+                            if(imaginary.scientificPrecision(il) >= iDigits)
+                                ifm = Notation.SCIENTIFIC;
+                        } else
+                        if(iDigits == rDigits)
+                            iDigits--;
+                        else
+                            rDigits--;
+                    }
+                } while(true);
+                real.round(rDigits);
+                String realString = null;
+                static class _cls1
+                {
+
+                    static final int $SwitchMap$com$dukascopy$calculator$complex$Format$Notation[];
+                    static final int $SwitchMap$com$dukascopy$calculator$Base[];
+
+                    static 
+                    {
+                        $SwitchMap$com$dukascopy$calculator$Base = new int[Base.values().length];
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$calculator$Base[Base.BINARY.ordinal()] = 1;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$calculator$Base[Base.OCTAL.ordinal()] = 2;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$calculator$Base[Base.HEXADECIMAL.ordinal()] = 3;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        $SwitchMap$com$dukascopy$calculator$complex$Format$Notation = new int[Notation.values().length];
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$calculator$complex$Format$Notation[Notation.STANDARD.ordinal()] = 1;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$calculator$complex$Format$Notation[Notation.SCIENTIFIC.ordinal()] = 2;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                        try
+                        {
+                            $SwitchMap$com$dukascopy$calculator$complex$Format$Notation[Notation.SCIENTIFICB.ordinal()] = 3;
+                        }
+                        catch(NoSuchFieldError ex) { }
+                    }
+                }
+
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.complex.Format.Notation[rfm.ordinal()])
+                {
+                case 1: // '\001'
+                    realString = real.standard();
+                    break;
+
+                case 2: // '\002'
+                    realString = real.scientific();
+                    break;
+
+                case 3: // '\003'
+                    realString = real.scientificB();
+                    break;
+
+                default:
+                    realString = "*";
+                    break;
+                }
+                imaginary.round(iDigits);
+                String imaginaryString = null;
+                switch(_cls1..SwitchMap.com.dukascopy.calculator.complex.Format.Notation[ifm.ordinal()])
+                {
+                case 1: // '\001'
+                    imaginaryString = imaginary.standard();
+                    break;
+
+                case 2: // '\002'
+                    imaginaryString = imaginary.scientific();
+                    break;
+
+                case 3: // '\003'
+                    imaginaryString = imaginary.scientificB();
+                    break;
+
+                default:
+                    imaginaryString = "*";
+                    break;
+                }
+                if(z.imaginary() == 1.0D || z.imaginary() == -1D)
+                    imaginaryString = new String();
+                if(imaginarySign)
+                    return correctMinus((new StringBuilder()).append(realString).append("-").append(imaginaryString).append("i").toString());
+                else
+                    return correctMinus((new StringBuilder()).append(realString).append("+").append(imaginaryString).append("i").toString());
+            }
+        } else
+        {
+            abs = new DoubleFormat(z.abs(), base);
+            abs.round(sigDigits);
+            argument = new DoubleFormat(z.arg(), base);
+            argument.round(sigDigits);
+        }
+        return null;
+    }
+
+    public static void main(String args[])
+    {
+        Complex c = new Complex(4D, 5D);
+        Format f = new Format(c, Base.DECIMAL);
+        System.out.println("--------------------");
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(0.0D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(0.0D, 1.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(1.0D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(0.002D, -1D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println("--------------------");
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(-1D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(-12D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(123D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(1234D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 5, 20, true, true));
+        c = new Complex(12345D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(123456D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(1234567D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(12345678D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(123456789D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(1234567891D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(12345678912D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(123456789123D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(1234567891234D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(12345678912345D, 0.0D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(1234D, -4321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(1234D, -4321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(12345D, -54321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(123456D, -654321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(1234567D, -7654321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(12345678D, -87654321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(123456789D, -987654321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(234567891D, -1987654321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(1234567891D, -987654321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+        c = new Complex(1234567891D, -1987654321D);
+        f = new Format(c, Base.DECIMAL);
+        System.out.println(f.formatStandard(Base.DECIMAL, 9, 20, true, true));
+    }
+
+    private static final double SMALLIMAGINARY = 5.0000000000000002E-005D;
+    private final Complex z;
+    private DoubleFormat real;
+    private DoubleFormat imaginary;
+    private DoubleFormat abs;
+    private DoubleFormat argument;
+    boolean realSign;
+    boolean imaginarySign;
+}

@@ -1,0 +1,18 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IPriceAggregationLiveFeedListener.java
+
+package com.dukascopy.charts.data.datacache.priceaggregation;
+
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.priceaggregation:
+//            AbstractPriceAggregationData
+
+public interface IPriceAggregationLiveFeedListener
+{
+
+    public abstract void newPriceData(AbstractPriceAggregationData abstractpriceaggregationdata);
+
+    public abstract void newPriceDatas(AbstractPriceAggregationData aabstractpriceaggregationdata[], int i, int j);
+}

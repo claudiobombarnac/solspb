@@ -1,0 +1,97 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractLoadPriceAggregationByTimeRangeAction.java
+
+package com.dukascopy.charts.data.datacache.priceaggregation;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.charts.data.datacache.*;
+import java.util.Arrays;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.priceaggregation:
+//            AbstractLoadNumberOfPriceAggregationAction, IPriceAggregationCreator, AbstractPriceAggregationData, IPriceAggregationLiveFeedListener
+
+public abstract class AbstractLoadPriceAggregationByTimeRangeAction extends AbstractLoadNumberOfPriceAggregationAction
+{
+
+    public AbstractLoadPriceAggregationByTimeRangeAction(Instrument instrument, OfferSide offerSide, long fromTime, long toTime, FeedDataProvider feedDataProvider, 
+            IPriceAggregationLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener, com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy)
+    {
+        super(instrument, offerSide, -1, toTime, -1, feedDataProvider, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        this.fromTime = fromTime;
+    }
+
+    public void run()
+    {
+        Throwable exception;
+        boolean allDataLoaded;
+        exception = null;
+        allDataLoaded = false;
+        IPriceAggregationCreator creator = performDirectBarsLoadForTimeInterval(getFromTime(), getToTime(), true);
+        AbstractPriceAggregationData loadData[] = creator.getResult();
+        int index = getLastElementIndex(loadData, creator.getLastCompletedData());
+        if(index > -1)
+        {
+            AbstractPriceAggregationData result[] = (AbstractPriceAggregationData[])Arrays.copyOf(loadData, index + 1);
+            if(result.length > 0 && !result[result.length - 1].equals(creator.getLastFiredData()))
+                creator.fireNewBarCreated(result[result.length - 1]);
+            getPriceAggregationLiveFeedListener().newPriceDatas(result, result.length, 0);
+            allDataLoaded = true;
+        }
+        Exception e = null;
+        if(exception != null)
+            if(exception instanceof Exception)
+                e = (Exception)exception;
+            else
+                e = new Exception(exception);
+        getLoadingProgress().loadingFinished(allDataLoaded, getFromTime(), getToTime(), getToTime(), e);
+        break MISSING_BLOCK_LABEL_307;
+        Throwable t;
+        t;
+        LOGGER.error(t.getMessage(), t);
+        exception = t;
+        Exception e = null;
+        if(exception != null)
+            if(exception instanceof Exception)
+                e = (Exception)exception;
+            else
+                e = new Exception(exception);
+        getLoadingProgress().loadingFinished(allDataLoaded, getFromTime(), getToTime(), getToTime(), e);
+        break MISSING_BLOCK_LABEL_307;
+        Exception exception1;
+        exception1;
+        Exception e = null;
+        if(exception != null)
+            if(exception instanceof Exception)
+                e = (Exception)exception;
+            else
+                e = new Exception(exception);
+        getLoadingProgress().loadingFinished(allDataLoaded, getFromTime(), getToTime(), getToTime(), e);
+        throw exception1;
+    }
+
+    private int getLastElementIndex(AbstractPriceAggregationData array[], AbstractPriceAggregationData data)
+    {
+        int lastNotNullIndex = getNotNullElementLastIndex(array);
+        if(data == null)
+            return lastNotNullIndex;
+        for(int i = array.length - 1; i >= 0; i--)
+            if(array[i] == data)
+                return i;
+
+        return -1;
+    }
+
+    public long getFromTime()
+    {
+        return fromTime;
+    }
+
+    private final long fromTime;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/priceaggregation/AbstractLoadPriceAggregationByTimeRangeAction);
+
+}

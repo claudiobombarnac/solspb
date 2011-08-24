@@ -1,0 +1,39 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ShiftStatPanel.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.button.CalculatorButton;
+import com.dukascopy.calculator.function.Mean;
+import com.dukascopy.calculator.function.PopStDev;
+import com.dukascopy.calculator.function.StDev;
+import java.awt.Color;
+import java.util.Vector;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            ShiftPanel, MainCalculatorPanel, SpecialButtonType
+
+public class ShiftStatPanel extends ShiftPanel
+{
+
+    public ShiftStatPanel(MainCalculatorPanel applet, SpecialButtonType sbt, Color colour)
+    {
+        super(applet, sbt, colour);
+        if(sbt != SpecialButtonType.SHIFT_STAT)
+            throw new RuntimeException("ShiftStatPanel instantiated wrongly.");
+        else
+            return;
+    }
+
+    protected void setButtons()
+    {
+        ((CalculatorButton)buttons.elementAt(18)).setPObject(new Mean());
+        ((CalculatorButton)buttons.elementAt(23)).setPObject(new PopStDev());
+        ((CalculatorButton)buttons.elementAt(28)).setPObject(new StDev());
+        super.setButtons();
+    }
+
+    private static final long serialVersionUID = 1L;
+}

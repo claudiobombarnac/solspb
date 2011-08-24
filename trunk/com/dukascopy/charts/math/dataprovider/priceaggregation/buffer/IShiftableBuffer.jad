@@ -1,0 +1,43 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IShiftableBuffer.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation.buffer;
+
+
+public interface IShiftableBuffer
+{
+
+    public abstract void clear();
+
+    public abstract int getMaxSize();
+
+    public abstract int getSize();
+
+    public abstract int getLastIndex();
+
+    public abstract boolean isEmpty();
+
+    public abstract boolean isFull();
+
+    public abstract void addToEnd(Object obj);
+
+    public abstract void addToHead(Object obj);
+
+    public abstract void addToEnd(Object aobj[]);
+
+    public abstract void addToHead(Object aobj[]);
+
+    public abstract Object[] getAll(Object aobj[]);
+
+    public abstract Object getFirst();
+
+    public abstract Object getLast();
+
+    public abstract void set(Object obj, int i);
+
+    public abstract void setUp(Object aobj[]);
+
+    public abstract Object get(int i);
+}

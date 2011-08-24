@@ -1,0 +1,60 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PObject.java
+
+package com.dukascopy.calculator.function;
+
+import com.dukascopy.calculator.GObject;
+
+public abstract class PObject extends GObject
+{
+
+    public PObject()
+    {
+    }
+
+    public String name()
+    {
+        StringBuilder s = new StringBuilder();
+        String arr$[] = name_array();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            String t = arr$[i$];
+            s.append(t);
+        }
+
+        return s.toString();
+    }
+
+    public String shortName()
+    {
+        StringBuilder s = new StringBuilder();
+        String arr$[] = name_array();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            String t = arr$[i$];
+            if(!t.equals(" "))
+                s.append(t);
+        }
+
+        return s.toString();
+    }
+
+    public abstract String[] name_array();
+
+    public String tooltip()
+    {
+        return ftooltip;
+    }
+
+    public char shortcut()
+    {
+        return fshortcut;
+    }
+
+    protected String ftooltip;
+    protected char fshortcut;
+}

@@ -1,0 +1,123 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CompilerUtils.java
+
+package com.dukascopy.dds2.greed.agent.compiler.utils;
+
+import java.io.*;
+import java.nio.channels.FileChannel;
+import java.util.jar.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class CompilerUtils
+{
+
+    public CompilerUtils()
+    {
+    }
+
+    public static boolean copyFiles(File inFile, File outFile)
+    {
+        FileInputStream fin;
+        FileOutputStream fout;
+        fin = null;
+        fout = null;
+        fin = new FileInputStream(inFile);
+        fout = new FileOutputStream(outFile);
+        FileChannel inChannel = fin.getChannel();
+        FileChannel outChannel = fout.getChannel();
+        int maxCount = 0x3ff8000;
+        long size = inChannel.size();
+        for(long position = 0L; position < size; position += inChannel.transferTo(position, maxCount, outChannel));
+        if(fin != null)
+            fin.close();
+        if(fout != null)
+            fout.close();
+        break MISSING_BLOCK_LABEL_116;
+        Exception exception;
+        exception;
+        if(fin != null)
+            fin.close();
+        if(fout != null)
+            fout.close();
+        throw exception;
+        return true;
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return false;
+    }
+
+    public static boolean isJarMagic(byte magic[])
+    {
+        return magic[0] == 80 && magic[1] == 75 && magic[2] >= 1 && magic[2] < 8 && magic[3] == magic[2] + 1;
+    }
+
+    public static byte[] readMagic(BufferedInputStream in)
+        throws IOException
+    {
+        in.mark(4);
+        byte magic[] = new byte[4];
+        for(int i = 0; i < magic.length && 1 == in.read(magic, i, 1); i++);
+        in.reset();
+        return magic;
+    }
+
+    public static void copyJarFile(JarInputStream in, JarOutputStream out)
+        throws IOException
+    {
+        byte buffer[] = new byte[16384];
+        JarEntry je;
+        while((je = in.getNextJarEntry()) != null) 
+        {
+            out.putNextEntry(je);
+            int nr;
+            while(0 < (nr = in.read(buffer))) 
+                out.write(buffer, 0, nr);
+        }
+        in.close();
+    }
+
+    public static boolean recreateDir(File dir)
+    {
+        boolean rc = true;
+        if(dir.exists())
+        {
+            File arr$[] = dir.listFiles();
+            int len$ = arr$.length;
+            int i$ = 0;
+            do
+            {
+                if(i$ >= len$)
+                    break;
+                File delFile = arr$[i$];
+                boolean bool = delFile.delete();
+                if(!bool)
+                {
+                    rc = false;
+                    break;
+                }
+                i$++;
+            } while(true);
+        }
+        rc = dir.delete();
+        rc = dir.mkdirs();
+        return rc;
+    }
+
+    public static File getRootPath()
+    {
+        String path = (new StringBuilder()).append(System.getProperty("java.io.tmpdir")).append(File.separator).append("jfxide").toString();
+        File file = new File(path);
+        if(!file.exists())
+            file.mkdirs();
+        return file;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/compiler/utils/CompilerUtils);
+    private static final String java_io_tmpdir = "java.io.tmpdir";
+    private static final String default_lib_dir = "jfxide";
+
+}

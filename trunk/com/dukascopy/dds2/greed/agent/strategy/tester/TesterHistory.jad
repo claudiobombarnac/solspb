@@ -1,0 +1,1521 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterHistory.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.Filter;
+import com.dukascopy.api.IBar;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.LoadingOrdersListener;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.impl.History;
+import com.dukascopy.api.impl.HistoryOrder;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.DataCacheException;
+import com.dukascopy.charts.data.datacache.DataCacheUtils;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.IFeedDataProvider;
+import com.dukascopy.charts.data.datacache.LiveFeedListener;
+import com.dukascopy.charts.data.datacache.LoadProgressingAction;
+import com.dukascopy.charts.data.datacache.LoadingProgressListener;
+import com.dukascopy.charts.data.datacache.NoDataForPeriodException;
+import com.dukascopy.charts.data.datacache.OrderHistoricalData;
+import com.dukascopy.charts.data.datacache.OrdersListener;
+import com.dukascopy.charts.data.datacache.TickData;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.AbstractCurrencyConverter;
+import java.math.BigDecimal;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Currency;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            TesterHistoryOrder, TesterOrdersProvider, IStrategyRunner, ITesterReport
+
+public class TesterHistory extends History
+{
+    private static class TesterHistoryGeneratedBar extends CandleData
+    {
+
+        public long endTime;
+        public boolean flat;
+
+        public TesterHistoryGeneratedBar(long time, long endTime, double open, double close, double low, double high, double volume)
+        {
+            super(time, open, close, low, high, volume);
+            this.endTime = endTime;
+        }
+    }
+
+    private class LoadOrdersAction extends LoadProgressingAction
+        implements Runnable
+    {
+
+        public void run()
+        {
+            ordersProvider.getOrdersForInstrument(instrument, from, to, new com.dukascopy.api.impl.History.LoadingOrdersListenerWrapper(TesterHistory.this, ordersListener, from, to), new com.dukascopy.api.impl.History.LoadingProgressListenerWrapper(TesterHistory.this, loadingProgress, true));
+        }
+
+        private final TesterOrdersProvider ordersProvider;
+        private final Instrument instrument;
+        private final long from;
+        private final long to;
+        private final LoadingOrdersListener ordersListener;
+        private final com.dukascopy.api.LoadingProgressListener loadingProgress;
+        final TesterHistory this$0;
+
+        public LoadOrdersAction(TesterOrdersProvider ordersProvider, Instrument instrument, long from, long to, 
+                LoadingOrdersListener ordersListener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        {
+            this.this$0 = TesterHistory.this;
+            super(new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    loadingProgress.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    if(e != null)
+                        TesterHistory.LOGGER.error(e.getMessage(), e);
+                    loadingProgress.loadingFinished(allDataLoaded, startTime, endTime, currentTime);
+                }
+
+                public boolean stopJob()
+                {
+                    return loadingProgress.stopJob();
+                }
+
+                final TesterHistory val$this$0;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+
+                
+                {
+                    this$0 = testerhistory;
+                    loadingProgress = loadingprogresslistener;
+                    super();
+                }
+            });
+            this.ordersProvider = ordersProvider;
+            this.instrument = instrument;
+            this.from = from;
+            this.to = to;
+            this.ordersListener = ordersListener;
+            this.loadingProgress = loadingProgress;
+        }
+    }
+
+
+    public TesterHistory(TesterOrdersProvider ordersProvider, IStrategyRunner strategyRunner, Currency accountCurrency, AbstractCurrencyConverter currencyConverter)
+    {
+        super(0);
+        lastTicks = new TickData[Instrument.values().length];
+        currentCandleTime = new long[Instrument.values().length];
+        TICKS_PERIOD = Period.TICK;
+        TICKS_OFFER_SIDE = OfferSide.ASK;
+        this.ordersProvider = ordersProvider;
+        this.accountCurrency = accountCurrency;
+        this.currencyConverter = currencyConverter;
+        super.ordersProvider = ordersProvider;
+        this.strategyRunner = strategyRunner;
+        for(int i = 0; i < lastTicks.length; i++)
+            lastTicks[i] = new TickData(0x8000000000000000L, 0.0D, 0.0D, 0.0D, 0.0D, null, null, null, null);
+
+        for(int i = 0; i < currentCandleTime.length; i++)
+            currentCandleTime[i] = 0x8000000000000000L;
+
+    }
+
+    public synchronized long getTimeOfLastTick(Instrument instrument)
+        throws JFException
+    {
+        if(!isInstrumentSubscribed(instrument))
+        {
+            throw new JFException((new StringBuilder()).append("Instrument [").append(instrument).append("] not opened").toString());
+        } else
+        {
+            long time = lastTicks[instrument.ordinal()].time;
+            return time != 0x8000000000000000L ? time : -1L;
+        }
+    }
+
+    public synchronized ITick getLastTick(Instrument instrument)
+        throws JFException
+    {
+        if(!isInstrumentSubscribed(instrument))
+            throw new JFException((new StringBuilder()).append("Instrument [").append(instrument).append("] not opened").toString());
+        else
+            return lastTicks[instrument.ordinal()];
+    }
+
+    protected long getCurrentTime(Instrument instrument)
+    {
+        return currentCandleTime[instrument.ordinal()];
+    }
+
+    public synchronized boolean isInstrumentSubscribed(Instrument instrument)
+    {
+        return currentCandleTime[instrument.ordinal()] > 0L;
+    }
+
+    private void fillCacheBuffer(Instrument instrument, Period period, OfferSide aSide)
+        throws JFException
+    {
+        int lastIndex = getLastIndex(instrument, period, aSide);
+        if(lastIndex == -1 && getBuffer(instrument, period, aSide) == null)
+        {
+            Data buff[] = new Data[520];
+            if(period != Period.TICK)
+            {
+                long lastCandleTime = getStartTimeOfCurrentBar(instrument, period);
+                long to = DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, lastCandleTime));
+                long from = DataCacheUtils.getTimeForNCandlesBackFast(period, to, 500);
+                List bars = super.getBars(instrument, period, aSide, from, to);
+                int i = 0;
+                for(int j = bars.size(); i < j; i++)
+                    buff[i] = (CandleData)bars.get(i);
+
+                if(bars.isEmpty())
+                    return;
+                lastIndex = bars.size() - 1;
+                CandleData inProgressCandle = getCurrentGeneratedBar(instrument, period, aSide);
+                if(inProgressCandle == null)
+                    if(assertionsEnabled())
+                        throw new RuntimeException("In progress candle doesn't exist");
+                    else
+                        return;
+                if(DataCacheUtils.getNextCandleStartFast(period, buff[lastIndex].getTime()) == inProgressCandle.time)
+                    lastIndex = addFirstData(buff, lastIndex, period, buff[lastIndex].getTime(), inProgressCandle);
+            } else
+            {
+                TickData tick = (TickData)getLastTick(instrument);
+                buff[0] = tick;
+                lastIndex = 0;
+            }
+            setBuffer(instrument, period, aSide, buff);
+            setLastIndex(instrument, period, aSide, lastIndex);
+            checkConsistency(period, buff, lastIndex);
+        }
+    }
+
+    private TesterHistoryGeneratedBar updateBar(TesterHistoryGeneratedBar bar, long currentTime, long candleEnd)
+    {
+        if(bar != null && bar.endTime == currentTime)
+        {
+            bar.time = currentTime;
+            bar.endTime = candleEnd;
+            bar.open = bar.close;
+            bar.high = bar.close;
+            bar.low = bar.close;
+            bar.vol = 0.0D;
+            bar.flat = true;
+        }
+        return bar;
+    }
+
+    public synchronized void addCandle(Instrument instrument, Period period, OfferSide side, CandleData candleData)
+    {
+        long currentTime = DataCacheUtils.getNextCandleStartFast(period, candleData.time);
+        if(currentCandleTime[instrument.ordinal()] <= currentTime)
+        {
+            currentCandleTime[instrument.ordinal()] = currentTime;
+            List periods = getPeriods(instrument);
+            Iterator i$ = periods.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                Period curPer = (Period)i$.next();
+                if(curPer != Period.TICK)
+                {
+                    TesterHistoryGeneratedBar bar = getGeneratedCandle(instrument, curPer, side);
+                    if(bar != null && bar.endTime == currentTime)
+                    {
+                        long candleEnd = DataCacheUtils.getNextCandleStartFast(curPer, currentTime);
+                        bar = updateBar(bar, currentTime, candleEnd);
+                        setGeneratedCandle(instrument, curPer, side, bar);
+                    }
+                }
+            } while(true);
+        }
+        Data buff[] = getBuffer(instrument, period, side);
+        if(buff != null)
+        {
+            int lastIndex = getLastIndex(instrument, period, side);
+            CandleData firstData = lastIndex != -1 ? (CandleData)buff[lastIndex] : null;
+            if(firstData != null && firstData.time > candleData.time)
+            {
+                Exception notThrownException = new Exception((new StringBuilder()).append("[").append(firstData.time - candleData.time).append("] Received candle has older time than pervious candle, ignoring").toString());
+                LOGGER.error(notThrownException.getMessage(), notThrownException);
+                return;
+            }
+            if(firstData != null && firstData.time == candleData.time)
+            {
+                firstData.open = candleData.open;
+                firstData.close = candleData.close;
+                firstData.high = candleData.high;
+                firstData.low = candleData.low;
+                firstData.vol = candleData.vol;
+                CandleData inProgressCandle = getCurrentGeneratedBar(instrument, period, side);
+                if(inProgressCandle != null && DataCacheUtils.getNextCandleStartFast(period, firstData.time) == inProgressCandle.time)
+                {
+                    int index = addFirstData(buff, lastIndex, period, firstData.time, inProgressCandle.clone());
+                    setLastIndex(instrument, period, side, index);
+                }
+            } else
+            {
+                int index = addFirstData(buff, lastIndex, period, firstData != null ? firstData.time : 0x8000000000000000L, candleData);
+                setLastIndex(instrument, period, side, index);
+                lastIndex = index;
+                CandleData inProgressCandle = getCurrentGeneratedBar(instrument, period, side);
+                if(inProgressCandle != null && DataCacheUtils.getNextCandleStartFast(period, candleData.time) == inProgressCandle.time)
+                {
+                    index = addFirstData(buff, lastIndex, period, candleData.time, inProgressCandle.clone());
+                    setLastIndex(instrument, period, side, index);
+                }
+            }
+        }
+    }
+
+    public synchronized void addTick(Instrument instrument, ITick tick)
+    {
+        lastTicks[instrument.ordinal()] = (TickData)tick;
+        long time = tick.getTime();
+        currentCandleTime[instrument.ordinal()] = time;
+        updateInProgressCandles(instrument, tick);
+        updateBuffers(instrument, tick);
+    }
+
+    private void updateBuffers(Instrument instrument, ITick tick)
+    {
+        List periods = getPeriods(instrument);
+        List offerSides = getOfferSides();
+        for(Iterator i$ = periods.iterator(); i$.hasNext();)
+        {
+            Period period = (Period)i$.next();
+            Iterator i$ = offerSides.iterator();
+            while(i$.hasNext()) 
+            {
+                OfferSide offerSide = (OfferSide)i$.next();
+                Data buff[] = getBuffer(instrument, period, offerSide);
+                if(buff != null)
+                    updateBuffer(tick, instrument, period, offerSide, buff);
+            }
+        }
+
+    }
+
+    private List getOfferSides()
+    {
+        return Arrays.asList(offerSides);
+    }
+
+    private List getPeriods(Instrument instrument)
+    {
+        List result = new ArrayList(Arrays.asList(periods));
+        Map periodsMap = (Map)bufferMap.get(instrument);
+        if(periodsMap != null)
+        {
+            Set periodsSet = periodsMap.keySet();
+            if(periodsSet != null)
+            {
+                Iterator i$ = periodsSet.iterator();
+                do
+                {
+                    if(!i$.hasNext())
+                        break;
+                    Period period = (Period)i$.next();
+                    if(!result.contains(period))
+                        result.add(period);
+                } while(true);
+            }
+        }
+        return result;
+    }
+
+    private void updateBuffer(ITick tick, Instrument instrument, Period period, OfferSide offerSide, Data buff[])
+    {
+        int lastIndex = getLastIndex(instrument, period, offerSide);
+        if(Period.TICK.equals(period))
+        {
+            int index = addFirstData(buff, lastIndex, period, 0L, (TickData)tick);
+            setLastIndex(instrument, period, offerSide, index);
+        } else
+        {
+            CandleData inProgressBar = getCurrentGeneratedBar(instrument, period, offerSide);
+            CandleData firstData = lastIndex != -1 ? (CandleData)buff[lastIndex] : null;
+            if(firstData == null)
+            {
+                int index = addFirstData(buff, lastIndex, period, 0x8000000000000000L, inProgressBar.clone());
+                setLastIndex(instrument, period, offerSide, index);
+            } else
+            if(firstData.time != inProgressBar.time)
+            {
+                int index = addFirstData(buff, lastIndex, period, firstData.time, inProgressBar.clone());
+                setLastIndex(instrument, period, offerSide, index);
+            } else
+            if(buff[lastIndex].time == firstData.time)
+            {
+                firstData.open = inProgressBar.open;
+                firstData.close = inProgressBar.close;
+                firstData.low = inProgressBar.low;
+                firstData.high = inProgressBar.high;
+                firstData.vol = inProgressBar.vol;
+            }
+        }
+    }
+
+    private void updateInProgressCandles(Instrument instrument, ITick tick)
+    {
+        long time = tick.getTime();
+        double ask = tick.getAsk();
+        double bid = tick.getBid();
+        double askVolume = tick.getAskVolume();
+        double bidVolume = tick.getBidVolume();
+        List periods = getPeriods(instrument);
+        Iterator i$ = periods.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Period period = (Period)i$.next();
+            if(period != Period.TICK)
+            {
+                TesterHistoryGeneratedBar askBar = getGeneratedCandle(instrument, period, OfferSide.ASK);
+                TesterHistoryGeneratedBar bidBar = getGeneratedCandle(instrument, period, OfferSide.BID);
+                if(askBar == null)
+                {
+                    long candleStartFast = DataCacheUtils.getCandleStartFast(period, time);
+                    long candleEnd = DataCacheUtils.getNextCandleStartFast(period, candleStartFast);
+                    askBar = new TesterHistoryGeneratedBar(candleStartFast, candleEnd, ask, ask, ask, ask, askVolume);
+                    bidBar = new TesterHistoryGeneratedBar(candleStartFast, candleEnd, bid, bid, bid, bid, bidVolume);
+                    setGeneratedCandle(instrument, period, OfferSide.ASK, askBar);
+                    setGeneratedCandle(instrument, period, OfferSide.BID, bidBar);
+                } else
+                if(askBar.endTime <= time)
+                {
+                    long candleStartFast = DataCacheUtils.getCandleStartFast(period, time);
+                    long candleEnd = DataCacheUtils.getNextCandleStartFast(period, candleStartFast);
+                    askBar.time = candleStartFast;
+                    askBar.endTime = candleEnd;
+                    askBar.open = askBar.close = askBar.high = askBar.low = ask;
+                    askBar.vol = askVolume;
+                    bidBar.time = candleStartFast;
+                    bidBar.endTime = candleEnd;
+                    bidBar.open = bidBar.close = bidBar.high = bidBar.low = bid;
+                    bidBar.vol = bidVolume;
+                } else
+                {
+                    if(askBar.flat)
+                    {
+                        askBar.open = ask;
+                        askBar.high = ask;
+                        askBar.low = ask;
+                        askBar.flat = false;
+                    }
+                    askBar.high = askBar.high >= ask ? askBar.high : ask;
+                    askBar.low = askBar.low <= ask ? askBar.low : ask;
+                    askBar.vol = StratUtils.roundHalfEven(askBar.vol + askVolume, 2);
+                    askBar.close = ask;
+                    if(bidBar.flat)
+                    {
+                        bidBar.open = bid;
+                        bidBar.high = bid;
+                        bidBar.low = bid;
+                        bidBar.flat = false;
+                    }
+                    bidBar.high = bidBar.high >= bid ? bidBar.high : bid;
+                    bidBar.low = bidBar.low <= bid ? bidBar.low : bid;
+                    bidBar.vol = StratUtils.roundHalfEven(bidBar.vol + bidVolume, 2);
+                    bidBar.close = bid;
+                }
+            }
+        } while(true);
+    }
+
+    protected int addFirstData(Data buff[], int lastIndex, Period period, long oldTime, Data firstData)
+    {
+        if(oldTime == 0x8000000000000000L)
+        {
+            lastIndex = 0;
+            buff[lastIndex] = firstData;
+            checkConsistency(period, buff, lastIndex);
+        } else
+        {
+            if(lastIndex + 1 >= buff.length)
+            {
+                System.arraycopy(buff, 20, buff, 0, (lastIndex + 1) - 20);
+                lastIndex -= 20;
+            }
+            lastIndex++;
+            buff[lastIndex] = firstData;
+            checkConsistency(period, buff, lastIndex);
+        }
+        return lastIndex;
+    }
+
+    protected boolean assertionsEnabled()
+    {
+        boolean b = false;
+        if(!$assertionsDisabled && !(b = true))
+            throw new AssertionError();
+        else
+            return b;
+    }
+
+    private void checkConsistency(Period period, Data buffer[], int lastIndex)
+    {
+        if(assertionsEnabled())
+        {
+            if(lastIndex == -1)
+                return;
+            if(lastIndex >= buffer.length)
+                throw new RuntimeException("TesterIndicators consistency check failed!!!");
+            if(Period.TICK.equals(period))
+                return;
+            long firstCandleStart = buffer[0].time;
+            checkConsistency(period, buffer, lastIndex, firstCandleStart);
+        }
+    }
+
+    private void checkConsistency(Period period, Data buffer[], int lastIndex, long candleStart)
+    {
+        for(int i = 0; i <= lastIndex; i++)
+        {
+            Data dataElement = buffer[i];
+            if(dataElement == null)
+                throw new RuntimeException("TesterIndicators consistency check failed!!!");
+            if(dataElement.time != candleStart)
+                throw new RuntimeException("TesterIndicators consistency check failed!!!");
+            candleStart = DataCacheUtils.getNextCandleStartFast(period, candleStart);
+        }
+
+    }
+
+    protected final int findStart(long from, int fi, int ei, Data buffer[])
+    {
+        int low = fi;
+        for(int high = ei; low <= high;)
+        {
+            int mid = low + high >>> 1;
+            long midVal = buffer[mid].time;
+            if(midVal < from)
+                low = mid + 1;
+            else
+            if(midVal > from)
+                high = mid - 1;
+            else
+                return mid;
+        }
+
+        return low;
+    }
+
+    public IBar getCurrentBar(Instrument instrument, Period period, OfferSide side)
+    {
+        CandleData currentBar = getCurrentGeneratedBar(instrument, period, side);
+        return currentBar != null ? currentBar.clone() : null;
+    }
+
+    public CandleData getCurrentGeneratedBar(Instrument instrument, Period period, OfferSide side)
+    {
+        TesterHistoryGeneratedBar currentBar = getGeneratedCandle(instrument, period, side);
+        return currentBar != null ? currentBar.clone() : null;
+    }
+
+    public void fillCurrentCandles(Set instruments, IFeedDataProvider feedDataProvider)
+        throws NoDataForPeriodException, DataCacheException
+    {
+        Iterator i$ = instruments.iterator();
+_L4:
+        Instrument instrument;
+        ITick tick;
+        Iterator i$;
+        do
+        {
+            if(!i$.hasNext())
+                break MISSING_BLOCK_LABEL_676;
+            instrument = (Instrument)i$.next();
+            tick = lastTicks[instrument.ordinal()];
+        } while(tick.getTime() == 0x8000000000000000L);
+        i$ = getPeriods(instrument).iterator();
+_L2:
+        while(i$.hasNext()) 
+        {
+            Period period = (Period)i$.next();
+            if(period != Period.TICK)
+            {
+                TesterHistoryGeneratedBar askBar = getGeneratedCandle(instrument, period, OfferSide.ASK);
+                TesterHistoryGeneratedBar bidBar = getGeneratedCandle(instrument, period, OfferSide.BID);
+                long candleStartFast = DataCacheUtils.getCandleStartFast(period, tick.getTime());
+                long candleEnd = DataCacheUtils.getNextCandleStartFast(period, candleStartFast);
+                if(askBar == null)
+                {
+                    askBar = new TesterHistoryGeneratedBar(candleStartFast, candleEnd, tick.getAsk(), tick.getAsk(), tick.getAsk(), tick.getAsk(), 0.0D);
+                    bidBar = new TesterHistoryGeneratedBar(candleStartFast, candleEnd, tick.getBid(), tick.getBid(), tick.getBid(), tick.getBid(), 0.0D);
+                    setGeneratedCandle(instrument, period, OfferSide.ASK, askBar);
+                    setGeneratedCandle(instrument, period, OfferSide.BID, bidBar);
+                }
+                com.dukascopy.charts.data.datacache.DataCacheUtils.ToLoad intervalsToLoad[] = DataCacheUtils.getIntervalsToLoadForCandleFilling(period, tick.getTime());
+                final List candles = new ArrayList();
+                final List ticks = new ArrayList();
+                final int result[] = {
+                    0
+                };
+                final Exception exceptions[] = new Exception[1];
+                LoadingProgressListener loadingProgressListener = new LoadingProgressListener() {
+
+                    public void dataLoaded(long l, long l1, long l2, String s)
+                    {
+                    }
+
+                    public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                            Exception e)
+                    {
+                        result[0] = allDataLoaded ? 1 : 2;
+                        exceptions[0] = e;
+                    }
+
+                    public boolean stopJob()
+                    {
+                        return false;
+                    }
+
+                    final int val$result[];
+                    final Exception val$exceptions[];
+                    final TesterHistory this$0;
+
+            
+            {
+                this$0 = TesterHistory.this;
+                result = ai;
+                exceptions = aexception;
+                super();
+            }
+                };
+                LiveFeedListener feedListener = new LiveFeedListener() {
+
+                    public void newTick(Instrument instrument, long time, double ask, double bid, 
+                            double askVol, double bidVol)
+                    {
+                        ticks.add(new TickData(time, ask, bid, askVol, bidVol));
+                    }
+
+                    public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                            double close, double low, double high, double vol)
+                    {
+                        candles.add(new CandleData(time, open, close, low, high, vol));
+                    }
+
+                    final List val$ticks;
+                    final List val$candles;
+                    final TesterHistory this$0;
+
+            
+            {
+                this$0 = TesterHistory.this;
+                ticks = list;
+                candles = list1;
+                super();
+            }
+                };
+                boolean firstCandle = true;
+                com.dukascopy.charts.data.datacache.DataCacheUtils.ToLoad arr$[] = intervalsToLoad;
+                int len$ = arr$.length;
+                int i$ = 0;
+                while(i$ < len$) 
+                {
+label0:
+                    {
+                        com.dukascopy.charts.data.datacache.DataCacheUtils.ToLoad toLoad = arr$[i$];
+                        if(toLoad.period != Period.TICK)
+                        {
+                            candles.clear();
+                            feedDataProvider.loadCandlesDataSynched(instrument, toLoad.period, OfferSide.ASK, toLoad.from, toLoad.to, feedListener, loadingProgressListener);
+                            if(result[0] == 2)
+                            {
+                                if(exceptions[0] != null)
+                                    LOGGER.error(exceptions[0].getMessage(), exceptions[0]);
+                                return;
+                            }
+                            if(candles.isEmpty())
+                                break label0;
+                            addCandlesToCandle(askBar, candles, firstCandle);
+                            result[0] = 0;
+                            candles.clear();
+                            feedDataProvider.loadCandlesDataSynched(instrument, toLoad.period, OfferSide.BID, toLoad.from, toLoad.to, feedListener, loadingProgressListener);
+                            if(result[0] == 2)
+                            {
+                                if(exceptions[0] != null)
+                                    LOGGER.error(exceptions[0].getMessage(), exceptions[0]);
+                                return;
+                            }
+                            addCandlesToCandle(bidBar, candles, firstCandle);
+                        } else
+                        {
+                            ticks.clear();
+                            feedDataProvider.loadTicksDataSynched(instrument, toLoad.from, toLoad.to, feedListener, loadingProgressListener);
+                            if(result[0] == 2)
+                            {
+                                if(exceptions[0] != null)
+                                    LOGGER.error(exceptions[0].getMessage(), exceptions[0]);
+                                return;
+                            }
+                            if(ticks.isEmpty())
+                                break label0;
+                            addTicksToCandle(askBar, ticks, firstCandle, true);
+                            addTicksToCandle(bidBar, ticks, firstCandle, false);
+                        }
+                        firstCandle = false;
+                    }
+                    i$++;
+                }
+            }
+        }
+        continue; /* Loop/switch isn't completed */
+        if(true) goto _L2; else goto _L1
+_L1:
+        if(true) goto _L4; else goto _L3
+_L3:
+    }
+
+    private static final void addCandlesToCandle(CandleData candleData, List candles, boolean firstCandle)
+    {
+        for(Iterator i$ = candles.iterator(); i$.hasNext();)
+        {
+            CandleData candle = (CandleData)i$.next();
+            if(firstCandle)
+            {
+                candleData.open = candle.open;
+                candleData.high = candle.high;
+                candleData.low = candle.low;
+                firstCandle = false;
+            }
+            candleData.high = candleData.high >= candle.high ? candleData.high : candle.high;
+            candleData.low = candleData.low <= candle.low ? candleData.low : candle.low;
+            candleData.vol += candle.vol;
+        }
+
+    }
+
+    private static final void addTicksToCandle(CandleData candleData, List ticks, boolean firstCandle, boolean ask)
+    {
+        for(Iterator i$ = ticks.iterator(); i$.hasNext();)
+        {
+            TickData tick = (TickData)i$.next();
+            double price = ask ? tick.ask : tick.bid;
+            if(firstCandle)
+            {
+                candleData.open = price;
+                candleData.high = price;
+                candleData.low = price;
+                firstCandle = false;
+            }
+            candleData.high = candleData.high >= price ? candleData.high : price;
+            candleData.low = candleData.low <= price ? candleData.low : price;
+            candleData.vol += ask ? tick.askVol : tick.bidVol;
+        }
+
+        candleData.vol = StratUtils.roundHalfEven(candleData.vol, 2);
+    }
+
+    public void setFirstTicks(Map firstTicks)
+    {
+        for(Iterator i$ = firstTicks.entrySet().iterator(); i$.hasNext();)
+        {
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            Instrument instrument = (Instrument)entry.getKey();
+            ITick tick = (ITick)entry.getValue();
+            TickData lastTick = lastTicks[instrument.ordinal()];
+            lastTick.time = tick.getTime() - 1L;
+            lastTick.ask = tick.getAsk();
+            lastTick.bid = tick.getBid();
+            lastTick.askVol = tick.getAskVolume();
+            lastTick.bidVol = tick.getBidVolume();
+            currentCandleTime[instrument.ordinal()] = lastTick.time;
+        }
+
+    }
+
+    protected ITick getLastTickBeforeSecured(Instrument instrument, long to)
+        throws JFException
+    {
+        long perfStatTimeStart = strategyRunner.perfStartTime();
+        ITick itick = super.getLastTickBeforeSecured(instrument, to);
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        return itick;
+        Exception exception;
+        exception;
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        throw exception;
+    }
+
+    public List getBars(final Instrument instrument, final Period period, final OfferSide side, final long from, final long to)
+        throws JFException
+    {
+        long perfStatTimeStart;
+        if(!isIntervalValid(period, from, to))
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            throw new JFException((new StringBuilder()).append("Interval from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] GMT is not valid for period [").append(period).append("]").toString());
+        }
+        if(period == Period.TICK)
+            throw new JFException((new StringBuilder()).append("Incorrect period [").append(period).append("] for getBars function").toString());
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfLastCandle;
+            synchronized(this)
+            {
+                timeOfLastCandle = currentCandleTime[instrument.ordinal()];
+            }
+            timeOfLastCandle = DataCacheUtils.getCandleStartFast(period, timeOfLastCandle);
+            if(to > timeOfLastCandle)
+                throw new JFException("\"to\" parameter can't be greater than the time of the last formed bar for this instrument");
+        }
+        perfStatTimeStart = strategyRunner.perfStartTime();
+label0:
+        {
+            List list1;
+            synchronized(this)
+            {
+                boolean dataExists = true;
+                int lastIndex = getLastIndex(instrument, period, side);
+                if(lastIndex != -1)
+                {
+                    Data buff[] = getBuffer(instrument, period, side);
+                    long buffFrom = buff[0].time;
+                    long buffTo = buff[lastIndex].time;
+                    if(from < buffFrom || to > buffTo)
+                        dataExists = false;
+                } else
+                {
+                    dataExists = false;
+                    long timeOfLastCandle = getStartTimeOfCurrentBar(instrument, period);
+                    long buffExpectedStartTime = DataCacheUtils.getTimeForNCandlesBackFast(period, timeOfLastCandle, 499);
+                    if(from >= buffExpectedStartTime && to <= timeOfLastCandle)
+                    {
+                        fillCacheBuffer(instrument, period, side);
+                        lastIndex = getLastIndex(instrument, period, side);
+                        if(lastIndex != -1)
+                        {
+                            Data buff[] = getBuffer(instrument, period, side);
+                            long buffFrom = buff[0].time;
+                            long buffTo = buff[lastIndex].time;
+                            if(from >= buffFrom && to <= buffTo)
+                                dataExists = true;
+                        }
+                    }
+                }
+                if(!dataExists)
+                    break label0;
+                List bars = new ArrayList();
+                lastIndex = getLastIndex(instrument, period, side);
+                Data buff[] = getBuffer(instrument, period, side);
+                long buffFrom = buff[0].time;
+                long buffTo = buff[lastIndex].time;
+                int k = DataCacheUtils.getCandlesCountBetweenFast(period, buffFrom, from) - 1;
+                for(int l = (lastIndex - DataCacheUtils.getCandlesCountBetweenFast(period, to, buffTo)) + 1; k <= l; k++)
+                    bars.add((CandleData)buff[k]);
+
+                list1 = bars;
+            }
+            strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+            return list1;
+        }
+        testerhistory1;
+        JVM INSTR monitorexit ;
+        List list = (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                return getBarsSecured(instrument, period, side, from, to);
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final Period val$period;
+            final OfferSide val$side;
+            final long val$from;
+            final long val$to;
+            final TesterHistory this$0;
+
+            
+            {
+                this$0 = TesterHistory.this;
+                instrument = instrument1;
+                period = period1;
+                side = offerside;
+                from = l;
+                to = l1;
+                super();
+            }
+        });
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        return list;
+        PrivilegedActionException e;
+        e;
+        Exception ex = e.getException();
+        if(ex instanceof JFException)
+            throw (JFException)ex;
+        if(ex instanceof RuntimeException)
+        {
+            throw (RuntimeException)ex;
+        } else
+        {
+            LOGGER.error(ex.getMessage(), ex);
+            throw new JFException(ex);
+        }
+        Exception exception2;
+        exception2;
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        throw exception2;
+    }
+
+    public List getBars(final Instrument instrument, final Period period, final OfferSide side, final Filter filter, final int numberOfCandlesBefore, final long time, 
+            final int numberOfCandlesAfter)
+        throws JFException
+    {
+        long timeOfLastCandle;
+        long perfStatTimeStart;
+        if(!isIntervalValid(period, numberOfCandlesBefore, time, numberOfCandlesAfter))
+            throw new JFException("Number of bars to load = 0 or time is not correct time for the period specified");
+        if(period == Period.TICK)
+            throw new JFException((new StringBuilder()).append("Incorrect period [").append(period).append("] for getBars function").toString());
+        timeOfLastCandle = 0x8000000000000000L;
+        if(isInstrumentSubscribed(instrument))
+        {
+            synchronized(this)
+            {
+                timeOfLastCandle = currentCandleTime[instrument.ordinal()];
+            }
+            timeOfLastCandle = DataCacheUtils.getCandleStartFast(period, timeOfLastCandle);
+            if(time > timeOfLastCandle)
+                throw new JFException("\"to\" parameter can't be greater than time of the last formed bar for this instrument");
+        }
+        if(filter == Filter.NO_FILTER || period.getInterval() > Period.DAILY.getInterval())
+        {
+            long from = DataCacheUtils.getTimeForNCandlesBackFast(period, time, numberOfCandlesBefore != 0 ? numberOfCandlesBefore : 1);
+            long to = DataCacheUtils.getTimeForNCandlesForwardFast(period, time, numberOfCandlesAfter != 0 ? numberOfCandlesAfter + 1 : 1);
+            if(timeOfLastCandle > 0x8000000000000000L && to > timeOfLastCandle)
+                to = timeOfLastCandle;
+            return getBars(instrument, period, side, from, to);
+        }
+        perfStatTimeStart = strategyRunner.perfStartTime();
+label0:
+        {
+            long buffExpectedStartTime;
+            long from;
+            long to;
+            LinkedList linkedlist;
+            synchronized(this)
+            {
+                int lastIndex = getLastIndex(instrument, period, side);
+                if(lastIndex == -1)
+                    break label0;
+                Data buff[] = getBuffer(instrument, period, side);
+                long buffFrom = buff[0].time;
+                long buffTo = buff[lastIndex].time;
+                if(time < buffFrom || time > buffTo)
+                    break MISSING_BLOCK_LABEL_1098;
+                int timeIndex = findStart(time, 0, lastIndex, buff);
+                if(timeIndex - (numberOfCandlesBefore <= 0 ? 0 : numberOfCandlesBefore - 1) < 0 || timeIndex + (numberOfCandlesBefore <= 0 ? numberOfCandlesAfter - 1 : numberOfCandlesAfter) > lastIndex || buff[timeIndex].time != time)
+                    break MISSING_BLOCK_LABEL_1098;
+                Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+                gmtCalendar.setTimeInMillis(time);
+                gmtCalendar.set(7, 6);
+                gmtCalendar.set(11, 21);
+                gmtCalendar.set(12, 0);
+                gmtCalendar.set(13, 0);
+                gmtCalendar.set(14, 0);
+                long nextFriday = gmtCalendar.getTimeInMillis();
+                if(time > nextFriday)
+                {
+                    gmtCalendar.add(6, 7);
+                    nextFriday = gmtCalendar.getTimeInMillis();
+                }
+                gmtCalendar.set(7, 1);
+                gmtCalendar.set(11, 22);
+                gmtCalendar.add(6, -7);
+                long previousSunday = gmtCalendar.getTimeInMillis();
+                if(time < previousSunday || time >= nextFriday)
+                    break MISSING_BLOCK_LABEL_1098;
+                LinkedList bars = new LinkedList();
+                if(filter == Filter.WEEKENDS)
+                {
+                    int i = numberOfCandlesBefore;
+                    int index = timeIndex;
+                    do
+                    {
+                        if(i <= 0 || index < 0)
+                            break;
+                        CandleData candle = (CandleData)buff[index];
+                        if(candle.time < previousSunday)
+                        {
+                            bars = null;
+                            break;
+                        }
+                        bars.addFirst(candle);
+                        i--;
+                        index--;
+                    } while(true);
+                    if(i > 0)
+                    {
+                        bars = null;
+                    } else
+                    {
+                        i = numberOfCandlesAfter;
+                        index = timeIndex + (numberOfCandlesBefore <= 0 ? 0 : 1);
+                        do
+                        {
+                            if(i <= 0 || index > lastIndex)
+                                break;
+                            CandleData candle = (CandleData)buff[index];
+                            if(candle.time >= nextFriday)
+                            {
+                                bars = null;
+                                break;
+                            }
+                            bars.addLast(candle);
+                            i--;
+                            index++;
+                        } while(true);
+                    }
+                } else
+                {
+                    int i = numberOfCandlesBefore;
+                    for(int index = timeIndex; i > 0 && index > 0; index--)
+                    {
+                        CandleData candle = (CandleData)buff[index];
+                        CandleData previousCandle = (CandleData)buff[index - 1];
+                        if(previousCandle.time < previousSunday)
+                        {
+                            bars = null;
+                            break;
+                        }
+                        if(candle.open != candle.close || candle.close != candle.high || candle.high != candle.low || candle.open != previousCandle.close)
+                        {
+                            bars.addFirst(candle);
+                            i--;
+                        }
+                    }
+
+                    if(i > 0)
+                    {
+                        bars = null;
+                    } else
+                    {
+                        i = numberOfCandlesAfter;
+                        for(int index = timeIndex + (numberOfCandlesBefore <= 0 ? 0 : 1); i > 0 && index <= lastIndex; index++)
+                        {
+                            CandleData candle = (CandleData)buff[index];
+                            CandleData previousCandle = (CandleData)buff[index - 1];
+                            if(candle.time >= nextFriday)
+                            {
+                                bars = null;
+                                break;
+                            }
+                            if(index == lastIndex || candle.open != candle.close || candle.close != candle.high || candle.high != candle.low || candle.open != previousCandle.close)
+                            {
+                                bars.addLast(candle);
+                                i--;
+                            }
+                        }
+
+                    }
+                }
+                if(bars == null)
+                    break MISSING_BLOCK_LABEL_1098;
+                linkedlist = bars;
+            }
+            strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+            return linkedlist;
+        }
+        buffExpectedStartTime = DataCacheUtils.getTimeForNCandlesBackFast(period, timeOfLastCandle, 499);
+        from = DataCacheUtils.getTimeForNCandlesBackFast(period, time, numberOfCandlesBefore != 0 ? numberOfCandlesBefore : 1);
+        to = DataCacheUtils.getTimeForNCandlesForwardFast(period, time, numberOfCandlesAfter != 0 ? numberOfCandlesAfter + 1 : 1);
+        if(timeOfLastCandle > 0x8000000000000000L && to > timeOfLastCandle)
+            to = timeOfLastCandle;
+        if(from >= buffExpectedStartTime && to <= timeOfLastCandle)
+            fillCacheBuffer(instrument, period, side);
+        testerhistory1;
+        JVM INSTR monitorexit ;
+        List list = (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                return getBarsSecured(instrument, period, side, filter, numberOfCandlesBefore, time, numberOfCandlesAfter);
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final Period val$period;
+            final OfferSide val$side;
+            final Filter val$filter;
+            final int val$numberOfCandlesBefore;
+            final long val$time;
+            final int val$numberOfCandlesAfter;
+            final TesterHistory this$0;
+
+            
+            {
+                this$0 = TesterHistory.this;
+                instrument = instrument1;
+                period = period1;
+                side = offerside;
+                filter = filter1;
+                numberOfCandlesBefore = i;
+                time = l;
+                numberOfCandlesAfter = j;
+                super();
+            }
+        });
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        return list;
+        PrivilegedActionException e;
+        e;
+        Exception ex = e.getException();
+        if(ex instanceof JFException)
+            throw (JFException)ex;
+        if(ex instanceof RuntimeException)
+        {
+            throw (RuntimeException)ex;
+        } else
+        {
+            LOGGER.error(ex.getMessage(), ex);
+            throw new JFException(ex);
+        }
+        Exception exception2;
+        exception2;
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        throw exception2;
+    }
+
+    public List getTicks(final Instrument instrument, final long from, final long to)
+        throws JFException
+    {
+        long perfStatTimeStart;
+        perfStatTimeStart = strategyRunner.perfStartTime();
+        if(!isIntervalValid(Period.TICK, from, to))
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            throw new JFException((new StringBuilder()).append("Interval from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] GMT is not valid").toString());
+        }
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfCurrentCandle;
+            synchronized(this)
+            {
+                timeOfCurrentCandle = currentCandleTime[instrument.ordinal()];
+            }
+            if(to > timeOfCurrentCandle)
+                throw new JFException("\"to\" parameter can't be greater than time of the last tick for this instrument");
+        }
+label0:
+        {
+            List list1;
+            synchronized(this)
+            {
+                boolean dataExists = true;
+                int lastIndex = getLastIndex(instrument, TICKS_PERIOD, TICKS_OFFER_SIDE);
+                if(lastIndex != -1)
+                {
+                    Data buff[] = getBuffer(instrument, TICKS_PERIOD, TICKS_OFFER_SIDE);
+                    long buffFrom = buff[0].time;
+                    long buffTo = buff[lastIndex].time;
+                    if(from < buffFrom || to > buffTo)
+                        dataExists = false;
+                } else
+                {
+                    dataExists = false;
+                    fillCacheBuffer(instrument, Period.TICK, TICKS_OFFER_SIDE);
+                }
+                if(!dataExists)
+                    break label0;
+                List ticks = new ArrayList();
+                lastIndex = getLastIndex(instrument, TICKS_PERIOD, TICKS_OFFER_SIDE);
+                Data buff[] = getBuffer(instrument, TICKS_PERIOD, TICKS_OFFER_SIDE);
+                int k = 0;
+                for(int l = lastIndex; k <= l; k++)
+                {
+                    if(buff[k].time >= from && buff[k].time <= to)
+                    {
+                        ticks.add((TickData)buff[k]);
+                        continue;
+                    }
+                    if(buff[k].time > to)
+                        break;
+                }
+
+                list1 = ticks;
+            }
+            strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+            return list1;
+        }
+        testerhistory;
+        JVM INSTR monitorexit ;
+        List list = (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                return getTicksSecured(instrument, from, to);
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final long val$from;
+            final long val$to;
+            final TesterHistory this$0;
+
+            
+            {
+                this$0 = TesterHistory.this;
+                instrument = instrument1;
+                from = l;
+                to = l1;
+                super();
+            }
+        });
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        return list;
+        PrivilegedActionException e;
+        e;
+        Exception ex = e.getException();
+        if(ex instanceof JFException)
+            throw (JFException)ex;
+        if(ex instanceof RuntimeException)
+        {
+            throw (RuntimeException)ex;
+        } else
+        {
+            LOGGER.error(ex.getMessage(), ex);
+            throw new JFException(ex);
+        }
+        Exception exception2;
+        exception2;
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        throw exception2;
+    }
+
+    protected List getOrdersHistorySecured(Instrument instrument, long from, long to)
+        throws JFException
+    {
+        throw new JFException("Error in history request");
+    }
+
+    public void readOrdersHistory(Instrument instrument, long from, long to, LoadingOrdersListener ordersListener, com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        if(from > to)
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            throw new JFException((new StringBuilder()).append("Interval from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] GMT is not valid").toString());
+        }
+        if(!ordersHistoryRequestSent.compareAndSet(false, true))
+            break MISSING_BLOCK_LABEL_206;
+        long perfStatTimeStart = strategyRunner.perfStartTime();
+        FeedDataProvider.getDefaultInstance().runTask(new LoadOrdersAction(ordersProvider, instrument, from, to, ordersListener, loadingProgress));
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        break MISSING_BLOCK_LABEL_179;
+        Exception exception;
+        exception;
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        throw exception;
+        ordersHistoryRequestSent.set(false);
+        break MISSING_BLOCK_LABEL_216;
+        Exception exception1;
+        exception1;
+        ordersHistoryRequestSent.set(false);
+        throw exception1;
+        throw new JFException("Only one request for orders history can be sent at one time");
+    }
+
+    public List getOrdersHistory(Instrument instrument, final long from, final long to)
+        throws JFException
+    {
+        if(from > to)
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            throw new JFException((new StringBuilder()).append("Interval from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] GMT is not valid").toString());
+        }
+        if(!ordersHistoryRequestSent.compareAndSet(false, true))
+            break MISSING_BLOCK_LABEL_264;
+        long perfStatTimeStart = strategyRunner.perfStartTime();
+        List list;
+        final List orders = new ArrayList();
+        final int result[] = {
+            0
+        };
+        final Exception exceptions[] = new Exception[1];
+        LoadingProgressListener loadingProgressListener = new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception e)
+            {
+                result[0] = allDataLoaded ? 1 : 2;
+                exceptions[0] = e;
+            }
+
+            public boolean stopJob()
+            {
+                return false;
+            }
+
+            final int val$result[];
+            final Exception val$exceptions[];
+            final TesterHistory this$0;
+
+            
+            {
+                this$0 = TesterHistory.this;
+                result = ai;
+                exceptions = aexception;
+                super();
+            }
+        };
+        ordersProvider.getOrdersForInstrument(instrument, from, to, new OrdersListener() {
+
+            public void newOrder(Instrument instrument, OrderHistoricalData orderData)
+            {
+                if(!orderData.isClosed())
+                    return;
+                HistoryOrder order = processOrders(instrument, orderData, from, to);
+                if(order != null)
+                    orders.add(order);
+            }
+
+            public void orderChange(Instrument instrument1, OrderHistoricalData orderhistoricaldata)
+            {
+            }
+
+            public void orderMerge(Instrument instrument1, OrderHistoricalData orderhistoricaldata, List list1)
+            {
+            }
+
+            public void ordersInvalidated(Instrument instrument1)
+            {
+            }
+
+            final long val$from;
+            final long val$to;
+            final List val$orders;
+            final TesterHistory this$0;
+
+            
+            {
+                this$0 = TesterHistory.this;
+                from = l;
+                to = l1;
+                orders = list;
+                super();
+            }
+        }, loadingProgressListener);
+        if(result[0] == 2)
+            throw new JFException("Error while loading bars", exceptions[0]);
+        list = orders;
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        ordersHistoryRequestSent.set(false);
+        return list;
+        Exception exception;
+        exception;
+        strategyRunner.perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.HISTORY_CALLS);
+        throw exception;
+        Exception exception1;
+        exception1;
+        ordersHistoryRequestSent.set(false);
+        throw exception1;
+        throw new JFException("Only one request for orders history can be sent at one time");
+    }
+
+    protected HistoryOrder createHistoryOrder(Instrument instrument, OrderHistoricalData orderData, long closeTime, double closePrice)
+    {
+        com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData entryOrder = orderData.getEntryOrder();
+        return new TesterHistoryOrder(instrument, entryOrder.getLabel(), orderData.getOrderGroupId(), entryOrder.getFillTime(), closeTime, entryOrder.getSide(), entryOrder.getAmount().divide(ONE_MILLION).doubleValue(), entryOrder.getOpenPrice().doubleValue(), closePrice, entryOrder.getComment(), accountCurrency, currencyConverter, orderData.getCommission().doubleValue());
+    }
+
+    private void setLastIndex(Instrument instrument, Period period, OfferSide offerSide, int index)
+    {
+        Map periodMap = (Map)lastIndexesMap.get(instrument);
+        if(periodMap == null)
+        {
+            periodMap = new HashMap();
+            lastIndexesMap.put(instrument, periodMap);
+        }
+        Map offerSideMap = (Map)periodMap.get(period);
+        if(offerSideMap == null)
+        {
+            offerSideMap = new HashMap();
+            periodMap.put(period, offerSideMap);
+        }
+        offerSideMap.put(offerSide, new Integer(index));
+    }
+
+    private int getLastIndex(Instrument instrument, Period period, OfferSide offerSide)
+    {
+        Map periodMap = (Map)lastIndexesMap.get(instrument);
+        if(periodMap == null)
+            return -1;
+        Map offerSideMap = (Map)periodMap.get(period);
+        if(offerSideMap == null)
+            return -1;
+        Integer index = (Integer)offerSideMap.get(offerSide);
+        if(index == null)
+            return -1;
+        else
+            return index.intValue();
+    }
+
+    private void setBuffer(Instrument instrument, Period period, OfferSide offerSide, Data buffer[])
+    {
+        Map periodMap = (Map)bufferMap.get(instrument);
+        if(periodMap == null)
+        {
+            periodMap = new HashMap();
+            bufferMap.put(instrument, periodMap);
+        }
+        Map offerSideMap = (Map)periodMap.get(period);
+        if(offerSideMap == null)
+        {
+            offerSideMap = new HashMap();
+            periodMap.put(period, offerSideMap);
+        }
+        offerSideMap.put(offerSide, buffer);
+    }
+
+    private Data[] getBuffer(Instrument instrument, Period period, OfferSide offerSide)
+    {
+        Map periodMap = (Map)bufferMap.get(instrument);
+        if(periodMap == null)
+            return null;
+        Map offerSideMap = (Map)periodMap.get(period);
+        if(offerSideMap == null)
+        {
+            return null;
+        } else
+        {
+            Data buffer[] = (Data[])offerSideMap.get(offerSide);
+            return buffer;
+        }
+    }
+
+    private void setGeneratedCandle(Instrument instrument, Period period, OfferSide offerSide, TesterHistoryGeneratedBar generatedCandle)
+    {
+        Map periodMap = (Map)generatedCandlesMap.get(instrument);
+        if(periodMap == null)
+        {
+            periodMap = new HashMap();
+            generatedCandlesMap.put(instrument, periodMap);
+        }
+        Map offerSideMap = (Map)periodMap.get(period);
+        if(offerSideMap == null)
+        {
+            offerSideMap = new HashMap();
+            periodMap.put(period, offerSideMap);
+        }
+        offerSideMap.put(offerSide, generatedCandle);
+    }
+
+    private TesterHistoryGeneratedBar getGeneratedCandle(Instrument instrument, Period period, OfferSide offerSide)
+    {
+        Map periodMap = (Map)generatedCandlesMap.get(instrument);
+        if(periodMap == null)
+            return null;
+        Map offerSideMap = (Map)periodMap.get(period);
+        if(offerSideMap == null)
+        {
+            return null;
+        } else
+        {
+            TesterHistoryGeneratedBar generatedCandle = (TesterHistoryGeneratedBar)offerSideMap.get(offerSide);
+            return generatedCandle;
+        }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/TesterHistory);
+    private static final int MIN_SHIFT = 20;
+    private static final int MAX_CACHE_SIZE = 500;
+    private final Period periods[] = Period.values();
+    private final OfferSide offerSides[] = OfferSide.values();
+    private final Map bufferMap = new HashMap();
+    private final Map lastIndexesMap = new HashMap();
+    protected TickData lastTicks[];
+    protected long currentCandleTime[];
+    private final Map generatedCandlesMap = new HashMap();
+    private IStrategyRunner strategyRunner;
+    private TesterOrdersProvider ordersProvider;
+    private AbstractCurrencyConverter currencyConverter;
+    private final Period TICKS_PERIOD;
+    private final OfferSide TICKS_OFFER_SIDE;
+    private static final ThreadLocal gmtCalendarThreadLocal = new ThreadLocal() {
+
+        protected Calendar initialValue()
+        {
+            Calendar instance = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+            instance.setFirstDayOfWeek(2);
+            return instance;
+        }
+
+        protected volatile Object initialValue()
+        {
+            return initialValue();
+        }
+
+    };
+    static final boolean $assertionsDisabled = !com/dukascopy/dds2/greed/agent/strategy/tester/TesterHistory.desiredAssertionStatus();
+
+
+
+
+
+
+}

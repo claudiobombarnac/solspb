@@ -1,0 +1,86 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TicksPresentationType.java
+
+package com.dukascopy.charts.presentation;
+
+
+// Referenced classes of package com.dukascopy.charts.presentation:
+//            TimePeriodAggregationPresentationType
+
+public final class TicksPresentationType extends Enum
+{
+
+    public static TicksPresentationType[] values()
+    {
+        return (TicksPresentationType[])$VALUES.clone();
+    }
+
+    public static TicksPresentationType valueOf(String name)
+    {
+        return (TicksPresentationType)Enum.valueOf(com/dukascopy/charts/presentation/TicksPresentationType, name);
+    }
+
+    private TicksPresentationType(String s, int i)
+    {
+        super(s, i);
+    }
+
+    public static TicksPresentationType getAppropriateTickType(TimePeriodAggregationPresentationType candleType, TicksPresentationType defaultTickType)
+    {
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$charts$presentation$TimePeriodAggregationPresentationType[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$charts$presentation$TimePeriodAggregationPresentationType = new int[TimePeriodAggregationPresentationType.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$charts$presentation$TimePeriodAggregationPresentationType[TimePeriodAggregationPresentationType.LINE.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$charts$presentation$TimePeriodAggregationPresentationType[TimePeriodAggregationPresentationType.BAR.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$charts$presentation$TimePeriodAggregationPresentationType[TimePeriodAggregationPresentationType.TABLE.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls1..SwitchMap.com.dukascopy.charts.presentation.TimePeriodAggregationPresentationType[candleType.ordinal()])
+        {
+        case 1: // '\001'
+            return LINE;
+
+        case 2: // '\002'
+            return BAR;
+
+        case 3: // '\003'
+            return TABLE;
+        }
+        return defaultTickType;
+    }
+
+    public static final TicksPresentationType LINE;
+    public static final TicksPresentationType BAR;
+    public static final TicksPresentationType TABLE;
+    private static final TicksPresentationType $VALUES[];
+
+    static 
+    {
+        LINE = new TicksPresentationType("LINE", 0);
+        BAR = new TicksPresentationType("BAR", 1);
+        TABLE = new TicksPresentationType("TABLE", 2);
+        $VALUES = (new TicksPresentationType[] {
+            LINE, BAR, TABLE
+        });
+    }
+}

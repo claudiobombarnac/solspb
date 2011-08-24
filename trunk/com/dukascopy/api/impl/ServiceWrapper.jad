@@ -1,0 +1,92 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:23
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ServiceWrapper.java
+
+package com.dukascopy.api.impl;
+
+import java.io.File;
+
+public abstract class ServiceWrapper
+{
+
+    public ServiceWrapper()
+    {
+        isModified = false;
+        srcFile = null;
+        binFile = null;
+    }
+
+    public abstract String getName();
+
+    public boolean isNewUnsaved()
+    {
+        return isNewUnsaved;
+    }
+
+    public void setNewUnsaved(boolean isNewUnsaved)
+    {
+        this.isNewUnsaved = isNewUnsaved;
+        if(isNewUnsaved)
+            newFileIndex = newFilesCounter++;
+    }
+
+    public boolean isModified()
+    {
+        return isModified;
+    }
+
+    public void setIsModified(boolean isModified)
+    {
+        this.isModified = isModified;
+    }
+
+    public boolean isEditable()
+    {
+        return srcFile != null && srcFile.exists();
+    }
+
+    public boolean isRunnable()
+    {
+        return getBinaryFile() != null && getBinaryFile().exists();
+    }
+
+    public boolean isRemotelyRunnable()
+    {
+        return false;
+    }
+
+    public final void setBinaryFile(File binaryFile)
+    {
+        binFile = binaryFile;
+    }
+
+    public final File getBinaryFile()
+    {
+        if(srcFile != null && srcFile.exists())
+        {
+            File file = new File(srcFile.getParent(), (new StringBuilder()).append(srcFile.getName().substring(0, srcFile.getName().lastIndexOf('.'))).append(".jfx").toString());
+            if(file.exists())
+                binFile = file;
+        }
+        return binFile;
+    }
+
+    public final void setSourceFile(File sourceFile)
+    {
+        srcFile = sourceFile;
+    }
+
+    public File getSourceFile()
+    {
+        return srcFile;
+    }
+
+    private static int newFilesCounter = 1;
+    protected int newFileIndex;
+    protected boolean isNewUnsaved;
+    protected boolean isModified;
+    protected File srcFile;
+    protected File binFile;
+
+}

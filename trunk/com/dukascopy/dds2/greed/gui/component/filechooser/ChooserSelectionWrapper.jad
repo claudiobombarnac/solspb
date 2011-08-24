@@ -1,0 +1,46 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ChooserSelectionWrapper.java
+
+package com.dukascopy.dds2.greed.gui.component.filechooser;
+
+import com.dukascopy.transport.common.datafeed.Location;
+import com.dukascopy.transport.common.msg.strategy.FileItem;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ChooserSelectionWrapper
+{
+
+    public FileItem getFileItem()
+    {
+        return (FileItem)fileItems.get(0);
+    }
+
+    public List getFileItems()
+    {
+        return fileItems;
+    }
+
+    public Location getLocation()
+    {
+        return location;
+    }
+
+    public ChooserSelectionWrapper(FileItem fileItem, Location location)
+    {
+        fileItems = new ArrayList();
+        fileItems.add(fileItem);
+        this.location = location;
+    }
+
+    public ChooserSelectionWrapper(List fileItems, Location location)
+    {
+        this.fileItems = fileItems;
+        this.location = location;
+    }
+
+    private List fileItems;
+    private Location location;
+}

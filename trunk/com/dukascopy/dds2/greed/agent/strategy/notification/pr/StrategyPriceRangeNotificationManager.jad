@@ -1,0 +1,103 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyPriceRangeNotificationManager.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification.pr;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.feed.IRangeBar;
+import com.dukascopy.api.feed.IRangeBarFeedListener;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.impl.connect.StrategyProcessor;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.data.datacache.rangebar.PriceRangeLiveFeedAdapter;
+import com.dukascopy.dds2.greed.agent.strategy.notification.AbstractLiveBarFeedListenerWrapper;
+import com.dukascopy.dds2.greed.agent.strategy.notification.AbstractStrategyRateDataNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.tester.IStrategyRunner;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.IDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.PriceRangeDataLoadingThread;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import java.util.concurrent.ArrayBlockingQueue;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.notification.pr:
+//            LivePriceRangeFeedListenerWrapper, IStrategyPriceRangeNotificationManager
+
+public class StrategyPriceRangeNotificationManager extends AbstractStrategyRateDataNotificationManager
+    implements IStrategyPriceRangeNotificationManager
+{
+
+    public StrategyPriceRangeNotificationManager(FeedDataProvider feedDataProvider)
+    {
+        super(feedDataProvider);
+    }
+
+    protected void addLiveInProgressBarListener(Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, LivePriceRangeFeedListenerWrapper listenerWrapper)
+    {
+        getFeedDataProvider().addPriceRangeNotificationListener(instrument, offerSide, jForexPeriod.getPriceRange(), listenerWrapper);
+    }
+
+    protected IDataLoadingThread createDataLoadingThread(IStrategyRunner strategyRunner, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, ArrayBlockingQueue queue)
+    {
+        String threadName = (new StringBuilder()).append("Strategy tester data loading thread - ").append(jForexPeriod.toString()).toString();
+        return new PriceRangeDataLoadingThread(threadName, instrument, jForexPeriod, offerSide, queue, strategyRunner.getFrom(), strategyRunner.getTo(), strategyRunner.getFeedDataProvider());
+    }
+
+    protected LivePriceRangeFeedListenerWrapper createListenerWrapper(Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IRangeBarFeedListener barFeedListener, IStrategyExceptionHandler exceptionHandler, JForexTaskManager taskManager, StrategyProcessor strategyProcessor, 
+            INotificationUtils notificationUtils)
+    {
+        return new LivePriceRangeFeedListenerWrapper(barFeedListener, new PriceRangeLiveFeedAdapter() {
+
+            final StrategyPriceRangeNotificationManager this$0;
+
+            
+            {
+                this$0 = StrategyPriceRangeNotificationManager.this;
+                super();
+            }
+        }, instrument, jForexPeriod, offerSide, exceptionHandler, taskManager, strategyProcessor, notificationUtils);
+    }
+
+    protected void onBar(LivePriceRangeFeedListenerWrapper listenerWrapper, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IRangeBar bar)
+    {
+        ((IRangeBarFeedListener)listenerWrapper.getLiveBarFormedListener()).onBar(instrument, offerSide, jForexPeriod.getPriceRange(), bar);
+    }
+
+    protected void removeLiveInProgressBarListener(LivePriceRangeFeedListenerWrapper listenerWrapper)
+    {
+        getFeedDataProvider().removePriceRangeNotificationListener(listenerWrapper);
+    }
+
+    protected String validateJForexPeriodFields(JForexPeriod jForexPeriod)
+    {
+        if(jForexPeriod.getPriceRange() == null || jForexPeriod.getPeriod() == null)
+            return "Period and PriceRange could not be nulls";
+        if(!DataType.PRICE_RANGE_AGGREGATION.equals(jForexPeriod.getDataType()))
+            return (new StringBuilder()).append("DataType has to be equal to ").append(DataType.PRICE_RANGE_AGGREGATION).toString();
+        else
+            return null;
+    }
+
+    protected volatile void onBar(AbstractLiveBarFeedListenerWrapper x0, Instrument x1, JForexPeriod x2, OfferSide x3, IBar x4)
+    {
+        onBar((LivePriceRangeFeedListenerWrapper)x0, x1, x2, x3, (IRangeBar)x4);
+    }
+
+    protected volatile void removeLiveInProgressBarListener(AbstractLiveBarFeedListenerWrapper x0)
+    {
+        removeLiveInProgressBarListener((LivePriceRangeFeedListenerWrapper)x0);
+    }
+
+    protected volatile void addLiveInProgressBarListener(Instrument x0, JForexPeriod x1, OfferSide x2, AbstractLiveBarFeedListenerWrapper x3)
+    {
+        addLiveInProgressBarListener(x0, x1, x2, (LivePriceRangeFeedListenerWrapper)x3);
+    }
+
+    protected volatile AbstractLiveBarFeedListenerWrapper createListenerWrapper(Instrument x0, JForexPeriod x1, OfferSide x2, Object x3, IStrategyExceptionHandler x4, JForexTaskManager x5, StrategyProcessor x6, 
+            INotificationUtils x7)
+    {
+        return createListenerWrapper(x0, x1, x2, (IRangeBarFeedListener)x3, x4, x5, x6, x7);
+    }
+}

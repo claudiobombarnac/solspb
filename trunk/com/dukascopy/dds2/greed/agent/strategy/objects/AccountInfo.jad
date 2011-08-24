@@ -1,0 +1,38 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AccountInfo.java
+
+package com.dukascopy.dds2.greed.agent.strategy.objects;
+
+import com.dukascopy.transport.common.model.type.Money;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import java.math.BigDecimal;
+
+public class AccountInfo
+{
+
+    public AccountInfo(AccountInfoMessage accountInfo)
+    {
+        balance = 0.0D;
+        margin = 0.0D;
+        equity = 0.0D;
+        if(accountInfo.getUsableMargin() != null)
+            margin = accountInfo.getUsableMargin().getValue().doubleValue();
+        if(accountInfo.getBalance() != null)
+            balance = accountInfo.getBalance().getValue().doubleValue();
+        if(accountInfo.getEquity() != null)
+            equity = accountInfo.getEquity().getValue().doubleValue();
+    }
+
+    public AccountInfo()
+    {
+        balance = 0.0D;
+        margin = 0.0D;
+        equity = 0.0D;
+    }
+
+    public double balance;
+    public double margin;
+    public double equity;
+}

@@ -1,0 +1,71 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadProgressingAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadingProgressListener
+
+public abstract class LoadProgressingAction
+{
+    private static class LoadingProgressWrapper
+        implements LoadingProgressListener
+    {
+
+        public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+        {
+            loadingProgress.dataLoaded(startTime, endTime, currentTime, information);
+        }
+
+        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                Exception e)
+        {
+            loadingProgress.loadingFinished(allDataLoaded, startTime, endTime, currentTime, e);
+        }
+
+        public boolean stopJob()
+        {
+            return canceled || loadingProgress.stopJob();
+        }
+
+        public void cancel()
+        {
+            canceled = true;
+        }
+
+        private final LoadingProgressListener loadingProgress;
+        private boolean canceled;
+
+        private LoadingProgressWrapper(LoadingProgressListener loadingProgress)
+        {
+            this.loadingProgress = loadingProgress;
+        }
+
+    }
+
+
+    protected LoadProgressingAction()
+    {
+        loadingProgress = null;
+    }
+
+    protected LoadProgressingAction(LoadingProgressListener loadingProgress)
+    {
+        this.loadingProgress = new LoadingProgressWrapper(loadingProgress);
+    }
+
+    public void cancel()
+    {
+        ((LoadingProgressWrapper)loadingProgress).cancel();
+    }
+
+    public LoadingProgressListener getLoadingProgress()
+    {
+        return loadingProgress;
+    }
+
+    protected final LoadingProgressListener loadingProgress;
+}

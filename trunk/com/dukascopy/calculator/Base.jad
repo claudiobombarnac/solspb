@@ -1,0 +1,43 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   Base.java
+
+package com.dukascopy.calculator;
+
+
+public final class Base extends Enum
+{
+
+    public static Base[] values()
+    {
+        return (Base[])$VALUES.clone();
+    }
+
+    public static Base valueOf(String name)
+    {
+        return (Base)Enum.valueOf(com/dukascopy/calculator/Base, name);
+    }
+
+    private Base(String s, int i)
+    {
+        super(s, i);
+    }
+
+    public static final Base BINARY;
+    public static final Base OCTAL;
+    public static final Base DECIMAL;
+    public static final Base HEXADECIMAL;
+    private static final Base $VALUES[];
+
+    static 
+    {
+        BINARY = new Base("BINARY", 0);
+        OCTAL = new Base("OCTAL", 1);
+        DECIMAL = new Base("DECIMAL", 2);
+        HEXADECIMAL = new Base("HEXADECIMAL", 3);
+        $VALUES = (new Base[] {
+            BINARY, OCTAL, DECIMAL, HEXADECIMAL
+        });
+    }
+}

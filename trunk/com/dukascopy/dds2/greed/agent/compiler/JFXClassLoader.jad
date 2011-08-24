@@ -1,0 +1,207 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JFXClassLoader.java
+
+package com.dukascopy.dds2.greed.agent.compiler;
+
+import com.dukascopy.dds2.greed.agent.protocol.JFXStreamHandler;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.*;
+import java.util.Enumeration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.compiler:
+//            JFXPack
+
+public class JFXClassLoader extends SecureClassLoader
+{
+
+    public JFXClassLoader(ClassLoader parent, JFXPack pack)
+    {
+        super(parent);
+        this.pack = null;
+        this.pack = pack;
+        try
+        {
+            codeSource = new CodeSource(new URL("http://www.dukascopy.com/JFOREX"), (java.security.cert.Certificate[])null);
+        }
+        catch(MalformedURLException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public void setFullAccess(boolean fullAccess)
+    {
+        this.fullAccess = fullAccess;
+    }
+
+    public boolean isFullAccess()
+    {
+        return fullAccess;
+    }
+
+    public Class loadClass(String name)
+        throws ClassNotFoundException
+    {
+        return super.loadClass(name);
+    }
+
+    public Class findClass(String name)
+        throws ClassNotFoundException
+    {
+        int i;
+        if(name == null || pack.className == null)
+            break MISSING_BLOCK_LABEL_103;
+        i = 0;
+_L3:
+        if(i >= pack.className.length) goto _L2; else goto _L1
+_L1:
+        byte b[];
+        if(pack.className[i] == null || !name.endsWith(pack.className[i]))
+            continue; /* Loop/switch isn't completed */
+        b = pack.classCode[i];
+        return defineClass(name, b, 0, b.length, codeSource);
+        Throwable t;
+        t;
+        LOGGER.error(t.getMessage(), t);
+        i++;
+          goto _L3
+_L2:
+        return super.findClass(name);
+    }
+
+    protected URL findResource(String name)
+    {
+        if(findResourceAsBytes(name) == null)
+            break MISSING_BLOCK_LABEL_44;
+        return new URL("jfx", name, -1, "", new JFXStreamHandler(this));
+        MalformedURLException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return super.findResource(name);
+    }
+
+    protected Enumeration findResources(String name)
+        throws IOException
+    {
+        final URL url = findResource(name);
+        Enumeration enumeration = new Enumeration() {
+
+            public boolean hasMoreElements()
+            {
+                return hasMoreElements;
+            }
+
+            public URL nextElement()
+            {
+                hasMoreElements = false;
+                return url;
+            }
+
+            public volatile Object nextElement()
+            {
+                return nextElement();
+            }
+
+            boolean hasMoreElements;
+            final URL val$url;
+            final JFXClassLoader this$0;
+
+            
+            {
+                this$0 = JFXClassLoader.this;
+                url = url1;
+                super();
+                hasMoreElements = url != null;
+            }
+        };
+        return enumeration;
+    }
+
+    public byte[] findResourceAsBytes(String name)
+    {
+        int i;
+        if(name == null || pack.resourceName == null)
+            break MISSING_BLOCK_LABEL_91;
+        i = 0;
+_L3:
+        if(i >= pack.resourceName.length) goto _L2; else goto _L1
+_L1:
+        byte b[];
+        if(pack.resourceName[i] == null || !name.equals(pack.resourceName[i]))
+            continue; /* Loop/switch isn't completed */
+        b = pack.resourceCode[i];
+        return b;
+        Throwable t;
+        t;
+        LOGGER.error(t.getMessage(), t);
+        i++;
+          goto _L3
+_L2:
+        return null;
+    }
+
+    public Enumeration getResources(String name)
+        throws IOException
+    {
+        return super.getResources(name);
+    }
+
+    public String findName(byte bbb[])
+    {
+        String rc = null;
+        try
+        {
+            defineClass("", bbb, 0, bbb.length);
+        }
+        catch(NoClassDefFoundError ncdfe)
+        {
+            String msg = ncdfe.getMessage();
+            Pattern pattern = Pattern.compile("\\(wrong name: (.*?)\\)");
+            Matcher matcher = pattern.matcher(msg);
+            String goodName = null;
+            if(matcher.find())
+                goodName = matcher.group(1);
+            if(goodName != null)
+                rc = goodName.replace('/', '.');
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+        }
+        return rc;
+    }
+
+    protected PermissionCollection getPermissions(CodeSource codesource)
+    {
+        PermissionCollection permissions;
+        if(codeSource == codesource && fullAccess)
+        {
+            permissions = new Permissions();
+            permissions.add(new AllPermission());
+            return permissions;
+        }
+        permissions = super.getPermissions(codesource);
+        if(permissions == null)
+            permissions = new Permissions();
+        permissions.add(new FilePermission(FilePathManager.getInstance().getFilesForStrategiesDir().getPath(), "read"));
+        permissions.add(new FilePermission((new StringBuilder()).append(FilePathManager.getInstance().getFilesForStrategiesDir().getPath()).append(File.separator).append("-").toString(), "read,write,delete"));
+        return permissions;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/compiler/JFXClassLoader);
+    public static final String PROPERTY_R_ACTION = "read";
+    public static final String PROPERTY_RWD_ACTION = "read,write,delete";
+    private JFXPack pack;
+    private CodeSource codeSource;
+    private boolean fullAccess;
+
+}

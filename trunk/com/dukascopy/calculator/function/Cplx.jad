@@ -1,0 +1,30 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Cplx.java
+
+package com.dukascopy.calculator.function;
+
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            PObject
+
+public class Cplx extends PObject
+{
+
+    public Cplx()
+    {
+        ftooltip = "sc.calculator.toggle.complex.notation";
+        fshortcut = 'z';
+    }
+
+    public String[] name_array()
+    {
+        return fname;
+    }
+
+    private static final String fname[] = {
+        "C", "p", "l", "x"
+    };
+
+}

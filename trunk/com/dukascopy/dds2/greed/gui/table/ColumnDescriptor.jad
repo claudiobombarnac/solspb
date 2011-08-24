@@ -1,0 +1,28 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ColumnDescriptor.java
+
+package com.dukascopy.dds2.greed.gui.table;
+
+import java.lang.annotation.Annotation;
+import javax.swing.SortOrder;
+
+public interface ColumnDescriptor
+    extends Annotation
+{
+
+    public abstract String title();
+
+    public abstract Class contentClass();
+
+    public abstract int width();
+
+    public abstract int maxWidth();
+
+    public abstract boolean resizable();
+
+    public abstract boolean sortable();
+
+    public abstract SortOrder sortOrder();
+}

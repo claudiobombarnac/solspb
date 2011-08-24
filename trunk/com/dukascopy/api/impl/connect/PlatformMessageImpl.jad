@@ -1,0 +1,52 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   PlatformMessageImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.IMessage;
+import com.dukascopy.api.IOrder;
+
+public class PlatformMessageImpl
+    implements IMessage
+{
+
+    public PlatformMessageImpl(String content, IOrder relatedOrder, com.dukascopy.api.IMessage.Type messageType, long creationTime)
+    {
+        this.messageType = messageType;
+        this.relatedOrder = relatedOrder;
+        this.content = content;
+        this.creationTime = creationTime;
+    }
+
+    public String getContent()
+    {
+        return content;
+    }
+
+    public final IOrder getOrder()
+    {
+        return relatedOrder;
+    }
+
+    public final com.dukascopy.api.IMessage.Type getType()
+    {
+        return messageType;
+    }
+
+    public long getCreationTime()
+    {
+        return creationTime;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("MessageType ").append(getType()).append(" Text ").append(getContent()).append(" Related order ").append(getOrder()).toString();
+    }
+
+    private final com.dukascopy.api.IMessage.Type messageType;
+    private final IOrder relatedOrder;
+    private final String content;
+    private final long creationTime;
+}

@@ -1,0 +1,106 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EditorRegistryImpl.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.impl;
+
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.*;
+import java.awt.event.ActionListener;
+import java.awt.event.FocusListener;
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import javax.swing.JFrame;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.ide.impl:
+//            EditorImpl, EditorStatusBar
+
+public class EditorRegistryImpl
+    implements EditorRegistry
+{
+
+    public EditorRegistryImpl(JFrame parentForDialogs)
+    {
+        openFiles = new HashMap();
+    }
+
+    public Editor openEditor(File file, EditorStatusBar statusBar, ActionListener actionListener, ServiceSourceType serviceSourceType, String clientMode)
+    {
+        Editor editor = getEditor(file);
+        if(editor != null)
+        {
+            editor = (Editor)openFiles.get(file.getAbsolutePath());
+            editor.focus();
+        } else
+        {
+            editor = new EditorImpl(this, statusBar, actionListener, serviceSourceType, clientMode);
+            try
+            {
+                editor.open(file);
+                openFiles.put(file.getAbsolutePath(), editor);
+            }
+            catch(IOException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+        return editor;
+    }
+
+    public Editor openEditor(File file, EditorStatusBar statusBar, ActionListener actionListener, FocusListener focusListener, ServiceSourceType serviceSourceType, String clientMode)
+    {
+        Editor editor = getEditor(file);
+        if(editor != null)
+        {
+            editor = (Editor)openFiles.get(file.getAbsolutePath());
+        } else
+        {
+            editor = new EditorImpl(this, statusBar, actionListener, serviceSourceType, focusListener, clientMode);
+            try
+            {
+                editor.open(file);
+                openFiles.put(file.getAbsolutePath(), editor);
+            }
+            catch(IOException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+        return editor;
+    }
+
+    public Editor getEditor(File file)
+    {
+        if(file == null)
+            return null;
+        else
+            return (Editor)openFiles.get(file.getAbsolutePath());
+    }
+
+    public void removeReference(File file)
+    {
+        if(file == null)
+        {
+            return;
+        } else
+        {
+            openFiles.remove(file.getAbsolutePath());
+            return;
+        }
+    }
+
+    public void editorRenamed(String oldPath, String newPath)
+    {
+        Editor editor = (Editor)openFiles.get(oldPath);
+        openFiles.remove(oldPath);
+        openFiles.put(newPath, editor);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/ide/impl/EditorRegistryImpl);
+    private Map openFiles;
+
+}

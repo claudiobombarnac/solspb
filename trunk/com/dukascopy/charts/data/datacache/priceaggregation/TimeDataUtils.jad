@@ -1,0 +1,238 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TimeDataUtils.java
+
+package com.dukascopy.charts.data.datacache.priceaggregation;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.feed.IPriceAggregationBar;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.DataCacheUtils;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
+import com.dukascopy.charts.data.datacache.tickbar.TickBarData;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.priceaggregation:
+//            AbstractPriceAggregationData
+
+public class TimeDataUtils
+{
+
+    public TimeDataUtils()
+    {
+    }
+
+    public static void reverseArray(Object src[], Object dest[])
+    {
+        if(src.length <= 0 || dest.length <= 0)
+            return;
+        int i = dest.length - 1;
+        for(int k = 0; i >= 0; k++)
+        {
+            dest[k] = src[i];
+            i--;
+        }
+
+    }
+
+    public static void copyArray(Object src[], int srcPos, Object dest[], int destPos, int length)
+    {
+        System.arraycopy(((Object) (src)), srcPos, ((Object) (dest)), destPos, length);
+    }
+
+    public static int isConsistent(List buffer)
+    {
+        if(buffer == null)
+            return -1;
+        else
+            return isConsistent((CandleData[])buffer.toArray(new CandleData[buffer.size()]), ((Period) (null)));
+    }
+
+    public static int isConsistent(List buffer, Period period)
+    {
+        if(buffer == null)
+            return -1;
+        else
+            return isConsistent((CandleData[])buffer.toArray(new CandleData[buffer.size()]), period);
+    }
+
+    public static int isConsistent(CandleData buffer[], Period period)
+    {
+        if(buffer == null)
+            return -1;
+        for(int i = 0; i < buffer.length - 1; i++)
+        {
+            CandleData currentData = buffer[i];
+            CandleData nextData = buffer[i + 1];
+            if(period != null)
+            {
+                if(currentData.getTime() + period.getInterval() != nextData.getTime())
+                    return i + 1;
+                if(currentData.getTime() != DataCacheUtils.getCandleStartFast(period, currentData.getTime()))
+                    return i + 1;
+            }
+            if(currentData.getTime() >= nextData.getTime())
+                return i + 1;
+        }
+
+        return -1;
+    }
+
+    public static int isConsistent(AbstractPriceAggregationData buffer[], boolean checkOHLC)
+    {
+        if(buffer == null)
+            return -1;
+        for(int i = 0; i < buffer.length - 1; i++)
+        {
+            AbstractPriceAggregationData iData = buffer[i];
+            if(iData == null || iData.getTime() > iData.getEndTime())
+                return i;
+            AbstractPriceAggregationData nextData = buffer[i + 1];
+            if(checkOHLC && DataCacheUtils.isTheSameTradingSession(iData.getTime(), nextData.getTime()) && iData.getLow() < nextData.getOpen() && nextData.getOpen() < iData.getHigh())
+                return i;
+            if(nextData == null || nextData.getTime() > nextData.getEndTime() || iData.getTime() > nextData.getTime() || iData.getEndTime() > nextData.getEndTime())
+                return i;
+        }
+
+        return -1;
+    }
+
+    public static int arePricesConsistent(PointAndFigureData buffer[], PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        PointAndFigureData previousData = null;
+        for(int i = 0; i < buffer.length; i++)
+        {
+            PointAndFigureData currentData = buffer[i];
+            if(previousData != null)
+                if(previousData.isRising().booleanValue())
+                {
+                    if(currentData.isRising().booleanValue())
+                        return i;
+                    if(previousData.getHigh() - currentData.getHigh() > (double)(reversalAmount.getAmount() * priceRange.getPipCount()))
+                        return i;
+                } else
+                {
+                    if(!currentData.isRising().booleanValue())
+                        return i;
+                    if(currentData.getHigh() - previousData.getLow() > (double)(reversalAmount.getAmount() * priceRange.getPipCount()))
+                        return i;
+                }
+            previousData = currentData;
+        }
+
+        return -1;
+    }
+
+    public static int isConsistent(AbstractPriceAggregationData buffer[])
+    {
+        return isConsistent(buffer, true);
+    }
+
+    public static int isConsistent(TickBarData buffer[])
+    {
+        if(buffer == null)
+            return -1;
+        long ticksCount = 0x8000000000000000L;
+        TickBarData previousBar = null;
+        for(int i = 0; i < buffer.length; i++)
+        {
+            TickBarData data = buffer[i];
+            if(ticksCount == 0x8000000000000000L)
+                ticksCount = data.getFormedElementsCount();
+            else
+            if(DataCacheUtils.isTheSameTradingSession(data.getTime(), previousBar.getTime()) && ticksCount != data.getFormedElementsCount())
+                return i;
+            previousBar = data;
+        }
+
+        return isConsistent(((AbstractPriceAggregationData []) (buffer)), false);
+    }
+
+    public static void shiftBufferLeft(Object buffer[], Object rightPartAppenderBuffer[])
+    {
+        shiftBufferLeft(buffer, rightPartAppenderBuffer, 0);
+    }
+
+    public static void shiftBufferLeft(Object buffer[], Object rightPartAppenderBuffer[], int startFromAppenderBufferIndex)
+    {
+        if(buffer.length < rightPartAppenderBuffer.length)
+        {
+            throw new IllegalArgumentException("Buffer length must be greater that appender buffer length");
+        } else
+        {
+            int rightPartAppenderBufferSize = rightPartAppenderBuffer.length - startFromAppenderBufferIndex;
+            System.arraycopy(((Object) (buffer)), rightPartAppenderBufferSize, ((Object) (buffer)), 0, buffer.length - rightPartAppenderBufferSize);
+            System.arraycopy(((Object) (rightPartAppenderBuffer)), startFromAppenderBufferIndex, ((Object) (buffer)), buffer.length - rightPartAppenderBufferSize, rightPartAppenderBufferSize);
+            return;
+        }
+    }
+
+    public static void shiftBufferRight(Object buffer[], Object leftPartAppenderBuffer[])
+    {
+        shiftBufferRight(buffer, leftPartAppenderBuffer, leftPartAppenderBuffer.length);
+    }
+
+    public static void shiftBufferRight(Object buffer[], Object leftPartAppenderBuffer[], int appenderBufferSize)
+    {
+        if(buffer.length < leftPartAppenderBuffer.length)
+        {
+            throw new IllegalArgumentException("Buffer length must be greater that appender buffer length");
+        } else
+        {
+            int leftPartAppenderBufferSize = appenderBufferSize;
+            Object tempArray[] = new Object[buffer.length - leftPartAppenderBufferSize];
+            System.arraycopy(((Object) (buffer)), 0, ((Object) (tempArray)), 0, tempArray.length);
+            System.arraycopy(((Object) (leftPartAppenderBuffer)), 0, ((Object) (buffer)), 0, leftPartAppenderBufferSize);
+            System.arraycopy(((Object) (tempArray)), 0, ((Object) (buffer)), leftPartAppenderBufferSize, tempArray.length);
+            return;
+        }
+    }
+
+    public static Period getSuitablePeriod(PriceRange priceRange)
+    {
+        return getSuitablePeriod(priceRange.getPipCount());
+    }
+
+    public static Period getSuitablePeriod(PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        return getSuitablePeriod(priceRange.getPipCount(), reversalAmount.getAmount());
+    }
+
+    public static Period getSuitablePeriod(int pipsCount, int reversalAmount)
+    {
+        int count = pipsCount + reversalAmount;
+        return getSuitablePeriod(count);
+    }
+
+    public static Period getSuitablePeriod(int pipsCount)
+    {
+        if(pipsCount <= 1)
+            return Period.TICK;
+        if(pipsCount <= 5)
+            return Period.ONE_MIN;
+        else
+            return Period.ONE_HOUR;
+    }
+
+    public static int timeIndex(IPriceAggregationBar datas[], long time)
+    {
+        if(datas == null)
+            return -1;
+        for(int i = 0; i < datas.length; i++)
+        {
+            IPriceAggregationBar data = datas[i];
+            if(data == null)
+                return -1;
+            if(data.getTime() <= time && time <= data.getEndTime())
+                return i;
+            if(i >= datas.length - 1)
+                continue;
+            IPriceAggregationBar nextData = datas[i + 1];
+            if(nextData != null && data.getEndTime() < time && time < nextData.getTime())
+                return i + 1;
+        }
+
+        return -1;
+    }
+}

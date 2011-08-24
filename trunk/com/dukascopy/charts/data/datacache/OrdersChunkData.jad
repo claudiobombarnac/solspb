@@ -1,0 +1,105 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OrdersChunkData.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.transport.util.Bits;
+import java.io.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            OrderHistoricalData
+
+public class OrdersChunkData
+{
+
+    public OrdersChunkData()
+    {
+    }
+
+    public void writeObject(OutputStream os)
+        throws IOException
+    {
+        os.write("Orders".getBytes());
+        os.write(1);
+        os.write(Bits.longBytes(from));
+        os.write(Bits.longBytes(to));
+        os.write(Bits.booleanBytes(full));
+        Bits.writeObject(os, orders);
+        Bits.writeObject(os, openGroupsIds);
+    }
+
+    public void readObject(InputStream is)
+        throws IOException
+    {
+        byte header[] = Bits.read(is, new byte["Orders".length()]);
+        if(!Arrays.equals(header, "Orders".getBytes()))
+            throw new StreamCorruptedException((new StringBuilder()).append("Deserialization error, unknown header [").append(new String(header, "UTF-8")).append("]").toString());
+        int version = is.read();
+        if(version != 1)
+        {
+            throw new StreamCorruptedException((new StringBuilder()).append("Versions doesn't match, stream version [").append(version).append("], class version [").append(1).append("]").toString());
+        } else
+        {
+            from = Bits.getLong(Bits.read(is, new byte[8]));
+            to = Bits.getLong(Bits.read(is, new byte[8]));
+            full = Bits.getBoolean((byte)is.read());
+            orders = (ArrayList)Bits.readObject(is, java/util/ArrayList, com/dukascopy/charts/data/datacache/OrderHistoricalData);
+            openGroupsIds = (ArrayList)Bits.readObject(is, java/util/ArrayList, java/lang/String);
+            return;
+        }
+    }
+
+    private ArrayList readArray(InputStream is, Class clazz)
+        throws IOException
+    {
+        int size = is.read();
+        ArrayList array = new ArrayList(size);
+        for(int i = 0; i < size; i++)
+        {
+            Object o = Bits.readObject(is, clazz);
+            array.add(o);
+        }
+
+        return array;
+    }
+
+    public boolean equals(Object o)
+    {
+        if(this == o)
+            return true;
+        if(o == null || getClass() != o.getClass())
+            return false;
+        OrdersChunkData that = (OrdersChunkData)o;
+        if(from != that.from)
+            return false;
+        if(full != that.full)
+            return false;
+        if(to != that.to)
+            return false;
+        if(openGroupsIds == null ? that.openGroupsIds != null : !openGroupsIds.equals(that.openGroupsIds))
+            return false;
+        return orders == null ? that.orders == null : orders.equals(that.orders);
+    }
+
+    public int hashCode()
+    {
+        int result = (int)(from ^ from >>> 32);
+        result = 31 * result + (int)(to ^ to >>> 32);
+        result = 31 * result + (full ? 1 : 0);
+        result = 31 * result + (orders == null ? 0 : orders.hashCode());
+        result = 31 * result + (openGroupsIds == null ? 0 : openGroupsIds.hashCode());
+        return result;
+    }
+
+    public static final int VERSION = 1;
+    private static final String HEADER = "Orders";
+    public long from;
+    public long to;
+    public boolean full;
+    public ArrayList orders;
+    public ArrayList openGroupsIds;
+}

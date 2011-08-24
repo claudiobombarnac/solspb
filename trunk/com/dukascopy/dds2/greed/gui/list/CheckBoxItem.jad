@@ -1,0 +1,49 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CheckBoxItem.java
+
+package com.dukascopy.dds2.greed.gui.list;
+
+
+class CheckBoxItem
+{
+    public static interface SelectionListener
+    {
+
+        public abstract void selectionChanged(CheckBoxItem checkboxitem);
+    }
+
+
+    public CheckBoxItem(Object value, boolean selected, SelectionListener listener)
+    {
+        this.value = value;
+        this.selected = selected;
+        selectionListener = listener;
+    }
+
+    public boolean isSelected()
+    {
+        return selected;
+    }
+
+    public void setSelected(boolean value)
+    {
+        selected = value;
+        selectionListener.selectionChanged(this);
+    }
+
+    public Object getValue()
+    {
+        return value;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(getClass().getName()).append("[").append(value).append("/").append(selected).append("]").toString();
+    }
+
+    private final Object value;
+    private boolean selected;
+    private final SelectionListener selectionListener;
+}

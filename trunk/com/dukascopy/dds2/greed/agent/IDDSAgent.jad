@@ -1,0 +1,107 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IDDSAgent.java
+
+package com.dukascopy.dds2.greed.agent;
+
+import com.dukascopy.dds2.greed.agent.strategy.objects.AccountInfo;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import java.util.Collection;
+import java.util.Date;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent:
+//            AgentException
+
+public interface IDDSAgent
+{
+
+    public abstract int submitOrder(String s, String s1, int i, double d, double d1, 
+            int j, int k)
+        throws AgentException;
+
+    public abstract int submitOrder(String s, String s1, int i, double d, double d1, 
+            int j, int k, String s2)
+        throws AgentException;
+
+    public abstract int placeOffer(String s, String s1, int i, double d, double d1, 
+            int j)
+        throws AgentException;
+
+    public abstract int closePosition(String s);
+
+    public abstract int closePosition(String s, double d, double d1);
+
+    public abstract int closeProfitPosition(String s, int i);
+
+    public abstract int cancelOrder(String s);
+
+    public abstract int submitStop(String s, int i, int j)
+        throws AgentException;
+
+    public abstract int submitStop(String s, int i, int j, double d)
+        throws AgentException;
+
+    public abstract int setSlipageControl(double d);
+
+    public abstract Collection getOrders(boolean flag, String s);
+
+    public abstract void updateAccountInfo(AccountInfo accountinfo);
+
+    public abstract void onOrderGroupReceived(OrderGroupMessage ordergroupmessage);
+
+    public abstract Date getGMT();
+
+    public abstract void setConsole(Object obj);
+
+    public abstract Object getProperty(String s);
+
+    public abstract void setProperty(String s, Object obj);
+
+    public abstract int getImplementation();
+
+    public abstract Future executeTask(Callable callable);
+
+    public static final int AGENT_TEST = 0;
+    public static final int AGENT_DDS = 1;
+    public static final int OP_BUY = 0;
+    public static final int OP_SELL = 1;
+    public static final int OP_BUYLIMIT = 2;
+    public static final int OP_SELLLIMIT = 3;
+    public static final int OP_BUYSTOP = 4;
+    public static final int OP_SELLSTOP = 5;
+    public static final int OP_BUYLIMIT_BYBID = 6;
+    public static final int OP_SELLLIMIT_BYASK = 7;
+    public static final int OP_BUYSTOP_BYBID = 8;
+    public static final int OP_SELLSTOP_BYASK = 9;
+    public static final int OP_STOPLOSS = 0;
+    public static final int OP_TAKEPROFIT = 1;
+    public static final int OP_STOPLOSS_BYASK = 2;
+    public static final int OP_STOPLOSS_BYBID = 3;
+    public static final int OP_TAKEPROFIT_BYASK = 4;
+    public static final int OP_TAKEPROFIT_BYBID = 5;
+    public static final byte ARSP_OK = 0;
+    public static final byte ARSP_LABEL_INCONSISTENT = -4;
+    public static final byte ARSP_ORDER_CMD_UNKNOWN = -10;
+    public static final byte ARSP_TIMEOUT = -11;
+    public static final byte ARSP_EXCEPTION = -12;
+    public static final byte ARSP_ID_NOT_FOUND = -13;
+    public static final byte ARSP_ID_NOT_UNIQUE = -14;
+    public static final byte ARSP_NEGATIVE_PRICE = -15;
+    public static final byte ARSP_INVALID_AMOUNT = -16;
+    public static final byte ARSP_NO_LIQUIDITY = -17;
+    public static final byte ARSP_NEGATIVE_TIME = -18;
+    public static final byte ARSP_THREAD_INCORRECT = -19;
+    public static final byte ARSP_UNKNOWN = -99;
+    public static final int PORT = 7000;
+    public static final int AG_REQUEST_SIZE = 119;
+    public static final int MAX_PARAMETERS = 8;
+    public static final int VERSION = 1;
+    public static final int ATYPE_VOID = 0;
+    public static final int ATYPE_STRING = 1;
+    public static final int ATYPE_DOUBLE = 2;
+    public static final int ATYPE_LONG = 3;
+    public static final int ATYPE_INT = 4;
+}

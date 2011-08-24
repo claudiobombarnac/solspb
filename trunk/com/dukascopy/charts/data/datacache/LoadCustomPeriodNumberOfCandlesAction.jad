@@ -1,0 +1,338 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadCustomPeriodNumberOfCandlesAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.customperiod.candle.CustomPeriodCandleLiveFeedListener;
+import com.dukascopy.charts.data.datacache.customperiod.candle.CustomPeriodFromCandlesCreator;
+import com.dukascopy.charts.data.datacache.customperiod.tick.LoadCandlesFromTicksAction;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, DataCacheException, CandleData, LoadNumberOfCandlesAction, 
+//            FeedDataProvider, LiveFeedListener, LoadingProgressListener, DataCacheUtils, 
+//            CurvesDataLoader, LoadingProgressAdapter
+
+public class LoadCustomPeriodNumberOfCandlesAction extends LoadProgressingAction
+    implements Runnable
+{
+
+    public LoadCustomPeriodNumberOfCandlesAction(FeedDataProvider feedDataProvider, Instrument instrument, Period period, OfferSide offerSide, Filter filter, int numberOfCandlesBefore, int numberOfCandlesAfter, 
+            long time, LiveFeedListener originalLiveFeedListener, LoadingProgressListener originalLoadingProgress, StackTraceElement stackTrace[], CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy)
+    {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+        this.instrument = instrument;
+        desiredPeriod = period;
+        this.offerSide = offerSide;
+        this.filter = filter;
+        this.numberOfCandlesBefore = numberOfCandlesBefore;
+        this.numberOfCandlesAfter = numberOfCandlesAfter;
+        this.time = time;
+        this.originalLiveFeedListener = originalLiveFeedListener;
+        this.stackTrace = stackTrace;
+        this.feedDataProvider = feedDataProvider;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        this.originalLoadingProgress = originalLoadingProgress;
+        if(Period.isPeriodBasic(desiredPeriod) != null)
+            throw new IllegalArgumentException((new StringBuilder()).append("Passed period '").append(desiredPeriod).append("' is basic period, ").append(getClass().getSimpleName()).append(" can work only with NOT basic periods").toString());
+        if(!Period.isPeriodCompliant(desiredPeriod))
+        {
+            throw new IllegalArgumentException((new StringBuilder()).append("Passed period '").append(desiredPeriod).append("' is not compliant").toString());
+        } else
+        {
+            basicPeriod = Period.getBasicPeriodForCustom(desiredPeriod);
+            return;
+        }
+    }
+
+    public void run()
+    {
+        if(getOriginalLoadingProgress().stopJob())
+        {
+            getOriginalLoadingProgress().loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, null);
+            return;
+        }
+        if(Period.TICK == basicPeriod)
+            loadCandlesFromTicks();
+        else
+            try
+            {
+                loadCandlesFromCandles();
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.error(e.getLocalizedMessage(), e);
+            }
+    }
+
+    private void loadCandlesFromTicks()
+    {
+        Runnable loadNumberOfCandlesAction = new LoadCandlesFromTicksAction(getFeedDataProvider(), getInstrument(), getOfferSide(), getFilter(), getDesiredPeriod(), getIntraperiodExistsPolicy(), getOriginalLoadingProgress(), getOriginalLiveFeedListener(), getNumberOfCandlesBefore(), getNumberOfCandlesAfter(), getTime());
+        loadNumberOfCandlesAction.run();
+    }
+
+    private void loadCandlesFromCandles()
+        throws DataCacheException
+    {
+        int beforeNumberOfCandlesForBasicPeriod = getNumberOfCandlesForBasicPeriod(getNumberOfCandlesBefore(), getBasicPeriod(), getDesiredPeriod());
+        int afterNumberOfCandlesForBasicPeriod = getNumberOfCandlesForBasicPeriod(getNumberOfCandlesAfter(), getBasicPeriod(), getDesiredPeriod());
+        long time = getTime();
+        if(beforeNumberOfCandlesForBasicPeriod > 0)
+            time = DataCacheUtils.getNextCandleStartFast(getDesiredPeriod(), time) - getBasicPeriod().getInterval();
+        long afterTime = beforeNumberOfCandlesForBasicPeriod <= 0 ? time : time + getBasicPeriod().getInterval();
+        long firstCandleTime = getFeedDataProvider().getTimeOfFirstCandle(instrument, basicPeriod);
+        long lastCandleTime = getLastCandleTime(instrument, desiredPeriod);
+        List dataAfterTime = loadDataBeforeOrAfterTime(getFeedDataProvider(), getInstrument(), getBasicPeriod(), getDesiredPeriod(), getOfferSide(), 0, afterNumberOfCandlesForBasicPeriod, 0, getNumberOfCandlesAfter(), afterTime, getFilter(), intraperiodExistsPolicy);
+        List dataBeforeTime = loadDataBeforeOrAfterTime(getFeedDataProvider(), getInstrument(), getBasicPeriod(), getDesiredPeriod(), getOfferSide(), beforeNumberOfCandlesForBasicPeriod, 0, getNumberOfCandlesBefore(), 0, time, getFilter(), intraperiodExistsPolicy);
+        List result = new ArrayList(dataAfterTime.size() + dataBeforeTime.size());
+        result.addAll(dataBeforeTime);
+        result.addAll(dataAfterTime);
+        boolean allPossibleDataLoaded = isAllPossibleDataLoaded(time, getNumberOfCandlesBefore(), getNumberOfCandlesAfter(), DataCacheUtils.getCandleStartFast(desiredPeriod, firstCandleTime), DataCacheUtils.getCandleStartFast(desiredPeriod, lastCandleTime), dataBeforeTime, dataAfterTime);
+        fireDataCreated(result, allPossibleDataLoaded);
+    }
+
+    private boolean isAllPossibleDataLoaded(long time, int desiredCandleNumberBefore, int desiredCandleNumberAfter, long firstCandleTime, long lastCandleTime, List dataBeforeTime, List dataAfterTime)
+    {
+        if(dataBeforeTime.size() >= desiredCandleNumberBefore && dataAfterTime.size() >= desiredCandleNumberAfter)
+            return true;
+        int beforeDataSize = dataBeforeTime.size();
+        boolean allDataBeforeLoaded = false;
+        if(beforeDataSize >= desiredCandleNumberBefore)
+            allDataBeforeLoaded = true;
+        else
+        if(beforeDataSize > 0 && ((CandleData)dataBeforeTime.get(0)).getTime() >= firstCandleTime)
+            allDataBeforeLoaded = true;
+        int afterDataSize = dataAfterTime.size();
+        boolean allDataAfterLoaded = false;
+        if(afterDataSize >= desiredCandleNumberAfter)
+            allDataAfterLoaded = true;
+        else
+        if(afterDataSize > 0 && ((CandleData)dataAfterTime.get(dataAfterTime.size() - 1)).getTime() >= lastCandleTime)
+            allDataAfterLoaded = true;
+        else
+        if(afterDataSize <= 0 && desiredCandleNumberBefore > 0 && desiredCandleNumberAfter > 0 && time >= lastCandleTime)
+            allDataAfterLoaded = true;
+        return allDataBeforeLoaded && allDataAfterLoaded;
+    }
+
+    private void fireDataCreated(List result, boolean allDataLoaded)
+    {
+        CandleData data;
+        for(Iterator i$ = result.iterator(); i$.hasNext(); getOriginalLiveFeedListener().newCandle(getInstrument(), getDesiredPeriod(), getOfferSide(), data.getTime(), data.getOpen(), data.getClose(), data.getLow(), data.getHigh(), data.getVolume()))
+            data = (CandleData)i$.next();
+
+        getOriginalLoadingProgress().loadingFinished(allDataLoaded, ((CandleData)result.get(0)).getTime(), ((CandleData)result.get(result.size() - 1)).getTime(), ((CandleData)result.get(result.size() - 1)).getTime(), null);
+    }
+
+    private List loadDataBeforeOrAfterTime(FeedDataProvider feedDataProvider, Instrument instrument, Period basicPeriod, Period desiredPeriod, OfferSide offerSide, int beforeNumberOfCandlesForBasicPeriod, int afterNumberOfCandlesForBasicPeriod, 
+            int beforeNumberOfCandlesForDesiredPeriod, int afterNumberOfCandlesForDesiredPeriod, long time, Filter filter, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy)
+        throws DataCacheException
+    {
+        if(beforeNumberOfCandlesForBasicPeriod != 0 && afterNumberOfCandlesForBasicPeriod != 0)
+            throw new IllegalArgumentException("Data can be loaded before time OR after time, not both");
+        if(beforeNumberOfCandlesForDesiredPeriod != 0 && afterNumberOfCandlesForDesiredPeriod != 0)
+            throw new IllegalArgumentException("Data can be loaded before time OR after time, not both");
+        int desiredDataSize = beforeNumberOfCandlesForBasicPeriod + afterNumberOfCandlesForBasicPeriod;
+        boolean continueToLoadData = desiredDataSize > 0;
+        List result = new ArrayList(desiredDataSize);
+        while(continueToLoadData) 
+        {
+            CustomPeriodFromCandlesCreator customPeriodFromCandlesCreator = new CustomPeriodFromCandlesCreator(instrument, desiredPeriod, basicPeriod, offerSide);
+            CustomPeriodCandleLiveFeedListener customPeriodCandleLiveFeedListener = new CustomPeriodCandleLiveFeedListener(instrument, offerSide, customPeriodFromCandlesCreator, getOriginalLiveFeedListener(), getFeedDataProvider(), beforeNumberOfCandlesForBasicPeriod, afterNumberOfCandlesForBasicPeriod, time);
+            Runnable loadNumberOfCandlesAction = new LoadNumberOfCandlesAction(feedDataProvider, instrument, basicPeriod, offerSide, beforeNumberOfCandlesForBasicPeriod, afterNumberOfCandlesForBasicPeriod, time, filter, customPeriodCandleLiveFeedListener, new LoadingProgressAdapter() {
+
+                final LoadCustomPeriodNumberOfCandlesAction this$0;
+
+            
+            {
+                this$0 = LoadCustomPeriodNumberOfCandlesAction.this;
+                super();
+            }
+            }, intraperiodExistsPolicy, getStackTrace());
+            loadNumberOfCandlesAction.run();
+            List loadedData = customPeriodCandleLiveFeedListener.getCollectedDatas();
+            continueToLoadData = needToLoadMoreData(loadedData, beforeNumberOfCandlesForDesiredPeriod, afterNumberOfCandlesForDesiredPeriod);
+            if(beforeNumberOfCandlesForBasicPeriod != 0)
+            {
+                if(loadedData.isEmpty())
+                    time = DataCacheUtils.getPreviousCandleStartFast(desiredPeriod, time);
+                else
+                    time = DataCacheUtils.getPreviousCandleStartFast(desiredPeriod, ((CandleData)loadedData.get(0)).getTime());
+                if(continueToLoadData)
+                    continueToLoadData = canLoadMoreDataBefore(loadedData, feedDataProvider.getTimeOfFirstCandle(instrument, basicPeriod), time);
+                List dataToAdd;
+                if(beforeNumberOfCandlesForDesiredPeriod < loadedData.size())
+                    dataToAdd = loadedData.subList(loadedData.size() - beforeNumberOfCandlesForDesiredPeriod, loadedData.size());
+                else
+                    dataToAdd = loadedData;
+                if(continueToLoadData)
+                {
+                    beforeNumberOfCandlesForDesiredPeriod -= loadedData.size();
+                    beforeNumberOfCandlesForBasicPeriod = getNumberOfCandlesForBasicPeriod(beforeNumberOfCandlesForDesiredPeriod, basicPeriod, desiredPeriod);
+                }
+                result.addAll(0, dataToAdd);
+            } else
+            {
+                if(loadedData.isEmpty())
+                    time = DataCacheUtils.getNextCandleStartFast(desiredPeriod, time);
+                else
+                    time = DataCacheUtils.getNextCandleStartFast(desiredPeriod, ((CandleData)loadedData.get(loadedData.size() - 1)).getTime());
+                if(continueToLoadData)
+                {
+                    long latestTime = getLastCandleTime(instrument, basicPeriod);
+                    continueToLoadData = canLoadMoreDataAfter(loadedData, latestTime, time);
+                }
+                List dataToAdd;
+                if(afterNumberOfCandlesForDesiredPeriod < loadedData.size())
+                    dataToAdd = loadedData.subList(0, afterNumberOfCandlesForDesiredPeriod);
+                else
+                    dataToAdd = loadedData;
+                if(continueToLoadData)
+                {
+                    afterNumberOfCandlesForDesiredPeriod -= loadedData.size();
+                    afterNumberOfCandlesForBasicPeriod = getNumberOfCandlesForBasicPeriod(afterNumberOfCandlesForDesiredPeriod, basicPeriod, desiredPeriod);
+                }
+                result.addAll(dataToAdd);
+            }
+        }
+        return result;
+    }
+
+    private long getLastCandleTime(Instrument instrument, Period period)
+    {
+        long lastTickTime = feedDataProvider.getLastTickTime(instrument);
+        lastTickTime = lastTickTime >= 0L ? lastTickTime : System.currentTimeMillis();
+        long latestTime = DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, lastTickTime));
+        return latestTime;
+    }
+
+    private boolean canLoadMoreDataAfter(List loadedData, long timeOfTheLastCandle, long forTime)
+    {
+        if(loadedData == null || loadedData.isEmpty())
+        {
+            return forTime <= timeOfTheLastCandle;
+        } else
+        {
+            long latestTime = ((CandleData)loadedData.get(loadedData.size() - 1)).getTime();
+            boolean value = latestTime < timeOfTheLastCandle;
+            return value;
+        }
+    }
+
+    private boolean canLoadMoreDataBefore(List loadedData, long firstCandleTime, long forTime)
+    {
+        if(loadedData == null || loadedData.isEmpty())
+        {
+            return forTime >= firstCandleTime;
+        } else
+        {
+            long earliestTime = ((CandleData)loadedData.get(0)).getTime();
+            boolean value = earliestTime > firstCandleTime;
+            return value;
+        }
+    }
+
+    private boolean needToLoadMoreData(List loadedData, int beforeNumberOfCandles, int afterNumberOfCandles)
+    {
+        boolean value = loadedData == null || loadedData.size() < beforeNumberOfCandles + afterNumberOfCandles;
+        return value;
+    }
+
+    private int getNumberOfCandlesForBasicPeriod(int candlesCount, Period basicPeriod, Period desiredPeriod)
+    {
+        int result = (new Long(((long)candlesCount * desiredPeriod.getInterval()) / basicPeriod.getInterval())).intValue();
+        long firstTime = FeedDataProvider.getTimeOfFirstCandleStatic(getInstrument(), getBasicPeriod());
+        long calculatedFirstTime = DataCacheUtils.getTimeForNCandlesBackFast(getBasicPeriod(), getTime(), result);
+        if(calculatedFirstTime < firstTime)
+            result = DataCacheUtils.getCandlesCountBetweenFast(getBasicPeriod(), firstTime, DataCacheUtils.getCandleStartFast(getBasicPeriod(), getFeedDataProvider().getCurrentTime(getInstrument())));
+        return result;
+    }
+
+    private Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    private OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    private Period getDesiredPeriod()
+    {
+        return desiredPeriod;
+    }
+
+    private long getTime()
+    {
+        return time;
+    }
+
+    private FeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    private CurvesDataLoader.IntraperiodExistsPolicy getIntraperiodExistsPolicy()
+    {
+        return intraperiodExistsPolicy;
+    }
+
+    private LiveFeedListener getOriginalLiveFeedListener()
+    {
+        return originalLiveFeedListener;
+    }
+
+    private StackTraceElement[] getStackTrace()
+    {
+        return stackTrace;
+    }
+
+    private Period getBasicPeriod()
+    {
+        return basicPeriod;
+    }
+
+    protected Filter getFilter()
+    {
+        return filter;
+    }
+
+    protected int getNumberOfCandlesBefore()
+    {
+        return numberOfCandlesBefore;
+    }
+
+    protected int getNumberOfCandlesAfter()
+    {
+        return numberOfCandlesAfter;
+    }
+
+    public LoadingProgressListener getOriginalLoadingProgress()
+    {
+        return originalLoadingProgress;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/LoadCustomPeriodNumberOfCandlesAction);
+    protected static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss:SSS");
+    private final Instrument instrument;
+    private final OfferSide offerSide;
+    private final Filter filter;
+    private final Period desiredPeriod;
+    private final int numberOfCandlesBefore;
+    private final int numberOfCandlesAfter;
+    private final long time;
+    private final FeedDataProvider feedDataProvider;
+    private final CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    private final LiveFeedListener originalLiveFeedListener;
+    private final StackTraceElement stackTrace[];
+    private final LoadingProgressListener originalLoadingProgress;
+    private final Period basicPeriod;
+
+}

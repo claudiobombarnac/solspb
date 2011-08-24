@@ -1,0 +1,79 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractCustomPeriodCreator.java
+
+package com.dukascopy.charts.data.datacache.customperiod;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.LiveFeedListener;
+import java.util.*;
+
+public class AbstractCustomPeriodCreator
+{
+
+    public AbstractCustomPeriodCreator(Instrument instrument, OfferSide offerSide, Period desiredPeriod)
+    {
+        this.instrument = instrument;
+        this.offerSide = offerSide;
+        this.desiredPeriod = desiredPeriod;
+    }
+
+    protected List getListeners()
+    {
+        return listeners;
+    }
+
+    public void addListener(LiveFeedListener listener)
+    {
+        if(listener == null)
+        {
+            throw new NullPointerException();
+        } else
+        {
+            getListeners().add(listener);
+            return;
+        }
+    }
+
+    public void removeListener(LiveFeedListener listener)
+    {
+        if(listener == null)
+        {
+            throw new NullPointerException();
+        } else
+        {
+            getListeners().remove(listener);
+            return;
+        }
+    }
+
+    protected void fireNewCandle(CandleData candleData)
+    {
+        LiveFeedListener listener;
+        for(Iterator i$ = getListeners().iterator(); i$.hasNext(); listener.newCandle(getInstrument(), getDesiredPeriod(), getOfferSide(), candleData.getTime(), candleData.getOpen(), candleData.getClose(), candleData.getLow(), candleData.getHigh(), candleData.getVolume()))
+            listener = (LiveFeedListener)i$.next();
+
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    public Period getDesiredPeriod()
+    {
+        return desiredPeriod;
+    }
+
+    private final Instrument instrument;
+    private final OfferSide offerSide;
+    private final Period desiredPeriod;
+    private final List listeners = new ArrayList();
+}

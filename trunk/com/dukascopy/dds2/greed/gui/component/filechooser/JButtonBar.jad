@@ -1,0 +1,31 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JButtonBar.java
+
+package com.dukascopy.dds2.greed.gui.component.filechooser;
+
+import java.awt.*;
+import javax.swing.JPanel;
+import javax.swing.JToggleButton;
+
+public class JButtonBar extends JPanel
+{
+
+    public JButtonBar()
+    {
+        buttonsCount = 0;
+        setLayout(new GridBagLayout());
+    }
+
+    public void addButton(JToggleButton b)
+    {
+        b.setVerticalTextPosition(3);
+        b.setHorizontalTextPosition(0);
+        b.setBackground(Color.white);
+        add(b, new GridBagConstraints(0, buttonsCount++, 1, 1, 0.0D, 1.0D, 11, 1, new Insets(1, 1, 1, 1), 0, 0));
+    }
+
+    private static final long serialVersionUID = 0x3d10255b6d909d5cL;
+    private int buttonsCount;
+}

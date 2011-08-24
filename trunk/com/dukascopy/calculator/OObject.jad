@@ -1,0 +1,702 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   OObject.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.expression.ACos;
+import com.dukascopy.calculator.expression.ASin;
+import com.dukascopy.calculator.expression.ATan;
+import com.dukascopy.calculator.expression.And;
+import com.dukascopy.calculator.expression.Combination;
+import com.dukascopy.calculator.expression.Conjugate;
+import com.dukascopy.calculator.expression.Cos;
+import com.dukascopy.calculator.expression.Exp;
+import com.dukascopy.calculator.expression.Expression;
+import com.dukascopy.calculator.expression.Factorial;
+import com.dukascopy.calculator.expression.Ln;
+import com.dukascopy.calculator.expression.Log;
+import com.dukascopy.calculator.expression.Or;
+import com.dukascopy.calculator.expression.Permutation;
+import com.dukascopy.calculator.expression.Power;
+import com.dukascopy.calculator.expression.Product;
+import com.dukascopy.calculator.expression.Sin;
+import com.dukascopy.calculator.expression.Sum;
+import com.dukascopy.calculator.expression.Tan;
+import com.dukascopy.calculator.expression.Variable;
+import com.dukascopy.calculator.expression.Xor;
+import java.util.ListIterator;
+import java.util.Vector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            GObject, Error, StringArray, AngleType, 
+//            Base, Notation, Substitution
+
+public abstract class OObject extends GObject
+{
+
+    public OObject()
+    {
+    }
+
+    public boolean isNegative()
+    {
+        return false;
+    }
+
+    public Error function(OObject x)
+    {
+        return new Error("OObject function( x ) error");
+    }
+
+    public Error function(OObject x, OObject y)
+    {
+        return new Error("OObject function( x ) error");
+    }
+
+    public OObject inverse()
+    {
+        if(this instanceof Expression)
+            return new Power((Expression)this, new Complex(-1D));
+        else
+            return new Error("OObject inverse( x ) error");
+    }
+
+    public OObject square()
+    {
+        if(this instanceof Expression)
+            return new Power((Expression)this, new Complex(2D));
+        else
+            return new Error("OObject square( x ) error");
+    }
+
+    public OObject cube()
+    {
+        if(this instanceof Expression)
+            return new Power((Expression)this, new Complex(3D));
+        else
+            return new Error("OObject cube( x ) error");
+    }
+
+    public OObject factorial()
+    {
+        if(this instanceof Expression)
+            return new Factorial((Expression)this);
+        else
+            return new Error("OObject factorial( x ) error");
+    }
+
+    public OObject negate()
+    {
+        return new Error("OObject negate( x ) error");
+    }
+
+    public OObject add(OObject x)
+    {
+        if((this instanceof Error) || (x instanceof Error))
+            return new Error("OObject add( x ) error");
+        if(this instanceof Complex)
+        {
+            if(x instanceof Complex)
+                return ((Complex)this).add((Complex)x);
+            if(x instanceof Variable)
+            {
+                Sum s = new Sum((Variable)x);
+                return s.add((Complex)this);
+            }
+            if(x instanceof Sum)
+                return ((Sum)x).add((Complex)this);
+            if(x instanceof Product)
+            {
+                Sum s = new Sum((Product)x);
+                return s.add((Complex)this);
+            }
+            if(x instanceof Expression)
+            {
+                Sum s = new Sum((Expression)x);
+                return s.add((Complex)this);
+            }
+        } else
+        if(this instanceof Variable)
+        {
+            if(x instanceof Complex)
+            {
+                Sum s = new Sum((Variable)this);
+                return s.add((Complex)x);
+            }
+            if(x instanceof Variable)
+            {
+                Sum s = new Sum((Variable)this);
+                return s.add(x);
+            }
+            if(x instanceof Sum)
+            {
+                Sum s = new Sum((Variable)this);
+                return s.add((Sum)x);
+            }
+            if(x instanceof Product)
+            {
+                Sum s = new Sum((Variable)this);
+                return s.add((Product)x);
+            }
+            if(x instanceof Expression)
+            {
+                Sum s = new Sum((Variable)this);
+                return s.add(new Product((Expression)x, false));
+            }
+        } else
+        if(this instanceof Sum)
+        {
+            if(x instanceof Complex)
+                return ((Sum)this).add((Complex)x);
+            if(x instanceof Variable)
+            {
+                Product s = new Product((Variable)x, false);
+                return ((Sum)this).add(s);
+            }
+            if(x instanceof Product)
+                return ((Sum)this).add((Product)x);
+            if(x instanceof Sum)
+                return ((Sum)this).add((Sum)x);
+            if(x instanceof Expression)
+                return ((Sum)this).add(new Product((Expression)x, false));
+        } else
+        if(this instanceof Product)
+        {
+            if(x instanceof Complex)
+            {
+                Sum s = new Sum((Product)this);
+                return s.add((Complex)x);
+            }
+            if(x instanceof Variable)
+            {
+                Sum s = new Sum((Product)this);
+                Product p = new Product((Variable)x, false);
+                return s.add(p);
+            }
+            if(x instanceof Sum)
+            {
+                Sum s = new Sum((Product)this);
+                return s.add((Sum)x);
+            }
+            if(x instanceof Product)
+            {
+                Sum s = new Sum((Product)this);
+                return s.add((Product)x);
+            }
+            if(x instanceof Expression)
+            {
+                Sum s = new Sum((Product)this);
+                return s.add(new Product((Expression)x, false));
+            }
+        } else
+        if(this instanceof Expression)
+        {
+            Sum s = new Sum(new Product((Expression)this, false));
+            if(x instanceof Complex)
+                return s.add((Complex)x);
+            if(x instanceof Sum)
+                return s.add((Sum)x);
+            if(x instanceof Product)
+                return s.add((Product)x);
+            if(x instanceof Expression)
+                return s.add(new Product((Expression)x, false));
+        }
+        return new Error("OObject add( x ) error");
+    }
+
+    public OObject subtract(OObject x)
+    {
+        if((this instanceof Error) || (x instanceof Error))
+            return new Error("OObject multiply( x ) error");
+        if((this instanceof Complex) && (x instanceof Complex))
+            return ((Complex)this).subtract((Complex)x);
+        if(x instanceof Complex)
+            return add(((Complex)x).negate());
+        if(x instanceof Expression)
+            return add(((Expression)x).negate());
+        else
+            return new Error("OObject subtract( x ) error");
+    }
+
+    public OObject multiply(OObject x)
+    {
+        if((this instanceof Error) || (x instanceof Error))
+            return new Error("OObject multiply( x ) error");
+        if(this instanceof Complex)
+        {
+            if(x instanceof Complex)
+                return ((Complex)this).multiply((Complex)x);
+            if(x instanceof Variable)
+            {
+                Product p = new Product((Variable)x, false);
+                return p.multiply((Complex)this);
+            }
+            if(x instanceof Sum)
+            {
+                Product p = new Product((Expression)x, false);
+                return p.multiply(this);
+            }
+            if(x instanceof Product)
+            {
+                Product p = (Product)x;
+                return p.multiply((Complex)this);
+            }
+            if(x instanceof Expression)
+            {
+                Product p = new Product((Expression)x, false);
+                return p.multiply((Complex)this);
+            }
+        } else
+        if(this instanceof Variable)
+        {
+            if(x instanceof Complex)
+            {
+                Product p = new Product((Variable)this, false);
+                return p.multiply((Complex)x);
+            }
+            if(x instanceof Variable)
+            {
+                Product p = new Product((Variable)this, false);
+                Product q = new Product((Variable)x, false);
+                return p.multiply(q);
+            }
+            if(x instanceof Sum)
+            {
+                Product p = new Product((Variable)this, false);
+                return p.multiply((Expression)this);
+            }
+            if(x instanceof Product)
+            {
+                Product p = new Product((Variable)this, false);
+                return p.multiply((Product)x);
+            }
+            if(x instanceof Expression)
+            {
+                Product p = new Product((Variable)this, false);
+                return p.multiply((Expression)x);
+            }
+        } else
+        if(this instanceof Sum)
+        {
+            if(x instanceof Complex)
+            {
+                Product p = new Product((Expression)this, false);
+                return p.multiply((Complex)x);
+            }
+            if(x instanceof Expression)
+            {
+                Product p = new Product((Expression)x, false);
+                return p.multiply((Expression)this);
+            }
+        } else
+        if(this instanceof Product)
+        {
+            if(x instanceof Complex)
+            {
+                Product p = (Product)this;
+                return p.multiply((Complex)x);
+            }
+            if(x instanceof Product)
+                return ((Product)this).multiply((Product)x);
+            if(x instanceof Expression)
+                return ((Product)this).multiply(new Product((Expression)x, false));
+        } else
+        if(this instanceof Expression)
+        {
+            if(x instanceof Complex)
+            {
+                Product p = new Product((Expression)this, false);
+                return p.multiply((Complex)x);
+            }
+            if(x instanceof Product)
+                return (new Product((Expression)this, false)).multiply((Product)x);
+            if(x instanceof Expression)
+            {
+                Product p = new Product((Expression)this, false);
+                return p.multiply((Expression)x);
+            }
+        }
+        return new Error("OObject multiply( x ) error");
+    }
+
+    public OObject divide(OObject x)
+    {
+        if((this instanceof Error) || (x instanceof Error))
+            return new Error("OObject multiply( x ) error");
+        if(this instanceof Complex)
+        {
+            if(x instanceof Complex)
+                return ((Complex)this).divide((Complex)x);
+            if(x instanceof Variable)
+            {
+                Product p = new Product((Variable)x, true);
+                return p.multiply((Complex)this);
+            }
+            if(x instanceof Sum)
+            {
+                Product p = new Product((Expression)x, true);
+                return p.multiply(this);
+            }
+            if(x instanceof Product)
+            {
+                Product p = new Product((Expression)x, true);
+                return p.multiply((Complex)this);
+            }
+            if(x instanceof Expression)
+            {
+                Product p = new Product((Expression)x, true);
+                return p.multiply((Complex)this);
+            }
+        } else
+        if(this instanceof Variable)
+        {
+            if(x instanceof Complex)
+            {
+                Product p = new Product((Variable)this, false);
+                return p.divide((Complex)x);
+            }
+            if(x instanceof Variable)
+            {
+                Product p = new Product((Variable)this, false);
+                Product q = new Product((Variable)x, true);
+                return p.multiply(q);
+            }
+            if(x instanceof Sum)
+            {
+                Product p = new Product((Variable)this, false);
+                Product q = new Product((Sum)x, true);
+                return p.multiply(q);
+            }
+            if(x instanceof Product)
+            {
+                Product p = new Product((Variable)this, false);
+                return p.divide((Product)x);
+            }
+            if(x instanceof Expression)
+            {
+                Product p = new Product((Variable)this, false);
+                Product q = new Product((Expression)x, true);
+                return p.multiply(q);
+            }
+        } else
+        if(this instanceof Sum)
+        {
+            if(x instanceof Complex)
+            {
+                Product p = new Product((Expression)this, false);
+                return p.multiply((Complex)x);
+            }
+            if(x instanceof Expression)
+            {
+                Product p = new Product((Expression)x, false);
+                Product q = new Product((Expression)x, true);
+                return p.multiply(q);
+            }
+        } else
+        if(this instanceof Product)
+        {
+            if(x instanceof Complex)
+            {
+                Product p = (Product)this;
+                return p.divide((Complex)x);
+            }
+            if(x instanceof Product)
+                return ((Product)this).divide((Product)x);
+            if(x instanceof Expression)
+            {
+                Product q = new Product((Expression)x, true);
+                return ((Product)this).multiply(q);
+            }
+        } else
+        if(this instanceof Expression)
+        {
+            if(x instanceof Complex)
+            {
+                Product p = new Product((Expression)this, false);
+                return p.divide((Complex)x);
+            }
+            if(x instanceof Product)
+            {
+                Product p = new Product((Expression)this, false);
+                return p.divide((Product)x);
+            }
+            if(x instanceof Expression)
+            {
+                Product p = new Product((Expression)this, false);
+                Product q = new Product((Expression)x, true);
+                return p.multiply(q);
+            }
+        }
+        return new Error("OObject divide( x ) error");
+    }
+
+    public OObject exp()
+    {
+        if(this instanceof Expression)
+            return new Exp((Expression)this);
+        else
+            return new Error("OObject exp() error");
+    }
+
+    public OObject combination(OObject x)
+    {
+        if((this instanceof Complex) && (x instanceof Complex))
+            return ((Complex)this).combination((Complex)x);
+        if(!(this instanceof Error) && !(x instanceof Error))
+            return new Combination(this, x);
+        else
+            return new Error("OObject combination( x ) error");
+    }
+
+    public OObject permutation(OObject x)
+    {
+        if((this instanceof Complex) && (x instanceof Complex))
+            return ((Complex)this).permutation((Complex)x);
+        if(!(this instanceof Error) && !(x instanceof Error))
+            return new Permutation(this, x);
+        else
+            return new Error("OObject permutation( x ) error");
+    }
+
+    public OObject pow(OObject y)
+    {
+        if((this instanceof Complex) && (y instanceof Complex))
+            return ((Complex)this).pow((Complex)y);
+        if(!(this instanceof Error) && !(y instanceof Error))
+            return new Power(this, y);
+        else
+            return new Error("OObject pow( y ) error");
+    }
+
+    public OObject root(OObject y)
+    {
+        if((this instanceof Complex) && (y instanceof Complex))
+            return ((Complex)this).root((Complex)y);
+        if(!(this instanceof Error))
+        {
+            if(y instanceof Complex)
+                return new Power(this, ((Complex)y).inverse());
+            if(y instanceof Expression)
+            {
+                Product p = new Product((Expression)y, true);
+                return new Power(this, p);
+            }
+        }
+        return new Error("OObject root( y ) error");
+    }
+
+    public OObject sin(AngleType angleType)
+    {
+        if(this instanceof Expression)
+            return new Sin((Expression)this, angleType);
+        else
+            return new Error("OObject sin( x ) error");
+    }
+
+    public OObject asin(AngleType angleType)
+    {
+        if(this instanceof Expression)
+            return new ASin((Expression)this, angleType);
+        else
+            return new Error("OObject asin( x ) error");
+    }
+
+    public OObject cos(AngleType angleType)
+    {
+        if(this instanceof Expression)
+            return new Cos((Expression)this, angleType);
+        else
+            return new Error("OObject cos( x ) error");
+    }
+
+    public OObject acos(AngleType angleType)
+    {
+        if(this instanceof Expression)
+            return new ACos((Expression)this, angleType);
+        else
+            return new Error("OObject acos( x ) error");
+    }
+
+    public OObject tan(AngleType angleType)
+    {
+        if(this instanceof Expression)
+            return new Tan((Expression)this, angleType);
+        else
+            return new Error("OObject tan( x ) error");
+    }
+
+    public OObject atan(AngleType angleType)
+    {
+        if(this instanceof Expression)
+            return new ATan((Expression)this, angleType);
+        else
+            return new Error("OObject atan( x ) error");
+    }
+
+    public OObject log10()
+    {
+        if(this instanceof Expression)
+            return new Log((Expression)this);
+        else
+            return new Error("OObject log10( x ) error");
+    }
+
+    public OObject log()
+    {
+        if(this instanceof Expression)
+            return new Ln((Expression)this);
+        else
+            return new Error("OObject log( x ) error");
+    }
+
+    public OObject sqrt()
+    {
+        if(this instanceof Expression)
+            return new Power((Expression)this, new Complex(0.5D));
+        else
+            return new Error("OObject sqrt( x ) error");
+    }
+
+    public OObject cuberoot()
+    {
+        if(this instanceof Expression)
+            return new Power((Expression)this, new Complex(0.33333333333333331D));
+        else
+            return new Error("OObject cuberoot( x ) error");
+    }
+
+    public OObject tenx()
+    {
+        if(this instanceof Expression)
+            return new Power(new Complex(10D), (Expression)this);
+        else
+            return new Error("OObject tenx( x ) error");
+    }
+
+    public OObject conjugate()
+    {
+        if(this instanceof Expression)
+            return new Conjugate((Expression)this);
+        else
+            return new Error("OObject tan( x ) error");
+    }
+
+    public OObject and(OObject z)
+    {
+        if((this instanceof Complex) && (z instanceof Complex))
+            return ((Complex)this).and((Complex)z);
+        if(!(this instanceof Error) && !(z instanceof Error))
+            return new And(this, z);
+        else
+            return new Error("OObject and( z ) error");
+    }
+
+    public OObject or(OObject z)
+    {
+        if((this instanceof Complex) && (z instanceof Complex))
+            return ((Complex)this).or((Complex)z);
+        if(!(this instanceof Error) && !(z instanceof Error))
+            return new Or(this, z);
+        else
+            return new Error("OObject or( z ) error");
+    }
+
+    public OObject xor(OObject z)
+    {
+        if((this instanceof Complex) && (z instanceof Complex))
+            return ((Complex)this).xor((Complex)z);
+        if(!(this instanceof Error) && !(z instanceof Error))
+            return new Xor(this, z);
+        else
+            return new Error("OObject xor( z ) error");
+    }
+
+    public boolean isZero()
+    {
+        return false;
+    }
+
+    public StringArray toHTMLStringVector(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray v = toHTMLSubString(maxChars, precision, base, notation, polarFactor);
+        return v;
+    }
+
+    public String toHTMLString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        Vector v = toHTMLSubString(maxChars, precision, base, notation, polarFactor);
+        StringBuilder s = new StringBuilder("<html>");
+        for(ListIterator i = v.listIterator(); i.hasNext();)
+        {
+            ListIterator j = ((Vector)i.next()).listIterator();
+            while(j.hasNext()) 
+                s.append((String)j.next());
+        }
+
+        s.append("</html>");
+        return s.toString();
+    }
+
+    public StringArray toHTMLSubString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray v = new StringArray();
+        String error[] = {
+            "E", "r", "r", "o", "r"
+        };
+        v.add(error);
+        return v;
+    }
+
+    public StringArray toHTMLParenString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray s = new StringArray();
+        s.add("(");
+        s.addAll(toHTMLSubString(maxChars, precision, base, notation, polarFactor));
+        s.add(")");
+        return s;
+    }
+
+    public int compareTo(OObject o)
+    {
+        if(this instanceof Error)
+            return !(o instanceof Error) ? -1 : 0;
+        if(this instanceof Complex)
+            if(o instanceof Complex)
+                return ((Complex)this).compareTo((Complex)o);
+            else
+                return -1;
+        if(this instanceof Expression)
+        {
+            if(!(o instanceof Expression))
+                return 1;
+            else
+                return ((Expression)this).compareTo((Expression)o);
+        } else
+        {
+            return 0;
+        }
+    }
+
+    public void sort()
+    {
+    }
+
+    public OObject auto_simplify()
+    {
+        return this;
+    }
+
+    public OObject substitute(Substitution substitution)
+    {
+        return this;
+    }
+
+    protected static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/calculator/OObject);
+    private static final Complex LOG10INV = new Complex(1.0D / StrictMath.log(10D));
+
+}

@@ -1,0 +1,346 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JRoundedButtonUI.java
+
+package com.dukascopy.dds2.greed.gui.component;
+
+import com.dukascopy.dds2.greed.util.LookAndFeelSpecific;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
+import javax.swing.*;
+import javax.swing.plaf.ComponentUI;
+import javax.swing.plaf.basic.BasicButtonUI;
+import javax.swing.text.View;
+
+public class JRoundedButtonUI extends BasicButtonUI
+    implements MouseListener, KeyListener, FocusListener, LookAndFeelSpecific
+{
+
+    public JRoundedButtonUI()
+    {
+        shape = null;
+        pressed = false;
+        mouseOver = false;
+        startX = 1;
+        startY = 1;
+        myWidht = 0;
+        myHeight = 0;
+        i = 0;
+    }
+
+    public void installUI(JComponent c)
+    {
+        myButton = (JButton)c;
+        myButton.addMouseListener(this);
+        myButton.addFocusListener(this);
+        myButton.addKeyListener(this);
+        myButton.setFocusable(true);
+        super.installUI(myButton);
+        if(METAL)
+        {
+            if(myButton.getText() != null && !"".equals(myButton.getText()))
+                myButton.setBorderPainted(false);
+        } else
+        {
+            myButton.setBorderPainted(false);
+        }
+        if(col1 == null)
+            col1 = myButton.getBackground().brighter();
+        if(col2 == null)
+            col2 = myButton.getBackground().darker();
+        fm = myButton.getFontMetrics(c.getFont());
+    }
+
+    public void uninstallUI(JComponent c)
+    {
+        super.uninstallUI(c);
+    }
+
+    public static ComponentUI createUI(JComponent c)
+    {
+        return new JRoundedButtonUI();
+    }
+
+    public void paint(Graphics g, JComponent c)
+    {
+        text = ((JButton)c).getText();
+        if(CLASSIC)
+        {
+            Icon icon = ((JButton)c).getIcon();
+            if((icon == null || icon.toString().contains("FrameButtonIcon")) && (text == null || text.trim().equals("")))
+            {
+                ((JButton)c).setBorderPainted(true);
+                super.paint(g, c);
+                return;
+            }
+        }
+        Graphics2D g2 = (Graphics2D)g;
+        g2.setColor(c.getBackground());
+        c.setVisible(true);
+        startX = 0;
+        startY = 1;
+        myWidht = c.getSize().width - 2;
+        myHeight = c.getSize().height - 3;
+        if(c.hasFocus())
+        {
+            paintRegularButton(g2, c);
+            onMouseOver(g2, c);
+            drawFocusableRenctangle(g2);
+        } else
+        {
+            paintRegularButton(g2, c);
+            onMouseOver(g2, c);
+        }
+    }
+
+    private void paintRegularButton(Graphics2D g2, JComponent c)
+    {
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        GradientPaint gp = null;
+        java.awt.geom.Point2D.Double pt1 = new java.awt.geom.Point2D.Double(0.0D, 2D);
+        java.awt.geom.Point2D.Double pt2 = new java.awt.geom.Point2D.Double(0.0D, myButton.getSize().height);
+        pressedGradient = new GradientPaint(pt1, col2, pt2, col1, false);
+        unPressedGradient = new GradientPaint(pt1, col1, pt2, col2, false);
+        if(pressed)
+            gp = pressedGradient;
+        else
+            gp = unPressedGradient;
+        g2.setPaint(gp);
+        if(text == null)
+            text = "";
+        Rectangle2D area = fm.getStringBounds(text, g2);
+        if((double)myWidht < area.getWidth() + 3D)
+        {
+            myWidht = myWidht + 1;
+            myHeight = myHeight + 1;
+            startX = 0;
+            startY = 0;
+        }
+        g2.fillRoundRect(startX, startY, myWidht, myHeight, 10, 10);
+        if(c.isEnabled())
+            g2.setColor(SystemColor.GRAY);
+        else
+            g2.setColor(SystemColor.lightGray);
+        g2.drawRoundRect(startX, startY, myWidht, myHeight, 10, 10);
+        if(c.isEnabled())
+            g2.setColor(Color.black);
+        else
+            g2.setColor(Color.gray);
+        if(c.isEnabled())
+        {
+            if(myButton.getIcon() != null && (myButton.getText() == null || "".equals(myButton.getText())))
+            {
+                int iconX = (myWidht / 2 - myButton.getIcon().getIconWidth() / 2) + 1;
+                int iconY = (myHeight / 2 - myButton.getIcon().getIconHeight() / 2) + 2;
+                myButton.getIcon().paintIcon(myButton, g2, iconX, iconY);
+            } else
+            if(myButton.getText() != null && !"".equals(myButton.getText()) && myButton.getIcon() != null)
+            {
+                int iconX = startX + 4;
+                int iconY = startY + 3;
+                myButton.getIcon().paintIcon(myButton, g2, iconX, iconY);
+            }
+        } else
+        if(myButton.getDisabledIcon() != null && (myButton.getText() == null || "".equals(myButton.getText())))
+        {
+            int iconX = (myWidht / 2 - myButton.getDisabledIcon().getIconWidth() / 2) + 1;
+            int iconY = (myHeight / 2 - myButton.getDisabledIcon().getIconHeight() / 2) + 2;
+            myButton.getDisabledIcon().paintIcon(myButton, g2, iconX, iconY);
+        } else
+        if(myButton.getText() != null && !"".equals(myButton.getText()) && myButton.getIcon() != null)
+        {
+            int iconX = startX + 4;
+            int iconY = startY + 3;
+            myButton.getDisabledIcon().paintIcon(myButton, g2, iconX, iconY);
+        }
+        AbstractButton b = (AbstractButton)c;
+        Rectangle textRect = new Rectangle();
+        Rectangle iconRect = new Rectangle();
+        Rectangle viewRect = new Rectangle();
+        String s = layout(b, fm, b.getWidth(), b.getHeight(), textRect, viewRect, iconRect);
+        if(text != null && !text.equals(""))
+        {
+            View v = (View)c.getClientProperty("html");
+            if(v != null)
+                v.paint(g2, textRect);
+            else
+                paintText(g2, b, textRect, text);
+        }
+    }
+
+    private String layout(AbstractButton b, FontMetrics fm, int width, int height, Rectangle textRect, Rectangle viewRect, Rectangle iconRect)
+    {
+        Insets i = b.getInsets();
+        viewRect.x = i.left;
+        viewRect.y = i.top;
+        viewRect.width = width - (i.right + viewRect.x);
+        viewRect.height = height - (i.bottom + viewRect.y);
+        textRect.x = textRect.y = textRect.width = textRect.height = 0;
+        iconRect.x = iconRect.y = iconRect.width = iconRect.height = 0;
+        return SwingUtilities.layoutCompoundLabel(b, fm, b.getText(), b.getIcon(), b.getVerticalAlignment(), b.getHorizontalAlignment(), b.getVerticalTextPosition(), b.getHorizontalTextPosition(), viewRect, iconRect, textRect, b.getText() != null ? b.getIconTextGap() : 0);
+    }
+
+    private void onMouseOver(Graphics2D g2, JComponent c)
+    {
+        if(c.isEnabled() && mouseOver)
+        {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2.setColor(lightCreme);
+            g2.drawRoundRect(startX + 1, startY + 1, myWidht - 2, myHeight - 2, 10, 10);
+        }
+    }
+
+    private void drawFocusableRenctangle(Graphics2D g2)
+    {
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2.setColor(SystemColor.gray);
+        int startX = this.startX + 2;
+        int startY = this.startY + 2;
+        int finishX = (startX + myWidht) - 4;
+        int finishY = (startY + myHeight) - 4;
+        double dashlength = 0.0D;
+        double spacelength = 2D;
+        drawDashedLine(g2, startX, startY, finishX, startY, dashlength, spacelength);
+        drawDashedLine(g2, startX, finishY, finishX, finishY, dashlength, spacelength);
+        drawDashedLine(g2, startX, startY, startX, finishY, dashlength, spacelength);
+        drawDashedLine(g2, finishX, startY, finishX, finishY, dashlength, spacelength);
+    }
+
+    public void drawDashedLine(Graphics g, int x1, int y1, int x2, int y2, double dashlength, 
+            double spacelength)
+    {
+        if(x1 == x2 && y1 == y2)
+        {
+            g.drawLine(x1, y1, x2, y2);
+            return;
+        }
+        double linelength = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+        double yincrement = (double)(y2 - y1) / (linelength / (dashlength + spacelength));
+        double xincdashspace = (double)(x2 - x1) / (linelength / (dashlength + spacelength));
+        double yincdashspace = (double)(y2 - y1) / (linelength / (dashlength + spacelength));
+        double xincdash = (double)(x2 - x1) / (linelength / dashlength);
+        double yincdash = (double)(y2 - y1) / (linelength / dashlength);
+        int counter = 0;
+        for(double i = 0.0D; i < linelength - dashlength; i += dashlength + spacelength)
+        {
+            g.drawLine((int)((double)x1 + xincdashspace * (double)counter), (int)((double)y1 + yincdashspace * (double)counter), (int)((double)x1 + xincdashspace * (double)counter + xincdash), (int)((double)y1 + yincdashspace * (double)counter + yincdash));
+            counter++;
+        }
+
+        if((dashlength + spacelength) * (double)counter <= linelength)
+            g.drawLine((int)((double)x1 + xincdashspace * (double)counter), (int)((double)y1 + yincdashspace * (double)counter), x2, y2);
+    }
+
+    public void mouseClicked(MouseEvent mouseevent)
+    {
+    }
+
+    public void mousePressed(MouseEvent e)
+    {
+        if(myButton.isEnabled())
+        {
+            pressed = true;
+            myButton.requestFocus();
+            myButton.repaint();
+        }
+    }
+
+    public void mouseReleased(MouseEvent e)
+    {
+        if(myButton.isEnabled())
+        {
+            pressed = false;
+            myButton.repaint();
+        }
+    }
+
+    public void mouseEntered(MouseEvent e)
+    {
+        if(myButton.isEnabled())
+        {
+            mouseOver = true;
+            myButton.repaint();
+        }
+    }
+
+    public void mouseExited(MouseEvent e)
+    {
+        if(myButton.isEnabled())
+        {
+            mouseOver = false;
+            myButton.repaint();
+        }
+    }
+
+    public void keyPressed(KeyEvent e)
+    {
+        if(myButton.isEnabled())
+        {
+            int key = e.getKeyCode();
+            if(myButton.hasFocus() && key == 10)
+            {
+                pressed = true;
+                myButton.repaint();
+            }
+            if(myButton.hasFocus() && key == 9)
+            {
+                myButton.requestFocus(false);
+                myButton.repaint();
+            }
+        }
+    }
+
+    public void keyReleased(KeyEvent e)
+    {
+        if(myButton.isEnabled())
+        {
+            int key = e.getKeyCode();
+            if(myButton.hasFocus() && key == 10)
+            {
+                pressed = false;
+                myButton.repaint();
+            }
+        }
+    }
+
+    public void keyTyped(KeyEvent keyevent)
+    {
+    }
+
+    public void focusGained(FocusEvent e)
+    {
+        if(myButton.isEnabled())
+            myButton.repaint();
+    }
+
+    public void focusLost(FocusEvent e)
+    {
+        if(myButton.isEnabled())
+            myButton.repaint();
+    }
+
+    protected JButton myButton;
+    private Shape shape;
+    private boolean pressed;
+    private boolean mouseOver;
+    private String text;
+    private int startX;
+    private int startY;
+    private int myWidht;
+    private int myHeight;
+    private static final Color lightGray = new Color(230, 230, 230);
+    private static Color col1 = null;
+    private static Color col2 = null;
+    private static FontMetrics fm;
+    private static final Color lightCreme = new Color(250, 248, 243);
+    private static GradientPaint pressedGradient;
+    private static GradientPaint unPressedGradient;
+    int i;
+
+}

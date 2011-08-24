@@ -1,0 +1,127 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:23
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   LevelInfo.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.indicators.OutputParameterInfo;
+import java.awt.Color;
+import java.io.Serializable;
+
+public class LevelInfo
+    implements Comparable, Serializable
+{
+
+    public LevelInfo()
+    {
+        drawingStyle = com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.DASH_LINE;
+        color = Color.BLACK;
+        opacityAlpha = 1.0F;
+        lineWidth = 1;
+    }
+
+    public LevelInfo(double value)
+    {
+        drawingStyle = com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.DASH_LINE;
+        color = Color.BLACK;
+        opacityAlpha = 1.0F;
+        lineWidth = 1;
+        this.value = value;
+    }
+
+    public LevelInfo(String label, double value, com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyle, Color color, int width, float alpha)
+    {
+        this.drawingStyle = com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.DASH_LINE;
+        this.color = Color.BLACK;
+        opacityAlpha = 1.0F;
+        lineWidth = 1;
+        this.label = label;
+        this.value = value;
+        this.drawingStyle = drawingStyle;
+        this.color = color;
+        lineWidth = width;
+        opacityAlpha = alpha;
+    }
+
+    public String getLabel()
+    {
+        return label;
+    }
+
+    public void setLabel(String label)
+    {
+        this.label = label;
+    }
+
+    public double getValue()
+    {
+        return value;
+    }
+
+    public void setValue(double value)
+    {
+        this.value = value;
+    }
+
+    public com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle getDrawingStyle()
+    {
+        return drawingStyle;
+    }
+
+    public void setDrawingStyle(com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyle)
+    {
+        this.drawingStyle = drawingStyle;
+    }
+
+    public Color getColor()
+    {
+        if(color == null)
+            return Color.BLACK;
+        else
+            return color;
+    }
+
+    public void setColor(Color color)
+    {
+        this.color = color;
+    }
+
+    public float getOpacityAlpha()
+    {
+        return opacityAlpha;
+    }
+
+    public void setOpacityAlpha(float opacityAlpha)
+    {
+        this.opacityAlpha = opacityAlpha;
+    }
+
+    public int getLineWidth()
+    {
+        return lineWidth;
+    }
+
+    public void setLineWidth(int lineWidth)
+    {
+        this.lineWidth = lineWidth;
+    }
+
+    public int compareTo(LevelInfo other)
+    {
+        return other != null && getValue() >= other.getValue() ? 1 : -1;
+    }
+
+    public volatile int compareTo(Object x0)
+    {
+        return compareTo((LevelInfo)x0);
+    }
+
+    private static final long serialVersionUID = 0x50f35d42d373a06L;
+    private String label;
+    private double value;
+    private com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyle;
+    private Color color;
+    private float opacityAlpha;
+    private int lineWidth;
+}

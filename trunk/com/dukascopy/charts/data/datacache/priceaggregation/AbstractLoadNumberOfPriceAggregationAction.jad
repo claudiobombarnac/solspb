@@ -1,0 +1,600 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractLoadNumberOfPriceAggregationAction.java
+
+package com.dukascopy.charts.data.datacache.priceaggregation;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.TimeZone;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.priceaggregation:
+//            DelegatableProgressListener, IPriceAggregationCreator, AbstractPriceAggregationData, IPriceAggregationLiveFeedListener, 
+//            TimeDataUtils, AbstractPriceAggregationLiveFeedListener
+
+public abstract class AbstractLoadNumberOfPriceAggregationAction extends LoadProgressingAction
+    implements Runnable
+{
+
+    public AbstractLoadNumberOfPriceAggregationAction(Instrument instrument, OfferSide offerSide, int numberOfPriceRangesBefore, long toTime, int numberOfPriceRangesAfter, FeedDataProvider feedDataProvider, 
+            IPriceAggregationLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener, com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy)
+    {
+        super(loadingProgressListener);
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
+        this.feedDataProvider = feedDataProvider;
+        this.instrument = instrument;
+        this.offerSide = offerSide;
+        this.numberOfPriceRangesBefore = numberOfPriceRangesBefore;
+        this.numberOfPriceRangesAfter = numberOfPriceRangesAfter;
+        this.liveFeedListener = liveFeedListener;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        this.toTime = toTime;
+    }
+
+    protected abstract IPriceAggregationCreator createPriceAggregationCreator(long l, int i, boolean flag, boolean flag1);
+
+    protected abstract AbstractPriceAggregationData[] createArray(int i);
+
+    protected abstract AbstractPriceAggregationLiveFeedListener createLiveFeedListener(IPriceAggregationCreator ipriceaggregationcreator, long l);
+
+    protected abstract LoadDataAction createLoadDataAction(long l, long l1, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    protected abstract AbstractPriceAggregationData getInProgressBar();
+
+    protected abstract Period getBarsBasedOnCandlesPeriod();
+
+    protected abstract boolean isInProgressBarLoadingNow();
+
+    public void run()
+    {
+        Throwable exception;
+        IPriceAggregationCreator afterCreator;
+        IPriceAggregationCreator beforeCreator;
+        AbstractPriceAggregationData consequentPriceRangesArray[];
+        if(getLoadingProgress().stopJob())
+            return;
+        exception = null;
+        afterCreator = null;
+        beforeCreator = null;
+        consequentPriceRangesArray = null;
+        if(inProgressBarExists())
+            break MISSING_BLOCK_LABEL_113;
+        Throwable e;
+        if(getLoadingProgress().stopJob())
+        {
+            try
+            {
+                if(!getLoadingProgress().stopJob())
+                    postData(consequentPriceRangesArray, beforeCreator, afterCreator, exception);
+            }
+            // Misplaced declaration of an exception variable
+            catch(Throwable e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            return;
+        }
+        throw new IllegalStateException((new StringBuilder()).append("Unable to retrieve in progress bar for ").append(toString()).toString());
+        int EXTRA_BARS_COUNT = 5;
+        afterCreator = performDirectRangeBarsLoad(getToTime(), getLastKnownTime(), getNumberOfPriceRangesAfter() + 5, false);
+        if(getLoadingProgress().stopJob())
+        {
+            try
+            {
+                if(!getLoadingProgress().stopJob())
+                    postData(consequentPriceRangesArray, beforeCreator, afterCreator, exception);
+            }
+            catch(Throwable e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            return;
+        }
+        int numberBeforeToLoad = getNumberOfPriceRangesBefore() + (getNumberOfPriceRangesAfter() - afterCreator.getLoadedElementsNumber()) + 5;
+        numberBeforeToLoad = numberBeforeToLoad >= 0 ? numberBeforeToLoad : 0;
+        beforeCreator = performBackwardRangeBarsLoad(getToTime(), numberBeforeToLoad, false);
+        if(getLoadingProgress().stopJob())
+        {
+            try
+            {
+                if(!getLoadingProgress().stopJob())
+                    postData(consequentPriceRangesArray, beforeCreator, afterCreator, exception);
+            }
+            catch(Throwable e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            return;
+        }
+        long fromTime = calculateFromTime(beforeCreator, afterCreator);
+        long toTime = calculateToTime(beforeCreator, afterCreator);
+        long lastKnownTime = getLastKnownTime();
+        toTime = toTime <= lastKnownTime ? toTime : DataCacheUtils.getPreviousPriceAggregationBarStart(lastKnownTime);
+        fromTime = DataCacheUtils.getTradingSessionStart(fromTime);
+        fromTime = fromTime >= getFirstKnownTime() ? fromTime : getFirstKnownTime();
+        IPriceAggregationCreator timeIntervalCreator = performDirectBarsLoadForTimeInterval(fromTime, toTime, false);
+        consequentPriceRangesArray = timeIntervalCreator.getResult();
+        consequentPriceRangesArray = extractRequestedBars(consequentPriceRangesArray);
+        fireDataCreationOneByOneBar(consequentPriceRangesArray);
+        try
+        {
+            if(!getLoadingProgress().stopJob())
+                postData(consequentPriceRangesArray, beforeCreator, afterCreator, exception);
+        }
+        // Misplaced declaration of an exception variable
+        catch(int EXTRA_BARS_COUNT)
+        {
+            LOGGER.error(EXTRA_BARS_COUNT.getMessage(), EXTRA_BARS_COUNT);
+        }
+        break MISSING_BLOCK_LABEL_559;
+        EXTRA_BARS_COUNT;
+        exception = EXTRA_BARS_COUNT;
+        if(!getLoadingProgress().stopJob())
+            LOGGER.error(EXTRA_BARS_COUNT.getMessage(), EXTRA_BARS_COUNT);
+        try
+        {
+            if(!getLoadingProgress().stopJob())
+                postData(consequentPriceRangesArray, beforeCreator, afterCreator, exception);
+        }
+        // Misplaced declaration of an exception variable
+        catch(int EXTRA_BARS_COUNT)
+        {
+            LOGGER.error(EXTRA_BARS_COUNT.getMessage(), EXTRA_BARS_COUNT);
+        }
+        break MISSING_BLOCK_LABEL_559;
+        Exception exception1;
+        exception1;
+        try
+        {
+            if(!getLoadingProgress().stopJob())
+                postData(consequentPriceRangesArray, beforeCreator, afterCreator, exception);
+        }
+        catch(Throwable e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        throw exception1;
+    }
+
+    private void fireDataCreationOneByOneBar(AbstractPriceAggregationData consequentPriceRangesArray[])
+    {
+        if(consequentPriceRangesArray != null)
+        {
+            AbstractPriceAggregationData arr$[] = consequentPriceRangesArray;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                AbstractPriceAggregationData data = arr$[i$];
+                getPriceAggregationLiveFeedListener().newPriceData(data);
+            }
+
+        }
+    }
+
+    private long calculateToTime(IPriceAggregationCreator beforeCreator, IPriceAggregationCreator afterCreator)
+    {
+        long toTime;
+        if(afterCreator.getLastData() != null)
+            toTime = afterCreator.getLastData().getEndTime();
+        else
+        if(beforeCreator.getFirstData() != null)
+            toTime = beforeCreator.getFirstData().getEndTime();
+        else
+            toTime = getLastKnownTime();
+        return toTime;
+    }
+
+    private long calculateFromTime(IPriceAggregationCreator beforeCreator, IPriceAggregationCreator afterCreator)
+    {
+        long fromTime;
+        if(beforeCreator.getLastData() != null)
+            fromTime = beforeCreator.getLastData().getTime();
+        else
+        if(afterCreator.getFirstData() != null)
+            fromTime = afterCreator.getFirstData().getTime();
+        else
+            fromTime = getFirstKnownTime();
+        return fromTime;
+    }
+
+    protected boolean inProgressBarExists()
+    {
+        AbstractPriceAggregationData inProgressBar = getInProgressBar();
+        if(inProgressBar == null)
+        {
+            boolean isInProgressBarLoadingNow = isInProgressBarLoadingNow();
+            if(!isInProgressBarLoadingNow)
+            {
+                LOGGER.warn((new StringBuilder()).append("There is no in progress bar subscribtion for - ").append(toString()).toString());
+                return false;
+            }
+            int tryCount = 0;
+            do
+            {
+                if(getLoadingProgress().stopJob())
+                    return false;
+                isInProgressBarLoadingNow = isInProgressBarLoadingNow();
+                inProgressBar = getInProgressBar();
+                tryCount++;
+                if(inProgressBar == null)
+                    try
+                    {
+                        Thread.sleep(100L);
+                    }
+                    catch(InterruptedException e)
+                    {
+                        LOGGER.error(e.getLocalizedMessage(), e);
+                    }
+            } while(isInProgressBarLoadingNow && inProgressBar == null && tryCount < 1000);
+            if(inProgressBar == null)
+            {
+                LOGGER.warn((new StringBuilder()).append("Can not wait so much time for in prgress bar is being created for - ").append(toString()).toString());
+                return false;
+            } else
+            {
+                return true;
+            }
+        } else
+        {
+            return true;
+        }
+    }
+
+    protected AbstractPriceAggregationData[] extractRequestedBars(AbstractPriceAggregationData target[])
+    {
+        int desiredBarsCount = getNumberOfPriceRangesBefore() + getNumberOfPriceRangesAfter();
+        int toIndex = getNotNullElementLastIndex(target);
+        int loadedBarsCount = toIndex + 1;
+        AbstractPriceAggregationData result[] = createArray(Math.min(desiredBarsCount, loadedBarsCount));
+        int fromIndex = (toIndex - result.length) + 1;
+        int timeIndex = TimeDataUtils.timeIndex(target, getToTime());
+        if(timeIndex >= 0)
+            if(getNumberOfPriceRangesBefore() == 0)
+            {
+                if(timeIndex + desiredBarsCount < toIndex)
+                {
+                    fromIndex = timeIndex;
+                    toIndex = fromIndex + desiredBarsCount;
+                }
+            } else
+            {
+                toIndex = timeIndex + getNumberOfPriceRangesAfter() > toIndex ? toIndex : timeIndex + getNumberOfPriceRangesAfter();
+                fromIndex = (toIndex - result.length) + 1;
+                fromIndex = fromIndex >= 0 ? fromIndex : 0;
+            }
+        TimeDataUtils.copyArray(target, fromIndex, result, 0, result.length);
+        return result;
+    }
+
+    protected AbstractPriceAggregationData extractLastBar(AbstractPriceAggregationData target[])
+    {
+        if(target == null)
+            return null;
+        int index = getNotNullElementLastIndex(target);
+        if(index < 0)
+            return null;
+        else
+            return target[index];
+    }
+
+    protected int getNotNullElementLastIndex(Object array[])
+    {
+        for(int i = array.length - 1; i >= 0; i--)
+            if(array[i] != null)
+                return i;
+
+        return -1;
+    }
+
+    private void postData(AbstractPriceAggregationData consequentPriceRangesArray[], IPriceAggregationCreator priceRangeBeforeCreator, IPriceAggregationCreator priceRangeAfterCreator, Throwable exception)
+    {
+        int loadedNumberBefore = getNumberOfPriceRangesBefore();
+        int loadedNumberAfter = getNumberOfPriceRangesAfter();
+        int timeIndex = TimeDataUtils.timeIndex(consequentPriceRangesArray, getToTime());
+        if(timeIndex > -1)
+        {
+            loadedNumberBefore = timeIndex + 1;
+            loadedNumberAfter = consequentPriceRangesArray.length - loadedNumberBefore;
+        }
+        liveFeedListener.newPriceDatas(consequentPriceRangesArray, loadedNumberBefore, loadedNumberAfter);
+        long startTime = getToTime();
+        long endTime = getToTime();
+        if(consequentPriceRangesArray != null && consequentPriceRangesArray.length > 0)
+        {
+            startTime = consequentPriceRangesArray[0].getTime();
+            endTime = consequentPriceRangesArray[consequentPriceRangesArray.length - 1].getTime();
+        }
+        Exception e = null;
+        if(exception != null)
+            if(exception instanceof Exception)
+                e = (Exception)exception;
+            else
+                new Exception(exception);
+        boolean isAllDataLoaded = false;
+        if(priceRangeAfterCreator != null && priceRangeBeforeCreator != null)
+            isAllDataLoaded = priceRangeAfterCreator.isAllDesiredDataLoaded() && priceRangeBeforeCreator.isAllDesiredDataLoaded();
+        getLoadingProgress().loadingFinished(isAllDataLoaded, startTime, endTime, getToTime(), e);
+    }
+
+    private IPriceAggregationCreator performBackwardRangeBarsLoad(long toTime, int rangeBarsCount, boolean livePriceRangesCreation)
+        throws DataCacheException
+    {
+        IPriceAggregationCreator priceRangeBeforeCreator = createPriceAggregationCreator(toTime, rangeBarsCount, livePriceRangesCreation, false);
+        AbstractPriceAggregationLiveFeedListener ticBeforekLiveFeedListener = createLiveFeedListener(priceRangeBeforeCreator, toTime);
+        DelegatableProgressListener delegatableProgressListener = createDelegatableLoadingProgressListener(getLoadingProgress());
+        loadDataBeforeTime(toTime, getFirstKnownTime(), ticBeforekLiveFeedListener, delegatableProgressListener);
+        return priceRangeBeforeCreator;
+    }
+
+    private IPriceAggregationCreator performDirectRangeBarsLoad(long startTime, long lastPossibleTime, int rangeBarsCount, boolean livePriceRangesCreation)
+        throws DataCacheException
+    {
+        IPriceAggregationCreator priceRangeAfterCreator = createPriceAggregationCreator(startTime, rangeBarsCount, livePriceRangesCreation, true);
+        AbstractPriceAggregationLiveFeedListener ticAfterLiveFeedListener = createLiveFeedListener(priceRangeAfterCreator, lastPossibleTime);
+        DelegatableProgressListener delegatableProgressListener = createDelegatableLoadingProgressListener(getLoadingProgress());
+        loadDataAfterTime(startTime, ticAfterLiveFeedListener, delegatableProgressListener);
+        return priceRangeAfterCreator;
+    }
+
+    protected IPriceAggregationCreator performDirectBarsLoadForTimeInterval(long fromTime, long toTime, boolean livePriceRangesCreation)
+        throws DataCacheException
+    {
+        IPriceAggregationCreator priceRangeAfterCreator = createPriceAggregationCreator(fromTime, 0x186a0, livePriceRangesCreation, true);
+        AbstractPriceAggregationLiveFeedListener liveFeedListener = createLiveFeedListener(priceRangeAfterCreator, toTime);
+        DelegatableProgressListener delegatableProgressListener = createDelegatableLoadingProgressListener(getLoadingProgress());
+        loadDataForInterval(fromTime, toTime, liveFeedListener, delegatableProgressListener);
+        return priceRangeAfterCreator;
+    }
+
+    protected void loadDataForInterval(long fromTime, long toTime, AbstractPriceAggregationLiveFeedListener tickLiveFeedListener, LoadingProgressListener tickLoadingProgressListener)
+        throws DataCacheException
+    {
+        if(tickLoadingProgressListener.stopJob())
+            return;
+        validateFromToTime(fromTime, toTime);
+        boolean firstIteration = true;
+        do
+        {
+            toTime = updateToTime(toTime);
+            toTime = getCandleStartFast(toTime);
+            if(!firstIteration)
+                fromTime = getNextCandleStartFast(fromTime);
+            if(fromTime >= toTime)
+                break;
+            long currentToTime = fromTime + getIncreaseTimeInterval();
+            currentToTime = getCandleStartFast(currentToTime);
+            if(currentToTime >= toTime)
+                currentToTime = toTime;
+            if(fromTime >= currentToTime)
+                break;
+            loadDataForTimeInterval(fromTime, currentToTime, tickLiveFeedListener, tickLoadingProgressListener);
+            fromTime = currentToTime;
+            firstIteration = false;
+        } while(fromTime < toTime);
+    }
+
+    protected long updateToTime(long toTime)
+    {
+        return toTime;
+    }
+
+    private void loadDataAfterTime(long time, AbstractPriceAggregationLiveFeedListener tickLiveFeedListener, LoadingProgressListener tickLoadingProgressListener)
+        throws DataCacheException
+    {
+        if(tickLiveFeedListener.getCreator().getDesiredDatasCount() <= 0)
+            return;
+        long toTime = time;
+        boolean priceRangesConstructed = false;
+        do
+        {
+            if(tickLoadingProgressListener.stopJob())
+                break;
+            long fromTime = toTime;
+            toTime += getIncreaseTimeInterval();
+            long lastKnownTime = getLastKnownTime();
+            if(toTime > lastKnownTime)
+                toTime = lastKnownTime;
+            toTime = getCandleStartFast(toTime);
+            fromTime = getCandleStartFast(fromTime);
+            if(fromTime >= toTime || Math.abs(fromTime - toTime) <= 1000L)
+                break;
+            loadDataForTimeInterval(fromTime, toTime, tickLiveFeedListener, tickLoadingProgressListener);
+        } while(!tickLiveFeedListener.isPriceDatasCreationFinished() && !priceRangesConstructed);
+    }
+
+    private void loadDataBeforeTime(long time, long firstCandleTime, AbstractPriceAggregationLiveFeedListener tickLiveFeedListener, LoadingProgressListener tickLoadingProgressListener)
+        throws DataCacheException
+    {
+        if(tickLiveFeedListener.getCreator().getDesiredDatasCount() <= 0)
+            return;
+        long fromTime = time;
+        boolean priceRangesConstructed = false;
+        do
+        {
+            if(tickLoadingProgressListener.stopJob())
+                break;
+            long toTime = fromTime;
+            fromTime -= getIncreaseTimeInterval();
+            if(fromTime > firstCandleTime && toTime < firstCandleTime)
+                toTime = firstCandleTime;
+            if(fromTime < firstCandleTime)
+                fromTime = firstCandleTime;
+            toTime = getCandleStartFast(toTime);
+            fromTime = getCandleStartFast(fromTime);
+            if(fromTime >= toTime)
+                break;
+            loadDataForTimeInterval(fromTime, toTime, tickLiveFeedListener, tickLoadingProgressListener);
+        } while(!tickLiveFeedListener.isPriceDatasCreationFinished() && !priceRangesConstructed);
+    }
+
+    protected void loadDataForTimeInterval(long fromTime, long toTime, AbstractPriceAggregationLiveFeedListener liveFeedListener, LoadingProgressListener tickLoadingProgressListener)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = createLoadDataAction(fromTime, toTime, liveFeedListener, tickLoadingProgressListener);
+        loadDataAction.run();
+        liveFeedListener.analyseCollectedDataPortion();
+        getLoadingProgress().dataLoaded(fromTime, toTime, fromTime, "");
+    }
+
+    protected long getIncreaseTimeInterval()
+    {
+        Period period = getBarsBasedOnCandlesPeriod();
+        if(Period.TICK.equals(period))
+            return 0x36ee80L;
+        else
+            return 1000L * period.getInterval();
+    }
+
+    protected long getIntermissionInterval()
+    {
+        return 1000L;
+    }
+
+    private DelegatableProgressListener createDelegatableLoadingProgressListener(LoadingProgressListener delegate)
+    {
+        DelegatableProgressListener tickLoadingProgressListener = new DelegatableProgressListener(delegate);
+        return tickLoadingProgressListener;
+    }
+
+    protected long getCandleStartFast(long time)
+    {
+        if(Period.TICK.equals(getBarsBasedOnCandlesPeriod()))
+            return time;
+        else
+            return DataCacheUtils.getCandleStartFast(getBarsBasedOnCandlesPeriod(), time);
+    }
+
+    protected long getNextCandleStartFast(long time)
+    {
+        if(Period.TICK.equals(getBarsBasedOnCandlesPeriod()))
+            return time;
+        else
+            return DataCacheUtils.getNextCandleStartFast(getBarsBasedOnCandlesPeriod(), time);
+    }
+
+    protected FeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    protected Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    protected OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    protected int getNumberOfPriceRangesBefore()
+    {
+        return numberOfPriceRangesBefore;
+    }
+
+    protected long getToTime()
+    {
+        return toTime;
+    }
+
+    protected IPriceAggregationLiveFeedListener getPriceAggregationLiveFeedListener()
+    {
+        return liveFeedListener;
+    }
+
+    protected int getNumberOfPriceRangesAfter()
+    {
+        return numberOfPriceRangesAfter;
+    }
+
+    protected com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy getIntraperiodExistsPolicy()
+    {
+        return intraperiodExistsPolicy;
+    }
+
+    protected long getLastKnownTime()
+    {
+        AbstractPriceAggregationData bar = getInProgressBar();
+        if(bar == null)
+            LOGGER.warn((new StringBuilder()).append("Unable to get in progress bar for - ").append(toString()).toString());
+        long time = bar != null ? bar.getTime() - 1L : 0x8000000000000000L;
+        return time;
+    }
+
+    protected long getFirstKnownTime()
+    {
+        return getFeedDataProvider().getTimeOfFirstCandle(instrument, getBarsBasedOnCandlesPeriod());
+    }
+
+    protected boolean isFromTimeValid(long time)
+    {
+        return time >= getFirstKnownTime();
+    }
+
+    protected void validateToTime(long time)
+    {
+        long feedDataPoviderTime = feedDataProvider.getCurrentTime(getInstrument());
+        if(time > feedDataPoviderTime && 0x8000000000000000L != feedDataPoviderTime)
+            throw new IllegalArgumentException((new StringBuilder()).append("Passed time ").append(DATE_FORMAT.format(new Long(time))).append(" is later than last tick time ").append(DATE_FORMAT.format(new Long(feedDataPoviderTime))).toString());
+        else
+            return;
+    }
+
+    protected void validateFromTime(long time)
+    {
+        if(!isFromTimeValid(time))
+            throw new IllegalArgumentException((new StringBuilder()).append("Passed time ").append(DATE_FORMAT.format(new Long(time))).append(" is earlier than first known time ").append(DATE_FORMAT.format(new Long(getFirstKnownTime()))).toString());
+        else
+            return;
+    }
+
+    protected void validateFromToTime(long fromTime, long toTime)
+    {
+        if(fromTime > toTime)
+            throw new IllegalArgumentException((new StringBuilder()).append("From time could not be greater than to time ").append(DATE_FORMAT.format(new Long(fromTime))).append(" > ").append(DATE_FORMAT.format(new Long(toTime))).toString());
+        long firstKnownTime = getFirstKnownTime();
+        if(firstKnownTime > fromTime)
+            throw new IllegalArgumentException((new StringBuilder()).append("First known time could not be greater than from time ").append(DATE_FORMAT.format(new Long(firstKnownTime))).append(" > ").append(DATE_FORMAT.format(new Long(fromTime))).toString());
+        long latestKnownTime = getLastKnownTime();
+        if(toTime > latestKnownTime)
+            throw new IllegalArgumentException((new StringBuilder()).append("To time could not be greater than latest known time ").append(DATE_FORMAT.format(new Long(toTime))).append(" > ").append(DATE_FORMAT.format(new Long(latestKnownTime))).toString());
+        else
+            return;
+    }
+
+    protected Period getSuitablePeriod(int pipsCount, int reversalAmount)
+    {
+        return TimeDataUtils.getSuitablePeriod(pipsCount, reversalAmount);
+    }
+
+    protected Period getSuitablePeriod(int pipsCount)
+    {
+        return TimeDataUtils.getSuitablePeriod(pipsCount);
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(getInstrument()).append(" ").append(getOfferSide()).toString();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/priceaggregation/AbstractLoadNumberOfPriceAggregationAction);
+    private static final int MAX_BARS_COUNT_PER_DAY = 0x186a0;
+    private static final int MIN_INACCURACY_INTERVAL_FOR_THE_LAST_BAR_LOADING = 1000;
+    protected final Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("GMT 0"));
+    private final Instrument instrument;
+    private final OfferSide offerSide;
+    private final int numberOfPriceRangesBefore;
+    private final long toTime;
+    private final int numberOfPriceRangesAfter;
+    private final IPriceAggregationLiveFeedListener liveFeedListener;
+    private final FeedDataProvider feedDataProvider;
+    private final com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    protected static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+
+}

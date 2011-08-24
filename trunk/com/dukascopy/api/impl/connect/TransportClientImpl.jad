@@ -1,0 +1,29 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   TransportClientImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.transport.client.TransportClient;
+import com.dukascopy.transport.common.msg.ProtocolMessage;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            ITransportClient
+
+public class TransportClientImpl
+    implements ITransportClient
+{
+
+    public TransportClientImpl(TransportClient transportClient)
+    {
+        this.transportClient = transportClient;
+    }
+
+    public ProtocolMessage controlRequest(ProtocolMessage message)
+    {
+        return transportClient.controlRequest(message);
+    }
+
+    private TransportClient transportClient;
+}

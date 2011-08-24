@@ -1,0 +1,54 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JLocalizableRadioButtonMenuItem.java
+
+package com.dukascopy.dds2.greed.gui.l10n.components;
+
+import com.dukascopy.dds2.greed.gui.l10n.Localizable;
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import java.awt.Font;
+import javax.swing.Action;
+import javax.swing.JRadioButtonMenuItem;
+
+public class JLocalizableRadioButtonMenuItem extends JRadioButtonMenuItem
+    implements Localizable
+{
+
+    public JLocalizableRadioButtonMenuItem()
+    {
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableRadioButtonMenuItem(String key)
+    {
+        textKey = key;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableRadioButtonMenuItem(Action action)
+    {
+        super(action);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public void localize()
+    {
+        setFont(LocalizationManager.getDefaultFont(getFont().getSize()));
+        setText(textKey);
+    }
+
+    public void setText(String key)
+    {
+        textKey = key;
+        if(textKey != null)
+            super.setText(LocalizationManager.getText(textKey));
+    }
+
+    public String getTextKey()
+    {
+        return textKey;
+    }
+
+    private String textKey;
+}

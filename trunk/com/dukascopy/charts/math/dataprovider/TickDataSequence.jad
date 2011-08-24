@@ -1,0 +1,103 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TickDataSequence.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.api.Period;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.TickData;
+import java.util.Map;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider:
+//            AbstractDataSequence
+
+public class TickDataSequence extends AbstractDataSequence
+{
+
+    public TickDataSequence(long from, long to, int extraBefore, int extraAfter, TickData data[], 
+            long gaps[][], int oneSecExtraBefore, int oneSecExtraAfter, CandleData oneSecCandlesAsk[], CandleData oneSecCandlesBid[], Map indicatorsMap, Map formulaOutputs, 
+            boolean latestDataVisible, boolean includesLatestData)
+    {
+        super(Period.TICK, from, to, extraBefore, extraAfter, data, gaps, formulaOutputs, indicatorsMap, latestDataVisible, includesLatestData);
+        this.oneSecExtraBefore = oneSecExtraBefore;
+        this.oneSecExtraAfter = oneSecExtraAfter;
+        this.oneSecCandlesAsk = oneSecCandlesAsk;
+        this.oneSecCandlesBid = oneSecCandlesBid;
+        calculateMinMax();
+    }
+
+    public void calculateMasterDataMinMax()
+    {
+        if(oneSecCandlesAsk.length == 0)
+            return;
+        int minMaxIndexStart = oneSecExtraBefore <= 0 ? 0 : oneSecExtraBefore - 1;
+        int minMaxIndexEnd = oneSecCandlesAsk.length - (oneSecExtraAfter <= 0 ? 0 : oneSecExtraAfter - 1);
+        min = oneSecCandlesBid[minMaxIndexStart].low;
+        max = oneSecCandlesAsk[minMaxIndexStart].high;
+        for(int i = minMaxIndexStart; i < minMaxIndexEnd; i++)
+        {
+            double high = oneSecCandlesAsk[i].high;
+            double low = oneSecCandlesBid[i].low;
+            max = max <= high ? high : max;
+            min = min <= low ? min : low;
+        }
+
+        if(max == min)
+            max++;
+    }
+
+    public Object[] getFormulaOutputs(int id)
+    {
+        if(formulaOutputs == null)
+            return ((Object []) (new Object[0][]));
+        else
+            return (Object[])formulaOutputs.get(Integer.valueOf(id));
+    }
+
+    protected int getFormulaExtraBefore()
+    {
+        return oneSecExtraBefore;
+    }
+
+    protected int getFormulaExtraAfter()
+    {
+        return oneSecExtraAfter;
+    }
+
+    public int getOneSecExtraBefore()
+    {
+        return oneSecExtraBefore;
+    }
+
+    public int getOneSecExtraAfter()
+    {
+        return oneSecExtraAfter;
+    }
+
+    public CandleData[] getOneSecCandlesAsk()
+    {
+        return oneSecCandlesAsk;
+    }
+
+    public CandleData[] getOneSecCandlesBid()
+    {
+        return oneSecCandlesBid;
+    }
+
+    protected int getIndicatorDataIndex(long time)
+    {
+        int i = 0;
+        for(int k = oneSecCandlesAsk.length; i < k; i++)
+            if(time <= oneSecCandlesAsk[i].time)
+                return i;
+
+        return -1;
+    }
+
+    private final int oneSecExtraBefore;
+    private final int oneSecExtraAfter;
+    private final CandleData oneSecCandlesAsk[];
+    private final CandleData oneSecCandlesBid[];
+}

@@ -1,0 +1,23 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   BottomPanelBean.java
+
+package com.dukascopy.charts.persistence;
+
+
+public class BottomPanelBean
+{
+
+    public BottomPanelBean(int panelId)
+    {
+        this.panelId = panelId;
+    }
+
+    public int getPanelId()
+    {
+        return panelId;
+    }
+
+    private int panelId;
+}

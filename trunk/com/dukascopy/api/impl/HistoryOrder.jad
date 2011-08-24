@@ -1,0 +1,292 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:22
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   HistoryOrder.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.AbstractCurrencyConverter;
+import com.dukascopy.dds2.greed.util.CurrencyConverter;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Currency;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
+
+public class HistoryOrder
+    implements IOrder
+{
+
+    public HistoryOrder(Instrument instrument, String label, String id, long fillTime, long closeTime, 
+            com.dukascopy.api.IEngine.OrderCommand orderCommand, double filledAmount, double openPrice, double closePrice, 
+            String comment, Currency accountCurrency, double commission)
+    {
+        this.commission = 0.0D;
+        this.instrument = instrument;
+        this.label = label;
+        this.id = id;
+        this.fillTime = fillTime;
+        this.closeTime = closeTime;
+        this.orderCommand = orderCommand;
+        this.filledAmount = filledAmount;
+        this.openPrice = openPrice;
+        this.closePrice = closePrice;
+        this.comment = comment;
+        this.accountCurrency = accountCurrency;
+        this.commission = commission;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public String getLabel()
+    {
+        return label;
+    }
+
+    public String getId()
+    {
+        return id;
+    }
+
+    public long getCreationTime()
+    {
+        return fillTime;
+    }
+
+    public long getCloseTime()
+    {
+        return closeTime;
+    }
+
+    public com.dukascopy.api.IEngine.OrderCommand getOrderCommand()
+    {
+        return orderCommand;
+    }
+
+    public boolean isLong()
+    {
+        return orderCommand.isLong();
+    }
+
+    public long getFillTime()
+    {
+        return fillTime;
+    }
+
+    public double getAmount()
+    {
+        return filledAmount;
+    }
+
+    public double getRequestedAmount()
+    {
+        return filledAmount;
+    }
+
+    public double getOpenPrice()
+    {
+        return openPrice;
+    }
+
+    public double getClosePrice()
+    {
+        return closePrice;
+    }
+
+    public double getStopLossPrice()
+    {
+        return 0.0D;
+    }
+
+    public double getTakeProfitPrice()
+    {
+        return 0.0D;
+    }
+
+    public void setStopLossPrice(double price)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void setStopLoss(double price)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void setStopLossPrice(double price, OfferSide side)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void setStopLoss(double price, OfferSide side)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void setStopLossPrice(double price, OfferSide side, double trailingStep)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void setStopLoss(double price, OfferSide side, double trailingStep)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public OfferSide getStopLossSide()
+    {
+        return null;
+    }
+
+    public double getTrailingStep()
+    {
+        return 0.0D;
+    }
+
+    public void setTakeProfitPrice(double price)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void setTakeProfit(double price)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public String getComment()
+    {
+        return comment;
+    }
+
+    public void setRequestedAmount(double amount)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void setOpenPrice(double price)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void close(double amount, double price, double slippage)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void close(double amount, double price)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void close(double amount)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public void close()
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public com.dukascopy.api.IOrder.State getState()
+    {
+        return com.dukascopy.api.IOrder.State.CLOSED;
+    }
+
+    public void setGoodTillTime(long goodTillTime)
+        throws JFException
+    {
+        throw new JFException("Can't change historical order");
+    }
+
+    public long getGoodTillTime()
+    {
+        return 0L;
+    }
+
+    public void waitForUpdate(long l)
+    {
+    }
+
+    public IMessage waitForUpdate(long timeout, TimeUnit unit)
+    {
+        return null;
+    }
+
+    public double getProfitLossInPips()
+    {
+        double closePrice = this.closePrice;
+        double plInPips;
+        if(isLong())
+            plInPips = StratUtils.roundHalfEven((closePrice - openPrice) / instrument.getPipValue(), 1);
+        else
+            plInPips = StratUtils.roundHalfEven((openPrice - closePrice) / instrument.getPipValue(), 1);
+        return plInPips;
+    }
+
+    public double getProfitLossInUSD()
+    {
+        double profLossInSecondaryCCY = StratUtils.roundHalfEven(getProfitLossInPips() * instrument.getPipValue() * filledAmount * 1000000D, 2);
+        return StratUtils.roundHalfEven(getCurrencyConverter().convert(profLossInSecondaryCCY, instrument.getSecondaryCurrency(), Instrument.EURUSD.getSecondaryCurrency(), null), 2);
+    }
+
+    protected AbstractCurrencyConverter getCurrencyConverter()
+    {
+        return CurrencyConverter.getCurrencyConverter();
+    }
+
+    public double getProfitLossInAccountCurrency()
+    {
+        double profLossInSecondaryCCY = StratUtils.roundHalfEven(getProfitLossInPips() * instrument.getPipValue() * filledAmount * 1000000D, 2);
+        return StratUtils.roundHalfEven(getCurrencyConverter().convert(profLossInSecondaryCCY, instrument.getSecondaryCurrency(), accountCurrency, null), 2);
+    }
+
+    public double getCommissionInUSD()
+    {
+        return StratUtils.roundHalfEven(getCurrencyConverter().convert(commission, accountCurrency, Instrument.EURUSD.getSecondaryCurrency(), null), 2);
+    }
+
+    public double getCommission()
+    {
+        return StratUtils.roundHalfEven(commission, 2);
+    }
+
+    public String toString()
+    {
+        DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        return (new StringBuilder()).append("Fill time: ").append(format.format(Long.valueOf(fillTime))).append(", order command: ").append(orderCommand).append(", amount: ").append(getAmount()).append(", fill price ").append(getOpenPrice()).toString();
+    }
+
+    private Instrument instrument;
+    private String label;
+    private String id;
+    private long fillTime;
+    private long closeTime;
+    private com.dukascopy.api.IEngine.OrderCommand orderCommand;
+    private double filledAmount;
+    private double openPrice;
+    private double closePrice;
+    private String comment;
+    private Currency accountCurrency;
+    private double commission;
+}

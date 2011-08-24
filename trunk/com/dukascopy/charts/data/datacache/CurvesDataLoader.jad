@@ -1,0 +1,938 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CurvesDataLoader.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.orders.IOrdersProvider;
+import java.io.File;
+import java.math.BigDecimal;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            CandleData, DataCacheException, OrdersChunkData, Data, 
+//            TickData, IntraPeriodCandleData, LoadingProgressListener, ChunkLoadingListener, 
+//            LocalCacheManager, ICurvesProtocolHandler, DataCacheUtils, FeedDataProvider, 
+//            IFeedInfo, LiveFeedListener, OrderHistoricalData
+
+public class CurvesDataLoader
+{
+    public static final class IntraperiodExistsPolicy extends Enum
+    {
+
+        public static IntraperiodExistsPolicy[] values()
+        {
+            return (IntraperiodExistsPolicy[])$VALUES.clone();
+        }
+
+        public static IntraperiodExistsPolicy valueOf(String name)
+        {
+            return (IntraperiodExistsPolicy)Enum.valueOf(com/dukascopy/charts/data/datacache/CurvesDataLoader$IntraperiodExistsPolicy, name);
+        }
+
+        public static final IntraperiodExistsPolicy FORCE_CHUNK_DOWNLOADING;
+        public static final IntraperiodExistsPolicy DOWNLOAD_CHUNK_IN_BACKGROUND;
+        public static final IntraperiodExistsPolicy USE_INTRAPERIOD_WHEN_POSSIBLE;
+        public static final IntraperiodExistsPolicy FORCE_DATA_UPDATE;
+        private static final IntraperiodExistsPolicy $VALUES[];
+
+        static 
+        {
+            FORCE_CHUNK_DOWNLOADING = new IntraperiodExistsPolicy("FORCE_CHUNK_DOWNLOADING", 0);
+            DOWNLOAD_CHUNK_IN_BACKGROUND = new IntraperiodExistsPolicy("DOWNLOAD_CHUNK_IN_BACKGROUND", 1);
+            USE_INTRAPERIOD_WHEN_POSSIBLE = new IntraperiodExistsPolicy("USE_INTRAPERIOD_WHEN_POSSIBLE", 2);
+            FORCE_DATA_UPDATE = new IntraperiodExistsPolicy("FORCE_DATA_UPDATE", 3);
+            $VALUES = (new IntraperiodExistsPolicy[] {
+                FORCE_CHUNK_DOWNLOADING, DOWNLOAD_CHUNK_IN_BACKGROUND, USE_INTRAPERIOD_WHEN_POSSIBLE, FORCE_DATA_UPDATE
+            });
+        }
+
+        private IntraperiodExistsPolicy(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    public CurvesDataLoader(FeedDataProvider feedDataProvider)
+    {
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    public void loadInCache(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingProgressListener loadingProgress, IntraperiodExistsPolicy intraperiodExistsPolicy, boolean loadFromChunkStart, ChunkLoadingListener chunkLoadingListener)
+        throws DataCacheException
+    {
+        if(!$assertionsDisabled && period != Period.TICK && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && period != Period.TICK && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        long chunks[][] = DataCacheUtils.separateChunksForCache(period, from, to);
+        if(chunks.length > 0)
+        {
+            boolean isDataInCache = false;
+            int i = chunks.length - 1;
+            if(isDataChunkExists(instrument, period, side, chunks[i][0]))
+            {
+                isDataInCache = true;
+                i--;
+            }
+            if(!isDataInCache)
+            {
+                isDataInCache = isDataInCache(instrument, period, side, DataCacheUtils.getNextChunkStart(period, chunks[i][0]), loadingProgress);
+                if(loadingProgress.stopJob())
+                    return;
+            }
+            for(; i >= 0; i--)
+            {
+                if(isDataInCache)
+                {
+                    CandleData lastData = null;
+                    for(int j = 0; j <= i; j++)
+                    {
+                        if(loadingProgress.stopJob())
+                            return;
+                        if(!isDataChunkExists(instrument, period, side, chunks[j][0]))
+                            if(intraperiodExistsPolicy != IntraperiodExistsPolicy.FORCE_CHUNK_DOWNLOADING && intraperiodExistsPolicy != IntraperiodExistsPolicy.FORCE_DATA_UPDATE && isDataCached(instrument, period, side, from <= chunks[j][0] ? DataCacheUtils.getFirstCandleInChunkFast(period, chunks[j][0]) : from, chunks[j][1]))
+                            {
+                                if(intraperiodExistsPolicy == IntraperiodExistsPolicy.DOWNLOAD_CHUNK_IN_BACKGROUND)
+                                    loadChunkDataInBackground(instrument, period, side, chunks[j][0], chunks[j][1]);
+                            } else
+                            {
+                                synchronized(sharedDateFormat)
+                                {
+                                    loadingProgress.dataLoaded(from, to, chunks[(chunks.length - 1 - i) + j][0], (new StringBuilder()).append("Downloading data interval from ").append(sharedDateFormat.format(new Date(chunks[j][0]))).append(" to ").append(sharedDateFormat.format(new Date(chunks[j][1]))).append("...").toString());
+                                }
+                                boolean isFile[] = new boolean[1];
+                                Data data[] = loadChunkData(instrument, period, side, chunks[j][0], chunks[j][1], loadingProgress, isFile);
+                                if(data != null)
+                                {
+                                    if(period != Period.TICK && data.length != DataCacheUtils.getCandleCountInChunk(period, chunks[j][0]))
+                                    {
+                                        long expectedCandleStart = DataCacheUtils.getFirstCandleInChunkFast(period, chunks[j][0]);
+                                        if(lastData != null || data.length > 0 && data[0].time == expectedCandleStart)
+                                        {
+                                            data = fixData(data, lastData, instrument, period, from, to, chunks[j][0], chunks[j][1], expectedCandleStart, isFile[0]);
+                                            saveChunkInCache(instrument, period, side, chunks[j][0], data);
+                                        } else
+                                        if(data.length == 0)
+                                            saveChunkInCache(instrument, period, side, chunks[j][0], data);
+                                        else
+                                        if(j > 0)
+                                        {
+                                            lastData = getLastCandle(instrument, period, side, chunks[j - 1][1]);
+                                            if(lastData == null)
+                                            {
+                                                double openOfFirstCandle = ((CandleData)data[0]).open;
+                                                lastData = new CandleData(0L, ((CandleData)data[0]).open, ((CandleData)data[0]).open, ((CandleData)data[0]).open, openOfFirstCandle, 0.0D);
+                                            }
+                                            data = fixData(data, lastData, instrument, period, from, to, chunks[j][0], chunks[j][1], expectedCandleStart, isFile[0]);
+                                            saveChunkInCache(instrument, period, side, chunks[j][0], data);
+                                        } else
+                                        {
+                                            double openOfFirstCandle = ((CandleData)data[0]).open;
+                                            lastData = new CandleData(0L, ((CandleData)data[0]).open, ((CandleData)data[0]).open, ((CandleData)data[0]).open, openOfFirstCandle, 0.0D);
+                                            data = fixData(data, lastData, instrument, period, from, to, chunks[j][0], chunks[j][1], expectedCandleStart, isFile[0]);
+                                            saveChunkInCache(instrument, period, side, chunks[j][0], data);
+                                        }
+                                    } else
+                                    {
+                                        checkData(data, chunks[j][0], chunks[j][1], instrument, period, isFile[0]);
+                                        saveChunkInCache(instrument, period, side, chunks[j][0], data);
+                                    }
+                                    if(period != Period.TICK && data.length > 0)
+                                        lastData = (CandleData)data[data.length - 1];
+                                } else
+                                if(loadingProgress.stopJob())
+                                    return;
+                                else
+                                    throw new DataCacheException("null data returned from curves protocol handler");
+                            }
+                        if(chunkLoadingListener != null)
+                            chunkLoadingListener.chunkLoaded(chunks[j]);
+                    }
+
+                    if(chunkLoadingListener != null)
+                    {
+                        for(int j = i + 1; j < chunks.length; j++)
+                            chunkLoadingListener.chunkLoaded(chunks[j]);
+
+                    }
+                    return;
+                }
+                synchronized(sharedDateFormat)
+                {
+                    loadingProgress.dataLoaded(from, to, chunks[chunks.length - 1 - i][0], (new StringBuilder()).append("Downloading data interval from ").append(sharedDateFormat.format(new Date(chunks[i][0]))).append(" to ").append(sharedDateFormat.format(new Date(chunks[i][1]))).append("...").toString());
+                }
+                boolean thereWasSomeData = loadAndSaveIntradayData(instrument, period, side, from <= chunks[i][0] || loadFromChunkStart ? chunks[i][0] : from, chunks[i][1] <= to ? chunks[i][1] : to, loadingProgress, intraperiodExistsPolicy);
+                if(!loadingProgress.stopJob())
+                {
+                    if(thereWasSomeData)
+                    {
+                        isDataInCache = true;
+                        continue;
+                    }
+                    if(i == 0)
+                        continue;
+                    if(isDataChunkExists(instrument, period, side, chunks[i - 1][0]))
+                    {
+                        isDataInCache = true;
+                        continue;
+                    }
+                    if(intraperiodExistsPolicy != IntraperiodExistsPolicy.FORCE_CHUNK_DOWNLOADING && intraperiodExistsPolicy != IntraperiodExistsPolicy.FORCE_DATA_UPDATE && isDataCached(instrument, period, side, from <= chunks[i - 1][0] ? DataCacheUtils.getFirstCandleInChunkFast(period, chunks[i - 1][0]) : from, chunks[i - 1][1]))
+                    {
+                        if(intraperiodExistsPolicy == IntraperiodExistsPolicy.DOWNLOAD_CHUNK_IN_BACKGROUND)
+                            loadChunkDataInBackground(instrument, period, side, chunks[i - 1][0], chunks[i - 1][1]);
+                        continue;
+                    }
+                    isDataInCache = isDataInCache(instrument, period, side, chunks[i][0], loadingProgress);
+                    if(loadingProgress.stopJob())
+                        return;
+                } else
+                {
+                    return;
+                }
+            }
+
+            if(chunkLoadingListener != null)
+            {
+                for(int j = i + 1; j < chunks.length; j++)
+                    chunkLoadingListener.chunkLoaded(chunks[j]);
+
+            }
+        }
+    }
+
+    public void loadInProgressCandle(Instrument instrument, long to, LiveFeedListener listener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        Data data[] = FeedDataProvider.getCurvesProtocolHandler().loadInProgressCandle(instrument, to, loadingProgress);
+        if(data == null || data.length == 0)
+            return;
+        double feedCommission = feedDataProvider.getFeedInfo() != null && feedDataProvider.getFeedInfo().getFeedCommission() != null ? feedDataProvider.getFeedInfo().getFeedCommission().doubleValue() : 0.0D;
+        LOGGER.debug((new StringBuilder()).append("Applying feed commission [").append(feedCommission).append("] to in-progress candle data").toString());
+        Period periods[] = {
+            Period.MONTHLY, Period.WEEKLY, Period.DAILY, Period.FOUR_HOURS, Period.ONE_HOUR, Period.THIRTY_MINS, Period.FIFTEEN_MINS, Period.TEN_MINS, Period.FIVE_MINS, Period.ONE_MIN, 
+            Period.TEN_SECS
+        };
+        for(int i = 0; i < periods.length; i++)
+        {
+            CandleData candle = (CandleData)data[i * 2];
+            if(candle == null)
+                continue;
+            if(candle.getTime() != DataCacheUtils.getCandleStartFast(periods[i], candle.getTime()))
+            {
+                DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                throw new DataCacheException((new StringBuilder()).append("Received candle for period [").append(periods[i]).append("] has incorrect start time [").append(format.format(Long.valueOf(candle.getTime()))).append("]").toString());
+            }
+            if(candle.open != 0.0D && candle.close != 0.0D && candle.high != 0.0D && candle.low != 0.0D)
+            {
+                if(feedCommission != 0.0D)
+                    applyCommission(instrument, OfferSide.ASK, candle, feedCommission);
+                listener.newCandle(instrument, periods[i], OfferSide.ASK, candle.getTime(), candle.getOpen(), candle.getClose(), candle.getLow(), candle.getHigh(), candle.getVolume());
+            }
+            candle = (CandleData)data[i * 2 + 1];
+            if(candle.open == 0.0D || candle.close == 0.0D || candle.high == 0.0D || candle.low == 0.0D)
+                continue;
+            if(feedCommission != 0.0D)
+                applyCommission(instrument, OfferSide.BID, candle, feedCommission);
+            listener.newCandle(instrument, periods[i], OfferSide.BID, candle.getTime(), candle.getOpen(), candle.getClose(), candle.getLow(), candle.getHigh(), candle.getVolume());
+        }
+
+    }
+
+    public void loadOrders(String accountId, Instrument instrument, long from, long to, IntraperiodExistsPolicy intraperiodExistsPolicy, 
+            LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        long chunks[][] = DataCacheUtils.separateOrderChunksForCache(from, to);
+        if(chunks.length > 0)
+        {
+            long arr$[][] = chunks;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                long chunk[] = arr$[i$];
+                if(loadingProgress.stopJob())
+                    return;
+                if(isFullOrderChunkExists(accountId, instrument, chunk[0]))
+                    continue;
+                long currentTime = feedDataProvider.getCurrentTime();
+                if(chunk[1] > currentTime)
+                {
+                    IOrdersProvider ordersProvider = feedDataProvider.getOrdersProvider();
+                    if(isOrdersDataCached(accountId, instrument, chunk[0]))
+                    {
+                        OrdersChunkData ordersData = readOrdersData(accountId, instrument, chunk[0]);
+                        if(!$assertionsDisabled && ordersData == null)
+                            throw new AssertionError();
+                        if(!isOpenOrderMissing(instrument, ordersData))
+                        {
+                            long lastOrderUpdateTime = feedDataProvider.getLocalCacheManager().getLastOrderUpdateTime(instrument);
+                            if(lastOrderUpdateTime == 0x8000000000000000L)
+                                lastOrderUpdateTime = currentTime;
+                            if(ordersData.to >= lastOrderUpdateTime)
+                                continue;
+                            ICurvesProtocolHandler.OrdersDataStruct data = FeedDataProvider.getCurvesProtocolHandler().loadOrders(instrument, ordersData.to, chunk[1], loadingProgress);
+                            if(data != null)
+                            {
+                                Collection orderDataList[] = ordersProvider.processHistoricalData(instrument, chunk[0], chunk[1], data);
+                                if(orderDataList[0] != null)
+                                    ordersData.orders.addAll(orderDataList[0]);
+                                Collections.sort(ordersData.orders, new Comparator() {
+
+                                    public int compare(OrderHistoricalData o1, OrderHistoricalData o2)
+                                    {
+                                        if(o1.getHistoryStart() > o2.getHistoryStart())
+                                            return 1;
+                                        return o1.getHistoryStart() >= o2.getHistoryStart() ? 0 : -1;
+                                    }
+
+                                    public volatile int compare(Object x0, Object x1)
+                                    {
+                                        return compare((OrderHistoricalData)x0, (OrderHistoricalData)x1);
+                                    }
+
+                                    final CurvesDataLoader this$0;
+
+            
+            {
+                this$0 = CurvesDataLoader.this;
+                super();
+            }
+                                });
+                                if(orderDataList[1] != null)
+                                {
+                                    Object orderGroupId;
+                                    for(Iterator i$ = orderDataList[1].iterator(); i$.hasNext(); ordersData.openGroupsIds.add((String)orderGroupId))
+                                        orderGroupId = i$.next();
+
+                                }
+                            }
+                            ordersData.from = chunk[0];
+                            ordersData.to = currentTime;
+                            ordersData.full = false;
+                            saveOrdersData(accountId, instrument, chunk[0], ordersData);
+                        } else
+                        {
+                            loadAndSaveOrdersChunk(accountId, instrument, from, to, loadingProgress, chunk);
+                        }
+                    } else
+                    {
+                        loadAndSaveOrdersChunk(accountId, instrument, from, to, loadingProgress, chunk);
+                    }
+                    continue;
+                }
+                ICurvesProtocolHandler.OrdersDataStruct data = FeedDataProvider.getCurvesProtocolHandler().loadOrders(instrument, chunk[0], chunk[1], loadingProgress);
+                ArrayList sortedOrderData = new ArrayList(0);
+                ArrayList openOrderIds = new ArrayList(0);
+                if(data != null)
+                {
+                    IOrdersProvider ordersProvider = feedDataProvider.getOrdersProvider();
+                    Collection orderDataList[] = ordersProvider.processHistoricalData(instrument, chunk[0], chunk[1], data);
+                    if(orderDataList[0] != null)
+                    {
+                        sortedOrderData = new ArrayList(orderDataList[0]);
+                        Collections.sort(sortedOrderData, new Comparator() {
+
+                            public int compare(OrderHistoricalData o1, OrderHistoricalData o2)
+                            {
+                                if(o1.getHistoryStart() > o2.getHistoryStart())
+                                    return 1;
+                                return o1.getHistoryStart() >= o2.getHistoryStart() ? 0 : -1;
+                            }
+
+                            public volatile int compare(Object x0, Object x1)
+                            {
+                                return compare((OrderHistoricalData)x0, (OrderHistoricalData)x1);
+                            }
+
+                            final CurvesDataLoader this$0;
+
+            
+            {
+                this$0 = CurvesDataLoader.this;
+                super();
+            }
+                        });
+                    }
+                    if(orderDataList[1] != null)
+                    {
+                        openOrderIds = new ArrayList();
+                        Object orderGroupId;
+                        for(Iterator i$ = orderDataList[1].iterator(); i$.hasNext(); openOrderIds.add((String)orderGroupId))
+                            orderGroupId = i$.next();
+
+                    }
+                }
+                OrdersChunkData ordersData = new OrdersChunkData();
+                ordersData.from = chunk[0];
+                ordersData.to = chunk[1];
+                ordersData.full = true;
+                ordersData.orders = sortedOrderData;
+                ordersData.openGroupsIds = openOrderIds;
+                saveOrdersData(accountId, instrument, chunk[0], ordersData);
+            }
+
+        }
+    }
+
+    private void loadAndSaveOrdersChunk(String accountId, Instrument instrument, long from, long to, LoadingProgressListener loadingProgress, 
+            long chunk[])
+        throws DataCacheException
+    {
+        IOrdersProvider ordersProvider = feedDataProvider.getOrdersProvider();
+        ICurvesProtocolHandler.OrdersDataStruct data = FeedDataProvider.getCurvesProtocolHandler().loadOrders(instrument, chunk[0], chunk[1], loadingProgress);
+        ArrayList sortedOrderData = new ArrayList(0);
+        ArrayList openOrderIds = new ArrayList(0);
+        if(data != null)
+        {
+            Collection orderDataList[] = ordersProvider.processHistoricalData(instrument, chunk[0], chunk[1], data);
+            if(orderDataList[0] != null)
+            {
+                sortedOrderData = new ArrayList(orderDataList[0]);
+                Collections.sort(sortedOrderData, new Comparator() {
+
+                    public int compare(OrderHistoricalData o1, OrderHistoricalData o2)
+                    {
+                        if(o1.getHistoryStart() > o2.getHistoryStart())
+                            return 1;
+                        return o1.getHistoryStart() >= o2.getHistoryStart() ? 0 : -1;
+                    }
+
+                    public volatile int compare(Object x0, Object x1)
+                    {
+                        return compare((OrderHistoricalData)x0, (OrderHistoricalData)x1);
+                    }
+
+                    final CurvesDataLoader this$0;
+
+            
+            {
+                this$0 = CurvesDataLoader.this;
+                super();
+            }
+                });
+            }
+            if(orderDataList[1] != null)
+            {
+                openOrderIds = new ArrayList();
+                Object orderGroupId;
+                for(Iterator i$ = orderDataList[1].iterator(); i$.hasNext(); openOrderIds.add((String)orderGroupId))
+                    orderGroupId = i$.next();
+
+            }
+        }
+        OrdersChunkData ordersData = new OrdersChunkData();
+        ordersData.from = chunk[0];
+        ordersData.to = feedDataProvider.getCurrentTime();
+        ordersData.full = false;
+        ordersData.orders = sortedOrderData;
+        ordersData.openGroupsIds = openOrderIds;
+        saveOrdersData(accountId, instrument, chunk[0], ordersData);
+    }
+
+    private void loadChunkDataInBackground(Instrument instrument, Period period, OfferSide side, long from, long to)
+        throws DataCacheException
+    {
+        if(period == Period.TICK)
+            feedDataProvider.loadTicksDataInCache(instrument, from, to, new LoadingProgressListener() {
+
+                public void dataLoaded(long l, long l1, long l2, String s)
+                {
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    if(!allDataLoaded && e != null)
+                        CurvesDataLoader.LOGGER.error(e.getMessage(), e);
+                }
+
+                public boolean stopJob()
+                {
+                    return false;
+                }
+
+                final CurvesDataLoader this$0;
+
+            
+            {
+                this$0 = CurvesDataLoader.this;
+                super();
+            }
+            });
+        else
+            feedDataProvider.loadCandlesDataInCache(instrument, period, side, from, to, new LoadingProgressListener() {
+
+                public void dataLoaded(long l, long l1, long l2, String s)
+                {
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    if(!allDataLoaded && e != null)
+                        CurvesDataLoader.LOGGER.error(e.getMessage(), e);
+                }
+
+                public boolean stopJob()
+                {
+                    return false;
+                }
+
+                final CurvesDataLoader this$0;
+
+            
+            {
+                this$0 = CurvesDataLoader.this;
+                super();
+            }
+            });
+    }
+
+    private void loadOrderDataInBackground(String accountId, Instrument instrument, long from, long to)
+        throws DataCacheException
+    {
+        feedDataProvider.loadOrdersHistoricalDataInCache(instrument, from, to, new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception e)
+            {
+                if(!allDataLoaded && e != null)
+                    CurvesDataLoader.LOGGER.error(e.getMessage(), e);
+            }
+
+            public boolean stopJob()
+            {
+                return false;
+            }
+
+            final CurvesDataLoader this$0;
+
+            
+            {
+                this$0 = CurvesDataLoader.this;
+                super();
+            }
+        });
+    }
+
+    protected CandleData getLastCandle(Instrument instrument, Period period, OfferSide side, long time)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        final List candle = new ArrayList();
+        time = DataCacheUtils.getCandleStart(period, time);
+        long chunk[] = {
+            DataCacheUtils.getChunkStartFast(period, time), DataCacheUtils.getChunkEndFast(period, time)
+        };
+        File file = localCacheManager.getChunkFile(instrument, period, side, chunk[0]);
+        localCacheManager.readCandlesFromChunkFile(file, instrument, period, side, chunk[0], time, time, new LiveFeedListener() {
+
+            public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                    double close, double low, double high, double vol)
+            {
+                candle.add(new CandleData(time, open, close, low, high, vol));
+            }
+
+            public void newTick(Instrument instrument1, long l, double d, double d1, 
+                    double d2, double d3)
+            {
+            }
+
+            final List val$candle;
+            final CurvesDataLoader this$0;
+
+            
+            {
+                this$0 = CurvesDataLoader.this;
+                candle = list;
+                super();
+            }
+        }, null, false, 0.0D);
+        if(candle.isEmpty())
+            return null;
+        else
+            return (CandleData)candle.get(0);
+    }
+
+    protected void checkData(Data data[], long from, long to, Instrument instrument, Period period, 
+            boolean isFile)
+        throws DataCacheException
+    {
+        if(period == Period.TICK)
+        {
+            long prevTime = from;
+            Data arr$[] = data;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Data dataElement = arr$[i$];
+                long time = dataElement.time;
+                if(time < prevTime || time > to)
+                {
+                    DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    throw new DataCacheException((new StringBuilder()).append("Wrong data from ").append(isFile ? "chunk file" : "curves server").append(", received tick with time [").append(format.format(new Date(time))).append("] in chunk for instrument [").append(instrument).append("] from [").append(format.format(new Date(from))).append("] to [").append(format.format(new Date(to))).append("], previous tick time [").append(format.format(new Date(prevTime))).append("]").toString());
+                }
+                prevTime = time;
+            }
+
+        } else
+        {
+            long candleTime = DataCacheUtils.getFirstCandleInChunkFast(period, from);
+            Data arr$[] = data;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Data dataElement = arr$[i$];
+                long time = dataElement.time;
+                if(time != candleTime)
+                {
+                    DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    throw new DataCacheException((new StringBuilder()).append("Wrong data from ").append(isFile ? "chunk file" : "curves server").append(", received candle with time [").append(format.format(new Date(time))).append("] in chunk for instrument [").append(instrument).append("] period [").append(period).append("] from [").append(format.format(new Date(from))).append("] to [").append(format.format(new Date(to))).append("], expected candle time [").append(format.format(new Date(candleTime))).append("]").toString());
+                }
+                candleTime = DataCacheUtils.getNextCandleStartFast(period, candleTime);
+            }
+
+        }
+    }
+
+    protected Data[] fixData(Data data[], CandleData lastData, Instrument instrument, Period period, long from, long to, long chunkStart, long chunkEnd, long candleTime, 
+            boolean isFile)
+        throws DataCacheException
+    {
+        if(!$assertionsDisabled && candleTime != DataCacheUtils.getCandleStart(period, candleTime))
+            throw new AssertionError();
+        List newData = new ArrayList();
+        long candleCount = DataCacheUtils.getCandleCountInChunk(period, candleTime);
+        int i = 0;
+        int j = 0;
+        for(; (long)i < candleCount; i++)
+        {
+            Data dataElement = j >= data.length ? null : data[j];
+            if(dataElement != null && dataElement.time == candleTime)
+            {
+                newData.add(dataElement);
+                lastData = (CandleData)dataElement;
+                j++;
+            } else
+            {
+                if(dataElement != null && dataElement.time < candleTime)
+                {
+                    DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    throw new DataCacheException((new StringBuilder()).append("Wrong data from ").append(isFile ? "chunk file" : "data feed server").append(", time of the data element [").append(dataElement.getTime()).append("], index [").append(j).append("] is less than expected time [").append(candleTime).append("], request - instrument [").append(instrument).append("] period [").append(period).append("] from [").append(format.format(new Date(from))).append("] to [").append(format.format(new Date(to))).append("], checking interval from [").append(format.format(new Date(chunkStart))).append("] to [").append(format.format(new Date(chunkEnd))).append("]").toString());
+                }
+                CandleData candle = new CandleData();
+                candle.time = candleTime;
+                candle.open = lastData.close;
+                candle.close = lastData.close;
+                candle.low = lastData.close;
+                candle.high = lastData.close;
+                candle.vol = 0.0D;
+                newData.add(candle);
+            }
+            candleTime = DataCacheUtils.getNextCandleStart(period, candleTime);
+        }
+
+        data = (Data[])newData.toArray(new Data[newData.size()]);
+        checkStartTimes(data, period);
+        return data;
+    }
+
+    protected boolean isOpenOrderMissing(Instrument instrument, OrdersChunkData chunkData)
+    {
+        Set openOrderIds = feedDataProvider.getOrdersProvider().getOrdersForInstrument(instrument).keySet();
+        for(Iterator i$ = chunkData.openGroupsIds.iterator(); i$.hasNext();)
+        {
+            String orderGroupId = (String)i$.next();
+            if(!openOrderIds.contains(orderGroupId))
+                return true;
+        }
+
+        return false;
+    }
+
+    protected boolean isDataChunkExists(Instrument instrument, Period period, OfferSide side, long from)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        return localCacheManager.isDataChunkExists(instrument, period, side, from);
+    }
+
+    protected boolean isFullOrderChunkExists(String accountId, Instrument instrument, long chunkStart)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        return localCacheManager.isFullOrderChunkExists(accountId, instrument, chunkStart, feedDataProvider.getOrdersProvider().getOrdersForInstrument(instrument).keySet());
+    }
+
+    protected boolean isDataCached(Instrument instrument, Period period, OfferSide side, long from, long to)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        return localCacheManager.isDataCached(instrument, period, side, from, to);
+    }
+
+    protected boolean isOrdersDataCached(String accountId, Instrument instrument, long chunkStart)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        return localCacheManager.isOrderDataCached(accountId, instrument, chunkStart);
+    }
+
+    protected boolean isDataInCache(Instrument instrument, Period period, OfferSide side, long from, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        long currentTime = feedDataProvider.getCurrentTime();
+        if(currentTime != 0x8000000000000000L && currentTime < from)
+            return false;
+        if(localCacheManager.isAnyDataChunkExistsAfter(instrument, period, side, from))
+            return true;
+        long nextChunkStart = DataCacheUtils.getNextChunkStart(period, from);
+        if(currentTime >= nextChunkStart)
+            return true;
+        if(period != Period.TICK)
+        {
+            long fromFixed = DataCacheUtils.getCandleStart(period, from);
+            if(fromFixed < from)
+                from = DataCacheUtils.getNextCandleStart(period, from);
+        }
+        Data data[] = FeedDataProvider.getCurvesProtocolHandler().loadData(instrument, period, side, from, period != Period.TICK ? from : from + 0x493e0L, false, loadingProgress);
+        return !loadingProgress.stopJob() && data.length > 0;
+    }
+
+    protected Data[] loadChunkData(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingProgressListener loadingProgress, boolean isFile[])
+        throws DataCacheException
+    {
+        Data data[] = FeedDataProvider.getCurvesProtocolHandler().loadFile(instrument, period, side, from, loadingProgress);
+        if(data == null)
+        {
+            if(period != Period.TICK)
+            {
+                long fromFixed = DataCacheUtils.getCandleStart(period, from);
+                if(fromFixed < from)
+                    from = DataCacheUtils.getNextCandleStart(period, from);
+            }
+            isFile[0] = false;
+            return FeedDataProvider.getCurvesProtocolHandler().loadData(instrument, period, side, from, to, false, loadingProgress);
+        } else
+        {
+            isFile[0] = true;
+            return data;
+        }
+    }
+
+    protected void saveChunkInCache(Instrument instrument, Period period, OfferSide side, long from, Data data[])
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        localCacheManager.saveChunkInCache(instrument, period, side, from, data);
+    }
+
+    protected void saveOrdersData(String accountId, Instrument instrument, long chunkStart, OrdersChunkData data)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        localCacheManager.saveOrdersData(accountId, instrument, chunkStart, data);
+    }
+
+    private OrdersChunkData readOrdersData(String accountId, Instrument instrument, long chunkStart)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        return localCacheManager.readOrdersData(accountId, instrument, chunkStart);
+    }
+
+    protected boolean loadAndSaveIntradayData(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingProgressListener loadingProgress, IntraperiodExistsPolicy intraperiodExistsPolicy)
+        throws DataCacheException
+    {
+        if(period != Period.TICK)
+        {
+            long fromFixed = DataCacheUtils.getCandleStart(period, from);
+            if(fromFixed < from)
+                from = DataCacheUtils.getNextCandleStart(period, from);
+        }
+        if(!$assertionsDisabled && period != Period.TICK && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        boolean someDataLoaded = false;
+        double feedCommission = feedDataProvider.getFeedInfo() != null && feedDataProvider.getFeedInfo().getFeedCommission() != null ? feedDataProvider.getFeedInfo().getFeedCommission().doubleValue() : 0.0D;
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        long intervals[][];
+        if(intraperiodExistsPolicy == IntraperiodExistsPolicy.FORCE_DATA_UPDATE)
+            intervals = (new long[][] {
+                new long[] {
+                    from, to
+                }
+            });
+        else
+            intervals = localCacheManager.getIntraperiodIntervalsToLoad(instrument, period, side, from, to);
+        for(int i = 0; i < intervals.length; i++)
+        {
+            if(!$assertionsDisabled && period != Period.TICK && intervals[i][0] != DataCacheUtils.getCandleStart(period, intervals[i][0]))
+                throw new AssertionError();
+            if(!$assertionsDisabled && period != Period.TICK && intervals[i][1] != DataCacheUtils.getCandleStart(period, intervals[i][1]))
+                throw new AssertionError();
+            if(period == Period.TICK && intervals[i][0] - 60000L >= DataCacheUtils.getChunkStartFast(period, intervals[i][0]))
+                intervals[i][0] -= 60000L;
+            Data data[] = FeedDataProvider.getCurvesProtocolHandler().loadData(instrument, period, side, intervals[i][0], intervals[i][1], true, loadingProgress);
+            if(!loadingProgress.stopJob())
+            {
+                if(data.length > 0)
+                    someDataLoaded = true;
+                if(period != Period.TICK)
+                {
+                    data = fixIntraperiodData(data, period);
+                    if(LOGGER.isDebugEnabled() && data.length > 0 && data[data.length - 1].time < intervals[i][1])
+                    {
+                        DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                        LOGGER.debug((new StringBuilder()).append("Not all data was loaded for interval [").append(format.format(Long.valueOf(intervals[i][0]))).append("] to [").append(format.format(Long.valueOf(intervals[i][1]))).append("], last loaded data element time is [").append(format.format(Long.valueOf(data[data.length - 1].time))).append("]").toString());
+                    }
+                }
+                if(feedCommission != 0.0D)
+                    applyCommission(instrument, period, side, data, feedCommission);
+                saveIntraPeriodData(instrument, period, side, data, intervals[i][0] == DataCacheUtils.getChunkStart(period, intervals[i][0]));
+            } else
+            {
+                return false;
+            }
+        }
+
+        return someDataLoaded;
+    }
+
+    private void applyCommission(Instrument instrument, Period period, OfferSide side, Data data[], double feedCommission)
+    {
+        if(period == Period.TICK)
+        {
+            Data arr$[] = data;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Data dataElem = arr$[i$];
+                TickData dataElement = (TickData)dataElem;
+                dataElement.ask = DataCacheUtils.getPriceWithCommission(instrument, OfferSide.ASK, dataElement.ask, feedCommission);
+                dataElement.bid = DataCacheUtils.getPriceWithCommission(instrument, OfferSide.BID, dataElement.bid, feedCommission);
+            }
+
+        } else
+        {
+            Data arr$[] = data;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Data dataElem = arr$[i$];
+                CandleData dataElement = (CandleData)dataElem;
+                applyCommission(instrument, side, dataElement, feedCommission);
+            }
+
+        }
+    }
+
+    private void applyCommission(Instrument instrument, OfferSide side, CandleData dataElement, double feedCommission)
+    {
+        dataElement.open = DataCacheUtils.getPriceWithCommission(instrument, side, dataElement.open, feedCommission);
+        dataElement.close = DataCacheUtils.getPriceWithCommission(instrument, side, dataElement.close, feedCommission);
+        dataElement.high = DataCacheUtils.getPriceWithCommission(instrument, side, dataElement.high, feedCommission);
+        dataElement.low = DataCacheUtils.getPriceWithCommission(instrument, side, dataElement.low, feedCommission);
+    }
+
+    protected Data[] fixIntraperiodData(Data data[], Period period)
+        throws DataCacheException
+    {
+        if(data.length < 2)
+        {
+            checkStartTimes(data, period);
+            return data;
+        }
+        if(data.length < DataCacheUtils.getCandlesCountBetweenFast(period, data[0].time, data[data.length - 1].time))
+        {
+            List newData = new ArrayList();
+            IntraPeriodCandleData lastData = (IntraPeriodCandleData)data[0];
+            newData.add(lastData);
+            long nextTime = DataCacheUtils.getNextCandleStartFast(period, lastData.time);
+            for(int i = 1; i < data.length; i++)
+            {
+                for(; data[i].time > nextTime; nextTime = DataCacheUtils.getNextCandleStartFast(period, lastData.time))
+                {
+                    IntraPeriodCandleData candle = new IntraPeriodCandleData();
+                    candle.time = nextTime;
+                    candle.open = lastData.close;
+                    candle.close = lastData.close;
+                    candle.low = lastData.close;
+                    candle.high = lastData.close;
+                    candle.vol = 0.0D;
+                    newData.add(candle);
+                    lastData = candle;
+                }
+
+                newData.add(data[i]);
+                lastData = (IntraPeriodCandleData)data[i];
+                nextTime = DataCacheUtils.getNextCandleStartFast(period, lastData.time);
+            }
+
+            data = (Data[])newData.toArray(new Data[newData.size()]);
+            checkStartTimes(data, period);
+            return data;
+        } else
+        {
+            checkStartTimes(data, period);
+            return data;
+        }
+    }
+
+    protected void checkStartTimes(Data data[], Period period)
+        throws DataCacheException
+    {
+        Data arr$[] = data;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Data dataElement = arr$[i$];
+            if(dataElement.time != DataCacheUtils.getCandleStartFast(period, dataElement.time))
+            {
+                DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                throw new DataCacheException((new StringBuilder()).append("Wrong data from curves server, received candle with time [").append(format.format(Long.valueOf(dataElement.time))).append("] for period [").append(period).append("], expected candle time [").append(format.format(Long.valueOf(DataCacheUtils.getCandleStartFast(period, dataElement.time)))).append("]").toString());
+            }
+        }
+
+    }
+
+    protected void saveIntraPeriodData(Instrument instrument, Period period, OfferSide side, Data data[], boolean dataFromChunkStart)
+        throws DataCacheException
+    {
+        LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+        localCacheManager.saveIntraperiodData(instrument, period, side, data, dataFromChunkStart);
+    }
+
+    private static final DateFormat sharedDateFormat;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/CurvesDataLoader);
+    private FeedDataProvider feedDataProvider;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/datacache/CurvesDataLoader.desiredAssertionStatus();
+
+    static 
+    {
+        sharedDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        sharedDateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+    }
+
+}

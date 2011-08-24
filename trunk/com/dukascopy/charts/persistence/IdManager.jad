@@ -1,0 +1,94 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IdManager.java
+
+package com.dukascopy.charts.persistence;
+
+import java.util.HashSet;
+import java.util.Set;
+
+public class IdManager
+{
+
+    public static IdManager getInstance()
+    {
+        if(instance == null)
+            instance = new IdManager();
+        return instance;
+    }
+
+    private IdManager()
+    {
+        reservedIds = new HashSet();
+        nextFreeId = 5;
+        nextFreeId = 10;
+    }
+
+    public static void cleanManager()
+    {
+        instance = null;
+    }
+
+    public IdManager(int initialFreeChartId)
+    {
+        reservedIds = new HashSet();
+        nextFreeId = 5;
+        nextFreeId = initialFreeChartId;
+    }
+
+    public synchronized int getNextChartId()
+    {
+        for(; reservedIds.contains(Integer.valueOf(nextFreeId)); nextFreeId++);
+        return nextFreeId++;
+    }
+
+    public synchronized void reserveChartId(int chartIdToReserve)
+    {
+        reservedIds.add(Integer.valueOf(chartIdToReserve));
+    }
+
+    public synchronized int getNextServiceId()
+    {
+        for(; reservedIds.contains(Integer.valueOf(nextFreeId)); nextFreeId++);
+        return nextFreeId++;
+    }
+
+    public synchronized void reserveServiceId(int serviceIdToBeReserved)
+    {
+        reservedIds.add(Integer.valueOf(serviceIdToBeReserved));
+    }
+
+    public static synchronized int getNextIndicatorId()
+    {
+        for(; reservedIndicatorIds.contains(Integer.valueOf(nextFreeIndicatorId)); nextFreeIndicatorId++);
+        return nextFreeIndicatorId++;
+    }
+
+    public static synchronized void reserveIndicatorId(int indicatorIdToBeReserved)
+    {
+        reservedIndicatorIds.add(Integer.valueOf(indicatorIdToBeReserved));
+        if(nextFreeIndicatorId <= indicatorIdToBeReserved)
+            nextFreeIndicatorId = indicatorIdToBeReserved + 1;
+    }
+
+    public static synchronized int getNextDrawingId()
+    {
+        for(; reservedDrawingIds.contains(Integer.valueOf(nextFreeDrawingId)); nextFreeDrawingId++);
+        return nextFreeDrawingId++;
+    }
+
+    public static synchronized void reserveDrawingId(int drawingIdToBeReserved)
+    {
+        reservedDrawingIds.add(Integer.valueOf(drawingIdToBeReserved));
+    }
+
+    private Set reservedIds;
+    private int nextFreeId;
+    private static Set reservedIndicatorIds = new HashSet();
+    private static int nextFreeIndicatorId;
+    private static Set reservedDrawingIds = new HashSet();
+    private static int nextFreeDrawingId;
+    private static IdManager instance = null;
+
+}

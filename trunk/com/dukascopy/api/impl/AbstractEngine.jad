@@ -1,0 +1,49 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:22
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractEngine.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+
+public class AbstractEngine
+{
+
+    public AbstractEngine()
+    {
+    }
+
+    protected String validateLabel(String label)
+        throws JFException
+    {
+        if(label == null)
+            throw new JFException(com.dukascopy.api.JFException.Error.LABEL_INCONSISTENT);
+        if(label.length() > 256)
+            throw new JFException(com.dukascopy.api.JFException.Error.LABEL_INCONSISTENT);
+        if(!label.matches("^[a-zA-Z_][a-zA-Z0-9_]+"))
+            throw new JFException(com.dukascopy.api.JFException.Error.LABEL_INCONSISTENT);
+        else
+            return label.trim();
+    }
+
+    protected void validateOrder(boolean isGlobal, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
+            double slippage, double stopLossPrice, double takeProfitPrice, long goodTillTime, String comment)
+        throws JFException
+    {
+        if(orderCommand == null)
+            throw new JFException(com.dukascopy.api.JFException.Error.COMMAND_IS_NULL);
+        if(price == 0.0D && orderCommand != com.dukascopy.api.IEngine.OrderCommand.BUY && orderCommand != com.dukascopy.api.IEngine.OrderCommand.SELL)
+            throw new JFException(com.dukascopy.api.JFException.Error.ZERO_PRICE_NOT_ALLOWED);
+        if(goodTillTime > 0L && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+            throw new JFException("Order should be \"place bid\" or \"place offer\"");
+        if(isGlobal)
+        {
+            if(StratUtils.round(stopLossPrice, 7) > 0.0D)
+                throw new JFException("Stop loss orders are not allowed on global accounts");
+            if(StratUtils.round(takeProfitPrice, 7) > 0.0D)
+                throw new JFException("Take profit orders are not allowed on global accounts");
+        }
+    }
+}

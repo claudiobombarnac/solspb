@@ -1,0 +1,41 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   InstrumentStatusMessageImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            PlatformMessageImpl
+
+class InstrumentStatusMessageImpl extends PlatformMessageImpl
+    implements IInstrumentStatusMessage
+{
+
+    public InstrumentStatusMessageImpl(Instrument instrument, boolean tradable, long creationTime)
+    {
+        super(null, null, com.dukascopy.api.IMessage.Type.INSTRUMENT_STATUS, creationTime);
+        this.instrument = instrument;
+        this.tradable = tradable;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public boolean isTradable()
+    {
+        return tradable;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("MessageType : ").append(getType()).append(" Instument : ").append(instrument).append(" Tradable : ").append(tradable).toString();
+    }
+
+    private final Instrument instrument;
+    private final boolean tradable;
+}

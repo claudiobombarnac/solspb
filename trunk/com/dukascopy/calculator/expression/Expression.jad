@@ -1,0 +1,154 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Expression.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.OObject;
+import java.io.PrintStream;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            SumOrProduct, Sum, Product, Power, 
+//            Variable, Exp, Sin, Cos, 
+//            Tan, ASin, ACos, ATan, 
+//            Ln, Log, Factorial, Permutation, 
+//            Combination, Conjugate, And, Or, 
+//            Xor
+
+public abstract class Expression extends OObject
+    implements Comparable
+{
+
+    public Expression()
+    {
+    }
+
+    public int compareTo(Expression expression)
+    {
+        if(this instanceof SumOrProduct)
+        {
+            if(expression instanceof SumOrProduct)
+            {
+                if((this instanceof Sum) && (expression instanceof Product) || (this instanceof Product) && (expression instanceof Sum))
+                {
+                    System.out.println("Warning: Sum and Product being compared.");
+                } else
+                {
+                    if(this instanceof Sum)
+                        return ((Sum)this).compareTo((Sum)expression);
+                    if(this instanceof Product)
+                        return ((Product)this).compareTo((Product)expression);
+                    else
+                        return 1;
+                }
+            } else
+            {
+                return -1;
+            }
+        } else
+        {
+            if(expression instanceof SumOrProduct)
+            {
+                if(expression instanceof Sum)
+                    return (new Sum(this)).compareTo((Sum)expression);
+                if(expression instanceof Product)
+                    return (new Product(this, false)).compareTo((Product)expression);
+                else
+                    return 1;
+            }
+            if(this instanceof Power)
+                if(expression instanceof Power)
+                    return ((Power)this).compareTo((Power)expression);
+                else
+                    return -1;
+            if(expression instanceof Power)
+                return 1;
+            if(this instanceof Variable)
+                if(expression instanceof Variable)
+                    return ((Variable)this).compareTo((Variable)expression);
+                else
+                    return -1;
+            if(expression instanceof Variable)
+                return 1;
+            if(this instanceof Exp)
+                return !(expression instanceof Exp) ? -1 : 0;
+            if(expression instanceof Exp)
+                return 1;
+            if(this instanceof Sin)
+                return !(expression instanceof Sin) ? -1 : 0;
+            if(expression instanceof Sin)
+                return 1;
+            if(this instanceof Cos)
+                return !(expression instanceof Cos) ? -1 : 0;
+            if(expression instanceof Cos)
+                return 1;
+            if(this instanceof Tan)
+                return !(expression instanceof Tan) ? -1 : 0;
+            if(expression instanceof Tan)
+                return 1;
+            if(this instanceof ASin)
+                return !(expression instanceof ASin) ? -1 : 0;
+            if(expression instanceof ASin)
+                return 1;
+            if(this instanceof ACos)
+                return !(expression instanceof ACos) ? -1 : 0;
+            if(expression instanceof ACos)
+                return 1;
+            if(this instanceof ATan)
+                return !(expression instanceof ATan) ? -1 : 0;
+            if(expression instanceof ATan)
+                return 1;
+            if(this instanceof Ln)
+                return !(expression instanceof Ln) ? -1 : 0;
+            if(expression instanceof Ln)
+                return 1;
+            if(this instanceof Log)
+                return !(expression instanceof Log) ? -1 : 0;
+            if(expression instanceof Log)
+                return 1;
+            if(this instanceof Factorial)
+                return !(expression instanceof Factorial) ? -1 : 0;
+            if(expression instanceof Factorial)
+                return 1;
+            if(this instanceof Permutation)
+                return !(expression instanceof Permutation) ? -1 : 0;
+            if(expression instanceof Permutation)
+                return 1;
+            if(this instanceof Combination)
+                return !(expression instanceof Combination) ? -1 : 0;
+            if(expression instanceof Combination)
+                return 1;
+            if(this instanceof Conjugate)
+                return !(expression instanceof Conjugate) ? -1 : 0;
+            if(expression instanceof Conjugate)
+                return 1;
+            if(this instanceof And)
+                return !(expression instanceof And) ? -1 : 0;
+            if(expression instanceof And)
+                return 1;
+            if(this instanceof Or)
+                return !(expression instanceof Or) ? -1 : 0;
+            if(expression instanceof Or)
+                return 1;
+            if(this instanceof Xor)
+                return !(expression instanceof Xor) ? -1 : 0;
+            if(expression instanceof Xor)
+                return 1;
+            System.out.println("Warning: unknown function");
+        }
+        return 0;
+    }
+
+    public abstract Expression negate();
+
+    public volatile OObject negate()
+    {
+        return negate();
+    }
+
+    public volatile int compareTo(Object x0)
+    {
+        return compareTo((Expression)x0);
+    }
+}

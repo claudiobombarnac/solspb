@@ -1,0 +1,45 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EnabledIndicatorBean.java
+
+package com.dukascopy.charts.persistence;
+
+import java.io.File;
+
+public class EnabledIndicatorBean
+{
+
+    public EnabledIndicatorBean(String name, String sourceFullFileName, String binaryFullFileName)
+    {
+        this.name = name;
+        this.sourceFullFileName = sourceFullFileName;
+        this.binaryFullFileName = binaryFullFileName;
+    }
+
+    public EnabledIndicatorBean(String name, File sourceFile, File binaryFile)
+    {
+        this.name = name;
+        sourceFullFileName = sourceFile == null ? "" : sourceFile.getAbsolutePath();
+        binaryFullFileName = binaryFile == null ? "" : binaryFile.getAbsolutePath();
+    }
+
+    public String getName()
+    {
+        return name;
+    }
+
+    public String getSourceFullFileName()
+    {
+        return sourceFullFileName;
+    }
+
+    public String getBinaryFullFileName()
+    {
+        return binaryFullFileName;
+    }
+
+    private String name;
+    protected String sourceFullFileName;
+    protected String binaryFullFileName;
+}

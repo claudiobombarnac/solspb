@@ -1,0 +1,144 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractPriceAggregationDataSequence.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation;
+
+import com.dukascopy.api.Period;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.math.dataprovider.AbstractDataSequence;
+import java.util.Map;
+
+public abstract class AbstractPriceAggregationDataSequence extends AbstractDataSequence
+{
+
+    public AbstractPriceAggregationDataSequence(Period period, long from, long to, int extraBefore, int extraAfter, 
+            AbstractPriceAggregationData data[], long gaps[][], Map formulaOutputs, Map indicators, boolean latestDataVisible, boolean includesLatestData)
+    {
+        super(period, from, to, extraBefore, extraAfter, data, gaps, formulaOutputs, indicators, latestDataVisible, includesLatestData);
+        calculateMinMax();
+    }
+
+    protected int getVisibleSequenceStartIndex()
+    {
+        int startIndex = extraBefore <= 0 ? 0 : extraBefore - 1;
+        return startIndex;
+    }
+
+    protected int getVisibleSequenceEndIndex()
+    {
+        int endIndex = ((AbstractPriceAggregationData[])data).length - (extraAfter <= 0 ? 0 : extraAfter) - 1;
+        return endIndex;
+    }
+
+    protected int getVisibleSequenceSize()
+    {
+        int size = getVisibleSequenceEndIndex() - getVisibleSequenceStartIndex();
+        return size;
+    }
+
+    public void calculateMasterDataMinMax()
+    {
+        if(((AbstractPriceAggregationData[])data).length == 0)
+            return;
+        int minMaxIndexStart = getVisibleSequenceStartIndex();
+        int minMaxIndexEnd = getVisibleSequenceEndIndex();
+        min = ((AbstractPriceAggregationData[])data)[minMaxIndexStart].getLow();
+        max = ((AbstractPriceAggregationData[])data)[minMaxIndexStart].getHigh();
+        for(int i = minMaxIndexStart; i <= minMaxIndexEnd; i++)
+        {
+            AbstractPriceAggregationData currentData = ((AbstractPriceAggregationData[])data)[i];
+            double high = currentData.getHigh();
+            double low = currentData.getLow();
+            if(max < high)
+                max = high;
+            if(min > low)
+                min = low;
+        }
+
+        if(max != min)
+        {
+            return;
+        } else
+        {
+            max++;
+            return;
+        }
+    }
+
+    public int indexOf(long time)
+    {
+        int first = 0;
+        for(int upto = size(); first < upto;)
+        {
+            int mid = (first + upto) / 2;
+            AbstractPriceAggregationData data = (AbstractPriceAggregationData)getData(mid);
+            if(data.getTime() == time && time == data.getEndTime())
+                return mid;
+            if(data.getTime() <= time && time < data.getEndTime())
+                return mid;
+            if(time < data.getTime())
+                upto = mid;
+            else
+            if(time > data.getTime())
+                first = mid + 1;
+            else
+                return mid;
+        }
+
+        AbstractPriceAggregationData data1 = (AbstractPriceAggregationData)getData(first - 1);
+        AbstractPriceAggregationData data2 = (AbstractPriceAggregationData)getData(first);
+        if(data1 != null && data2 != null && data1.getTime() < time && time < data2.getTime())
+            return first - 1;
+        long INACCURACY_INTERVAL = 1000L;
+        if(isCloseToTime(data1, time, 1000L))
+            return first - 1;
+        else
+            return interpolateTimeForIndex(time);
+    }
+
+    private boolean isCloseToTime(AbstractPriceAggregationData data, long time, long inaccuracyInterval)
+    {
+        return data != null && (time > data.time && time - data.time <= inaccuracyInterval || time < data.time && data.time - time <= inaccuracyInterval);
+    }
+
+    private int interpolateTimeForIndex(long time)
+    {
+        AbstractPriceAggregationData firstData = (AbstractPriceAggregationData)getData(0);
+        AbstractPriceAggregationData lastData = (AbstractPriceAggregationData)getLastData();
+        if(firstData == null || lastData == null)
+            return -1;
+        long time1 = firstData.getTime();
+        long time2 = lastData.getTime();
+        double timeDelta = Math.abs(time1 - time2);
+        double indexDelta = size();
+        double indicesInSecond = indexDelta / timeDelta;
+        Double result = new Double(-1D);
+        if(time > time2)
+            result = Double.valueOf((double)(time - time2) * indicesInSecond + (double)size());
+        else
+            result = Double.valueOf((double)(-1L * (time1 - time)) * indicesInSecond);
+        int intResult = result.intValue();
+        if(intResult == 0 && size() > 0)
+            intResult = -1;
+        return intResult;
+    }
+
+    public int getInterpolatedTimeInterval(int index)
+    {
+        int index1 = 0;
+        int index2 = ((AbstractPriceAggregationData[])data).length - 1;
+        double indexDelta = Math.abs(index1 - index2);
+        long time1 = ((AbstractPriceAggregationData[])data)[index1].getTime();
+        long time2 = ((AbstractPriceAggregationData[])data)[index2].getTime();
+        double timeDelta = Math.abs(time1 - time2);
+        double indicesInSecond = indexDelta / timeDelta;
+        Double result = new Double(-1D);
+        if(index > index2)
+            result = Double.valueOf((double)(index - index2) * indicesInSecond);
+        else
+            result = Double.valueOf((double)(index1 - index) * indicesInSecond);
+        return result.intValue();
+    }
+}

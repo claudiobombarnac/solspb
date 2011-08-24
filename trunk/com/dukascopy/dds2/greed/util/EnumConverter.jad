@@ -1,0 +1,49 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EnumConverter.java
+
+package com.dukascopy.dds2.greed.util;
+
+import java.util.*;
+
+public final class EnumConverter
+{
+
+    public EnumConverter()
+    {
+    }
+
+    public static Enum convert(Enum x, Class yClass)
+    {
+        if(x != null)
+            return Enum.valueOf(yClass, x.name());
+        else
+            return null;
+    }
+
+    public static Set convert(Set xSet, Class yClass)
+    {
+        Set enumSet = EnumSet.noneOf(yClass);
+        if(xSet != null)
+        {
+            Enum element;
+            for(Iterator i$ = xSet.iterator(); i$.hasNext(); enumSet.add(Enum.valueOf(yClass, element.name())))
+                element = (Enum)i$.next();
+
+        }
+        return enumSet;
+    }
+
+    public static Set convert(Set xSet)
+    {
+        if(xSet == null)
+            return Collections.emptySet();
+        Set set = new HashSet();
+        Enum element;
+        for(Iterator i$ = xSet.iterator(); i$.hasNext(); set.add(element.toString()))
+            element = (Enum)i$.next();
+
+        return set;
+    }
+}

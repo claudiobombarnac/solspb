@@ -1,0 +1,41 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Variable.java
+
+package com.dukascopy.calculator.function;
+
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            PObject
+
+public class Variable extends PObject
+{
+
+    public Variable(char c)
+    {
+        this.c = c;
+        ftooltip = "";
+        fshortcut = c;
+    }
+
+    public char get()
+    {
+        return c;
+    }
+
+    public String name()
+    {
+        return Character.toString(get());
+    }
+
+    public String[] name_array()
+    {
+        String string[] = new String[2];
+        string[0] = (new StringBuilder()).append("<i>").append(Character.toString(c)).toString();
+        string[1] = "</i><font color=\"white\" size=\"-1\">.</font>";
+        return string;
+    }
+
+    private final char c;
+}

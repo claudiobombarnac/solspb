@@ -1,0 +1,1376 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DataCacheUtils.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.wrapper.Weekend;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import com.dukascopy.transport.util.MD5;
+import java.io.File;
+import java.io.FileFilter;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            DataCacheException
+
+public class DataCacheUtils
+{
+    public static class ToLoad
+    {
+
+        public Period period;
+        public long from;
+        public long to;
+
+        public ToLoad(Period period, long from, long to)
+        {
+            this.period = period;
+            this.from = from;
+            this.to = to;
+        }
+    }
+
+
+    public DataCacheUtils()
+    {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
+    }
+
+    public static boolean isCandleBasic(Period period)
+        throws DataCacheException
+    {
+        if(period == Period.TICK)
+        {
+            throw new DataCacheException("Tick period can't be candle");
+        } else
+        {
+            Period basicPeriod = Period.isPeriodBasic(period);
+            return basicPeriod != null;
+        }
+    }
+
+    public static boolean isCandleBasicFast(Period period)
+    {
+        if(period == Period.TICK)
+        {
+            return false;
+        } else
+        {
+            Period basicPeriod = Period.isPeriodBasic(period);
+            return basicPeriod != null;
+        }
+    }
+
+    public static boolean isIntervalValid(Period period, long from, long to)
+        throws DataCacheException
+    {
+        if(period == Period.TICK)
+            return true;
+        if(period == null)
+            throw new DataCacheException("Period is null");
+        static class _cls3
+        {
+
+            static final int $SwitchMap$com$dukascopy$api$Unit[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$api$Unit = new int[Unit.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$Unit[Unit.Millisecond.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$Unit[Unit.Second.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$Unit[Unit.Minute.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$Unit[Unit.Hour.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$Unit[Unit.Day.ordinal()] = 5;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$Unit[Unit.Week.ordinal()] = 6;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$Unit[Unit.Month.ordinal()] = 7;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$Unit[Unit.Year.ordinal()] = 8;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        default:
+            break;
+
+        case 1: // '\001'
+        {
+            throw new DataCacheException("No intervals with Millisecond time unit allowed except TICK");
+        }
+
+        case 2: // '\002'
+        case 3: // '\003'
+        case 4: // '\004'
+        {
+            if(to - from == 0L || to - from >= period.getInterval())
+            {
+                long dayStart = getClosestDayStartBefore(from);
+                if((from - dayStart) % period.getInterval() == 0L)
+                {
+                    dayStart = getClosestDayStartBefore(to);
+                    if((to - dayStart) % period.getInterval() == 0L)
+                        return true;
+                }
+            }
+            break;
+        }
+
+        case 5: // '\005'
+        {
+            if(to - from != 0L && to - from < period.getInterval())
+                break;
+            long dayStart = getClosestDayStartBefore(from);
+            if(dayStart != from)
+                break;
+            dayStart = getClosestDayStartBefore(to);
+            if(dayStart == to)
+                return true;
+            break;
+        }
+
+        case 6: // '\006'
+        {
+            if(to - from != 0L && to - from < period.getInterval())
+                break;
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(System.currentTimeMillis());
+            gmtCalendar.set(14, 0);
+            gmtCalendar.set(13, 0);
+            gmtCalendar.set(12, 0);
+            gmtCalendar.set(11, 0);
+            gmtCalendar.set(7, 2);
+            long weekStart = gmtCalendar.getTimeInMillis();
+            if((from - weekStart) % period.getInterval() == 0L && (to - weekStart) % period.getInterval() == 0L)
+                return true;
+            break;
+        }
+
+        case 7: // '\007'
+        {
+            if(to - from < 0L)
+                break;
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(from);
+            if(gmtCalendar.get(14) != 0 || gmtCalendar.get(13) != 0 || gmtCalendar.get(12) != 0 || gmtCalendar.get(11) != 0 || gmtCalendar.get(5) != 1)
+                break;
+            gmtCalendar.setTimeInMillis(to);
+            if(gmtCalendar.get(14) == 0 && gmtCalendar.get(13) == 0 && gmtCalendar.get(12) == 0 && gmtCalendar.get(11) == 0 && gmtCalendar.get(5) == 1)
+                return true;
+            break;
+        }
+
+        case 8: // '\b'
+        {
+            throw new DataCacheException("Periods with year unit not supported yet");
+        }
+        }
+        return false;
+    }
+
+    public static long getClosestHourStartBefore(long from)
+    {
+        return from - from % 0x36ee80L;
+    }
+
+    public static long getClosestDayStartBefore(long from)
+    {
+        return from - from % 0x5265c00L;
+    }
+
+    public static long getClosestMonthStartBefore(long from)
+    {
+        Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+        gmtCalendar.setTimeInMillis(from);
+        gmtCalendar.set(14, 0);
+        gmtCalendar.set(13, 0);
+        gmtCalendar.set(12, 0);
+        gmtCalendar.set(11, 0);
+        gmtCalendar.set(5, 1);
+        return gmtCalendar.getTimeInMillis();
+    }
+
+    public static long getClosestYearStartBefore(long from)
+    {
+        Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+        gmtCalendar.setTimeInMillis(from);
+        gmtCalendar.set(14, 0);
+        gmtCalendar.set(13, 0);
+        gmtCalendar.set(12, 0);
+        gmtCalendar.set(11, 0);
+        gmtCalendar.set(5, 1);
+        gmtCalendar.set(2, 0);
+        return gmtCalendar.getTimeInMillis();
+    }
+
+    public static long getChunkStart(Period period, long time)
+        throws DataCacheException
+    {
+        long value = getChunkStartFast(period, time);
+        if(value == 0x8000000000000000L)
+        {
+            switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+            {
+            case 8: // '\b'
+                throw new DataCacheException("Periods with year unit not supported yet");
+            }
+            throw new DataCacheException("Period not supported");
+        } else
+        {
+            return value;
+        }
+    }
+
+    public static long getChunkStartFast(Period period, long time)
+    {
+        if(period == Period.TICK)
+            return getClosestHourStartBefore(time);
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 2: // '\002'
+            return getClosestDayStartBefore(time);
+
+        case 3: // '\003'
+            if(period.getNumOfUnits() >= 10)
+                return getClosestMonthStartBefore(time);
+            else
+                return getClosestDayStartBefore(time);
+
+        case 4: // '\004'
+            if(period.getNumOfUnits() >= 4)
+                return getClosestYearStartBefore(time);
+            else
+                return getClosestMonthStartBefore(time);
+
+        case 5: // '\005'
+        case 6: // '\006'
+        case 7: // '\007'
+            return getClosestYearStartBefore(time);
+        }
+        return 0x8000000000000000L;
+    }
+
+    public static long getOrdersChunkStart(long time)
+    {
+        return getClosestMonthStartBefore(time);
+    }
+
+    public static Unit getChunkLength(Period period)
+        throws DataCacheException
+    {
+        Unit value = getChunkLengthFast(period);
+        if(value == null)
+        {
+            switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+            {
+            case 8: // '\b'
+                throw new DataCacheException("Periods with year unit not supported yet");
+            }
+            throw new DataCacheException("Period not supported");
+        } else
+        {
+            return value;
+        }
+    }
+
+    public static Unit getChunkLengthFast(Period period)
+    {
+        if(period == Period.TICK)
+            return Unit.Hour;
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 2: // '\002'
+            return Unit.Day;
+
+        case 3: // '\003'
+            if(period.getNumOfUnits() >= 10)
+                return Unit.Month;
+            else
+                return Unit.Day;
+
+        case 4: // '\004'
+            if(period.getNumOfUnits() >= 4)
+                return Unit.Year;
+            else
+                return Unit.Month;
+
+        case 5: // '\005'
+        case 6: // '\006'
+        case 7: // '\007'
+            return Unit.Year;
+        }
+        return null;
+    }
+
+    public static long getChunkEnd(Period period, long time)
+        throws DataCacheException
+    {
+        long value = getChunkEndFast(period, time);
+        if(value == 0x8000000000000000L)
+        {
+            switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+            {
+            case 8: // '\b'
+                throw new DataCacheException("Periods with year unit not supported yet");
+            }
+            throw new DataCacheException("Period not supported");
+        } else
+        {
+            return value;
+        }
+    }
+
+    public static long getChunkEndFast(Period period, long time)
+    {
+        long chunkStart = getChunkStartFast(period, time);
+        if(period == Period.TICK)
+            return chunkStart + 0x36ee80L;
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 2: // '\002'
+        {
+            return (chunkStart + 0x5265c00L) - period.getInterval();
+        }
+
+        case 3: // '\003'
+        {
+            if(period.getNumOfUnits() >= 10)
+            {
+                Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+                gmtCalendar.setTimeInMillis(chunkStart);
+                gmtCalendar.add(2, 1);
+                return gmtCalendar.getTimeInMillis() - period.getInterval();
+            } else
+            {
+                return (chunkStart + 0x5265c00L) - period.getInterval();
+            }
+        }
+
+        case 4: // '\004'
+        {
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            if(period.getNumOfUnits() >= 4)
+            {
+                gmtCalendar.setTimeInMillis(chunkStart);
+                gmtCalendar.add(1, 1);
+                return gmtCalendar.getTimeInMillis() - period.getInterval();
+            } else
+            {
+                gmtCalendar.setTimeInMillis(chunkStart);
+                gmtCalendar.add(2, 1);
+                return gmtCalendar.getTimeInMillis() - period.getInterval();
+            }
+        }
+
+        case 5: // '\005'
+        {
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(chunkStart);
+            gmtCalendar.add(1, 1);
+            gmtCalendar.add(6, -1);
+            return gmtCalendar.getTimeInMillis();
+        }
+
+        case 6: // '\006'
+        {
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(chunkStart);
+            gmtCalendar.add(1, 1);
+            long yearEnd = gmtCalendar.getTimeInMillis();
+            gmtCalendar.set(7, 2);
+            if(yearEnd <= gmtCalendar.getTimeInMillis())
+                gmtCalendar.add(3, -1);
+            return gmtCalendar.getTimeInMillis();
+        }
+
+        case 7: // '\007'
+        {
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(chunkStart);
+            gmtCalendar.add(1, 1);
+            gmtCalendar.add(2, -period.getNumOfUnits());
+            return gmtCalendar.getTimeInMillis();
+        }
+        }
+        return 0x8000000000000000L;
+    }
+
+    public static long getOrdersChunkEnd(long time)
+    {
+        long chunkStart = getOrdersChunkStart(time);
+        Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+        gmtCalendar.setTimeInMillis(chunkStart);
+        gmtCalendar.add(2, 1);
+        return gmtCalendar.getTimeInMillis();
+    }
+
+    public static long[][] separateChunksForCache(Period period, long from, long to)
+    {
+        List intervals = new ArrayList();
+        if(period == Period.TICK)
+        {
+            long hourStart = getClosestHourStartBefore(from);
+            do
+            {
+                long hourEnd = hourStart + 0x36ee80L;
+                intervals.add(new long[] {
+                    hourStart, hourEnd
+                });
+                hourStart = hourEnd;
+            } while(hourStart < to);
+        } else
+        {
+            switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+            {
+            default:
+                break;
+
+            case 2: // '\002'
+            {
+                long dayStart = getClosestDayStartBefore(from);
+                do
+                {
+                    long dayEnd = dayStart + 0x5265c00L;
+                    intervals.add(new long[] {
+                        dayStart, dayEnd - period.getInterval()
+                    });
+                    dayStart = dayEnd;
+                } while(dayStart <= to);
+                break;
+            }
+
+            case 3: // '\003'
+            {
+                if(period.getNumOfUnits() >= 10)
+                {
+                    Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+                    long monthStart = getClosestMonthStartBefore(from);
+                    do
+                    {
+                        cal.setTimeInMillis(monthStart);
+                        cal.add(2, 1);
+                        long monthEnd = cal.getTimeInMillis();
+                        intervals.add(new long[] {
+                            monthStart, monthEnd - period.getInterval()
+                        });
+                        monthStart = monthEnd;
+                    } while(monthStart <= to);
+                    break;
+                }
+                long dayStart = getClosestDayStartBefore(from);
+                do
+                {
+                    long dayEnd = dayStart + 0x5265c00L;
+                    intervals.add(new long[] {
+                        dayStart, dayEnd - period.getInterval()
+                    });
+                    dayStart = dayEnd;
+                } while(dayStart <= to);
+                break;
+            }
+
+            case 4: // '\004'
+            {
+                Calendar cal;
+                if(period.getNumOfUnits() >= 4)
+                {
+                    cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+                    long yearStart = getClosestYearStartBefore(from);
+                    do
+                    {
+                        cal.setTimeInMillis(yearStart);
+                        cal.add(1, 1);
+                        long yearEnd = cal.getTimeInMillis();
+                        intervals.add(new long[] {
+                            yearStart, cal.getTimeInMillis() - period.getInterval()
+                        });
+                        yearStart = yearEnd;
+                    } while(yearStart <= to);
+                    break;
+                }
+                cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+                long monthStart = getClosestMonthStartBefore(from);
+                do
+                {
+                    cal.setTimeInMillis(monthStart);
+                    cal.add(2, 1);
+                    long monthEnd = cal.getTimeInMillis();
+                    intervals.add(new long[] {
+                        monthStart, monthEnd - period.getInterval()
+                    });
+                    monthStart = monthEnd;
+                } while(monthStart <= to);
+                break;
+            }
+
+            case 6: // '\006'
+            {
+                Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+                long yearStart = getClosestYearStartBefore(from);
+                do
+                {
+                    cal.setTimeInMillis(yearStart);
+                    cal.add(1, 1);
+                    long yearEnd = cal.getTimeInMillis();
+                    cal.set(7, 2);
+                    if(yearEnd <= cal.getTimeInMillis())
+                        cal.add(3, -1);
+                    intervals.add(new long[] {
+                        yearStart, cal.getTimeInMillis()
+                    });
+                    yearStart = yearEnd;
+                    cal.add(3, 1);
+                } while(cal.getTimeInMillis() <= to);
+                break;
+            }
+
+            case 5: // '\005'
+            {
+                Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+                long yearStart = getClosestYearStartBefore(from);
+                do
+                {
+                    cal.setTimeInMillis(yearStart);
+                    cal.add(1, 1);
+                    long yearEnd = cal.getTimeInMillis();
+                    cal.add(6, -1);
+                    intervals.add(new long[] {
+                        yearStart, cal.getTimeInMillis()
+                    });
+                    yearStart = yearEnd;
+                } while(yearStart <= to);
+                break;
+            }
+
+            case 7: // '\007'
+            {
+                Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+                long yearStart = getClosestYearStartBefore(from);
+                do
+                {
+                    cal.setTimeInMillis(yearStart);
+                    cal.add(1, 1);
+                    long yearEnd = cal.getTimeInMillis();
+                    cal.add(2, -period.getNumOfUnits());
+                    intervals.add(new long[] {
+                        yearStart, cal.getTimeInMillis()
+                    });
+                    yearStart = yearEnd;
+                } while(yearStart <= to);
+                break;
+            }
+            }
+        }
+        return (long[][])intervals.toArray(new long[intervals.size()][]);
+    }
+
+    public static long[][] separateOrderChunksForCache(long from, long to)
+    {
+        List intervals = new ArrayList();
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+        long monthStart = getClosestMonthStartBefore(from);
+        do
+        {
+            cal.setTimeInMillis(monthStart);
+            cal.add(2, 1);
+            long monthEnd = cal.getTimeInMillis();
+            intervals.add(new long[] {
+                monthStart, monthEnd
+            });
+            monthStart = monthEnd;
+        } while(monthStart <= to);
+        return (long[][])intervals.toArray(new long[intervals.size()][]);
+    }
+
+    public static long getCandleStart(Period period, long time)
+        throws DataCacheException
+    {
+        if(period == Period.TICK)
+            throw new DataCacheException("getCandleStart() called with TICK period");
+        if(period.getUnit() == Unit.Millisecond)
+            throw new DataCacheException("Cannot get candle start for period in milliseconds");
+        else
+            return getCandleStartFast(period, time);
+    }
+
+    public static long getCandleStartFast(Period period, long time)
+    {
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 1: // '\001'
+        case 2: // '\002'
+        case 3: // '\003'
+        case 4: // '\004'
+        case 5: // '\005'
+        {
+            return time - time % period.getInterval();
+        }
+
+        case 6: // '\006'
+        {
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(time);
+            gmtCalendar.set(14, 0);
+            gmtCalendar.set(13, 0);
+            gmtCalendar.set(12, 0);
+            gmtCalendar.set(11, 0);
+            gmtCalendar.set(7, 2);
+            if(gmtCalendar.getTimeInMillis() > time)
+                gmtCalendar.add(3, -1);
+            if(period.getNumOfUnits() > 1)
+            {
+                int currentWeek = gmtCalendar.get(3);
+                int shiftedWeek = (currentWeek / period.getNumOfUnits()) * period.getNumOfUnits();
+                gmtCalendar.set(3, shiftedWeek);
+            }
+            return gmtCalendar.getTimeInMillis();
+        }
+
+        case 7: // '\007'
+        {
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(time);
+            gmtCalendar.set(14, 0);
+            gmtCalendar.set(13, 0);
+            gmtCalendar.set(12, 0);
+            gmtCalendar.set(11, 0);
+            gmtCalendar.set(5, 1);
+            if(period.getNumOfUnits() > 1)
+            {
+                int currentMonth = gmtCalendar.get(2);
+                int shiftedMonth = (currentMonth / period.getNumOfUnits()) * period.getNumOfUnits();
+                gmtCalendar.set(2, shiftedMonth);
+            }
+            return gmtCalendar.getTimeInMillis();
+        }
+
+        case 8: // '\b'
+        {
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(time);
+            gmtCalendar.set(14, 0);
+            gmtCalendar.set(13, 0);
+            gmtCalendar.set(12, 0);
+            gmtCalendar.set(11, 0);
+            gmtCalendar.set(5, 1);
+            if(period.getNumOfUnits() > 1)
+            {
+                int currentYear = gmtCalendar.get(1);
+                int shiftedYear = (currentYear / period.getNumOfUnits()) * period.getNumOfUnits();
+                gmtCalendar.set(1, shiftedYear);
+            }
+            return gmtCalendar.getTimeInMillis();
+        }
+        }
+        return 0x8000000000000000L;
+    }
+
+    public static long getFirstCandleInChunk(Period period, long time)
+        throws DataCacheException
+    {
+        if(period == Period.TICK)
+            throw new DataCacheException("getCandleStart() called with TICK period");
+        if(!isCandleBasic(period))
+            throw new DataCacheException("Only basic periods supported atm");
+        if(period.getUnit() == Unit.Millisecond)
+        {
+            throw new DataCacheException("Cannot get candle start for period in milliseconds");
+        } else
+        {
+            time = getChunkStart(period, time);
+            return getFirstCandleInChunkFast(period, time);
+        }
+    }
+
+    public static long getFirstCandleInChunkFast(Period period, long chunkStartTime)
+    {
+        if(period == Period.WEEKLY)
+        {
+            long candleStart = getCandleStartFast(period, chunkStartTime);
+            if(candleStart < chunkStartTime)
+                candleStart = getNextCandleStartFast(period, candleStart);
+            return candleStart;
+        } else
+        {
+            return chunkStartTime;
+        }
+    }
+
+    public static File getChunkTempDirectory()
+        throws DataCacheException
+    {
+        return new File(FilePathManager.getInstance().getCacheTempDirectory());
+    }
+
+    public static File getOrdersChunkFile(String scheme, String accountId, Instrument instrument, long from, int version)
+        throws DataCacheException
+    {
+        StringBuilder fileName = new StringBuilder(FilePathManager.getInstance().getCacheDirectory());
+        fileName.append(instrument.name()).append(File.separatorChar);
+        Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+        gmtCalendar.setTimeInMillis(getOrdersChunkStart(from));
+        int month = gmtCalendar.get(2);
+        fileName.append(gmtCalendar.get(1)).append(File.separatorChar);
+        if(month < 10)
+            fileName.append("0");
+        fileName.append(month).append(File.separatorChar);
+        fileName.append("o_").append(scheme.charAt(0)).append("_").append(MD5.getDigest(accountId)).append(".bin");
+        return new File(fileName.toString());
+    }
+
+    public static File getChunkFile(Instrument instrument, Period period, OfferSide side, long from, int version)
+        throws DataCacheException
+    {
+        StringBuilder fileName = new StringBuilder(FilePathManager.getInstance().getCacheDirectory());
+        fileName.append(instrument.name()).append(File.separatorChar);
+        Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+        gmtCalendar.setTimeInMillis(getChunkStart(period, from));
+        int month = gmtCalendar.get(2);
+        int day = gmtCalendar.get(5);
+        int hour = gmtCalendar.get(11);
+        fileName.append(gmtCalendar.get(1)).append(File.separatorChar);
+        if(period == Period.TICK)
+        {
+            if(month < 10)
+                fileName.append("0");
+            fileName.append(month).append(File.separatorChar);
+            if(day < 10)
+                fileName.append("0");
+            fileName.append(day).append(File.separatorChar);
+            if(hour < 10)
+                fileName.append("0");
+            fileName.append(hour).append("h").append("_").append("ticks");
+        } else
+        {
+            switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+            {
+            default:
+                break;
+
+            case 8: // '\b'
+                throw new DataCacheException("Periods with year unit not supported yet");
+
+            case 7: // '\007'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("month").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 6: // '\006'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("week").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 5: // '\005'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("day").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 4: // '\004'
+                if(period.getNumOfUnits() < 4)
+                {
+                    if(month < 10)
+                        fileName.append("0");
+                    fileName.append(month).append(File.separatorChar);
+                }
+                fileName.append(side.name()).append("_").append("candles").append("_").append("hour").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 3: // '\003'
+                if(month < 10)
+                    fileName.append("0");
+                fileName.append(month).append(File.separatorChar);
+                if(period.getNumOfUnits() < 10)
+                {
+                    if(day < 10)
+                        fileName.append("0");
+                    fileName.append(day).append(File.separatorChar);
+                }
+                fileName.append(side.name()).append("_").append("candles").append("_").append("min").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 2: // '\002'
+                if(month < 10)
+                    fileName.append("0");
+                fileName.append(month).append(File.separatorChar);
+                if(day < 10)
+                    fileName.append("0");
+                fileName.append(day).append(File.separatorChar);
+                fileName.append(side.name()).append("_").append("candles").append("_").append("sec").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 1: // '\001'
+                throw new DataCacheException("Periods with millisecond unit not supported yet");
+            }
+        }
+        if(version >= 5)
+            fileName.append(".bi5");
+        else
+            fileName.append(".bin");
+        return new File(fileName.toString());
+    }
+
+    public static File getIntraPeriodFile(int intraperiodNum, Instrument instrument, Period period, OfferSide side, long from)
+        throws DataCacheException
+    {
+        StringBuilder fileName = new StringBuilder(FilePathManager.getInstance().getCacheDirectory());
+        fileName.append(instrument.name()).append(File.separatorChar);
+        fileName.append("intraperiod");
+        if(intraperiodNum != 0)
+            fileName.append(intraperiodNum);
+        fileName.append(File.separatorChar);
+        synchronized(intraPeriodFileDateFormat)
+        {
+            fileName.append(intraPeriodFileDateFormat.format(Long.valueOf(from)));
+        }
+        if(period == Period.TICK)
+            fileName.append("ticks");
+        else
+            switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+            {
+            case 8: // '\b'
+                throw new DataCacheException("Periods with year unit not supported yet");
+
+            case 7: // '\007'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("month").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 6: // '\006'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("week").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 5: // '\005'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("day").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 4: // '\004'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("hour").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 3: // '\003'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("min").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 2: // '\002'
+                fileName.append(side.name()).append("_").append("candles").append("_").append("sec").append("_").append(period.getNumOfUnits());
+                break;
+
+            case 1: // '\001'
+                throw new DataCacheException("Periods with millisecond unit not supported yet");
+            }
+        fileName.append(".bi5");
+        return new File(fileName.toString());
+    }
+
+    public static File[] getIntraPeriodTickFiles(int intraperiodNum, Instrument instrument)
+    {
+        StringBuilder fileName = new StringBuilder(FilePathManager.getInstance().getCacheDirectory());
+        fileName.append(instrument.name()).append(File.separatorChar);
+        fileName.append("intraperiod");
+        if(intraperiodNum != 0)
+            fileName.append(intraperiodNum);
+        fileName.append(File.separatorChar);
+        File dirFile = new File(fileName.toString());
+        if(dirFile.exists())
+            return dirFile.listFiles(new FileFilter() {
+
+                public boolean accept(File pathname)
+                {
+                    return pathname.isFile() && (pathname.getName().endsWith("_ticks.bin") || pathname.getName().endsWith("_ticks.bi5"));
+                }
+
+            });
+        else
+            return new File[0];
+    }
+
+    public static double getPriceWithCommission(Instrument instrument, OfferSide side, double price, double commission)
+    {
+        double priceChange = (price * commission) / 1000000D;
+        if(side == OfferSide.ASK)
+            return StratUtils.roundHalfUp(price + priceChange, instrument.getPipScale() + 1);
+        else
+            return StratUtils.roundHalfDown(price - priceChange, instrument.getPipScale() + 1);
+    }
+
+    public static long getNextChunkStart(Period period, long time)
+        throws DataCacheException
+    {
+        long chunkStart = getChunkStart(period, time);
+        if(period == Period.TICK)
+            return chunkStart + 0x36ee80L;
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 2: // '\002'
+            return chunkStart + 0x5265c00L;
+
+        case 3: // '\003'
+            if(period.getNumOfUnits() >= 10)
+            {
+                Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+                gmtCalendar.setTimeInMillis(chunkStart);
+                gmtCalendar.add(2, 1);
+                return gmtCalendar.getTimeInMillis();
+            } else
+            {
+                return chunkStart + 0x5265c00L;
+            }
+
+        case 4: // '\004'
+            if(period.getNumOfUnits() < 4)
+            {
+                Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+                gmtCalendar.setTimeInMillis(chunkStart);
+                gmtCalendar.add(2, 1);
+                return gmtCalendar.getTimeInMillis();
+            }
+            // fall through
+
+        case 5: // '\005'
+        case 6: // '\006'
+        case 7: // '\007'
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(chunkStart);
+            gmtCalendar.add(1, 1);
+            return gmtCalendar.getTimeInMillis();
+
+        case 8: // '\b'
+            throw new DataCacheException("Periods with year unit not supported yet");
+
+        default:
+            throw new DataCacheException("Period not supported");
+        }
+    }
+
+    public static long getPreviousChunkStart(Period period, long time)
+        throws DataCacheException
+    {
+        long chunkStart = getChunkStart(period, time);
+        if(period == Period.TICK)
+            return chunkStart - 0x36ee80L;
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 2: // '\002'
+            return chunkStart - 0x5265c00L;
+
+        case 3: // '\003'
+            if(period.getNumOfUnits() >= 10)
+            {
+                Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+                gmtCalendar.setTimeInMillis(chunkStart);
+                gmtCalendar.add(2, -1);
+                return gmtCalendar.getTimeInMillis();
+            } else
+            {
+                return chunkStart - 0x5265c00L;
+            }
+
+        case 4: // '\004'
+            if(period.getNumOfUnits() < 4)
+            {
+                Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+                gmtCalendar.setTimeInMillis(chunkStart);
+                gmtCalendar.add(2, -1);
+                return gmtCalendar.getTimeInMillis();
+            }
+            // fall through
+
+        case 5: // '\005'
+        case 6: // '\006'
+        case 7: // '\007'
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(chunkStart);
+            gmtCalendar.add(1, -period.getNumOfUnits());
+            return gmtCalendar.getTimeInMillis();
+
+        case 8: // '\b'
+            throw new DataCacheException("Periods with year unit not supported yet");
+
+        default:
+            throw new DataCacheException("Period not supported");
+        }
+    }
+
+    public static int getCandleCountInChunk(Period period, long time)
+        throws DataCacheException
+    {
+        long chunkStart = getChunkStart(period, time);
+        long chunkEnd = getChunkEnd(period, time);
+        if(period == Period.TICK)
+            throw new DataCacheException("Not a candle");
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 2: // '\002'
+        case 3: // '\003'
+        case 4: // '\004'
+        case 5: // '\005'
+            return (int)((chunkEnd - chunkStart) / period.getInterval() + 1L);
+
+        case 6: // '\006'
+            Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+            cal.setTimeInMillis(chunkStart);
+            cal.set(7, 2);
+            if(cal.getTimeInMillis() < chunkStart)
+                cal.add(3, 1);
+            int count = 0;
+            do
+            {
+                cal.add(3, 1);
+                count++;
+            } while(cal.getTimeInMillis() <= chunkEnd);
+            return count;
+
+        case 7: // '\007'
+            return 12;
+
+        case 8: // '\b'
+            throw new DataCacheException("Periods with year unit not supported yet");
+        }
+        throw new DataCacheException("Period not supported");
+    }
+
+    public static long getNextCandleStart(Period period, long candleTime)
+        throws DataCacheException
+    {
+        long candleStart = getCandleStart(period, candleTime);
+        if(period == Period.TICK)
+            throw new DataCacheException("Not a candle");
+        if(period.getUnit() == Unit.Millisecond)
+            throw new DataCacheException("Period not supported");
+        if(period.getUnit() == Unit.Year)
+            throw new DataCacheException("Periods with year unit not supported yet");
+        else
+            return getNextCandleStartFast(period, candleStart);
+    }
+
+    public static long getNextCandleStartFast(Period period, long candleStart)
+    {
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 1: // '\001'
+        case 2: // '\002'
+        case 3: // '\003'
+        case 4: // '\004'
+        case 5: // '\005'
+        case 6: // '\006'
+            return candleStart + period.getInterval();
+
+        case 7: // '\007'
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(candleStart);
+            gmtCalendar.add(2, period.getNumOfUnits());
+            return gmtCalendar.getTimeInMillis();
+        }
+        return 0x8000000000000000L;
+    }
+
+    public static long getPreviousCandleStart(Period period, long candleTime)
+        throws DataCacheException
+    {
+        long candleStart = getCandleStart(period, candleTime);
+        if(period == Period.TICK)
+            throw new DataCacheException("Not a candle");
+        if(period.getUnit() == Unit.Millisecond)
+            throw new DataCacheException("Period not supported");
+        if(period.getUnit() == Unit.Year)
+            throw new DataCacheException("Periods with year unit not supported yet");
+        else
+            return getPreviousCandleStartFast(period, candleStart);
+    }
+
+    public static long getPreviousCandleStartFast(Period period, long candleStart)
+    {
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 1: // '\001'
+        case 2: // '\002'
+        case 3: // '\003'
+        case 4: // '\004'
+        case 5: // '\005'
+        case 6: // '\006'
+            return candleStart - period.getInterval();
+
+        case 7: // '\007'
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(candleStart);
+            gmtCalendar.add(2, -period.getNumOfUnits());
+            return gmtCalendar.getTimeInMillis();
+        }
+        return 0x8000000000000000L;
+    }
+
+    public static int getCandlesCountBetween(Period period, long from, long to)
+        throws DataCacheException
+    {
+        if(period == Period.TICK)
+            throw new DataCacheException("Not a candle");
+        long fromCandleStart = getCandleStart(period, from);
+        long toCandleStart = getCandleStart(period, to);
+        if(period.getUnit() == Unit.Millisecond)
+            throw new DataCacheException("Period not supported");
+        if(period.getUnit() == Unit.Year)
+            throw new DataCacheException("Periods with year unit not supported yet");
+        else
+            return getCandlesCountBetweenFast(period, fromCandleStart, toCandleStart);
+    }
+
+    public static int getCandlesCountBetweenFast(Period period, long from, long to)
+    {
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 2: // '\002'
+        case 3: // '\003'
+        case 4: // '\004'
+        case 5: // '\005'
+        case 6: // '\006'
+            return (int)((to - from) / period.getInterval()) + 1;
+
+        case 7: // '\007'
+            int count = 0;
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(from);
+            for(; gmtCalendar.getTimeInMillis() <= to; gmtCalendar.add(2, period.getNumOfUnits()))
+                count++;
+
+            return count;
+        }
+        return 0x80000000;
+    }
+
+    public static long getTimeForNCandlesBack(Period period, long to, int numberOfCandles)
+        throws DataCacheException
+    {
+        if(period == Period.TICK)
+            throw new DataCacheException("Not a candle");
+        long candleStart = getCandleStart(period, to);
+        if(period.getUnit() == Unit.Millisecond)
+            throw new DataCacheException("Period not supported");
+        if(period.getUnit() == Unit.Year)
+            throw new DataCacheException("Periods with year unit not supported yet");
+        else
+            return getTimeForNCandlesBackFast(period, candleStart, numberOfCandles);
+    }
+
+    public static long getTimeForNCandlesBackFast(Period period, long candleStart, int numberOfCandles)
+    {
+        switch(_cls3..SwitchMap.com.dukascopy.api.Unit[period.getUnit().ordinal()])
+        {
+        case 2: // '\002'
+        case 3: // '\003'
+        case 4: // '\004'
+        case 5: // '\005'
+        case 6: // '\006'
+            return candleStart - (long)(numberOfCandles - 1) * period.getInterval();
+
+        case 7: // '\007'
+            Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+            gmtCalendar.setTimeInMillis(candleStart);
+            gmtCalendar.add(2, -(numberOfCandles - 1) * period.getNumOfUnits());
+            return gmtCalendar.getTimeInMillis();
+        }
+        return 0x8000000000000000L;
+    }
+
+    public static long getTimeForNCandlesForward(Period period, long from, int numberOfCandles)
+        throws DataCacheException
+    {
+        return getTimeForNCandlesBack(period, from, -(numberOfCandles - 2));
+    }
+
+    public static long getTimeForNCandlesForwardFast(Period period, long from, int numberOfCandles)
+    {
+        return getTimeForNCandlesBackFast(period, from, -(numberOfCandles - 2));
+    }
+
+    public static ToLoad[] getIntervalsToLoadForCandleFilling(Period period, long time)
+    {
+        List toLoad = new ArrayList();
+        tryToLoadWith(Period.MONTHLY, getCandleStartFast(period, time), time, toLoad);
+        return (ToLoad[])toLoad.toArray(new ToLoad[toLoad.size()]);
+    }
+
+    private static void tryToLoadWith(Period period, long from, long to, List toLoad)
+    {
+        if(from == to)
+            return;
+        if(period == Period.TICK)
+        {
+            ToLoad load = new ToLoad(period, from, to);
+            toLoad.add(load);
+            return;
+        }
+        if(period != Period.MONTHLY && to - from >= period.getInterval() && from == getCandleStartFast(period, from))
+        {
+            ToLoad load = new ToLoad(period, from, getPreviousCandleStartFast(period, getCandleStartFast(period, to)));
+            toLoad.add(load);
+            from = getNextCandleStartFast(period, load.to);
+        }
+        if(period == Period.MONTHLY)
+        {
+            tryToLoadWith(Period.DAILY, from, to, toLoad);
+        } else
+        {
+            Period valuesForIndicator[] = Period.valuesForIndicator();
+            int index;
+            for(index = valuesForIndicator.length - 1; index >= 0 && !period.equals(valuesForIndicator[index]); index--);
+            tryToLoadWith(valuesForIndicator[index - 1], from, to, toLoad);
+        }
+    }
+
+    public static long getPreviousPriceAggregationBarStart(long time)
+    {
+        return time - 1L;
+    }
+
+    public static long getNextPriceAggregationBarStart(long time)
+    {
+        return time + 1L;
+    }
+
+    public static long getTradingSessionStart(long time)
+    {
+        Calendar gmtCalendar = (Calendar)gmtCalendarThreadLocal.get();
+        gmtCalendar.setTimeInMillis(time);
+        int dayOfWeek = gmtCalendar.get(7);
+        gmtCalendar.add(7, -(dayOfWeek - 1));
+        gmtCalendar.set(11, 21);
+        gmtCalendar.set(12, 0);
+        gmtCalendar.set(13, 0);
+        gmtCalendar.set(14, 0);
+        long result = gmtCalendar.getTime().getTime();
+        return result;
+    }
+
+    public static long getNTradingSessionStart(long time, int n)
+    {
+        time = getTradingSessionStart(time);
+        time += n;
+        time = getTradingSessionStart(time);
+        return time;
+    }
+
+    public static long getPreviousTradingSessionStart(long time)
+    {
+        time = getNTradingSessionStart(time, -1);
+        return time;
+    }
+
+    public static long getNextTradingSessionStart(long time)
+    {
+        time = getNTradingSessionStart(time, -1);
+        return time;
+    }
+
+    public static boolean isTheSameTradingSession(long time1, long time2)
+    {
+        long currentTradingSessionTime = getTradingSessionStart(time1);
+        long nextDataTradingSessionTime = getTradingSessionStart(time2);
+        return currentTradingSessionTime == nextDataTradingSessionTime;
+    }
+
+    public static List getOldBasicPeriods()
+    {
+        List result = new ArrayList();
+        result.add(Period.TEN_SECS);
+        result.add(Period.ONE_MIN);
+        result.add(Period.FIVE_MINS);
+        result.add(Period.TEN_MINS);
+        result.add(Period.FIFTEEN_MINS);
+        result.add(Period.THIRTY_MINS);
+        result.add(Period.ONE_HOUR);
+        result.add(Period.FOUR_HOURS);
+        result.add(Period.DAILY);
+        result.add(Period.WEEKLY);
+        result.add(Period.MONTHLY);
+        return result;
+    }
+
+    public static boolean isWeekendTime(long time, Weekend weekends[])
+    {
+        Weekend weekend = getWeekend(time, weekends);
+        return weekend != null;
+    }
+
+    public static Weekend getWeekend(long time, Weekend weekends[])
+    {
+        if(weekends != null)
+        {
+            Weekend arr$[] = weekends;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Weekend weekend = arr$[i$];
+                if(weekend.isWeekendTime(time))
+                    return weekend;
+            }
+
+        }
+        return null;
+    }
+
+    public static Weekend getWeekend(long time, List weekends)
+    {
+        if(weekends != null)
+            return getWeekend(time, (Weekend[])weekends.toArray(new Weekend[weekends.size()]));
+        else
+            return null;
+    }
+
+    protected static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+    private static final DateFormat intraPeriodFileDateFormat;
+    private static final ThreadLocal gmtCalendarThreadLocal = new ThreadLocal() {
+
+        protected Calendar initialValue()
+        {
+            return Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+        }
+
+        protected volatile Object initialValue()
+        {
+            return initialValue();
+        }
+
+    };
+    protected static Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/DataCacheUtils);
+    public static final String ORDERS_FILE_PREFIX = "o_";
+
+    static 
+    {
+        intraPeriodFileDateFormat = new SimpleDateFormat("yyyy_MM_dd_HH_");
+        intraPeriodFileDateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+    }
+}

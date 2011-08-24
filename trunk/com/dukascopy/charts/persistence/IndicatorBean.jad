@@ -1,0 +1,261 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IndicatorBean.java
+
+package com.dukascopy.charts.persistence;
+
+import com.dukascopy.api.IIndicators;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.indicators.OutputParameterInfo;
+import java.awt.Color;
+
+public class IndicatorBean
+{
+
+    public IndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], 
+            int lineWidths[], int outputShifts[], Integer subChartId, java.util.List chartObjects, java.util.List levelInfoList)
+    {
+        this(id, name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, null, null, null, drawingStyles, lineWidths, outputShifts, subChartId, chartObjects, levelInfoList);
+    }
+
+    public IndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], boolean valuesOnChart[], 
+            boolean showOutputs[], float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], Integer subChartId, java.util.List chartObjects, 
+            java.util.List levelInfoList)
+    {
+        this(id, name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, null, drawingStyles, lineWidths, outputShifts, subChartId, chartObjects, levelInfoList);
+    }
+
+    public IndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], 
+            com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], Integer subChartId, java.util.List chartObjects, java.util.List levelInfoList)
+    {
+        this(id, name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, outputColors2, null, null, null, drawingStyles, lineWidths, outputShifts, subChartId, chartObjects, levelInfoList);
+    }
+
+    public IndicatorBean(int id, String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], 
+            boolean valuesOnChart[], boolean showOutputs[], float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], Integer subChartId, 
+            java.util.List chartObjects, java.util.List levelInfoList)
+    {
+        this.id = id;
+        this.name = name;
+        this.sidesForTicks = sidesForTicks != null ? sidesForTicks : new OfferSide[0];
+        this.appliedPricesForCandles = appliedPricesForCandles != null ? appliedPricesForCandles : new com.dukascopy.api.IIndicators.AppliedPrice[0];
+        this.optParams = optParams != null ? optParams : new Object[0];
+        this.outputColors = outputColors != null ? outputColors : new Color[0];
+        this.outputColors2 = outputColors2 != null ? outputColors2 : this.outputColors;
+        showValuesOnChart = valuesOnChart != null ? valuesOnChart : new boolean[this.outputColors.length];
+        this.showOutputs = showOutputs != null ? showOutputs : new boolean[this.outputColors.length];
+        this.opacityAlphas = null != opacityAlphas ? opacityAlphas : new float[this.outputColors.length];
+        this.drawingStyles = drawingStyles;
+        this.lineWidths = lineWidths;
+        this.outputShifts = outputShifts;
+        subPanelId = subChartId;
+        this.chartObjects = chartObjects;
+        this.levelInfoList = levelInfoList;
+    }
+
+    public Integer getId()
+    {
+        return Integer.valueOf(id);
+    }
+
+    public String getName()
+    {
+        return name;
+    }
+
+    public OfferSide[] getSidesForTicks()
+    {
+        return sidesForTicks;
+    }
+
+    public com.dukascopy.api.IIndicators.AppliedPrice[] getAppliedPricesForCandles()
+    {
+        return appliedPricesForCandles;
+    }
+
+    public Object[] getOptParams()
+    {
+        return optParams;
+    }
+
+    public Color[] getOutputColors()
+    {
+        return outputColors;
+    }
+
+    public Color[] getOutputColors2()
+    {
+        return outputColors2;
+    }
+
+    public boolean[] getShowValuesOnChart()
+    {
+        return showValuesOnChart;
+    }
+
+    public boolean[] getShowOutputs()
+    {
+        return showOutputs;
+    }
+
+    public float[] getOpacityAlphas()
+    {
+        return opacityAlphas;
+    }
+
+    public com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle[] getDrawingStyles()
+    {
+        return drawingStyles;
+    }
+
+    public int[] getLineWidths()
+    {
+        return lineWidths;
+    }
+
+    public int[] getOutputShifts()
+    {
+        return outputShifts;
+    }
+
+    public String toString()
+    {
+        StringBuilder stringBuilder = new StringBuilder();
+        String lineSeparator = System.getProperty("line.separator");
+        stringBuilder.append("id=").append(id).append(lineSeparator);
+        stringBuilder.append("name=").append(name).append(lineSeparator);
+        stringBuilder.append("sidesForTicks=");
+        OfferSide arr$[] = sidesForTicks;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            OfferSide sidesForTick = arr$[i$];
+            stringBuilder.append(sidesForTick).append(", ");
+        }
+
+        stringBuilder.append(lineSeparator);
+        stringBuilder.append("appliedPricesForCandles=");
+        arr$ = appliedPricesForCandles;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandle = arr$[i$];
+            stringBuilder.append(appliedPricesForCandle).append(", ");
+        }
+
+        stringBuilder.append(lineSeparator);
+        stringBuilder.append("optParams=");
+        arr$ = ((OfferSide []) (optParams));
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Object param = arr$[i$];
+            stringBuilder.append(param).append(", ");
+        }
+
+        stringBuilder.append(lineSeparator);
+        stringBuilder.append("outputColors=");
+        arr$ = outputColors;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Color outputColor = arr$[i$];
+            stringBuilder.append(outputColor).append(", ");
+        }
+
+        stringBuilder.append(lineSeparator);
+        stringBuilder.append("outputColors2=");
+        arr$ = outputColors2;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Color outputColor = arr$[i$];
+            stringBuilder.append(outputColor).append(", ");
+        }
+
+        stringBuilder.append(lineSeparator);
+        if(drawingStyles != null)
+        {
+            stringBuilder.append("drawingStyles=");
+            arr$ = drawingStyles;
+            len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyle = arr$[i$];
+                stringBuilder.append(drawingStyle).append(", ");
+            }
+
+            stringBuilder.append(lineSeparator);
+        }
+        if(lineWidths != null)
+        {
+            stringBuilder.append("lineWidths=");
+            arr$ = lineWidths;
+            len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                int lineWidth = arr$[i$];
+                stringBuilder.append(lineWidth).append(", ");
+            }
+
+            stringBuilder.append(lineSeparator);
+        }
+        if(outputShifts != null)
+        {
+            stringBuilder.append("outputShifts=");
+            arr$ = outputShifts;
+            len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                int shift = arr$[i$];
+                stringBuilder.append(shift).append(", ");
+            }
+
+            stringBuilder.append(lineSeparator);
+        }
+        return stringBuilder.toString();
+    }
+
+    public Integer getSubPanelId()
+    {
+        return subPanelId;
+    }
+
+    public java.util.List getChartObjects()
+    {
+        return chartObjects;
+    }
+
+    public void setChartObjects(java.util.List chartObjects)
+    {
+        this.chartObjects = chartObjects;
+    }
+
+    public java.util.List getLevelInfoList()
+    {
+        return levelInfoList;
+    }
+
+    public void setLevelInfoList(java.util.List levelInfoList)
+    {
+        this.levelInfoList = levelInfoList;
+    }
+
+    private final int id;
+    private final String name;
+    private final OfferSide sidesForTicks[];
+    private final com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[];
+    private final Object optParams[];
+    private final Color outputColors[];
+    private final Color outputColors2[];
+    private final boolean showValuesOnChart[];
+    private final boolean showOutputs[];
+    private final com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[];
+    private final int lineWidths[];
+    private final float opacityAlphas[];
+    private final Integer subPanelId;
+    private java.util.List chartObjects;
+    private final int outputShifts[];
+    private java.util.List levelInfoList;
+}

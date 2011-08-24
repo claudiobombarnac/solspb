@@ -1,0 +1,32 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IStrategyNotificationManager.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.impl.connect.StrategyProcessor;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.dds2.greed.agent.strategy.tester.IStrategyRunner;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+
+public interface IStrategyNotificationManager
+{
+
+    public abstract void unsubscribeFromAll(IStrategy istrategy);
+
+    public abstract void unsubscribeFromBarsFeedForHistoricalTester(IStrategy istrategy, IStrategyRunner istrategyrunner, Object obj);
+
+    public abstract void unsubscribeFromLiveBarsFeed(IStrategy istrategy, Object obj);
+
+    public abstract void historicalBarReceived(IStrategy istrategy, Instrument instrument, JForexPeriod jforexperiod, OfferSide offerside, IBar ibar);
+
+    public abstract void subscribeToBarsFeedForHistoricalTester(IStrategy istrategy, IStrategyRunner istrategyrunner, Instrument instrument, JForexPeriod jforexperiod, OfferSide offerside, Object obj, IStrategyExceptionHandler istrategyexceptionhandler, 
+            JForexTaskManager jforextaskmanager, StrategyProcessor strategyprocessor, INotificationUtils inotificationutils);
+
+    public abstract void subscribeToLiveBarsFeed(IStrategy istrategy, Instrument instrument, JForexPeriod jforexperiod, OfferSide offerside, Object obj, IStrategyExceptionHandler istrategyexceptionhandler, JForexTaskManager jforextaskmanager, 
+            StrategyProcessor strategyprocessor, INotificationUtils inotificationutils);
+}

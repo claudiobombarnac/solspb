@@ -1,0 +1,31 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OctButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.MainCalculatorPanel;
+import com.dukascopy.calculator.function.Oct;
+import com.dukascopy.calculator.function.PObject;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            EqualsButton
+
+public class OctButton extends EqualsButton
+{
+
+    public OctButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new Oct());
+        setText();
+        setShortcut(getPobject().shortcut());
+        setTextSize();
+        changeBase = EqualsButton.ChangeBase.OCTAL;
+        addActionListener(this);
+        setToolTipKey(getPobject().tooltip());
+    }
+
+    private static final long serialVersionUID = 1L;
+}

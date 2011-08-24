@@ -1,0 +1,152 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   UpdateCacheDataAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import java.util.Iterator;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, LoadDataAction, DataCacheException, FeedDataProvider, 
+//            DataCacheUtils, CurvesDataLoader, LoadingProgressListener
+
+public class UpdateCacheDataAction extends LoadProgressingAction
+    implements Runnable
+{
+
+    public UpdateCacheDataAction(FeedDataProvider feedDataProvider, long disconnectTime, StackTraceElement stackTrace[])
+    {
+        this.feedDataProvider = feedDataProvider;
+        this.disconnectTime = disconnectTime;
+        this.stackTrace = stackTrace;
+    }
+
+    public void run()
+    {
+        long currentTime = feedDataProvider.getCurrentTime();
+        if(disconnectTime > currentTime)
+            return;
+        for(; currentTime == 0x8000000000000000L || currentTime == disconnectTime; currentTime = feedDataProvider.getCurrentTime())
+            try
+            {
+                Thread.sleep(100L);
+            }
+            catch(InterruptedException e) { }
+
+        Instrument instrument;
+        for(Iterator i$ = feedDataProvider.getInstrumentsCurrentlySubscribed().iterator(); i$.hasNext(); feedDataProvider.fireCacheDataChanged(instrument, disconnectTime, currentTime))
+        {
+            instrument = (Instrument)i$.next();
+            Period arr$[] = Period.valuesForIndicator();
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Period period = arr$[i$];
+                long from;
+                if(period == Period.TICK)
+                {
+                    from = DataCacheUtils.getChunkStartFast(period, disconnectTime);
+                    try
+                    {
+                        LoadDataAction loadDataAction = new LoadDataAction(feedDataProvider, instrument, from, currentTime, null, new LoadingProgressListener() {
+
+                            public void dataLoaded(long l, long l1, long l2, String s)
+                            {
+                            }
+
+                            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                                    Exception e)
+                            {
+                                if(!allDataLoaded && e != null)
+                                    UpdateCacheDataAction.LOGGER.error(e.getMessage(), e);
+                            }
+
+                            public boolean stopJob()
+                            {
+                                return cancel;
+                            }
+
+                            final UpdateCacheDataAction this$0;
+
+            
+            {
+                this$0 = UpdateCacheDataAction.this;
+                super();
+            }
+                        }, stackTrace, false, CurvesDataLoader.IntraperiodExistsPolicy.FORCE_DATA_UPDATE, false);
+                        loadDataAction.run();
+                    }
+                    catch(DataCacheException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                    continue;
+                }
+                from = DataCacheUtils.getCandleStartFast(period, disconnectTime);
+                long to = DataCacheUtils.getCandleStartFast(period, currentTime);
+                OfferSide arr$[] = OfferSide.values();
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    OfferSide offerSide = arr$[i$];
+                    try
+                    {
+                        LoadDataAction loadDataAction = new LoadDataAction(feedDataProvider, instrument, period, offerSide, from, to, null, new LoadingProgressListener() {
+
+                            public void dataLoaded(long l, long l1, long l2, String s)
+                            {
+                            }
+
+                            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                                    Exception e)
+                            {
+                                if(!allDataLoaded && e != null)
+                                    UpdateCacheDataAction.LOGGER.error(e.getMessage(), e);
+                            }
+
+                            public boolean stopJob()
+                            {
+                                return cancel;
+                            }
+
+                            final UpdateCacheDataAction this$0;
+
+            
+            {
+                this$0 = UpdateCacheDataAction.this;
+                super();
+            }
+                        }, stackTrace, false, CurvesDataLoader.IntraperiodExistsPolicy.FORCE_DATA_UPDATE, false);
+                        loadDataAction.run();
+                    }
+                    catch(DataCacheException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                }
+
+            }
+
+        }
+
+    }
+
+    public void cancel()
+    {
+        cancel = true;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/UpdateCacheDataAction);
+    private final long disconnectTime;
+    private final StackTraceElement stackTrace[];
+    private final FeedDataProvider feedDataProvider;
+    private boolean cancel;
+
+
+
+}

@@ -1,0 +1,81 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   View.java
+
+package com.dukascopy.calculator.graph;
+
+import java.awt.*;
+import java.io.PrintStream;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.swing.JPanel;
+import javax.swing.UIManager;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            Transformation, Graph, Model
+
+public class View extends JPanel
+{
+
+    public View(Model model, Graph graph)
+    {
+        this.model = model;
+        this.graph = graph;
+        forceUpdateBool = new AtomicBoolean(false);
+        transformation = new Transformation(this);
+        Font font = UIManager.getFont("Label.font");
+        setFont(font.deriveFont(10F));
+        distanceValue = 1.0D;
+        lastWidth = lastHeight = 0;
+    }
+
+    public void forceUpdate()
+    {
+        forceUpdateBool.set(true);
+    }
+
+    public void paintComponent(Graphics graphics)
+    {
+        if(lastWidth != getWidth() || lastHeight != getHeight() || forceUpdateBool.compareAndSet(true, false))
+        {
+            System.out.println("*** changed size  or forced update *** ");
+            graph.updateMenu();
+            setCursor(new Cursor(3));
+            model.updatePaths();
+            lastWidth = getWidth();
+            lastHeight = getHeight();
+        }
+        Graphics2D graphics2d = (Graphics2D)graphics;
+        graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics2d.setColor(Color.WHITE);
+        graphics2d.fillRect(0, 0, lastWidth, lastHeight);
+        graphics2d.setColor(Color.BLACK);
+        model.draw(this, graphics2d);
+        System.out.println("finished updating view");
+    }
+
+    public final Transformation getTransformation()
+    {
+        return transformation;
+    }
+
+    public Model getModel()
+    {
+        return model;
+    }
+
+    double distance()
+    {
+        return distanceValue;
+    }
+
+    protected Graph graph;
+    protected Model model;
+    protected Transformation transformation;
+    protected double distanceValue;
+    public static final double delta = 0.001D;
+    private int lastWidth;
+    private int lastHeight;
+    AtomicBoolean forceUpdateBool;
+    private static final long serialVersionUID = 1L;
+}

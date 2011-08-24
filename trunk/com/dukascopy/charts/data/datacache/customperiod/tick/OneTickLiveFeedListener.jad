@@ -1,0 +1,37 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OneTickLiveFeedListener.java
+
+package com.dukascopy.charts.data.datacache.customperiod.tick;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.LiveFeedListener;
+import com.dukascopy.charts.data.datacache.TickData;
+
+public class OneTickLiveFeedListener
+    implements LiveFeedListener
+{
+
+    public OneTickLiveFeedListener()
+    {
+    }
+
+    public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+            double d1, double d2, double d3, double d4)
+    {
+    }
+
+    public void newTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        tick = new TickData(time, ask, bid, askVol, bidVol);
+    }
+
+    public TickData getTick()
+    {
+        return tick;
+    }
+
+    private TickData tick;
+}

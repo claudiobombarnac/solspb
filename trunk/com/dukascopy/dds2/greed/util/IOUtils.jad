@@ -1,0 +1,105 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IOUtils.java
+
+package com.dukascopy.dds2.greed.util;
+
+import java.io.*;
+
+public class IOUtils
+{
+
+    public IOUtils()
+    {
+    }
+
+    public static int copy(InputStream input, OutputStream output)
+        throws IOException
+    {
+        long count = copyLarge(input, output);
+        if(count > 0x7fffffffL)
+            return -1;
+        else
+            return (int)count;
+    }
+
+    public static long copyLarge(InputStream input, OutputStream output)
+        throws IOException
+    {
+        byte buffer[] = new byte[4096];
+        long count = 0L;
+        for(int n = 0; -1 != (n = input.read(buffer));)
+        {
+            output.write(buffer, 0, n);
+            count += n;
+        }
+
+        return count;
+    }
+
+    public static byte[] toByteArray(InputStream input)
+        throws IOException
+    {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        copy(input, output);
+        return output.toByteArray();
+    }
+
+    public static void closeQuietly(InputStream input)
+    {
+        try
+        {
+            if(input != null)
+                input.close();
+        }
+        catch(IOException ioe) { }
+    }
+
+    public static void closeQuietly(OutputStream output)
+    {
+        try
+        {
+            if(output != null)
+            {
+                output.flush();
+                output.close();
+            }
+        }
+        catch(IOException ioe) { }
+    }
+
+    public static void writeByteArrayToFile(File file, byte data[])
+        throws IOException
+    {
+        OutputStream out = null;
+        out = openOutputStream(file);
+        out.write(data);
+        closeQuietly(out);
+        break MISSING_BLOCK_LABEL_26;
+        Exception exception;
+        exception;
+        closeQuietly(out);
+        throw exception;
+    }
+
+    public static FileOutputStream openOutputStream(File file)
+        throws IOException
+    {
+        if(file.exists())
+        {
+            if(file.isDirectory())
+                throw new IOException((new StringBuilder()).append("File '").append(file).append("' exists but is a directory").toString());
+            if(!file.canWrite())
+                throw new IOException((new StringBuilder()).append("File '").append(file).append("' cannot be written to").toString());
+        } else
+        {
+            File parent = file.getParentFile();
+            if(parent != null && !parent.exists() && !parent.mkdirs())
+                throw new IOException((new StringBuilder()).append("File '").append(file).append("' could not be created").toString());
+        }
+        return new FileOutputStream(file);
+    }
+
+    private static final int DEFAULT_BUFFER_SIZE = 4096;
+}

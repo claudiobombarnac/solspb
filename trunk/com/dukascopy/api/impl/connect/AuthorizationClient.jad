@@ -1,0 +1,490 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   AuthorizationClient.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.transport.util.Base64;
+import java.io.*;
+import java.net.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.imageio.ImageIO;
+import javax.net.ssl.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            AuthorizationConfigurationPool
+
+public class AuthorizationClient
+{
+    private static class DummyHostNameVerifier
+        implements HostnameVerifier
+    {
+
+        public boolean verify(String hostname, SSLSession session)
+        {
+            AuthorizationClient.LOGGER.debug("Verify : {} @ {}", hostname, session);
+            return true;
+        }
+
+        private DummyHostNameVerifier()
+        {
+        }
+
+    }
+
+
+    public static AuthorizationClient getInstance(Collection authServerUrls, String version)
+    {
+        if(authClient == null)
+            try
+            {
+                authClient = new AuthorizationClient(authServerUrls, version);
+            }
+            catch(MalformedURLException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        else
+            try
+            {
+                authClient.updateConfigurationPool(authServerUrls);
+            }
+            catch(MalformedURLException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        return authClient;
+    }
+
+    private AuthorizationClient(Collection authServerUrls, String version)
+        throws MalformedURLException
+    {
+        String authServerUrl;
+        for(Iterator i$ = authServerUrls.iterator(); i$.hasNext(); configurationPool.add(authServerUrl))
+            authServerUrl = (String)i$.next();
+
+        this.version = version;
+    }
+
+    private void updateConfigurationPool(Collection authServerUrls)
+        throws MalformedURLException
+    {
+        configurationPool.clear();
+        String authServerUrl;
+        for(Iterator i$ = authServerUrls.iterator(); i$.hasNext(); configurationPool.add(authServerUrl))
+            authServerUrl = (String)i$.next();
+
+    }
+
+    public Map getImageCaptcha()
+        throws IOException
+    {
+        HashMap output;
+        int retryCount;
+        output = null;
+        setError(null);
+        retryCount = 0;
+_L3:
+        if(retryCount >= configurationPool.size() || output != null) goto _L2; else goto _L1
+_L1:
+        URL captchaUrl;
+        InputStream inputStream;
+        String formedUrl = (new StringBuilder()).append(getBaseUrl()).append("/captcha").toString();
+        LOGGER.info(">> [{}]", formedUrl);
+        captchaUrl = new URL(formedUrl);
+        inputStream = null;
+        URLConnection connection = getConnection(captchaUrl);
+        String captchaId = connection.getHeaderField("X-CaptchaID");
+        LOGGER.debug("<< [{} : {}]", "X-CaptchaID", captchaId);
+        inputStream = connection.getInputStream();
+        java.awt.image.BufferedImage captchaImage = ImageIO.read(inputStream);
+        output = new HashMap();
+        output.put(captchaId, captchaImage);
+        if(inputStream != null)
+            inputStream.close();
+        continue; /* Loop/switch isn't completed */
+        IOException e;
+        e;
+        configurationPool.markLastUsedAsBad();
+        LOGGER.error(e.getMessage(), e);
+        setError(e);
+        if(inputStream != null)
+            inputStream.close();
+        continue; /* Loop/switch isn't completed */
+        Exception exception;
+        exception;
+        if(inputStream != null)
+            inputStream.close();
+        throw exception;
+        retryCount++;
+          goto _L3
+_L2:
+        return output;
+    }
+
+    public String getUrlAndTicket(String login, String password, String instanceId)
+        throws IOException, NoSuchAlgorithmException
+    {
+        return getUrlAndTicket(login, password, instanceId, true);
+    }
+
+    public String getUrlAndTicket(String login, String password, String instanceId, boolean encodePassword)
+        throws IOException, NoSuchAlgorithmException
+    {
+        String result = null;
+        int retryCount = 0;
+        setError(null);
+        while(retryCount < configurationPool.size() && result == null) 
+            try
+            {
+                String formedUrl = (new StringBuilder()).append(getBaseUrl()).append("/auth?typus=0&munus=api&").append("appello").append("=").append(login).append("&").append("specialis").append("=").append(encodePassword ? encodeAll(password, "", login) : password).append("&").append("versio").append("=").append(version).append("&").append("sermo").append("=").append(instanceId).toString();
+                URL url = new URL(formedUrl);
+                result = readFirstLineOfResponse(url);
+                continue;
+            }
+            catch(IOException e)
+            {
+                configurationPool.markLastUsedAsBad();
+                LOGGER.error(e.getMessage(), e);
+                setError(e);
+                retryCount++;
+            }
+        return result;
+    }
+
+    public String getUrlAndTicket(String login, String password, String captchaId, String pin, String instanceId)
+        throws IOException, NoSuchAlgorithmException
+    {
+        String result = null;
+        int retryCount = 0;
+        setError(null);
+        while(retryCount < configurationPool.size() && result == null) 
+            try
+            {
+                String urlString = (new StringBuilder()).append(getBaseUrl()).append("/auth?typus=0&munus=api&").append("appello").append("=").append(login).append("&").append("specialis").append("=").append(encodeAll(password, captchaId, login)).append("&").append("versio").append("=").append(version).append("&").append("sermo").append("=").append(instanceId).toString();
+                if(captchaId != null)
+                    urlString = (new StringBuilder()).append(urlString).append("&verbum_id=").append(captchaId).toString();
+                if(pin != null)
+                    urlString = (new StringBuilder()).append(urlString).append("&sententia=").append(URLEncoder.encode(pin, "iso-8859-1")).toString();
+                URL url = new URL(urlString);
+                result = readFirstLineOfResponse(url);
+                continue;
+            }
+            catch(IOException e)
+            {
+                configurationPool.markLastUsedAsBad();
+                LOGGER.error(e.getMessage(), e);
+                setError(e);
+                retryCount++;
+            }
+        return result;
+    }
+
+    public String getNewTicketAfterReconnect(String login, String oldTicket, String instanceId)
+        throws IOException, NoSuchAlgorithmException
+    {
+        String result = null;
+        int retryCount = 0;
+        setError(null);
+        while(retryCount < configurationPool.size() && result == null) 
+            try
+            {
+                String formedUrl = (new StringBuilder()).append(getBaseUrl()).append("/auth?typus=0&munus=relogin&").append("appello").append("=").append(login).append("&").append("licentio").append("=").append(oldTicket).append("&").append("sermo").append("=").append(instanceId).toString();
+                URL url = new URL(formedUrl);
+                result = readFirstLineOfResponse(url);
+                continue;
+            }
+            catch(IOException e)
+            {
+                configurationPool.markLastUsedAsBad();
+                LOGGER.error(e.getMessage(), e);
+                setError(e);
+                retryCount++;
+            }
+        return result;
+    }
+
+    public String getFeedUrlAndTicket(String login, String platformTicket, String instanceId)
+        throws IOException, NoSuchAlgorithmException
+    {
+        String result = null;
+        for(int retryCount = 0; retryCount < 5 && result == null; retryCount++)
+        {
+            try
+            {
+                URL authorizationServerUrl = getBaseUrl();
+                String url = (new StringBuilder()).append(authorizationServerUrl).append("/auth?typus=0&munus=datafeed&").append("appello").append("=").append(login).append("&").append("licentio").append("=").append(platformTicket).append("&").append("sermo").append("=").append(instanceId).toString();
+                LOGGER.debug((new StringBuilder()).append("Authorizing for data feed server [").append(authorizationServerUrl).append("] attempt [").append(retryCount).append("]...").toString());
+                result = readFirstLineOfResponse(new URL(url));
+                if(result == null || result.startsWith("-3") || result.startsWith("-2") || result.startsWith("-500"))
+                {
+                    LOGGER.error("Authorization for data feed server failed, system error");
+                    result = null;
+                    configurationPool.markLastUsedAsBad();
+                    try
+                    {
+                        Thread.sleep(3000L);
+                    }
+                    catch(InterruptedException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                    continue;
+                }
+                if(!result.startsWith("-1"))
+                    continue;
+                LOGGER.error("Authorization for data feed server failed, access not authorized");
+                result = null;
+                try
+                {
+                    Thread.sleep(3000L);
+                }
+                catch(InterruptedException e)
+                {
+                    LOGGER.error(e.getMessage(), e);
+                }
+                continue;
+            }
+            catch(IOException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            try
+            {
+                Thread.sleep(3000L);
+            }
+            catch(InterruptedException ex)
+            {
+                LOGGER.error(ex.getMessage(), ex);
+            }
+        }
+
+        if(result != null)
+        {
+            Matcher matcher = RESULT_PATTERN.matcher(result);
+            if(!matcher.matches())
+            {
+                LOGGER.error((new StringBuilder()).append("Authorization procedure returned unexpected result [").append(result).append("]").toString());
+                result = null;
+            } else
+            {
+                String feedDataServerURL = matcher.group(1);
+                LOGGER.debug((new StringBuilder()).append("Authorization for data feed server successful, server url [").append(feedDataServerURL).append("]").toString());
+            }
+        }
+        return result;
+    }
+
+    public Properties getAllProperties(String login, String ticket, String sessionId)
+        throws IOException, NoSuchAlgorithmException
+    {
+        Properties result = null;
+        int retryCount = 0;
+        setError(null);
+        while(retryCount < configurationPool.size() && result == null) 
+            try
+            {
+                String formedUrl = (new StringBuilder()).append(getBaseUrl()).append("/auth?typus=0&munus=stngs&").append("appello").append("=").append(login).append("&").append("licentio").append("=").append(ticket).append("&").append("sermo").append("=").append(sessionId).append("&").append("stngs").append("=1").toString();
+                URL url = new URL(formedUrl);
+                result = (Properties)getRetrievePropsFromResponse(url);
+                continue;
+            }
+            catch(IOException e)
+            {
+                configurationPool.markLastUsedAsBad();
+                LOGGER.error(e.getMessage(), e);
+                setError(e);
+                retryCount++;
+            }
+        return result;
+    }
+
+    private static String readFirstLineOfResponse(URL url)
+        throws IOException
+    {
+        String result;
+        BufferedReader reader;
+        LOGGER.debug(">> [{}]", url);
+        result = null;
+        reader = null;
+        URLConnection connection = getConnection(url);
+        reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        result = reader.readLine();
+        if(reader != null)
+            reader.close();
+        break MISSING_BLOCK_LABEL_68;
+        Exception exception;
+        exception;
+        if(reader != null)
+            reader.close();
+        throw exception;
+        LOGGER.debug("<< [{}]", result);
+        return result;
+    }
+
+    private static String readResponse(URL url)
+        throws IOException
+    {
+        String result;
+        BufferedReader reader;
+        result = null;
+        reader = null;
+        URLConnection connection = getConnection(url);
+        reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        StringBuffer sb = new StringBuffer();
+        String tempRes;
+        do
+        {
+            tempRes = reader.readLine();
+            sb.append(tempRes);
+        } while(tempRes != null);
+        result = sb.toString();
+        if(reader != null)
+            reader.close();
+        break MISSING_BLOCK_LABEL_86;
+        Exception exception;
+        exception;
+        if(reader != null)
+            reader.close();
+        throw exception;
+        return result;
+    }
+
+    private static Object getRetrievePropsFromResponse(URL url)
+        throws IOException
+    {
+        LOGGER.info(">> [{}]", url);
+        Object result = null;
+        String encodedString = readResponse(url);
+        byte decodedBytes[] = Base64.decode(new String(encodedString.getBytes()));
+        try
+        {
+            ObjectInputStream inputStream = new ObjectInputStream(new ByteArrayInputStream(decodedBytes));
+            result = inputStream.readObject();
+        }
+        catch(IOException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        catch(ClassNotFoundException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        LOGGER.warn("<< [{}]", result);
+        return result;
+    }
+
+    private static URLConnection getConnection(URL url)
+        throws IOException
+    {
+        URLConnection connection = url.openConnection();
+        if((connection instanceof HttpsURLConnection) && Boolean.getBoolean("auth.ssl.ignore.errors"))
+        {
+            LOGGER.debug("Ignoring SSL errors");
+            ((HttpsURLConnection)connection).setHostnameVerifier(new DummyHostNameVerifier());
+        }
+        return connection;
+    }
+
+    private static String convertToHex(byte data[])
+    {
+        StringBuffer buf = new StringBuffer();
+        byte arr$[] = data;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            byte aData = arr$[i$];
+            int halfbyte = aData >>> 4 & 0xf;
+            int twoHalfs = 0;
+            do
+            {
+                if(0 <= halfbyte && halfbyte <= 9)
+                    buf.append((char)(48 + halfbyte));
+                else
+                    buf.append((char)(97 + (halfbyte - 10)));
+                halfbyte = aData & 0xf;
+            } while(twoHalfs++ < 1);
+        }
+
+        return buf.toString();
+    }
+
+    private static String encodeAll(String password, String capthaId, String login)
+        throws NoSuchAlgorithmException, UnsupportedEncodingException
+    {
+        String toCode;
+        if(capthaId != null)
+            toCode = (new StringBuilder()).append(encodeString(password)).append(capthaId).append(login).toString();
+        else
+            toCode = (new StringBuilder()).append(encodeString(password)).append(login).toString();
+        return encodeString(toCode);
+    }
+
+    public static String encodeString(String string)
+        throws NoSuchAlgorithmException, UnsupportedEncodingException
+    {
+        MessageDigest md = MessageDigest.getInstance("SHA-1");
+        md.update(string.getBytes("iso-8859-1"), 0, string.length());
+        byte sha1hash[] = md.digest();
+        return convertToHex(sha1hash).toUpperCase();
+    }
+
+    public URL getBaseUrl()
+    {
+        return configurationPool.get();
+    }
+
+    public String getLoginUrl()
+    {
+        return configurationPool.get().toString();
+    }
+
+    private void setError(Throwable error)
+    {
+        this.error = error;
+    }
+
+    public Throwable getError()
+    {
+        return error;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/AuthorizationClient);
+    private static final String SSL_IGNORE_ERRORS = "auth.ssl.ignore.errors";
+    private static final String MESSAGE_DIGEST_ENCODING = "iso-8859-1";
+    private static final String MESSAGE_DIGEST_ALGORITHM = "SHA-1";
+    private static final String LOGIN_PARAM = "appello";
+    private static final String PASSWORD_PARAM = "specialis";
+    private static final String CAPTCHA_PARAM = "verbum_id";
+    private static final String PIN_PARAM = "sententia";
+    private static final String CAPTCHA_HEADER = "X-CaptchaID";
+    private static final String VERSION_PARAM = "versio";
+    private static final String INSTANCE_ID_PARAM = "sermo";
+    private static final String TYPE_PARAM = "typus";
+    private static final String STNGS_PARAM = "stngs";
+    private static final String API_MUNUS = "&munus=api&";
+    private static final String RELOGIN_MUNUS = "&munus=relogin&";
+    private static final String DATA_FEED_MUNUS = "&munus=datafeed&";
+    private static final String SETTINGS_MUNUS = "&munus=stngs&";
+    private static final String AUTH_CONTEXT = "/auth?typus=0&munus=api&";
+    private static final String RELOGIN_AUTH_CONTEXT = "/auth?typus=0&munus=relogin&";
+    private static final String FEED_AUTH_CONTEXT = "/auth?typus=0&munus=datafeed&";
+    private static final String SETTINGS_CONTEXT = "/auth?typus=0&munus=stngs&";
+    public static final String TICKET = "licentio";
+    public static final Pattern RESULT_PATTERN = Pattern.compile("([\\S]*)@([\\p{XDigit}]{64}+)");
+    public static final int URL_GROUP = 1;
+    public static final int TICKET_GROUP = 2;
+    private final AuthorizationConfigurationPool configurationPool = new AuthorizationConfigurationPool();
+    private final String version;
+    private Throwable error;
+    private static AuthorizationClient authClient;
+
+
+}

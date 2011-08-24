@@ -1,0 +1,46 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Inverse.java
+
+package com.dukascopy.calculator.function;
+
+import com.dukascopy.calculator.OObject;
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            LFunction
+
+public class Inverse extends LFunction
+{
+
+    public Inverse()
+    {
+        ftooltip = "sc.calculator.the.inverse.of.x";
+        fshortcut = 'i';
+    }
+
+    public double function(double x)
+    {
+        return 1.0D / x;
+    }
+
+    public OObject function(OObject x)
+    {
+        return x.inverse();
+    }
+
+    public String shortName()
+    {
+        return "<i>x</i><sup>&#8722;1</sup>";
+    }
+
+    public String[] name_array()
+    {
+        return fname;
+    }
+
+    private static final String fname[] = {
+        "<sup>&#8722;</sup>", "<sup>1</sup>"
+    };
+
+}

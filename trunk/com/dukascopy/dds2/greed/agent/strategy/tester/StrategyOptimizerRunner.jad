@@ -1,0 +1,980 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyOptimizerRunner.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.impl.TimedData;
+import com.dukascopy.api.impl.execution.ScienceWaitForUpdate;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.api.system.ITesterClient;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.IDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.util.SortedDataComparator;
+import com.dukascopy.dds2.greed.agent.strategy.tester.util.SortedDataItem;
+import com.dukascopy.dds2.greed.agent.strategy.tester.util.StrategyOptimizerSet;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.LoggerNotificationUtils;
+import java.util.*;
+import java.util.concurrent.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            AbstractStrategyRunner, TesterAccount, ITesterReport, TesterOrdersProvider, 
+//            StrategyOptimizerEvent, StrategyOptimizerListener, DataLoadingThreadsContainer, TesterCustodian, 
+//            TesterConfig, TesterHistory, TesterOrder, ExecutionControl, 
+//            TesterReportData, InstrumentReportData
+
+public class StrategyOptimizerRunner extends AbstractStrategyRunner
+{
+
+    public StrategyOptimizerRunner(List strategies, boolean isFullAccessGranted, com.dukascopy.api.system.ITesterClient.DataLoadingMethod dataLoadingMethod, long from, long to, 
+            Set instruments, Set instrumentsForConversion, LoadingProgressListener progressListener, double lowerAmountLimit, List accounts, ExecutionControl executionControl, 
+            IStrategyExceptionHandler exceptionHandler, double dropDown, List reports)
+    {
+        super(null, null, null, dataLoadingMethod, from, to, FeedDataProvider.getDefaultInstance(), instruments, progressListener, instrumentsForConversion);
+        implementsOnBar = true;
+        sortedData = new ArrayList();
+        waitingThreads = false;
+        lastTickLocalTime = 0x8000000000000000L;
+        listeners = new LinkedList();
+        strategyData = new ArrayList();
+        for(int i = 0; i < strategies.size(); i++)
+        {
+            StrategyOptimizerSet optimizerSet = new StrategyOptimizerSet();
+            optimizerSet.strategy = (IStrategy)strategies.get(i);
+            optimizerSet.account = (TesterAccount)accounts.get(i);
+            optimizerSet.testerReport = (ITesterReport)reports.get(i);
+            optimizerSet.testerOrdersProvider = new TesterOrdersProvider();
+            strategyData.add(optimizerSet);
+        }
+
+        this.isFullAccessGranted = isFullAccessGranted;
+        this.progressListener = progressListener;
+        notificationUtils = new LoggerNotificationUtils(LOGGER);
+        this.lowerAmountLimit = lowerAmountLimit;
+        this.executionControl = executionControl;
+        this.exceptionHandler = exceptionHandler;
+        this.dropDown = dropDown;
+        if(!$assertionsDisabled && executionControl == null)
+            throw new AssertionError();
+        else
+            return;
+    }
+
+    public void addListener(StrategyOptimizerListener listener)
+    {
+        listeners.add(listener);
+    }
+
+    public void removeListener(StrategyOptimizerListener listener)
+    {
+        listeners.remove(listener);
+    }
+
+    protected void fireStrategyRemoved(IStrategy strategy)
+    {
+        StrategyOptimizerEvent event = new StrategyOptimizerEvent(this, strategy);
+        StrategyOptimizerListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.strategyRemoved(event))
+            listener = (StrategyOptimizerListener)i$.next();
+
+    }
+
+    public void run()
+    {
+        Map firstTicks;
+        progressListener.dataLoaded(from, to, from, "Getting prices before start time");
+        firstTicks = getFirstTicks();
+        if(progressListener.stopJob())
+        {
+            progressListener.loadingFinished(true, from, to, from, null);
+            return;
+        }
+        progressListener.dataLoaded(from, to, from, "Creating data loading threads");
+        List dataThreads = createDataLoadingThreads();
+        dataLoadingThreads = (DataLoadingThreadsContainer[])dataThreads.toArray(new DataLoadingThreadsContainer[dataThreads.size()]);
+        progressListener.dataLoaded(from, to, from, "Getting prices before start time");
+        firstTicks = updateFirstTicks(firstTicks);
+        if(firstTicks == null)
+            return;
+        Iterator i$;
+        StrategyOptimizerSet data;
+        for(i$ = strategyData.iterator(); i$.hasNext(); data.history.setFirstTicks(firstTicks))
+        {
+            data = (StrategyOptimizerSet)i$.next();
+            data.engine = new TesterCustodian(instruments, lowerAmountLimit, notificationUtils, from, data.account, firstTicks, data.testerReport, this, data.testerOrdersProvider, exceptionHandler);
+            data.context = new TesterConfig(data.engine, notificationUtils, isFullAccessGranted, null, executionControl, data.testerOrdersProvider, progressListener, this, data.account, data.strategy);
+            data.history = (TesterHistory)data.context.getHistory();
+        }
+
+        progressListener.dataLoaded(from, to, from, "Filling in-progress candles");
+        for(i$ = strategyData.iterator(); i$.hasNext(); data.engine.setStrategy(data.strategy))
+        {
+            data = (StrategyOptimizerSet)i$.next();
+            try
+            {
+                data.history.fillCurrentCandles(instruments, feedDataProvider);
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+
+        progressListener.dataLoaded(from, to, from, "Executing onStart");
+        i$ = strategyData.iterator();
+_L1:
+        if(!i$.hasNext())
+            break MISSING_BLOCK_LABEL_611;
+        data = (StrategyOptimizerSet)i$.next();
+        data.strategy.onStart(data.context);
+          goto _L1
+        Throwable t;
+        t;
+        handleException(t, "Strategy tester");
+        exceptionHandler.onException(1L, com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_START, t);
+        progressListener.loadingFinished(false, from, to, from, (t instanceof Exception) ? (Exception)t : null);
+        stopThreads();
+        StrategyOptimizerSet data;
+        for(Iterator i$ = strategyData.iterator(); i$.hasNext(); data.testerReport.setFinishDeposit(data.account.getRealizedEquityWithCommissions()))
+            data = (StrategyOptimizerSet)i$.next();
+
+        stopThreads();
+        return;
+        progressListener.dataLoaded(from, to, from, "Running");
+        if(!progressListener.stopJob())
+            break MISSING_BLOCK_LABEL_816;
+        progressListener.loadingFinished(true, from, to, from, null);
+        stopThreads();
+        for(i$ = strategyData.iterator(); i$.hasNext(); data.engine.calculateTurnoverAndCommission())
+        {
+            data = (StrategyOptimizerSet)i$.next();
+            try
+            {
+                data.strategy.onStop();
+            }
+            // Misplaced declaration of an exception variable
+            catch(Throwable t)
+            {
+                handleException(t, "Strategy tester");
+                exceptionHandler.onException(1L, com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_STOP, t);
+            }
+            data.engine.doDelayedTasks();
+        }
+
+        for(i$ = strategyData.iterator(); i$.hasNext(); data.testerReport.setFinishDeposit(data.account.getRealizedEquityWithCommissions()))
+            data = (StrategyOptimizerSet)i$.next();
+
+        stopThreads();
+        return;
+        timeForProgressBar = from / 0x1b7740L;
+        lastTickTime = from;
+_L2:
+        if(!isContextRunning())
+            break MISSING_BLOCK_LABEL_1709;
+        SortedDataItem dataItem = getNextThreadsWithTimedData(lastTickTime);
+        if(dataItem == null)
+            break MISSING_BLOCK_LABEL_1709;
+        long currentCandleTime = dataItem.getAskOrBidBarTime();
+        currentCandleTime = getNextTime(dataItem.getAskOrBidData(), dataItem.getJForexPeriod());
+        if(timeForProgressBar < currentCandleTime / 0x1b7740L)
+        {
+            progressListener.dataLoaded(from, to, currentCandleTime, "Running");
+            timeForProgressBar = currentCandleTime / 0x1b7740L;
+        }
+        Iterator iter = strategyData.iterator();
+label0:
+        do
+        {
+            IStrategy strategy;
+            ITesterReport testerReportData;
+            TesterHistory history;
+            TesterCustodian engine;
+            TesterConfig context;
+            do
+            {
+                if(!iter.hasNext())
+                    break label0;
+                StrategyOptimizerSet data = (StrategyOptimizerSet)iter.next();
+                strategy = data.strategy;
+                testerReportData = data.testerReport;
+                history = data.history;
+                engine = data.engine;
+                context = data.context;
+                boolean canceledByUser = false;
+                synchronized(data.testerReport)
+                {
+                    List events = data.testerReport.getEvents();
+                    Iterator i$ = events.iterator();
+                    do
+                    {
+                        if(!i$.hasNext())
+                            break;
+                        TesterReportData.TesterEvent testerEvent = (TesterReportData.TesterEvent)i$.next();
+                        if(testerEvent.type != TesterReportData.TesterEvent.EventType.CANCELED_BY_USER)
+                            continue;
+                        testerEvent.time = lastTickTime;
+                        canceledByUser = true;
+                        break;
+                    } while(true);
+                }
+                if(!canceledByUser)
+                    continue;
+                iter.remove();
+                continue label0;
+            } while(context.isStopped());
+            com.dukascopy.api.system.IStrategyExceptionHandler.Source source = com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_BAR;
+            static class _cls1
+            {
+
+                static final int $SwitchMap$com$dukascopy$api$DataType[];
+
+                static 
+                {
+                    $SwitchMap$com$dukascopy$api$DataType = new int[DataType.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$DataType[DataType.TICKS.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$DataType[DataType.TIME_PERIOD_AGGREGATION.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$DataType[DataType.PRICE_RANGE_AGGREGATION.ordinal()] = 3;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$DataType[DataType.POINT_AND_FIGURE.ordinal()] = 4;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$DataType[DataType.TICK_BAR.ordinal()] = 5;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                }
+            }
+
+            try
+            {
+                switch(_cls1..SwitchMap.com.dukascopy.api.DataType[dataItem.getJForexPeriod().getDataType().ordinal()])
+                {
+                case 1: // '\001'
+                    source = com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_TICK;
+                    historicalTickReceived(dataItem, strategy, null, history, engine, testerReportData, instrumentsForConversion, true);
+                    break;
+
+                case 2: // '\002'
+                    historicalCandleReceived(dataItem, strategy, null, history, engine, instrumentsForConversion, implementsOnBar, true);
+                    break;
+
+                case 3: // '\003'
+                    historicalPriceRangeReceived(dataItem, strategy, instrumentsForConversion, true);
+                    break;
+
+                case 4: // '\004'
+                    historicalPointAndFigureReceived(dataItem, strategy, instrumentsForConversion, true);
+                    break;
+
+                case 5: // '\005'
+                    historicalTickBarReceived(dataItem, strategy, instrumentsForConversion, true);
+                    break;
+
+                default:
+                    throw new IllegalArgumentException((new StringBuilder()).append("Unsupported Data Type - ").append(dataItem.getJForexPeriod().getDataType()).toString());
+                }
+            }
+            catch(AbstractMethodError e)
+            {
+                implementsOnBar = false;
+            }
+            catch(Throwable t)
+            {
+                handleException(t, "Strategy tester");
+                exceptionHandler.onException(1L, source, t);
+            }
+            lastTickTime = currentCandleTime;
+            engine.doDelayedTasks();
+            FutureTask tasks[] = context.getDelayedTasks();
+            FutureTask arr$[] = tasks;
+            int len$ = arr$.length;
+            int i$ = 0;
+            while(i$ < len$) 
+            {
+                FutureTask futureTask = arr$[i$];
+                futureTask.run();
+                i$++;
+            }
+        } while(true);
+        if(waitingThreads)
+            synchronized(this)
+            {
+                notifyAll();
+            }
+        if(!progressListener.stopJob())
+            break MISSING_BLOCK_LABEL_1610;
+        progressListener.loadingFinished(true, from, to, lastTickTime, null);
+        stopThreads();
+        StrategyOptimizerSet data;
+        for(Iterator i$ = strategyData.iterator(); i$.hasNext(); data.engine.calculateTurnoverAndCommission())
+        {
+            data = (StrategyOptimizerSet)i$.next();
+            try
+            {
+                data.strategy.onStop();
+            }
+            catch(Throwable t)
+            {
+                handleException(t, "Strategy tester");
+                exceptionHandler.onException(1L, com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_STOP, t);
+            }
+            data.engine.doDelayedTasks();
+        }
+
+        StrategyOptimizerSet data;
+        for(Iterator i$ = strategyData.iterator(); i$.hasNext(); data.testerReport.setFinishDeposit(data.account.getRealizedEquityWithCommissions()))
+            data = (StrategyOptimizerSet)i$.next();
+
+        stopThreads();
+        return;
+        int i = strategyData.size() - 1;
+        while(i >= 0) 
+        {
+            StrategyOptimizerSet data = (StrategyOptimizerSet)strategyData.get(i);
+            double equity = data.account.getEquity();
+            double deposit = data.account.getDeposit();
+            if(deposit * (1.0D - dropDown) > equity)
+            {
+                strategyData.remove(i);
+                fireStrategyRemoved(data.strategy);
+            }
+            i--;
+        }
+          goto _L2
+        for(dataItem = strategyData.iterator(); dataItem.hasNext(); ((StrategyOptimizerSet) (currentCandleTime)).engine.sendAccountInfo())
+            currentCandleTime = (StrategyOptimizerSet)dataItem.next();
+
+        if(!progressListener.stopJob())
+            break MISSING_BLOCK_LABEL_1932;
+        progressListener.loadingFinished(true, from, to, lastTickTime, null);
+        stopThreads();
+        for(dataItem = strategyData.iterator(); dataItem.hasNext(); ((StrategyOptimizerSet) (currentCandleTime)).engine.calculateTurnoverAndCommission())
+        {
+            currentCandleTime = (StrategyOptimizerSet)dataItem.next();
+            try
+            {
+                ((StrategyOptimizerSet) (currentCandleTime)).strategy.onStop();
+            }
+            // Misplaced declaration of an exception variable
+            catch(Throwable t)
+            {
+                handleException(t, "Strategy tester");
+                exceptionHandler.onException(1L, com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_STOP, t);
+            }
+            ((StrategyOptimizerSet) (currentCandleTime)).engine.doDelayedTasks();
+        }
+
+        for(dataItem = strategyData.iterator(); dataItem.hasNext(); ((StrategyOptimizerSet) (currentCandleTime)).testerReport.setFinishDeposit(((StrategyOptimizerSet) (currentCandleTime)).account.getRealizedEquityWithCommissions()))
+            currentCandleTime = (StrategyOptimizerSet)dataItem.next();
+
+        stopThreads();
+        return;
+        progressListener.dataLoaded(from, to, to, "Executing onStop");
+        for(dataItem = strategyData.iterator(); dataItem.hasNext(); ((StrategyOptimizerSet) (currentCandleTime)).engine.calculateTurnoverAndCommission())
+        {
+            currentCandleTime = (StrategyOptimizerSet)dataItem.next();
+            try
+            {
+                ((StrategyOptimizerSet) (currentCandleTime)).strategy.onStop();
+            }
+            // Misplaced declaration of an exception variable
+            catch(Throwable t)
+            {
+                handleException(t, "Strategy tester");
+                exceptionHandler.onException(1L, com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_STOP, t);
+            }
+            ((StrategyOptimizerSet) (currentCandleTime)).engine.doDelayedTasks();
+        }
+
+        break MISSING_BLOCK_LABEL_2140;
+        Exception exception2;
+        exception2;
+        StrategyOptimizerSet data;
+        for(Iterator i$ = strategyData.iterator(); i$.hasNext(); data.engine.calculateTurnoverAndCommission())
+        {
+            data = (StrategyOptimizerSet)i$.next();
+            try
+            {
+                data.strategy.onStop();
+            }
+            catch(Throwable t)
+            {
+                handleException(t, "Strategy tester");
+                exceptionHandler.onException(1L, com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_STOP, t);
+            }
+            data.engine.doDelayedTasks();
+        }
+
+        throw exception2;
+        progressListener.loadingFinished(true, from, to, to, null);
+        for(dataItem = strategyData.iterator(); dataItem.hasNext(); ((StrategyOptimizerSet) (currentCandleTime)).testerReport.setFinishDeposit(((StrategyOptimizerSet) (currentCandleTime)).account.getRealizedEquityWithCommissions()))
+            currentCandleTime = (StrategyOptimizerSet)dataItem.next();
+
+        stopThreads();
+        break MISSING_BLOCK_LABEL_2284;
+        Exception exception3;
+        exception3;
+        StrategyOptimizerSet data;
+        for(Iterator i$ = strategyData.iterator(); i$.hasNext(); data.testerReport.setFinishDeposit(data.account.getRealizedEquityWithCommissions()))
+            data = (StrategyOptimizerSet)i$.next();
+
+        stopThreads();
+        throw exception3;
+    }
+
+    private boolean isContextRunning()
+    {
+        for(Iterator i$ = strategyData.iterator(); i$.hasNext();)
+        {
+            StrategyOptimizerSet data = (StrategyOptimizerSet)i$.next();
+            if(!data.context.isStopped())
+                return true;
+        }
+
+        return false;
+    }
+
+    private SortedDataItem getNextThreadsWithTimedData(long startTime)
+    {
+        SortedDataItem dataItem;
+        executionControl.waitForResume(progressListener);
+        executionControl.tickProcessed();
+        if(sortedData.isEmpty())
+        {
+            boolean moreDataAvailable = false;
+            do
+            {
+                boolean firstThreads = true;
+                long untilTime = 0x8000000000000000L;
+                for(int j = 0; j < dataLoadingThreads.length; j++)
+                {
+                    DataLoadingThreadsContainer dataLoadingThread = dataLoadingThreads[j];
+                    BlockingQueue askBlockingQueue = dataLoadingThread.askThread == null ? null : dataLoadingThread.askThread.getQueue();
+                    BlockingQueue bidBlockingQueue = dataLoadingThread.bidThread == null ? null : dataLoadingThread.bidThread.getQueue();
+                    BlockingQueue askOrBidBlockingQueue = askBlockingQueue == null ? bidBlockingQueue : askBlockingQueue;
+                    ArrayDeque askOrBitThreadTimeData = dataLoadingThread.askThread == null ? dataLoadingThread.bidThreadTimedData : dataLoadingThread.askThreadTimedData;
+                    IDataLoadingThread askOrBidDataLoadingThread = dataLoadingThread.askThread == null ? dataLoadingThread.bidThread : dataLoadingThread.askThread;
+                    JForexPeriod jForexPeriod = askOrBidDataLoadingThread.getJForexPeriod();
+                    if(firstThreads)
+                    {
+                        firstThreads = false;
+                        int i = 0;
+                        long time;
+                        do
+                        {
+                            if(dataLoadingThread.askThreadTimedData.isEmpty())
+                            {
+                                int read = askBlockingQueue.drainTo(dataLoadingThread.askThreadTimedData);
+                                if(read == 0)
+                                {
+                                    TimedData timedData;
+                                    do
+                                        try
+                                        {
+                                            timedData = (TimedData)askBlockingQueue.take();
+                                        }
+                                        catch(InterruptedException e)
+                                        {
+                                            timedData = null;
+                                        }
+                                    while(timedData == null && !progressListener.stopJob());
+                                    if(timedData == null && progressListener.stopJob())
+                                        return null;
+                                    dataLoadingThread.askThreadTimedData.offer(timedData);
+                                    if(timedData.getTime() > startTime + 0x927c0L)
+                                    {
+                                        moreDataAvailable = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if(!$assertionsDisabled && dataLoadingThread.askThreadTimedData.peek() == null)
+                                throw new AssertionError("something wrong here");
+                            if(((TimedData)dataLoadingThread.askThreadTimedData.peek()).getTime() > startTime + 0x927c0L)
+                            {
+                                moreDataAvailable = true;
+                                break;
+                            }
+                            TimedData askQueueTimedData = (TimedData)dataLoadingThread.askThreadTimedData.poll();
+                            TimedData bidQueueTimedData;
+                            if(bidBlockingQueue != null)
+                            {
+                                if(dataLoadingThread.bidThreadTimedData.isEmpty())
+                                {
+                                    int read = bidBlockingQueue.drainTo(dataLoadingThread.bidThreadTimedData);
+                                    if(read == 0)
+                                    {
+                                        TimedData timedData;
+                                        do
+                                            try
+                                            {
+                                                timedData = (TimedData)bidBlockingQueue.take();
+                                            }
+                                            catch(InterruptedException e)
+                                            {
+                                                timedData = null;
+                                            }
+                                        while(timedData == null && !progressListener.stopJob());
+                                        if(timedData == null && progressListener.stopJob())
+                                            return null;
+                                        dataLoadingThread.bidThreadTimedData.offer(timedData);
+                                    }
+                                }
+                                bidQueueTimedData = (TimedData)dataLoadingThread.bidThreadTimedData.poll();
+                            } else
+                            {
+                                bidQueueTimedData = null;
+                            }
+                            time = askQueueTimedData.getTime();
+                            if(time != 0x8000000000000000L)
+                            {
+                                sortedData.add(new SortedDataItem(dataLoadingThread.askThread.getInstrument(), jForexPeriod, askQueueTimedData, bidQueueTimedData));
+                            } else
+                            {
+                                dataLoadingThreads = removeElementByIndex(dataLoadingThreads, j);
+                                j--;
+                            }
+                            i++;
+                        } while(time != 0x8000000000000000L && i < 100);
+                        if(!sortedData.isEmpty())
+                        {
+                            SortedDataItem dataItem = (SortedDataItem)sortedData.get(sortedData.size() - 1);
+                            untilTime = dataItem.getAskOrBidBarTime();
+                            untilTime = getNextTime(dataItem.getAskOrBidData(), dataItem.getJForexPeriod());
+                        } else
+                        {
+                            untilTime = startTime + 0x927c0L;
+                        }
+                        continue;
+                    }
+                    long time;
+                    if(askBlockingQueue != null && bidBlockingQueue != null)
+                    {
+                        do
+                        {
+                            if(dataLoadingThread.askThreadTimedData.isEmpty())
+                            {
+                                int read = askBlockingQueue.drainTo(dataLoadingThread.askThreadTimedData);
+                                if(read == 0)
+                                {
+                                    TimedData timedData;
+                                    do
+                                        try
+                                        {
+                                            timedData = (TimedData)askBlockingQueue.take();
+                                        }
+                                        catch(InterruptedException e)
+                                        {
+                                            timedData = null;
+                                        }
+                                    while(timedData == null && !progressListener.stopJob());
+                                    if(timedData == null && progressListener.stopJob())
+                                        return null;
+                                    dataLoadingThread.askThreadTimedData.offer(timedData);
+                                }
+                            }
+                            TimedData data = (TimedData)dataLoadingThread.askThreadTimedData.peek();
+                            time = data.getTime();
+                            if(time != 0x8000000000000000L)
+                            {
+                                time = getNextTime(data, jForexPeriod);
+                                if(time <= untilTime)
+                                {
+                                    TimedData askQueueTimedData = (TimedData)dataLoadingThread.askThreadTimedData.poll();
+                                    TimedData bidQueueTimedData;
+                                    if(bidBlockingQueue != null)
+                                    {
+                                        if(dataLoadingThread.bidThreadTimedData.isEmpty())
+                                        {
+                                            int read = bidBlockingQueue.drainTo(dataLoadingThread.bidThreadTimedData);
+                                            if(read == 0)
+                                            {
+                                                TimedData timedData;
+                                                do
+                                                    try
+                                                    {
+                                                        timedData = (TimedData)bidBlockingQueue.take();
+                                                    }
+                                                    catch(InterruptedException e)
+                                                    {
+                                                        timedData = null;
+                                                    }
+                                                while(timedData == null && !progressListener.stopJob());
+                                                if(timedData == null && progressListener.stopJob())
+                                                    return null;
+                                                dataLoadingThread.bidThreadTimedData.offer(timedData);
+                                            }
+                                        }
+                                        bidQueueTimedData = (TimedData)dataLoadingThread.bidThreadTimedData.poll();
+                                    } else
+                                    {
+                                        bidQueueTimedData = null;
+                                    }
+                                    sortedData.add(new SortedDataItem(dataLoadingThread.askThread.getInstrument(), jForexPeriod, askQueueTimedData, bidQueueTimedData));
+                                } else
+                                {
+                                    moreDataAvailable = true;
+                                }
+                            } else
+                            {
+                                dataLoadingThreads = removeElementByIndex(dataLoadingThreads, j);
+                                j--;
+                            }
+                        } while(time != 0x8000000000000000L && time <= untilTime);
+                        continue;
+                    }
+                    do
+                    {
+                        if(askOrBitThreadTimeData.isEmpty())
+                        {
+                            int read = askOrBidBlockingQueue.drainTo(askOrBitThreadTimeData);
+                            if(read == 0)
+                            {
+                                TimedData timedData;
+                                do
+                                    try
+                                    {
+                                        timedData = (TimedData)askOrBidBlockingQueue.take();
+                                    }
+                                    catch(InterruptedException e)
+                                    {
+                                        timedData = null;
+                                    }
+                                while(timedData == null && !progressListener.stopJob());
+                                if(timedData == null && progressListener.stopJob())
+                                    return null;
+                                askOrBitThreadTimeData.offer(timedData);
+                            }
+                        }
+                        TimedData data = (TimedData)askOrBitThreadTimeData.peek();
+                        time = data.getTime();
+                        if(time != 0x8000000000000000L)
+                        {
+                            time = getNextTime(data, jForexPeriod);
+                            if(time <= untilTime)
+                            {
+                                TimedData askQueueTimedData = (TimedData)askOrBitThreadTimeData.poll();
+                                TimedData bidQueueTimedData = null;
+                                if(askBlockingQueue == null)
+                                {
+                                    bidQueueTimedData = askQueueTimedData;
+                                    askQueueTimedData = null;
+                                }
+                                sortedData.add(new SortedDataItem(askOrBidDataLoadingThread.getInstrument(), jForexPeriod, askQueueTimedData, bidQueueTimedData));
+                            } else
+                            {
+                                moreDataAvailable = true;
+                            }
+                        } else
+                        {
+                            dataLoadingThreads = removeElementByIndex(dataLoadingThreads, j);
+                            j--;
+                        }
+                    } while(time != 0x8000000000000000L && time <= untilTime);
+                }
+
+                startTime += 0x927c0L;
+            } while(sortedData.isEmpty() && moreDataAvailable);
+            Collections.sort(sortedData, new SortedDataComparator());
+        }
+        if(sortedData.isEmpty())
+            return null;
+        dataItem = (SortedDataItem)sortedData.remove(sortedData.size() - 1);
+        if(executionControl.getSpeed() == 7) goto _L2; else goto _L1
+_L1:
+        long nanoTime;
+        long timeToSleep;
+        nanoTime = System.nanoTime();
+        if(lastTickLocalTime == 0x8000000000000000L)
+            lastTickLocalTime = nanoTime - 0x2540be400L;
+        long thisTickTime = dataItem.getAskOrBidBarTime();
+        timeToSleep = -1L;
+        switch(executionControl.getSpeed())
+        {
+        case 0: // '\0'
+            timeToSleep = (thisTickTime - lastTickTime) * 2L * 0xf4240L - (nanoTime - lastTickLocalTime);
+            break;
+
+        case 1: // '\001'
+            timeToSleep = (thisTickTime - lastTickTime) * 0xf4240L - (nanoTime - lastTickLocalTime);
+            break;
+
+        case 2: // '\002'
+            timeToSleep = ((thisTickTime - lastTickTime) / 2L) * 0xf4240L - (nanoTime - lastTickLocalTime);
+            break;
+
+        case 3: // '\003'
+            timeToSleep = ((thisTickTime - lastTickTime) / 5L) * 0xf4240L - (nanoTime - lastTickLocalTime);
+            break;
+
+        case 4: // '\004'
+            timeToSleep = ((thisTickTime - lastTickTime) / 10L) * 0xf4240L - (nanoTime - lastTickLocalTime);
+            break;
+
+        case 5: // '\005'
+            timeToSleep = ((thisTickTime - lastTickTime) / 100L) * 0xf4240L - (nanoTime - lastTickLocalTime);
+            break;
+
+        case 6: // '\006'
+            timeToSleep = ((thisTickTime - lastTickTime) / 500L) * 0xf4240L - (nanoTime - lastTickLocalTime);
+            break;
+        }
+        if(timeToSleep <= 0L) goto _L4; else goto _L3
+_L3:
+        if(timeToSleep <= 0x3b9aca00L)
+        {
+            try
+            {
+                Thread.sleep(timeToSleep / 0xf4240L, (int)(timeToSleep % 0xf4240L));
+            }
+            catch(InterruptedException e) { }
+            lastTickLocalTime = System.nanoTime();
+            break; /* Loop/switch isn't completed */
+        }
+        try
+        {
+            Thread.sleep(1000L, 0);
+        }
+        catch(InterruptedException e) { }
+        if(!progressListener.stopJob()) goto _L1; else goto _L2
+_L4:
+        lastTickLocalTime = nanoTime;
+_L2:
+        return dataItem;
+    }
+
+    public void runUntilChange(ScienceWaitForUpdate waitForUpdate, long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        long startTime;
+        long timeoutMillis;
+        TesterCustodian engine = ((TesterOrder)waitForUpdate).getEngine();
+        TesterConfig context = null;
+        Iterator i$ = strategyData.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            StrategyOptimizerSet data = (StrategyOptimizerSet)i$.next();
+            if(data.engine != engine)
+                continue;
+            context = data.context;
+            break;
+        } while(true);
+        startTime = engine.getCurrentTime();
+        timeoutMillis = unit.toMillis(timeout);
+        if(!isStrategyThread())
+        {
+            if(waitForUpdate.updated() || isTimeout(startTime, timeoutMillis))
+            {
+                if(isTimeout(startTime, timeoutMillis))
+                    LOGGER.debug("Exiting by timeout");
+                return;
+            }
+            while(!context.isStopped() && !waitForUpdate.updated() && !isTimeout(startTime, timeoutMillis)) 
+                synchronized(this)
+                {
+                    waitingThreads = true;
+                    waitForUpdate.wait();
+                }
+        }
+        engine.doDelayedTasks();
+        FutureTask tasks[] = context.getDelayedTasks();
+        FutureTask arr$[] = tasks;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            FutureTask futureTask = arr$[i$];
+            futureTask.run();
+        }
+
+        if(waitForUpdate.updated() || isTimeout(startTime, timeoutMillis))
+        {
+            if(isTimeout(startTime, timeoutMillis))
+                LOGGER.debug("Exiting by timeout");
+            return;
+        }
+_L6:
+        SortedDataItem dataItem;
+        Iterator i$;
+        if(progressListener.stopJob() || !isContextRunning() || isTimeout(startTime, timeoutMillis))
+            break; /* Loop/switch isn't completed */
+        dataItem = getNextThreadsWithTimedData(lastTickTime);
+        if(dataItem == null)
+            break; /* Loop/switch isn't completed */
+        i$ = strategyData.iterator();
+_L4:
+        FutureTask arr$[];
+        int len$;
+        int i$;
+        ITesterReport testerReport;
+        TesterHistory testerHistory;
+        TesterCustodian testerEngine;
+        TesterConfig testerContext;
+        do
+        {
+            if(!i$.hasNext())
+                break MISSING_BLOCK_LABEL_676;
+            StrategyOptimizerSet data = (StrategyOptimizerSet)i$.next();
+            testerReport = data.testerReport;
+            testerHistory = data.history;
+            testerEngine = data.engine;
+            testerContext = data.context;
+        } while(testerContext.isStopped());
+        try
+        {
+            DataType dataType = dataItem.getJForexPeriod().getDataType();
+            switch(_cls1..SwitchMap.com.dukascopy.api.DataType[dataType.ordinal()])
+            {
+            case 1: // '\001'
+                historicalTickReceived(dataItem, null, null, testerHistory, testerEngine, testerReport, instrumentsForConversion, false);
+                break;
+
+            case 2: // '\002'
+                historicalCandleReceived(dataItem, null, null, testerHistory, testerEngine, instrumentsForConversion, implementsOnBar, false);
+                break;
+
+            case 3: // '\003'
+                historicalPriceRangeReceived(dataItem, null, instrumentsForConversion, false);
+                break;
+
+            case 4: // '\004'
+                historicalPointAndFigureReceived(dataItem, null, instrumentsForConversion, false);
+                break;
+
+            case 5: // '\005'
+                historicalTickBarReceived(dataItem, null, instrumentsForConversion, false);
+                break;
+            }
+        }
+        catch(Throwable t)
+        {
+            handleException(t, "");
+        }
+        lastTickTime = dataItem.getAskOrBidBarTime();
+        if(timeForProgressBar < lastTickTime / 0x1b7740L)
+        {
+            progressListener.dataLoaded(from, to, lastTickTime, "Running");
+            timeForProgressBar = lastTickTime / 0x1b7740L;
+        }
+        testerEngine.doDelayedTasks();
+        FutureTask tasks[] = testerContext.getDelayedTasks();
+        arr$ = tasks;
+        len$ = arr$.length;
+        i$ = 0;
+_L2:
+        FutureTask futureTask;
+        if(i$ >= len$)
+            break; /* Loop/switch isn't completed */
+        futureTask = arr$[i$];
+        futureTask.run();
+        break MISSING_BLOCK_LABEL_667;
+        Exception exception1;
+        exception1;
+        throw exception1;
+        i$++;
+        if(true) goto _L2; else goto _L1
+_L1:
+        if(true) goto _L4; else goto _L3
+_L3:
+        if(waitingThreads)
+            synchronized(this)
+            {
+                notifyAll();
+            }
+        if(progressListener.stopJob())
+        {
+            progressListener.loadingFinished(true, from, to, lastTickTime, null);
+            return;
+        }
+        if(!waitForUpdate.updated()) goto _L6; else goto _L5
+_L5:
+        if(isTimeout(startTime, timeoutMillis))
+            LOGGER.debug("Exiting by timeout");
+        return;
+    }
+
+    private boolean isTimeout(long startTime, long timeOut)
+    {
+        if(strategyData.size() > 0)
+        {
+            TesterCustodian engine = ((StrategyOptimizerSet)strategyData.get(0)).engine;
+            return engine.getCurrentTime() - startTime > timeOut;
+        } else
+        {
+            return true;
+        }
+    }
+
+    public long perfStartTime()
+    {
+        return 0L;
+    }
+
+    public void perfStopTime(long l, ITesterReport.PerfStats perfstats)
+    {
+    }
+
+    protected void setupTicksForInstrumentReportData(ITick firstTick, ITick lastTick, Instrument instrument)
+    {
+        for(Iterator i$ = strategyData.iterator(); i$.hasNext();)
+        {
+            StrategyOptimizerSet data = (StrategyOptimizerSet)i$.next();
+            InstrumentReportData instrumentReportData = data.testerReport.getOrCreateInstrumentReportData(instrument);
+            instrumentReportData.firstTick = lastTick;
+            instrumentReportData.lastTick = lastTick;
+        }
+
+    }
+
+    protected void handleException(Throwable e, String message)
+    {
+        LOGGER.error(e.getMessage(), e);
+        StrategyOptimizerSet data = (StrategyOptimizerSet)strategyData.get(0);
+        String error = StrategyWrapper.representError(data.strategy, e);
+        notificationUtils.postErrorMessage((new StringBuilder()).append(message).append(": ").append(error).toString(), e, true);
+        TesterReportData.TesterEvent event = new TesterReportData.TesterEvent();
+        event.type = TesterReportData.TesterEvent.EventType.EXCEPTION;
+        event.time = from;
+        event.text = error;
+        data.testerReport.addEvent(event);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/StrategyOptimizerRunner);
+    private static final long PROCESS_INTERVAL = 0x927c0L;
+    private final double lowerAmountLimit;
+    private List strategyData;
+    private boolean isFullAccessGranted;
+    private boolean implementsOnBar;
+    private List sortedData;
+    private INotificationUtils notificationUtils;
+    private ExecutionControl executionControl;
+    private volatile boolean waitingThreads;
+    private IStrategyExceptionHandler exceptionHandler;
+    private long timeForProgressBar;
+    private long lastTickLocalTime;
+    private double dropDown;
+    private List listeners;
+    static final boolean $assertionsDisabled = !com/dukascopy/dds2/greed/agent/strategy/tester/StrategyOptimizerRunner.desiredAssertionStatus();
+
+}

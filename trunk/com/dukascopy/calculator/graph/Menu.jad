@@ -1,0 +1,77 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Menu.java
+
+package com.dukascopy.calculator.graph;
+
+import com.dukascopy.calculator.ReadOnlyCalculatorApplet;
+import java.awt.event.ActionEvent;
+import java.io.PrintStream;
+import javax.swing.*;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            AxisDialog, Model, View
+
+public class Menu extends JMenuBar
+{
+    public class EditMenuAction extends AbstractAction
+    {
+
+        public void actionPerformed(ActionEvent actionEvent)
+        {
+            System.out.println("Ouch! That hurt.");
+            editMenu.doClick(20);
+        }
+
+        private static final long serialVersionUID = 1L;
+        final Menu this$0;
+
+        public EditMenuAction()
+        {
+            this$0 = Menu.this;
+            super();
+        }
+    }
+
+
+    public Menu(ReadOnlyCalculatorApplet applet, View view, Model model)
+    {
+        this.applet = applet;
+        this.view = view;
+        this.model = model;
+        editMenu = new JMenu("Edit");
+        editMenu.setMnemonic('E');
+        JMenuItem xAxisItem = new JMenuItem("x-axis");
+        xAxisDialog = new AxisDialog(applet, view, model.getXAxis(), true, "x axis");
+        xAxisItem.addActionListener(xAxisDialog);
+        xAxisItem.setMnemonic('x');
+        editMenu.add(xAxisItem);
+        JMenuItem yAxisItem = new JMenuItem("y-axis");
+        yAxisDialog = new AxisDialog(applet, view, model.getYAxis(), false, "y axis");
+        yAxisItem.addActionListener(yAxisDialog);
+        yAxisItem.setMnemonic('y');
+        editMenu.add(yAxisItem);
+        add(editMenu);
+        EditMenuAction editMenuAction = new EditMenuAction();
+        getInputMap().put(KeyStroke.getKeyStroke(69, 0), editMenuAction.toString());
+        getActionMap().put(editMenuAction.toString(), editMenuAction);
+    }
+
+    void updateSizes()
+    {
+        if(xAxisDialog != null)
+            xAxisDialog.setBounds();
+        if(yAxisDialog != null)
+            yAxisDialog.setBounds();
+    }
+
+    private JMenu editMenu;
+    private AxisDialog xAxisDialog;
+    private AxisDialog yAxisDialog;
+    private ReadOnlyCalculatorApplet applet;
+    private Model model;
+    private View view;
+    private static final long serialVersionUID = 1L;
+
+}

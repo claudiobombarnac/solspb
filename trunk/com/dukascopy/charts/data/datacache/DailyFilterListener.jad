@@ -1,0 +1,145 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DailyFilterListener.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.util.Calendar;
+import java.util.TimeZone;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            CandleData, LiveFeedListener, FeedDataProvider
+
+public class DailyFilterListener
+    implements LiveFeedListener
+{
+
+    public DailyFilterListener(LiveFeedListener candleListener, int skip, CandleData lastNonEmptyElement)
+    {
+        lastClosePrice = (0.0D / 0.0D);
+        this.candleListener = candleListener;
+        this.skip = skip;
+        if(lastNonEmptyElement != null)
+        {
+            lastClosePrice = lastNonEmptyElement.close;
+            Calendar calendar = (Calendar)calendars.get();
+            calendar.setTimeInMillis(lastNonEmptyElement.time);
+            if(calendar.get(7) == 1)
+                sundayCandle = lastNonEmptyElement.clone();
+        }
+    }
+
+    public void newTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        candleListener.newTick(instrument, time, ask, bid, askVol, bidVol);
+    }
+
+    public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+            double close, double low, double high, double vol)
+    {
+        if(period == Period.DAILY_SKIP_SUNDAY)
+        {
+            Calendar calendar = (Calendar)calendars.get();
+            calendar.setTimeInMillis(time);
+            if(calendar.get(7) == 1)
+            {
+                if(Double.isNaN(lastClosePrice))
+                {
+                    if(time > FeedDataProvider.getTimeOfFirstCandleStatic(instrument, period))
+                        LOGGER.warn("Skipping sunday without previous close price");
+                    lastClosePrice = open;
+                }
+                candleListener.newCandle(instrument, period, side, time, lastClosePrice, lastClosePrice, lastClosePrice, lastClosePrice, 0.0D);
+            } else
+            {
+                candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+            }
+        } else
+        if(period == Period.DAILY_SUNDAY_IN_MONDAY)
+        {
+            Calendar calendar = (Calendar)calendars.get();
+            calendar.setTimeInMillis(time);
+            if(calendar.get(7) == 1)
+            {
+                if(Double.isNaN(lastClosePrice))
+                {
+                    if(time > FeedDataProvider.getTimeOfFirstCandleStatic(instrument, period))
+                        LOGGER.warn("Skipping sunday without previous close price");
+                    lastClosePrice = open;
+                }
+                candleListener.newCandle(instrument, period, side, time, lastClosePrice, lastClosePrice, lastClosePrice, lastClosePrice, 0.0D);
+                sundayCandle = new CandleData(time, open, close, low, high, vol);
+            } else
+            if(calendar.get(7) == 2)
+            {
+                if(sundayCandle != null)
+                {
+                    open = sundayCandle.open;
+                    high = Math.max(high, sundayCandle.high);
+                    low = Math.min(low, sundayCandle.low);
+                    vol = StratUtils.roundHalfEven(vol + sundayCandle.vol, 7);
+                } else
+                if(time > FeedDataProvider.getTimeOfFirstCandleStatic(instrument, period))
+                    LOGGER.warn("Passing monday candle without sunday data");
+                sundayCandle = null;
+                candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+            } else
+            {
+                sundayCandle = null;
+                candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+            }
+        } else
+        {
+            candleListener.newCandle(instrument, period, side, time, open, close, low, high, vol);
+        }
+        lastClosePrice = close;
+    }
+
+    public static long calculateDailyFilterFromCorrection(long timeOfTheFirstCandle, Period period, long from)
+    {
+        if(period == Period.DAILY_SKIP_SUNDAY)
+        {
+            Calendar calendar = (Calendar)calendars.get();
+            calendar.setTimeInMillis(from);
+            if(calendar.get(7) == 1 && from > timeOfTheFirstCandle)
+                from -= 0x5265c00L;
+        } else
+        if(period == Period.DAILY_SUNDAY_IN_MONDAY)
+        {
+            Calendar calendar = (Calendar)calendars.get();
+            calendar.setTimeInMillis(from);
+            if(calendar.get(7) == 2 && from > timeOfTheFirstCandle + 0x5265c00L)
+                from -= 0xa4cb800L;
+            else
+            if(calendar.get(7) == 1 && from > timeOfTheFirstCandle)
+                from -= 0x5265c00L;
+        }
+        return from;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/DailyFilterListener);
+    private static ThreadLocal calendars = new ThreadLocal() {
+
+        protected Calendar initialValue()
+        {
+            return Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+        }
+
+        protected volatile Object initialValue()
+        {
+            return initialValue();
+        }
+
+    };
+    private LiveFeedListener candleListener;
+    private double lastClosePrice;
+    private CandleData sundayCandle;
+    private int skip;
+
+}

@@ -1,0 +1,129 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:22
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   IndicatorContext.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.feed.FeedDescriptor;
+import com.dukascopy.api.feed.IFeedDescriptor;
+import com.dukascopy.api.indicators.IIndicatorContext;
+import com.dukascopy.api.indicators.IIndicatorsProvider;
+import com.dukascopy.charts.math.indicators.IndicatorsProvider;
+import com.dukascopy.dds2.greed.agent.indicator.AccountProvider;
+import com.dukascopy.dds2.greed.agent.strategy.tester.TesterOutputStream;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import java.io.PrintStream;
+
+// Referenced classes of package com.dukascopy.api.impl:
+//            History
+
+public class IndicatorContext
+    implements IIndicatorContext
+{
+
+    public IndicatorContext(INotificationUtils notificationUtils, History history)
+    {
+        this.history = history;
+        this.notificationUtils = notificationUtils;
+        console = new IConsole() {
+
+            public PrintStream getErr()
+            {
+                if(errorStream == null)
+                    errorStream = new PrintStream(new TesterOutputStream("ERROR", notificationUtils));
+                return errorStream;
+            }
+
+            public PrintStream getOut()
+            {
+                if(infoStream == null)
+                    infoStream = new PrintStream(new TesterOutputStream("INFO", notificationUtils));
+                return infoStream;
+            }
+
+            PrintStream errorStream;
+            PrintStream infoStream;
+            final IndicatorContext this$0;
+
+            
+            {
+                this$0 = IndicatorContext.this;
+                super();
+                errorStream = null;
+                infoStream = null;
+            }
+        };
+    }
+
+    public IAccount getAccount()
+    {
+        return AccountProvider.getAccount();
+    }
+
+    public IHistory getHistory()
+    {
+        return history;
+    }
+
+    public IConsole getConsole()
+    {
+        return console;
+    }
+
+    public IIndicatorsProvider getIndicatorsProvider()
+    {
+        return IndicatorsProvider.getInstance();
+    }
+
+    /**
+     * @deprecated Method setChartInfo is deprecated
+     */
+
+    public void setChartInfo(Instrument instrument, Period period, OfferSide offerSide)
+    {
+        feedDescriptor = new FeedDescriptor();
+        if(Period.TICK.equals(period))
+            feedDescriptor.setDataType(DataType.TICKS);
+        else
+            feedDescriptor.setDataType(DataType.TIME_PERIOD_AGGREGATION);
+        feedDescriptor.setInstrument(instrument);
+        feedDescriptor.setPeriod(period);
+        feedDescriptor.setOfferSide(offerSide);
+    }
+
+    public Instrument getInstrument()
+    {
+        Instrument result = getFeedDescriptor() != null ? getFeedDescriptor().getInstrument() : null;
+        return result;
+    }
+
+    public Period getPeriod()
+    {
+        Period result = getFeedDescriptor() != null ? getFeedDescriptor().getPeriod() : null;
+        return result;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        OfferSide result = getFeedDescriptor() != null ? getFeedDescriptor().getOfferSide() : null;
+        return result;
+    }
+
+    public IFeedDescriptor getFeedDescriptor()
+    {
+        return feedDescriptor;
+    }
+
+    public void setFeedDescriptor(IFeedDescriptor feedDescriptor)
+    {
+        this.feedDescriptor = feedDescriptor;
+    }
+
+    private INotificationUtils notificationUtils;
+    private IConsole console;
+    private History history;
+    private IFeedDescriptor feedDescriptor;
+
+}

@@ -1,0 +1,35 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ConnectionStatusMessageImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.IConnectionStatusMessage;
+import com.dukascopy.api.IMessage;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            PlatformMessageImpl
+
+class ConnectionStatusMessageImpl extends PlatformMessageImpl
+    implements IConnectionStatusMessage
+{
+
+    public ConnectionStatusMessageImpl(boolean connected, long creationTime)
+    {
+        super(null, null, com.dukascopy.api.IMessage.Type.CONNECTION_STATUS, creationTime);
+        this.connected = connected;
+    }
+
+    public boolean isConnected()
+    {
+        return connected;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("MessageType ").append(getType()).append(" Connected : ").append(connected).toString();
+    }
+
+    private final boolean connected;
+}

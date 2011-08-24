@@ -1,0 +1,242 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PresetsFormatHelper.java
+
+package com.dukascopy.dds2.greed.agent.strategy.params;
+
+import com.dukascopy.api.Period;
+import java.io.*;
+import java.util.*;
+import java.util.prefs.InvalidPreferencesFormatException;
+import java.util.prefs.Preferences;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.params:
+//            PresetsModel, Preset, Variable
+
+public class PresetsFormatHelper
+{
+
+    public PresetsFormatHelper()
+    {
+    }
+
+    public PresetsModel loadPresetsFromNewFormat(PresetsModel defaultPreset, File presetsFile)
+    {
+        HashMap defaultParams;
+        PresetsModel result;
+        defaultParams = defaultPreset.getDefaultVariableMap();
+        result = new PresetsModel();
+        Preferences.importPreferences(new FileInputStream(presetsFile));
+        Preferences userPreferences = Preferences.userRoot();
+        Preferences presetsNode = userPreferences.node("presets");
+        String arr$[] = presetsNode.childrenNames();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            String presetNodeName = arr$[i$];
+            Preferences presetNode = presetsNode.node(presetNodeName);
+            String presetId = presetNode.get("id", null);
+            Preset currentPreset = new Preset(presetId, Preset.FILE_LOADED);
+            HashMap params = new HashMap();
+            for(Iterator it = defaultParams.keySet().iterator(); it.hasNext();)
+            {
+                String paramName = (String)it.next();
+                String parameterNodeName = "parameter".concat("@").concat(paramName);
+                if(presetNode.nodeExists(parameterNodeName))
+                {
+                    Preferences parameterNode = presetNode.node(parameterNodeName);
+                    String paramType = parameterNode.get("type", null);
+                    String paramValue = parameterNode.get("value", null);
+                    Class typeClass = null;
+                    try
+                    {
+                        typeClass = getPrimitiveClass(paramType);
+                    }
+                    catch(IllegalArgumentException ex)
+                    {
+                        typeClass = Class.forName(paramType);
+                    }
+                    Object resultValue = getValueByType(paramValue, typeClass);
+                    Variable var = new Variable(resultValue, typeClass);
+                    params.put(paramName, var);
+                } else
+                {
+                    Variable defVar = (Variable)defaultParams.get(paramName);
+                    params.put(paramName, new Variable(defVar.getValue(), defVar.getType()));
+                }
+            }
+
+            result.addPreset(currentPreset, params);
+        }
+
+        presetsNode.removeNode();
+        if(result.getAllPresets().size() <= 0)
+            break MISSING_BLOCK_LABEL_402;
+        result.addPreset(defaultPreset.getDefaultPreset(), defaultPreset.getDefaultVariableMap());
+        result.setDefaultPreset(defaultPreset.getDefaultPreset());
+        return result;
+        InvalidPreferencesFormatException ex;
+        ex;
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug(ex.getMessage(), ex);
+        return null;
+        ex;
+        LOGGER.error(ex.getMessage(), ex);
+        return null;
+    }
+
+    public void savePresetsInNewFormat(PresetsModel model, File presetsFile)
+    {
+        if(presetsFile != null)
+        {
+            Preferences userRoot = Preferences.userRoot();
+            Preferences presetsNode = userRoot.node("presets");
+            Iterator it = model.getAllPresets().iterator();
+            do
+            {
+                if(!it.hasNext())
+                    break;
+                Preset preset = (Preset)it.next();
+                if(!preset.getName().equalsIgnoreCase("default") && !preset.getName().equalsIgnoreCase("DEFAULT_PRESET_ID"))
+                {
+                    Preferences presetNode = presetsNode.node("preset".concat("@").concat(preset.getName()));
+                    presetNode.put("id", preset.getName());
+                    presetNode.put("name", preset.getName());
+                    HashMap params = model.getVariableMap(preset);
+                    Iterator paramsIt = params.keySet().iterator();
+                    while(paramsIt.hasNext()) 
+                    {
+                        String paramName = (String)paramsIt.next();
+                        Variable paramVar = (Variable)params.get(paramName);
+                        Preferences parameterNode = presetNode.node("parameter".concat("@").concat(paramName));
+                        parameterNode.put("id", paramName);
+                        Class type = paramVar.getType();
+                        parameterNode.put("type", type.getName());
+                        Object value = paramVar.getValue();
+                        if(type.isEnum())
+                            parameterNode.put("value", ((Enum)value).name());
+                        else
+                        if(value instanceof Date)
+                        {
+                            Date date = (Date)value;
+                            parameterNode.put("value", String.valueOf(date.getTime()));
+                        } else
+                        if(value instanceof Period)
+                            parameterNode.put("value", ((Period)value).name());
+                        else
+                            parameterNode.put("value", value.toString());
+                    }
+                }
+            } while(true);
+            try
+            {
+                if(!presetsFile.exists())
+                    presetsFile.createNewFile();
+                OutputStream os = new BufferedOutputStream(new FileOutputStream(presetsFile));
+                presetsNode.exportSubtree(os);
+                presetsNode.removeNode();
+                os.close();
+            }
+            catch(Exception ex)
+            {
+                LOGGER.error(ex.getMessage(), ex);
+            }
+        }
+    }
+
+    private Class getPrimitiveClass(String name)
+    {
+        if(name.equals("byte"))
+            return Byte.TYPE;
+        if(name.equals("short"))
+            return Short.TYPE;
+        if(name.equals("int"))
+            return Integer.TYPE;
+        if(name.equals("long"))
+            return Long.TYPE;
+        if(name.equals("double"))
+            return Double.TYPE;
+        if(name.equals("boolean"))
+            return Boolean.TYPE;
+        if(name.equals("void"))
+            return Void.TYPE;
+        else
+            throw new IllegalArgumentException();
+    }
+
+    private Object getValueByType(String paramValue, Class typeClass)
+    {
+        if(typeClass.isEnum())
+        {
+            Enum enumConstants[] = (Enum[])(Enum[])typeClass.getEnumConstants();
+            Enum arr$[] = enumConstants;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Enum enumConstant = arr$[i$];
+                if(enumConstant.toString().equals(paramValue) || enumConstant.name().equals(paramValue))
+                    return enumConstant;
+            }
+
+        } else
+        {
+            if(typeClass.isAssignableFrom(java/lang/Byte))
+                return new Byte(paramValue);
+            if(typeClass.equals(Byte.TYPE))
+                return Byte.valueOf(Byte.parseByte(paramValue));
+            if(typeClass.isAssignableFrom(java/lang/Short))
+                return new Short(paramValue);
+            if(typeClass.equals(Short.TYPE))
+                return Short.valueOf(Short.parseShort(paramValue));
+            if(typeClass.isAssignableFrom(java/lang/Integer))
+                return new Integer(paramValue);
+            if(typeClass.equals(Integer.TYPE))
+                return Integer.valueOf(Integer.parseInt(paramValue));
+            if(typeClass.isAssignableFrom(java/lang/Long))
+                return new Long(paramValue);
+            if(typeClass.equals(Long.TYPE))
+                return Long.valueOf(Long.parseLong(paramValue));
+            if(typeClass.isAssignableFrom(java/lang/Double))
+                return new Double(paramValue);
+            if(typeClass.equals(Double.TYPE))
+                return Double.valueOf(Double.parseDouble(paramValue));
+            if(typeClass.isAssignableFrom(java/lang/Boolean))
+                return Boolean.valueOf(paramValue);
+            if(typeClass.equals(Boolean.TYPE))
+                return Boolean.valueOf(Boolean.parseBoolean(paramValue));
+            if(typeClass.isAssignableFrom(java/lang/String))
+                return String.valueOf(paramValue);
+            if(typeClass.isAssignableFrom(java/util/Date))
+                return new Date(Long.parseLong(paramValue));
+            if(typeClass.isAssignableFrom(com/dukascopy/api/Period))
+            {
+                Period values[] = Period.values();
+                for(int i = 0; i < values.length; i++)
+                {
+                    Period period = values[i];
+                    if(paramValue.equals(period.toString()) || paramValue.equals(period.name()))
+                        return period;
+                }
+
+                return null;
+            }
+            if(typeClass.isAssignableFrom(java/io/File))
+                return new File(paramValue);
+        }
+        LOGGER.warn((new StringBuilder()).append("Unsupported type : [").append(typeClass.getName()).append("] , returning toString() implementation").toString());
+        return paramValue.toString();
+    }
+
+    private static final String PRESETS_NODE = "presets";
+    private static final String PRESET_NODE = "preset";
+    private static final String ID_KEY = "id";
+    private static final String NAME_KEY = "name";
+    private static final String PARAMETER_NODE = "parameter";
+    private static final String TYPE_KEY = "type";
+    private static final String VALUE_KEY = "value";
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/params/PresetsFormatHelper);
+
+}

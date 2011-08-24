@@ -1,0 +1,38 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TickBarLiveFeedAdapter.java
+
+package com.dukascopy.charts.data.datacache.tickbar;
+
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.tickbar:
+//            TickBarData, ITickBarLiveFeedListener
+
+public abstract class TickBarLiveFeedAdapter
+    implements ITickBarLiveFeedListener
+{
+
+    public TickBarLiveFeedAdapter()
+    {
+    }
+
+    public void newPriceData(TickBarData tickbardata)
+    {
+    }
+
+    public void newPriceDatas(TickBarData atickbardata[], int i, int j)
+    {
+    }
+
+    public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+    {
+        newPriceDatas((TickBarData[])x0, x1, x2);
+    }
+
+    public volatile void newPriceData(AbstractPriceAggregationData x0)
+    {
+        newPriceData((TickBarData)x0);
+    }
+}

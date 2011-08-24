@@ -1,0 +1,50 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Graph.java
+
+package com.dukascopy.calculator.graph;
+
+import com.dukascopy.calculator.*;
+import javax.swing.JFrame;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            Model, View, Menu, Locus
+
+public class Graph extends JFrame
+{
+
+    public Graph(ReadOnlyCalculatorApplet applet)
+    {
+        super("Scientific Calculator Graph");
+        model = new Model();
+        view = new View(model, this);
+        menu = new Menu(applet, view, model);
+        setJMenuBar(menu);
+        int h = applet.graphHeight();
+        setSize((3 * h) / 2, h);
+        setDefaultCloseOperation(1);
+        setContentPane(view);
+        setVisible(true);
+    }
+
+    public void setLocus(OObject oobject)
+    {
+        if(oobject != null && !(oobject instanceof Error))
+        {
+            Locus locus = new Locus(oobject, view);
+            model.reset(locus);
+            view.repaint();
+        }
+    }
+
+    public void updateMenu()
+    {
+        menu.updateSizes();
+    }
+
+    private Menu menu;
+    private Model model;
+    private View view;
+    private static final long serialVersionUID = 1L;
+}

@@ -1,0 +1,38 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyBroadcastMessageImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.IMessage;
+import com.dukascopy.api.IStrategyBroadcastMessage;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            PlatformMessageImpl
+
+public class StrategyBroadcastMessageImpl extends PlatformMessageImpl
+    implements IStrategyBroadcastMessage
+{
+
+    public StrategyBroadcastMessageImpl(String topic, String content, long creationTime)
+    {
+        super(content, null, com.dukascopy.api.IMessage.Type.STRATEGY_BROADCAST, creationTime);
+        this.topic = topic;
+    }
+
+    public String getTopic()
+    {
+        return topic;
+    }
+
+    public String toString()
+    {
+        return String.format("Strategy Broadcast Message. Topic : [%1$s] Message : [%2$s]", new Object[] {
+            topic, getContent()
+        });
+    }
+
+    private static final String FORMAT = "Strategy Broadcast Message. Topic : [%1$s] Message : [%2$s]";
+    private final String topic;
+}

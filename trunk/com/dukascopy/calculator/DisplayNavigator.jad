@@ -1,0 +1,18 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   DisplayNavigator.java
+
+package com.dukascopy.calculator;
+
+
+// Referenced classes of package com.dukascopy.calculator:
+//            Navigator
+
+class DisplayNavigator extends Navigator
+{
+
+    public DisplayNavigator()
+    {
+    }
+}

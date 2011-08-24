@@ -1,0 +1,67 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CheckBoxNodeRenderer.java
+
+package com.dukascopy.dds2.greed.gui.tree;
+
+import java.awt.Component;
+import java.awt.Font;
+import javax.swing.*;
+import javax.swing.tree.*;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.tree:
+//            CheckBoxNode
+
+class CheckBoxNodeRenderer extends JCheckBox
+    implements TreeCellRenderer
+{
+
+    public CheckBoxNodeRenderer()
+    {
+        Font font = UIManager.getFont("Tree.font");
+        if(font != null)
+            setFont(font);
+        Boolean drawsFocusBorder = (Boolean)UIManager.get("Tree.drawsFocusBorderAroundIcon");
+        setFocusPainted(drawsFocusBorder != null && drawsFocusBorder.booleanValue());
+    }
+
+    public CheckBoxNode getCheckBoxNode()
+    {
+        return (CheckBoxNode)getClientProperty("[X]");
+    }
+
+    public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus)
+    {
+        String text = tree.convertValueToText(value, selected, expanded, leaf, row, false);
+        if(!leaf)
+            return defaultCellRenderer.getTreeCellRendererComponent(tree, text, selected, expanded, leaf, row, hasFocus);
+        setText(text);
+        setSelected(false);
+        setEnabled(tree.isEnabled());
+        if(selected)
+        {
+            setForeground(UIManager.getColor("Tree.selectionForeground"));
+            setBackground(UIManager.getColor("Tree.selectionBackground"));
+        } else
+        {
+            setForeground(UIManager.getColor("Tree.textForeground"));
+            setBackground(UIManager.getColor("Tree.textBackground"));
+        }
+        if(value != null && (value instanceof DefaultMutableTreeNode))
+        {
+            Object userObject = ((DefaultMutableTreeNode)value).getUserObject();
+            if(userObject instanceof CheckBoxNode)
+            {
+                CheckBoxNode node = (CheckBoxNode)userObject;
+                setText(String.valueOf(node.getValue()));
+                setSelected(node.isSelected());
+                putClientProperty("[X]", node);
+            }
+        }
+        return this;
+    }
+
+    private static final String CHECKBOX_NODE_KEY = "[X]";
+    private final TreeCellRenderer defaultCellRenderer = new DefaultTreeCellRenderer();
+}

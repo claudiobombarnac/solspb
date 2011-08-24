@@ -1,0 +1,77 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   HexPanel.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.button.CalculatorButton;
+import com.dukascopy.calculator.function.Add;
+import com.dukascopy.calculator.function.And;
+import com.dukascopy.calculator.function.Divide;
+import com.dukascopy.calculator.function.E;
+import com.dukascopy.calculator.function.LParen;
+import com.dukascopy.calculator.function.Multiply;
+import com.dukascopy.calculator.function.Numeral;
+import com.dukascopy.calculator.function.Or;
+import com.dukascopy.calculator.function.Power;
+import com.dukascopy.calculator.function.RParen;
+import com.dukascopy.calculator.function.Subtract;
+import com.dukascopy.calculator.function.Xor;
+import java.awt.Color;
+import java.util.Vector;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            AbstractCalculatorPanel, MainCalculatorPanel, SpecialButtonType, Base
+
+public class HexPanel extends AbstractCalculatorPanel
+{
+
+    public HexPanel(MainCalculatorPanel applet, SpecialButtonType sbt, Color colour)
+    {
+        super(applet, sbt, colour);
+        if(sbt != SpecialButtonType.HEX)
+        {
+            throw new RuntimeException("HexPanel instantiated wrongly.");
+        } else
+        {
+            base(Base.HEXADECIMAL);
+            return;
+        }
+    }
+
+    protected void setButtons()
+    {
+        ((CalculatorButton)buttons.elementAt(1)).setPObject(new Numeral('A'));
+        ((CalculatorButton)buttons.elementAt(2)).setPObject(new Numeral('D'));
+        ((CalculatorButton)buttons.elementAt(4)).setPObject(new And());
+        ((CalculatorButton)buttons.elementAt(6)).setPObject(new Numeral('B'));
+        ((CalculatorButton)buttons.elementAt(7)).setPObject(new Numeral('E'));
+        ((CalculatorButton)buttons.elementAt(9)).setPObject(new Or());
+        ((CalculatorButton)buttons.elementAt(11)).setPObject(new Numeral('C'));
+        ((CalculatorButton)buttons.elementAt(12)).setPObject(new Numeral('F'));
+        ((CalculatorButton)buttons.elementAt(13)).setPObject(new Power());
+        ((CalculatorButton)buttons.elementAt(14)).setPObject(new Xor());
+        ((CalculatorButton)buttons.elementAt(16)).setPObject(new Numeral('7'));
+        ((CalculatorButton)buttons.elementAt(17)).setPObject(new Numeral('4'));
+        ((CalculatorButton)buttons.elementAt(18)).setPObject(new Numeral('1'));
+        ((CalculatorButton)buttons.elementAt(19)).setPObject(new Numeral('0'));
+        ((CalculatorButton)buttons.elementAt(21)).setPObject(new Numeral('8'));
+        ((CalculatorButton)buttons.elementAt(22)).setPObject(new Numeral('5'));
+        ((CalculatorButton)buttons.elementAt(23)).setPObject(new Numeral('2'));
+        ((CalculatorButton)buttons.elementAt(24)).setPObject(new Numeral('.'));
+        ((CalculatorButton)buttons.elementAt(26)).setPObject(new Numeral('9'));
+        ((CalculatorButton)buttons.elementAt(27)).setPObject(new Numeral('6'));
+        ((CalculatorButton)buttons.elementAt(28)).setPObject(new Numeral('3'));
+        ((CalculatorButton)buttons.elementAt(29)).setPObject(new E());
+        ((CalculatorButton)buttons.elementAt(31)).setPObject(new LParen());
+        ((CalculatorButton)buttons.elementAt(32)).setPObject(new Multiply());
+        ((CalculatorButton)buttons.elementAt(33)).setPObject(new Add());
+        ((CalculatorButton)buttons.elementAt(36)).setPObject(new RParen());
+        ((CalculatorButton)buttons.elementAt(37)).setPObject(new Divide());
+        ((CalculatorButton)buttons.elementAt(38)).setPObject(new Subtract());
+        createKeyMap();
+    }
+
+    private static final long serialVersionUID = 1L;
+}

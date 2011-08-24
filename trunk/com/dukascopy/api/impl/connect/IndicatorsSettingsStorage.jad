@@ -1,0 +1,124 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   IndicatorsSettingsStorage.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.charts.persistence.EnabledIndicatorBean;
+import com.dukascopy.charts.persistence.SettingsStorage;
+import java.util.*;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class IndicatorsSettingsStorage
+    implements SettingsStorage
+{
+
+    public IndicatorsSettingsStorage(String accountName)
+    {
+        this.accountName = accountName;
+    }
+
+    public List getEnabledIndicators()
+    {
+        return loadEnabledIndicators();
+    }
+
+    public void saveEnabledIndicator(EnabledIndicatorBean indicatorBean)
+    {
+        Preferences nodes = getCustomEnabledIndicatorsNode();
+        Preferences node = nodes.node(indicatorBean.getName());
+        node.put("custIndSourceFileName", indicatorBean.getSourceFullFileName());
+        node.put("custIndBinaryFileName", indicatorBean.getBinaryFullFileName());
+        flush(nodes);
+    }
+
+    public void removeEnabledIndicator(EnabledIndicatorBean indicatorBean)
+    {
+        Preferences nodes = getCustomEnabledIndicatorsNode();
+        Preferences node = nodes.node(indicatorBean.getName());
+        removeNode(node);
+        flush(nodes);
+    }
+
+    List loadEnabledIndicators()
+    {
+        Preferences customIndicatorsNode = getCustomEnabledIndicatorsNode();
+        String ids[] = getChildrenNames(customIndicatorsNode);
+        if(ids == null || ids.length == 0)
+            return Collections.emptyList();
+        LinkedList beans = new LinkedList();
+        String arr$[] = ids;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            String customIndicatorName = arr$[i$];
+            Preferences node = customIndicatorsNode.node(customIndicatorName);
+            String sourceFullFileName = node.get("custIndSourceFileName", null);
+            String binaryFullFileName = node.get("custIndBinaryFileName", null);
+            EnabledIndicatorBean bean = new EnabledIndicatorBean(customIndicatorName, sourceFullFileName, binaryFullFileName);
+            beans.add(bean);
+        }
+
+        return beans;
+    }
+
+    private String[] getChildrenNames(Preferences parentNode)
+    {
+        return parentNode.childrenNames();
+        BackingStoreException e;
+        e;
+        return null;
+    }
+
+    void removeNode(Preferences nodeToBeRemoved)
+    {
+        try
+        {
+            nodeToBeRemoved.removeNode();
+        }
+        catch(BackingStoreException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private void flush(Preferences nodes)
+    {
+        try
+        {
+            nodes.flush();
+        }
+        catch(BackingStoreException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private Preferences getCustomEnabledIndicatorsNode()
+    {
+        return getJForexNode().node("custEnabledIndicators");
+    }
+
+    private Preferences getJForexNode()
+    {
+        return Preferences.userRoot().node((new StringBuilder()).append("com/dukascopy/dds2/platform/gui/").append(getUsername()).toString()).node("jforex");
+    }
+
+    private String getUsername()
+    {
+        return accountName.toLowerCase();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/IndicatorsSettingsStorage);
+    private static final String STORAGE_ROOT = "com/dukascopy/dds2/platform/gui/";
+    private static final String JFOREX = "jforex";
+    private static final String CUSTOM_INDICATOR_SOURCE_FILE_NAME = "custIndSourceFileName";
+    private static final String CUSTOM_INDICATOR_BINARY_FILE_NAME = "custIndBinaryFileName";
+    private static final String CUSTOM_ENABLED_INDICATORS = "custEnabledIndicators";
+    private String accountName;
+
+}

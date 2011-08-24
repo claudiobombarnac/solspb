@@ -1,0 +1,67 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   DataTransfer.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.complex.Complex;
+import java.awt.Toolkit;
+import java.awt.datatransfer.*;
+import java.awt.event.ActionEvent;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.swing.AbstractAction;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            Notation, Base, MainCalculatorPanel, AngleType
+
+public class DataTransfer extends AbstractAction
+    implements ClipboardOwner
+{
+
+    public DataTransfer(MainCalculatorPanel calculatorApplet)
+    {
+        this.calculatorApplet = calculatorApplet;
+    }
+
+    public void lostOwnership(Clipboard clipboard, Transferable transferable)
+    {
+    }
+
+    public void copy()
+    {
+        Object value = calculatorApplet.getValue();
+        if(!(value instanceof Complex))
+            return;
+        Complex d = (Complex)value;
+        Base base = calculatorApplet.getBase();
+        Notation notation = new Notation();
+        double factor = 1.0D;
+        if(calculatorApplet.getAngleType() == AngleType.DEGREES)
+            factor = 1.0D;
+        String string = d.toHTMLString(120, 32, base, notation, factor);
+        Matcher matcher = html.matcher(string);
+        string = matcher.replaceAll("");
+        matcher = htmlend.matcher(string);
+        string = matcher.replaceAll("");
+        matcher = minus.matcher(string);
+        string = matcher.replaceAll("-");
+        StringSelection stringSelection = new StringSelection(string);
+        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+        clipboard.setContents(stringSelection, this);
+    }
+
+    public void actionPerformed(ActionEvent actionevent)
+    {
+    }
+
+    private MainCalculatorPanel calculatorApplet;
+    static final int maxLength = 120;
+    static final int sigDigits = 32;
+    private static final Pattern html = Pattern.compile("<html>");
+    private static final Pattern htmlend = Pattern.compile("</html>");
+    private static final Pattern minus = Pattern.compile("&#8722;");
+    private static final long serialVersionUID = 1L;
+
+}

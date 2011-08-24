@@ -1,0 +1,137 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   PlatformAccountImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.IAccount;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.transport.common.model.type.Money;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+
+public class PlatformAccountImpl
+    implements IAccount
+{
+
+    public PlatformAccountImpl(AccountInfoMessage accountInfoMessage)
+    {
+        updateFromMessage(accountInfoMessage);
+    }
+
+    public void updateFromMessage(AccountInfoMessage accountInfoMessage)
+    {
+        currency = accountInfoMessage.getCurrency();
+        leverage = accountInfoMessage.getLeverage().intValue();
+        if(accountInfoMessage.getUsableMargin() != null)
+            creditLine = accountInfoMessage.getUsableMargin().getValue().multiply(new BigDecimal(leverage)).doubleValue();
+        else
+            creditLine = 0.0D;
+        if(accountInfoMessage.getEquity() != null && accountInfoMessage.getEquity().getValue().doubleValue() > 0.0D)
+            equity = accountInfoMessage.getEquity().getValue().doubleValue();
+        else
+            equity = 0.0D;
+        if(accountInfoMessage.getBalance() != null && accountInfoMessage.getBalance().getValue().doubleValue() > 0.0D)
+            balance = accountInfoMessage.getBalance().getValue().doubleValue();
+        else
+            balance = 0.0D;
+        if(accountInfoMessage.getEquity() != null && accountInfoMessage.getEquity().getValue().doubleValue() > 0.0D && accountInfoMessage.getUsableMargin() != null)
+        {
+            useOfLeverage = accountInfoMessage.getEquity().getValue().subtract(accountInfoMessage.getUsableMargin().getValue()).divide(accountInfoMessage.getEquity().getValue(), 2, RoundingMode.HALF_EVEN).doubleValue();
+            useOfLeverage = StratUtils.round(useOfLeverage * 100D, 5);
+        } else
+        {
+            useOfLeverage = 0.0D;
+        }
+        global = accountInfoMessage.isGlobal();
+        accountId = accountInfoMessage.getUserId();
+    }
+
+    public double getCreditLine()
+    {
+        return creditLine;
+    }
+
+    public Currency getCurrency()
+    {
+        return currency;
+    }
+
+    public double getEquity()
+    {
+        return equity;
+    }
+
+    public double getBalance()
+    {
+        return balance;
+    }
+
+    public double getLeverage()
+    {
+        return leverage;
+    }
+
+    public double getUseOfLeverage()
+    {
+        return useOfLeverage;
+    }
+
+    public int getMarginCutLevel()
+    {
+        return marginCutLevel;
+    }
+
+    public int getOverWeekEndLeverage()
+    {
+        return overTheWeekendLeverage;
+    }
+
+    public boolean isGlobal()
+    {
+        return global;
+    }
+
+    public String getAccountId()
+    {
+        return accountId;
+    }
+
+    public Set getClientIds()
+    {
+        return clientIds;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("Equity = ").append(getEquity()).append(" ").append(getCurrency()).append(" Leverage=").append(getLeverage()).toString();
+    }
+
+    public static void updateStaticValues(AccountInfoMessage accountInfoMessage)
+    {
+        String mcLeverageUse = accountInfoMessage.getString("mcLevUse");
+        if(mcLeverageUse != null)
+            marginCutLevel = Integer.parseInt(mcLeverageUse);
+        if(accountInfoMessage.getWeekendLeverage() != null)
+            overTheWeekendLeverage = accountInfoMessage.getWeekendLeverage().intValue();
+        Set clientIds = accountInfoMessage.getClientIds();
+        if(clientIds != null)
+            clientIds = Collections.unmodifiableSet(clientIds);
+    }
+
+    private Currency currency;
+    private double creditLine;
+    private double equity;
+    private double balance;
+    private double leverage;
+    private double useOfLeverage;
+    private static int marginCutLevel = 200;
+    private static int overTheWeekendLeverage = 30;
+    private static Set clientIds = new HashSet(0);
+    private boolean global;
+    private String accountId;
+
+}

@@ -1,0 +1,491 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadCandlesFromTicksAction.java
+
+package com.dukascopy.charts.data.datacache.customperiod.tick;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.TimeDataUtils;
+import com.dukascopy.charts.data.datacache.wrapper.Weekend;
+import java.text.SimpleDateFormat;
+import java.util.List;
+import java.util.TimeZone;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.customperiod.tick:
+//            FlowCustomPeriodFromTicksCreator, CustomPeriodTickLiveFeedListener, CustomPeriodFromTicksCreator, OneTickLiveFeedListener, 
+//            TickLoadingProgressListener
+
+public class LoadCandlesFromTicksAction
+    implements Runnable
+{
+
+    public LoadCandlesFromTicksAction(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, Filter filter, Period desiredPeriod, com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, LoadingProgressListener originalLoadingProgress, 
+            LiveFeedListener originalLiveFeedListener, int numberOfCandlesBefore, int numberOfCandlesAfter, long fromTime, long toTime, 
+            long time)
+    {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+        this.feedDataProvider = feedDataProvider;
+        this.instrument = instrument;
+        this.desiredPeriod = desiredPeriod;
+        this.offerSide = offerSide;
+        this.filter = filter;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        this.originalLoadingProgress = originalLoadingProgress;
+        this.originalLiveFeedListener = originalLiveFeedListener;
+        this.numberOfCandlesBefore = numberOfCandlesBefore;
+        this.numberOfCandlesAfter = numberOfCandlesAfter;
+        this.time = time;
+        this.fromTime = fromTime;
+        this.toTime = toTime;
+    }
+
+    public LoadCandlesFromTicksAction(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, Filter filter, Period desiredPeriod, com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, LoadingProgressListener originalLoadingProgress, 
+            LiveFeedListener originalLiveFeedListener, int numberOfCandlesBefore, int numberOfCandlesAfter, long time)
+    {
+        this(feedDataProvider, instrument, offerSide, filter, desiredPeriod, intraperiodExistsPolicy, originalLoadingProgress, originalLiveFeedListener, numberOfCandlesBefore, numberOfCandlesAfter, -1L, -1L, time);
+    }
+
+    public LoadCandlesFromTicksAction(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, Filter filter, Period desiredPeriod, com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, LoadingProgressListener originalLoadingProgress, 
+            LiveFeedListener originalLiveFeedListener, long fromTime, long toTime)
+    {
+        this(feedDataProvider, instrument, offerSide, filter, desiredPeriod, intraperiodExistsPolicy, originalLoadingProgress, originalLiveFeedListener, -1, -1, fromTime, toTime, -1L);
+    }
+
+    public void run()
+    {
+        if(getFromTime() > -1L && getToTime() > -1L)
+        {
+            long correctedToTheNextCandleToTime = DataCacheUtils.getNextCandleStartFast(getDesiredPeriod(), getToTime());
+            performLoadingForFromToTimes(getFromTime(), correctedToTheNextCandleToTime);
+        } else
+        if(getTime() > -1L && getNumberOfCandlesAfter() > -1 && getNumberOfCandlesBefore() > -1)
+            performLoadingForCandlesCount();
+        else
+            throw new IllegalArgumentException("Wrong params are set");
+    }
+
+    private void performLoadingForFromToTimes(long fromTime, long toTime)
+    {
+        Exception exception;
+        CustomPeriodFromTicksCreator customPeriodFromTicksCreator;
+        exception = null;
+        customPeriodFromTicksCreator = null;
+        List weekends = null;
+        if(Filter.WEEKENDS.equals(getFilter()))
+            weekends = feedDataProvider.calculateWeekends(getDesiredPeriod(), DataCacheUtils.getCandlesCountBetween(getDesiredPeriod(), fromTime, toTime), fromTime, toTime, originalLoadingProgress);
+        customPeriodFromTicksCreator = new FlowCustomPeriodFromTicksCreator(getInstrument(), getOfferSide(), getDesiredPeriod(), getFilter(), false, new Long(fromTime), null, weekends);
+        customPeriodFromTicksCreator.addListener(getOriginalLiveFeedListener());
+        CustomPeriodTickLiveFeedListener ticLiveFeedListener = new CustomPeriodTickLiveFeedListener(customPeriodFromTicksCreator);
+        TickLoadingProgressListener tickAfterLoadingProgressListener = createTickLoadingProgressListener(getOriginalLoadingProgress());
+        long timeOfFirstCandle = getFeedDataProvider().getTimeOfFirstCandle(getInstrument(), Period.TICK);
+        long endTime;
+        for(long startTime = fromTime <= timeOfFirstCandle ? timeOfFirstCandle : fromTime; startTime < toTime; startTime = endTime)
+        {
+            endTime = startTime + getIncreaseTimeInterval();
+            endTime = endTime >= toTime ? toTime : endTime;
+            loadDataForTimeInterval(startTime, endTime, ticLiveFeedListener, tickAfterLoadingProgressListener);
+        }
+
+        CandleData lastCandle = customPeriodFromTicksCreator.getLastData();
+        CandleData notFinishedCandle = customPeriodFromTicksCreator.getCurrentCandleDataUnderAnalysis();
+        if(lastCandle != null && lastCandle.getTime() < getToTime())
+            processFakeTickToCompleteLastCandle(customPeriodFromTicksCreator, lastCandle.getClose(), toTime);
+        else
+        if(lastCandle == null && notFinishedCandle != null && notFinishedCandle.getTime() <= getToTime())
+            processFakeTickToCompleteLastCandle(customPeriodFromTicksCreator, notFinishedCandle.getClose(), toTime);
+        else
+        if(lastCandle == null && notFinishedCandle == null && Filter.NO_FILTER.equals(filter))
+        {
+            TickData lastBeforeTimeTick = getLastTickBeforeTime(toTime);
+            if(lastBeforeTimeTick != null)
+            {
+                double price = OfferSide.ASK.equals(offerSide) ? lastBeforeTimeTick.getAsk() : lastBeforeTimeTick.getBid();
+                processFakeTickToCompleteLastCandle(customPeriodFromTicksCreator, price, toTime);
+            }
+        }
+        Exception e;
+        try
+        {
+            postFinishDataLoading(customPeriodFromTicksCreator, null, exception);
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_474;
+        e;
+        exception = e;
+        LOGGER.error(e.getMessage(), e);
+        try
+        {
+            postFinishDataLoading(customPeriodFromTicksCreator, null, exception);
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_474;
+        Exception exception1;
+        exception1;
+        try
+        {
+            postFinishDataLoading(customPeriodFromTicksCreator, null, exception);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        throw exception1;
+    }
+
+    private void processFakeTickToCompleteLastCandle(CustomPeriodFromTicksCreator customPeriodFromTicksCreator, double price, long time)
+    {
+        TickData fakeTick = new TickData(time, price, price, 0.0D, 0.0D);
+        customPeriodFromTicksCreator.analyseTickData(fakeTick);
+    }
+
+    private void performLoadingForCandlesCount()
+    {
+        Exception exception;
+        CustomPeriodFromTicksCreator customPeriodAfterCreator;
+        CustomPeriodFromTicksCreator customPeriodBeforeCreator;
+        exception = null;
+        customPeriodAfterCreator = null;
+        customPeriodBeforeCreator = null;
+        List weekends = null;
+        if(Filter.WEEKENDS.equals(getFilter()))
+            weekends = feedDataProvider.calculateWeekends(getDesiredPeriod(), getNumberOfCandlesBefore() + getNumberOfCandlesAfter(), getTime() - getDesiredPeriod().getInterval() * (long)getNumberOfCandlesBefore(), getTime() + getDesiredPeriod().getInterval() * (long)getNumberOfCandlesAfter(), originalLoadingProgress);
+        long timeForBeforeCreator = getTime();
+        if(getNumberOfCandlesBefore() > 0)
+            timeForBeforeCreator += getDesiredPeriod().getInterval();
+        long timeForAfterCreator = timeForBeforeCreator;
+        if(Filter.WEEKENDS.equals(getFilter()))
+        {
+            Weekend weekend = DataCacheUtils.getWeekend(timeForAfterCreator, weekends);
+            if(weekend != null)
+                timeForAfterCreator = weekend.getEnd();
+        }
+        timeForBeforeCreator--;
+        customPeriodBeforeCreator = new CustomPeriodFromTicksCreator(instrument, offerSide, getNumberOfCandlesBefore(), getDesiredPeriod(), getFilter(), true, Long.valueOf(timeForBeforeCreator), null, weekends);
+        CustomPeriodTickLiveFeedListener ticBeforekLiveFeedListener = new CustomPeriodTickLiveFeedListener(customPeriodBeforeCreator);
+        TickLoadingProgressListener tickBeforeLoadingProgressListener = createTickLoadingProgressListener(getOriginalLoadingProgress());
+        loadDataBeforeTime(timeForBeforeCreator, getFeedDataProvider().getTimeOfFirstCandle(getInstrument(), Period.TICK), ticBeforekLiveFeedListener, tickBeforeLoadingProgressListener);
+        Double firstDesiredCandleValue = null;
+        TickData tick = getLastTickBeforeTime(timeForAfterCreator);
+        if(tick != null)
+        {
+            double value = OfferSide.ASK.equals(getOfferSide()) ? tick.getAsk() : tick.getBid();
+            firstDesiredCandleValue = new Double(value);
+        }
+        customPeriodAfterCreator = new CustomPeriodFromTicksCreator(getInstrument(), getOfferSide(), getNumberOfCandlesAfter(), getDesiredPeriod(), getFilter(), false, Long.valueOf(timeForAfterCreator), firstDesiredCandleValue, weekends);
+        CustomPeriodTickLiveFeedListener tickAfterLiveFeedListener = new CustomPeriodTickLiveFeedListener(customPeriodAfterCreator);
+        TickLoadingProgressListener tickAfterLoadingProgressListener = createTickLoadingProgressListener(getOriginalLoadingProgress());
+        loadDataAfterTime(timeForAfterCreator, tickAfterLiveFeedListener, tickAfterLoadingProgressListener);
+        Exception e;
+        try
+        {
+            postData(customPeriodBeforeCreator, customPeriodAfterCreator, exception);
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_469;
+        e;
+        exception = e;
+        LOGGER.error(e.getMessage(), e);
+        try
+        {
+            postData(customPeriodBeforeCreator, customPeriodAfterCreator, exception);
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_469;
+        Exception exception1;
+        exception1;
+        try
+        {
+            postData(customPeriodBeforeCreator, customPeriodAfterCreator, exception);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        throw exception1;
+    }
+
+    private TickData getLastTickBeforeTime(long timeTo)
+        throws DataCacheException
+    {
+        long firstCandleTime = feedDataProvider.getTimeOfFirstCandle(getInstrument(), Period.TICK);
+        long to = timeTo;
+        long HOUR = 0x36ee80L;
+        LoadingProgressListener loadingProgressListener = new LoadingProgressAdapter() {
+
+            final LoadCandlesFromTicksAction this$0;
+
+            
+            {
+                this$0 = LoadCandlesFromTicksAction.this;
+                super();
+            }
+        };
+        OneTickLiveFeedListener oneTickLoadingProgressListener;
+        for(oneTickLoadingProgressListener = new OneTickLiveFeedListener(); firstCandleTime < timeTo && oneTickLoadingProgressListener.getTick() == null;)
+        {
+            long from = to - 0x36ee80L;
+            LoadDataAction action = createLoadDataAction(from, to, oneTickLoadingProgressListener, loadingProgressListener);
+            action.run();
+            to = from;
+        }
+
+        return oneTickLoadingProgressListener.getTick();
+    }
+
+    private void postData(CustomPeriodFromTicksCreator customPeriodBeforeCreator, CustomPeriodFromTicksCreator customPeriodAfterCreator, Exception exception)
+    {
+        CandleData consequentCustomPeriodArray[] = constructConsequentCustomPeriodArray(customPeriodAfterCreator, customPeriodBeforeCreator);
+        if(consequentCustomPeriodArray != null)
+        {
+            for(int i = 0; i < consequentCustomPeriodArray.length; i++)
+            {
+                CandleData data = consequentCustomPeriodArray[i];
+                if(data != null)
+                    getOriginalLiveFeedListener().newCandle(getInstrument(), getDesiredPeriod(), getOfferSide(), data.getTime(), data.getOpen(), data.getClose(), data.getLow(), data.getHigh(), data.getVolume());
+            }
+
+        }
+        postFinishDataLoading(customPeriodBeforeCreator, customPeriodAfterCreator, exception);
+    }
+
+    private void postFinishDataLoading(CustomPeriodFromTicksCreator customPeriodBeforeCreator, CustomPeriodFromTicksCreator customPeriodAfterCreator, Exception exception)
+    {
+        long startTime = getTime();
+        if(customPeriodBeforeCreator != null && customPeriodBeforeCreator.getLastTime() != null)
+            startTime = customPeriodBeforeCreator.getLastTime().longValue();
+        else
+        if(customPeriodBeforeCreator == null)
+            startTime = getFromTime();
+        else
+        if(customPeriodAfterCreator != null && customPeriodAfterCreator.getFirstTime() != null)
+            startTime = customPeriodAfterCreator.getFirstTime().longValue();
+        long endTime = getTime();
+        if(customPeriodAfterCreator != null && customPeriodAfterCreator.getLastTime() != null)
+            endTime = customPeriodAfterCreator.getLastTime().longValue();
+        else
+        if(customPeriodBeforeCreator != null && customPeriodBeforeCreator.getFirstTime() != null)
+            endTime = customPeriodBeforeCreator.getFirstTime().longValue();
+        else
+        if(customPeriodBeforeCreator == null)
+            endTime = getToTime();
+        getOriginalLoadingProgress().loadingFinished(exception == null, startTime, endTime, endTime, exception);
+    }
+
+    private CandleData[] constructConsequentCustomPeriodArray(CustomPeriodFromTicksCreator customPeriodAfterCreator, CustomPeriodFromTicksCreator customPeriodBeforeCreator)
+    {
+        if(customPeriodAfterCreator != null && customPeriodBeforeCreator != null)
+        {
+            CandleData result[] = new CandleData[customPeriodBeforeCreator.getLoadedCandleCount() + customPeriodAfterCreator.getLoadedCandleCount()];
+            CandleData afterArray[] = customPeriodAfterCreator.getResult();
+            CandleData beforeArray[] = customPeriodBeforeCreator.getResult();
+            if(customPeriodBeforeCreator.getInverseOrder())
+                beforeArray = reverse(beforeArray);
+            if(customPeriodAfterCreator.getInverseOrder())
+                afterArray = reverse(afterArray);
+            TimeDataUtils.copyArray(beforeArray, 0, result, 0, customPeriodBeforeCreator.getLoadedCandleCount());
+            TimeDataUtils.copyArray(afterArray, 0, result, customPeriodBeforeCreator.getLoadedCandleCount(), customPeriodAfterCreator.getLoadedCandleCount());
+            return result;
+        }
+        if(customPeriodAfterCreator != null)
+        {
+            CandleData result[] = new CandleData[customPeriodAfterCreator.getLoadedCandleCount()];
+            CandleData afterArray[] = customPeriodAfterCreator.getResult();
+            if(customPeriodAfterCreator.getInverseOrder())
+                afterArray = reverse(afterArray);
+            TimeDataUtils.copyArray(afterArray, 0, result, 0, customPeriodAfterCreator.getLoadedCandleCount());
+            return result;
+        }
+        if(customPeriodBeforeCreator != null)
+        {
+            CandleData result[] = new CandleData[customPeriodBeforeCreator.getLoadedCandleCount()];
+            CandleData beforeArray[] = customPeriodBeforeCreator.getResult();
+            if(customPeriodBeforeCreator.getInverseOrder())
+                beforeArray = reverse(beforeArray);
+            TimeDataUtils.copyArray(beforeArray, 0, result, 0, customPeriodBeforeCreator.getLoadedCandleCount());
+            return result;
+        } else
+        {
+            return null;
+        }
+    }
+
+    private CandleData[] reverse(CandleData array[])
+    {
+        CandleData reversedArray[] = new CandleData[array.length];
+        TimeDataUtils.reverseArray(array, reversedArray);
+        return reversedArray;
+    }
+
+    private void loadDataBeforeTime(long time, long firstCandleTime, CustomPeriodTickLiveFeedListener tickLiveFeedListener, TickLoadingProgressListener tickLoadingProgressListener)
+        throws DataCacheException
+    {
+        if(tickLiveFeedListener.getCustomPeriodFromTicksCreator().getDesiredCandlesCount() <= 0)
+            return;
+        long fromTime = time;
+        boolean customPeriodsConstructed = false;
+        do
+        {
+            if(tickLoadingProgressListener.stopJob())
+                break;
+            long toTime = fromTime;
+            fromTime -= getIncreaseTimeInterval();
+            if(fromTime > firstCandleTime && toTime < firstCandleTime)
+                toTime = firstCandleTime;
+            if(fromTime < firstCandleTime)
+                break;
+            loadDataForTimeInterval(fromTime, toTime, tickLiveFeedListener, tickLoadingProgressListener);
+        } while(!tickLiveFeedListener.isCustomPeriodsCreationFinished() && !customPeriodsConstructed);
+    }
+
+    private void loadDataAfterTime(long time, CustomPeriodTickLiveFeedListener tickLiveFeedListener, TickLoadingProgressListener tickLoadingProgressListener)
+        throws DataCacheException
+    {
+        if(tickLiveFeedListener.getCustomPeriodFromTicksCreator().getDesiredCandlesCount() <= 0)
+            return;
+        long toTime = time;
+        boolean customPeriodsConstructed = false;
+        do
+        {
+            if(tickLoadingProgressListener.stopJob())
+                break;
+            long fromTime = toTime;
+            toTime += getIncreaseTimeInterval();
+            long currentSystemTime = System.currentTimeMillis();
+            if(fromTime < currentSystemTime && toTime > currentSystemTime)
+                toTime = currentSystemTime;
+            if(fromTime > currentSystemTime - 60000L)
+                break;
+            loadDataForTimeInterval(fromTime, toTime, tickLiveFeedListener, tickLoadingProgressListener);
+        } while(!tickLiveFeedListener.isCustomPeriodsCreationFinished() && !customPeriodsConstructed);
+    }
+
+    private void loadDataForTimeInterval(long fromTime, long toTime, CustomPeriodTickLiveFeedListener tickLiveFeedListener, TickLoadingProgressListener tickLoadingProgressListener)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = createLoadDataAction(fromTime, toTime, tickLiveFeedListener, tickLoadingProgressListener);
+        loadDataAction.run();
+        tickLiveFeedListener.analyseTickDataPortion();
+        getOriginalLoadingProgress().dataLoaded(fromTime, toTime, toTime, "");
+    }
+
+    private LoadDataAction createLoadDataAction(long fromTime, long toTime, LiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = new LoadDataAction(getFeedDataProvider(), getInstrument(), fromTime, toTime, liveFeedListener, loadingProgressListener, null, false, intraperiodExistsPolicy, false);
+        return loadDataAction;
+    }
+
+    private long getIncreaseTimeInterval()
+    {
+        return 0x36ee80L;
+    }
+
+    private TickLoadingProgressListener createTickLoadingProgressListener(LoadingProgressListener delegate)
+    {
+        TickLoadingProgressListener tickLoadingProgressListener = new TickLoadingProgressListener(delegate);
+        return tickLoadingProgressListener;
+    }
+
+    protected Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    protected OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    protected Filter getFilter()
+    {
+        return filter;
+    }
+
+    protected Period getDesiredPeriod()
+    {
+        return desiredPeriod;
+    }
+
+    protected int getNumberOfCandlesBefore()
+    {
+        return numberOfCandlesBefore;
+    }
+
+    protected int getNumberOfCandlesAfter()
+    {
+        return numberOfCandlesAfter;
+    }
+
+    protected long getTime()
+    {
+        return time;
+    }
+
+    protected FeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    protected com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy getIntraperiodExistsPolicy()
+    {
+        return intraperiodExistsPolicy;
+    }
+
+    protected LoadingProgressListener getOriginalLoadingProgress()
+    {
+        return originalLoadingProgress;
+    }
+
+    protected LiveFeedListener getOriginalLiveFeedListener()
+    {
+        return originalLiveFeedListener;
+    }
+
+    protected long getFromTime()
+    {
+        return fromTime;
+    }
+
+    protected long getToTime()
+    {
+        return toTime;
+    }
+
+    private static final long ONE_MINUTE = 60000L;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/LoadCustomPeriodNumberOfCandlesAction);
+    protected static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss:SSS");
+    private final Instrument instrument;
+    private final OfferSide offerSide;
+    private final Filter filter;
+    private final Period desiredPeriod;
+    private final FeedDataProvider feedDataProvider;
+    private final com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    private final LoadingProgressListener originalLoadingProgress;
+    private final LiveFeedListener originalLiveFeedListener;
+    private final int numberOfCandlesBefore;
+    private final int numberOfCandlesAfter;
+    private final long fromTime;
+    private final long toTime;
+    private final long time;
+
+}

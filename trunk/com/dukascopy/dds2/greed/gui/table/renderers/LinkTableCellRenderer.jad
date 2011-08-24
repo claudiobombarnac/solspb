@@ -1,0 +1,90 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LinkTableCellRenderer.java
+
+package com.dukascopy.dds2.greed.gui.table.renderers;
+
+import java.awt.*;
+import java.awt.event.*;
+import java.net.URI;
+import javax.swing.JLabel;
+import javax.swing.JTable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.table.renderers:
+//            AbstractTableCellRenderer, Link
+
+public class LinkTableCellRenderer extends AbstractTableCellRenderer
+{
+
+    public LinkTableCellRenderer()
+    {
+        addMouseMotionListener(new MouseMotionAdapter() {
+
+            public void mouseMoved(MouseEvent e)
+            {
+                String url = (String)getClientProperty("[x]");
+                if(url != null && !url.isEmpty())
+                {
+                    ((JTable)e.getSource()).setCursor(Cursor.getPredefinedCursor(12));
+                    return;
+                } else
+                {
+                    return;
+                }
+            }
+
+            final LinkTableCellRenderer this$0;
+
+            
+            {
+                this$0 = LinkTableCellRenderer.this;
+                super();
+            }
+        });
+        addMouseListener(new MouseAdapter() {
+
+            public void mouseClicked(MouseEvent e)
+            {
+                if(e.getClickCount() >= 2)
+                {
+                    String url = (String)getClientProperty("[x]");
+                    if(url != null && !url.isEmpty())
+                        try
+                        {
+                            Desktop.getDesktop().browse(new URI(url));
+                        }
+                        catch(Exception ex)
+                        {
+                            LinkTableCellRenderer.LOGGER.error((new StringBuilder()).append("Unable to open url in browser : ").append(url).toString(), ex);
+                        }
+                }
+            }
+
+            final LinkTableCellRenderer this$0;
+
+            
+            {
+                this$0 = LinkTableCellRenderer.this;
+                super();
+            }
+        });
+    }
+
+    public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column)
+    {
+        Link link = (Link)value;
+        JLabel label = (JLabel)super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+        label.setText(link.title);
+        label.setToolTipText(link.url);
+        putClientProperty("[x]", link.url);
+        return label;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/gui/table/renderers/LinkTableCellRenderer);
+    private static final String URL_KEY = "[x]";
+
+
+}

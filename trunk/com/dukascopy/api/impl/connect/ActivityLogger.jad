@@ -1,0 +1,290 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ActivityLogger.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import java.io.*;
+import java.net.*;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Calendar;
+import java.util.concurrent.TimeUnit;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class ActivityLogger extends Thread
+{
+
+    private ActivityLogger(String serviceUrl, String login, String loginId)
+    {
+        super("ActivityLogger");
+        jaForImmediateSend = new JSONArray();
+        this.serviceUrl = serviceUrl;
+        this.login = login;
+        this.loginId = loginId;
+        Calendar calendar = Calendar.getInstance();
+        timeZoneOffset = -(long)(calendar.get(15) + calendar.get(16));
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+
+            public void run()
+            {
+                flush();
+            }
+
+            final ActivityLogger this$0;
+
+            
+            {
+                this$0 = ActivityLogger.this;
+                super();
+            }
+        });
+        setDaemon(true);
+        start();
+    }
+
+    public static synchronized void init(String serviceUrl, String login)
+    {
+        init(serviceUrl, login, null);
+    }
+
+    public static synchronized void init(String serviceUrl, String login, String loginId)
+    {
+        if(instance != null)
+            instance.stopLogger();
+        instance = new ActivityLogger(serviceUrl, login, loginId);
+    }
+
+    public static synchronized ActivityLogger getInstance()
+    {
+        return instance;
+    }
+
+    public void run()
+    {
+        while(!stop) 
+            try
+            {
+                Thread.sleep(PERIOD);
+                sendLog();
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+    }
+
+    public void flush()
+    {
+        try
+        {
+            sendLog();
+        }
+        catch(IOException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public void add(String message)
+    {
+        add(message, getTimeStamp());
+    }
+
+    public void sendLog()
+        throws IOException
+    {
+label0:
+        {
+            synchronized(this)
+            {
+                int size = jaForImmediateSend.length();
+                if(0 != size)
+                    break label0;
+            }
+            return;
+        }
+        String messageString;
+        messageString = jaForImmediateSend.toString();
+        jaForImmediateSend = new JSONArray();
+        activitylogger;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+        String jameson = "";
+        try
+        {
+            jameson = URLEncoder.encode(messageString, "ISO-8859-1");
+        }
+        catch(UnsupportedEncodingException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug("jah : {}", messageString);
+        String authorization = buildAuthorizationRequest(login, loginId);
+        if(null == authorization)
+            authorization = "";
+        String requestUrl = String.format("%1$s?%2$s&tzOffsetSeconds=%3$s", new Object[] {
+            serviceUrl, authorization, Long.toString(TimeUnit.MILLISECONDS.toSeconds(timeZoneOffset))
+        });
+        doPostLog(requestUrl, jameson);
+        return;
+    }
+
+    private synchronized void stopLogger()
+    {
+        flush();
+        stop = true;
+        interrupt();
+        try
+        {
+            join();
+        }
+        catch(InterruptedException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private static String buildAuthorizationRequest(String login, String loginId)
+    {
+        String check = encode(login == null ? loginId : login);
+        if(check == null)
+        {
+            LOGGER.warn("Unable to generate [{}] hash", "MD5");
+            return null;
+        } else
+        {
+            return String.format("check=%1$s&%2$s=%3$s", new Object[] {
+                check, login == null ? "loginId" : "login", login == null ? loginId : login
+            });
+        }
+    }
+
+    private static String encode(String key)
+    {
+        MessageDigest digest;
+        try
+        {
+            digest = MessageDigest.getInstance("MD5");
+        }
+        catch(NoSuchAlgorithmException nsae)
+        {
+            LOGGER.error(nsae.getMessage(), nsae);
+            return null;
+        }
+        char encodedChars[] = null;
+        try
+        {
+            byte encodedBytes[] = digest.digest((new StringBuilder()).append(key).append("secretto").toString().getBytes("ISO-8859-1"));
+            encodedChars = (new String(encodedBytes, "ISO-8859-1")).toCharArray();
+        }
+        catch(UnsupportedEncodingException uee)
+        {
+            LOGGER.error(uee.getMessage(), uee);
+            return null;
+        }
+        return new String(toHexString(encodedChars));
+    }
+
+    private static char[] toHexString(char chars[])
+    {
+        StringBuilder result = new StringBuilder("");
+        char arr$[] = chars;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            char symbol = arr$[i$];
+            String charHexStr = Integer.toHexString(symbol);
+            if(charHexStr.length() == 1)
+                charHexStr = (new StringBuilder()).append('0').append(charHexStr).toString();
+            result.append(charHexStr);
+        }
+
+        return result.toString().toCharArray();
+    }
+
+    private static int doPostLog(String requestUrl, String message)
+        throws IOException
+    {
+        URL url = new URL(requestUrl);
+        HttpURLConnection urlConnection = (HttpURLConnection)url.openConnection();
+        urlConnection.setDoInput(true);
+        urlConnection.setDoOutput(true);
+        urlConnection.setUseCaches(false);
+        urlConnection.setRequestMethod("POST");
+        urlConnection.setRequestProperty("Content-Length", (new StringBuilder()).append("data=".length()).append(Integer.toString(message.getBytes().length)).toString());
+        urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        DataOutputStream outStream = new DataOutputStream(urlConnection.getOutputStream());
+        outStream.writeBytes("data=");
+        outStream.writeBytes(message);
+        outStream.flush();
+        outStream.close();
+        int responseCode = urlConnection.getResponseCode();
+        urlConnection.disconnect();
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug("Trade Log ({}) : {}", Integer.valueOf(responseCode), requestUrl);
+        return responseCode;
+    }
+
+    private synchronized void add(String message, String serverTimestamp)
+    {
+        JSONObject json = new JSONObject();
+        json.put("datumType", "message");
+        json.put("message", message);
+        json.put("timestamp", serverTimestamp);
+        json.put("clientTime", getClientTime());
+        jaForImmediateSend.put(json);
+    }
+
+    private String getClientTime()
+    {
+        return Long.toString(System.currentTimeMillis());
+    }
+
+    private String getTimeStamp()
+    {
+        return Long.toString(FeedDataProvider.getDefaultInstance().getEstimatedServerTime());
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/ActivityLogger);
+    private static final String THREAD_NAME = "ActivityLogger";
+    private static final long PERIOD;
+    private static final String DIGEST_ALGORITHM = "MD5";
+    private static final String CHARSET = "ISO-8859-1";
+    private static final String AUTH_REQUEST_FORMAT = "check=%1$s&%2$s=%3$s";
+    private static final String LOGIN_PARAM_KEY = "login";
+    private static final String LOGIN_ID_PARAM_KEY = "loginId";
+    private static final String REQUEST_URL_FORMAT = "%1$s?%2$s&tzOffsetSeconds=%3$s";
+    private static final String APPLICATION_X_WWW_FORM_URLENCODED = "application/x-www-form-urlencoded";
+    private static final String CONTENT_TYPE_REQUEST_PROPERTY = "Content-Type";
+    private static final String CONTENT_LENGTH_REQUEST_PROPERTY = "Content-Length";
+    private static final String POST_REQUEST_METHOD = "POST";
+    private static final String DATA_KEY = "data=";
+    private static final String SECRETTO = "secretto";
+    private static final String DATUM_TYPE = "datumType";
+    private static final String DATUM_MESSAGE = "message";
+    private static final String TIMESTAMP_KEY = "timestamp";
+    private static final String CLIENT_TIME_KEY = "clientTime";
+    private static final String MESSAGE_KEY = "message";
+    private static ActivityLogger instance;
+    private final String serviceUrl;
+    private final long timeZoneOffset;
+    private final String login;
+    private final String loginId;
+    private JSONArray jaForImmediateSend;
+    private boolean stop;
+
+    static 
+    {
+        PERIOD = TimeUnit.SECONDS.toMillis(10L);
+    }
+}

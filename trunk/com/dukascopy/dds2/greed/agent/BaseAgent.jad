@@ -1,0 +1,461 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   BaseAgent.java
+
+package com.dukascopy.dds2.greed.agent;
+
+import com.dukascopy.dds2.greed.agent.history.HTick;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.agent.strategy.objects.AccountInfo;
+import com.dukascopy.dds2.greed.agent.strategy.objects.Market;
+import com.dukascopy.dds2.greed.agent.strategy.objects.Order;
+import com.dukascopy.transport.common.model.type.*;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import com.dukascopy.transport.common.msg.group.OrderMessage;
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent:
+//            AgentException, IDDSAgent
+
+public abstract class BaseAgent
+    implements IDDSAgent
+{
+
+    public BaseAgent()
+    {
+        lastTickTime = null;
+        tempStopLossPips = 0;
+        tempTakeProfitPips = 0;
+        slipageControl = -1D;
+        properties = new HashMap();
+    }
+
+    public static String format(double dd)
+    {
+        return df.format(dd);
+    }
+
+    public String normalizePriceString(String price)
+    {
+        if(price.length() > 7)
+            price = price.substring(0, 7);
+        return price;
+    }
+
+    public Collection getOrders(boolean filterWithNoTag, String filterSymbol)
+    {
+        Set set = new HashSet();
+        Order order;
+        for(Iterator i$ = getPositionsListImpl(filterWithNoTag, filterSymbol).iterator(); i$.hasNext(); set.add(order))
+        {
+            Position position = (Position)i$.next();
+            order = new Order(position);
+            order.setAgent(this);
+        }
+
+        Order order;
+        for(Iterator i$ = getEntryOrdersListImpl(filterWithNoTag, filterSymbol).iterator(); i$.hasNext(); set.add(order))
+        {
+            OrderGroupMessage groupMessage = (OrderGroupMessage)i$.next();
+            order = new Order(groupMessage);
+            order.setAgent(this);
+        }
+
+        return set;
+    }
+
+    protected abstract List getEntryOrdersListImpl(boolean flag, String s);
+
+    protected abstract List getPositionsListImpl(boolean flag, String s);
+
+    public int submitOrder(String label, String symbol, int cmd, double amount, double price, 
+            int stopLoss, int takeProfit)
+        throws AgentException
+    {
+        return submitOrder(label, symbol, cmd, amount, price, stopLoss, takeProfit, "");
+    }
+
+    public int submitOrder(String label, String symbol, int cmd, double amount, double price, 
+            int stopLoss, int takeProfit, String comment)
+        throws AgentException
+    {
+        if(label != null && label.length() > 8)
+            return -4;
+        if(label == null)
+            return -4;
+        checkLabelUniqueness(label);
+        symbol = StratUtils.normalizeSymbol(symbol);
+        validateAmount(amount);
+        checkLiquidity(symbol);
+        price = StratUtils.round(price, 7);
+        int positionId = -99;
+        if(cmd == 0 || cmd == 1)
+        {
+            positionId = submitMarketOrder(label, symbol, cmd, amount, price, comment);
+            if(stopLoss > 0 && positionId > 0)
+                submitStop(label, 0, stopLoss);
+            if(takeProfit > 0 && positionId > 0)
+                submitStop(label, 1, takeProfit);
+        } else
+        {
+            if(price == 0.0D)
+                return -10;
+            positionId = submitEntryOrder(label, symbol, cmd, amount, price, stopLoss, takeProfit, comment);
+        }
+        return positionId;
+    }
+
+    public int submitStop(String label, int command, int pips)
+        throws AgentException
+    {
+        return submitStop(label, command, pips, 0.0D);
+    }
+
+    public int submitStop(String label, int command, int pips, double price)
+        throws AgentException
+    {
+        int rc = -13;
+        String groupId = getPositionIdByLabel(label);
+        boolean isEntryOrder = false;
+        if(groupId == null)
+        {
+            OrderGroupMessage entry = getEntryOrderByLabelImpl(label);
+            if(entry != null)
+            {
+                groupId = entry.getOrderGroupId();
+                if(groupId != null)
+                    isEntryOrder = true;
+            }
+        }
+        if(groupId != null)
+        {
+            OrderGroupMessage orderGroup = getOrderGroupByIdImpl(groupId);
+            if(orderGroup != null)
+            {
+                String stopOrderTypeo = null;
+                if(command == 0 || command == 2 || command == 3)
+                    stopOrderTypeo = "STOP_LOSS";
+                else
+                if(command == 1 || command == 4 || command == 5)
+                    stopOrderTypeo = "TAKE_PROFIT";
+                else
+                    rc = -10;
+                if(stopOrderTypeo != null)
+                {
+                    if(pips > 0 || price > 0.0D)
+                    {
+                        BigDecimal openPrice = null;
+                        BigDecimal onePip = null;
+                        if(orderGroup.getOpeningOrder().getPriceClient() != null)
+                        {
+                            openPrice = orderGroup.getOpeningOrder().getPriceClient().getValue();
+                            onePip = BigDecimal.valueOf(StratUtils.pipValue(openPrice.doubleValue()));
+                        }
+                        BigDecimal priceStop = null;
+                        if(orderGroup.getOpeningOrder().getPriceStop() != null)
+                        {
+                            priceStop = orderGroup.getOpeningOrder().getPriceStop().getValue();
+                            onePip = BigDecimal.valueOf(StratUtils.pipValue(priceStop.doubleValue()));
+                        }
+                        BigDecimal stopPrice = null;
+                        if(pips > 0)
+                        {
+                            if(stopOrderTypeo.equals("STOP_LOSS") && orderGroup.getOpeningOrder().getSide() == OrderSide.BUY || stopOrderTypeo.equals("TAKE_PROFIT") && orderGroup.getOpeningOrder().getSide() == OrderSide.SELL)
+                                if(isEntryOrder)
+                                    stopPrice = priceStop.subtract(onePip.multiply(BigDecimal.valueOf(pips)));
+                                else
+                                    stopPrice = openPrice.subtract(onePip.multiply(BigDecimal.valueOf(pips)));
+                            if(stopOrderTypeo.equals("STOP_LOSS") && orderGroup.getOpeningOrder().getSide() == OrderSide.SELL || stopOrderTypeo.equals("TAKE_PROFIT") && orderGroup.getOpeningOrder().getSide() == OrderSide.BUY)
+                                if(isEntryOrder)
+                                    stopPrice = priceStop.add(onePip.multiply(BigDecimal.valueOf(pips)));
+                                else
+                                    stopPrice = openPrice.add(onePip.multiply(BigDecimal.valueOf(pips)));
+                        } else
+                        {
+                            stopPrice = BigDecimal.valueOf(price);
+                        }
+                        if(stopPrice.compareTo(BigDecimal.ZERO) <= 0)
+                            throw new AgentException((byte)-15);
+                        String normailzedPriceStopStr = normalizePriceString(stopPrice.toPlainString());
+                        StopDirection stopDirection = null;
+                        OrderSide positionSide = orderGroup.getOpeningOrder().getSide();
+                        if(positionSide == OrderSide.BUY && command == 4)
+                            stopDirection = StopDirection.ASK_GREATER;
+                        if(positionSide == OrderSide.BUY && command == 2)
+                            stopDirection = StopDirection.ASK_LESS;
+                        if(positionSide == OrderSide.SELL && command == 5)
+                            stopDirection = StopDirection.BID_LESS;
+                        if(positionSide == OrderSide.SELL && command == 3)
+                            stopDirection = StopDirection.BID_GREATER;
+                        if(positionSide == OrderSide.BUY && (command == 5 || command == 1))
+                            stopDirection = StopDirection.BID_GREATER;
+                        if(positionSide == OrderSide.BUY && (command == 3 || command == 0))
+                            stopDirection = StopDirection.BID_LESS;
+                        if(positionSide == OrderSide.SELL && (command == 4 || command == 1))
+                            stopDirection = StopDirection.ASK_LESS;
+                        if(positionSide == OrderSide.SELL && (command == 2 || command == 0))
+                            stopDirection = StopDirection.ASK_GREATER;
+                        submitStopImpl(orderGroup, orderGroup.getOpeningOrder().getOrderId(), stopOrderTypeo, stopDirection, normailzedPriceStopStr);
+                    } else
+                    if(label != null)
+                        submitStopCancelImpl(groupId, command);
+                    try
+                    {
+                        rc = Integer.parseInt(groupId);
+                    }
+                    catch(Exception e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                        rc = -12;
+                    }
+                }
+            }
+        }
+        return rc;
+    }
+
+    protected abstract void submitStopCancelImpl(String s, int i);
+
+    protected abstract void submitStopImpl(OrderGroupMessage ordergroupmessage, String s, String s1, StopDirection stopdirection, String s2);
+
+    protected abstract OrderGroupMessage getOrderGroupByIdImpl(String s);
+
+    private int getProfitLoss(String label)
+    {
+        int profitLossPips = -99;
+        Position position = getPositionByLabelImpl(label);
+        if(position != null && position.getPriceOpen() != null && position.getPriceCurrent() != null)
+        {
+            BigDecimal priceOpen = position.getPriceOpen().getValue();
+            BigDecimal priceCurrent = position.getPriceCurrent().getValue();
+            BigDecimal pipValue = BigDecimal.valueOf(StratUtils.pipValue(priceOpen.doubleValue()));
+            BigDecimal profitLossMoneyValue = priceCurrent.subtract(priceOpen);
+            profitLossPips = profitLossMoneyValue.divide(pipValue).intValue();
+            if(position.getPositionSide() == PositionSide.SHORT)
+                profitLossPips = -profitLossPips;
+        }
+        return profitLossPips;
+    }
+
+    public int closeProfitPosition(String label, int profitPips)
+    {
+        int profitLoss = getProfitLoss(label);
+        if(profitLoss >= profitPips)
+            return closePosition(label);
+        else
+            return -99;
+    }
+
+    public abstract boolean onMarketStateImpl(String s, HTick htick, Market market);
+
+    public void onOrderGroupReceived(OrderGroupMessage orderGroup)
+    {
+        throw new RuntimeException("Not implemented.");
+    }
+
+    protected int submitMarketOrder(String label, String symbol, int cmd, double amount, double price, 
+            String comment)
+    {
+        BaseAgent baseagent = this;
+        JVM INSTR monitorenter ;
+        OrderSide orderSide;
+        orderSide = null;
+        if(cmd == 0)
+        {
+            orderSide = OrderSide.BUY;
+            break MISSING_BLOCK_LABEL_39;
+        }
+        if(cmd == 1)
+        {
+            orderSide = OrderSide.SELL;
+            break MISSING_BLOCK_LABEL_39;
+        }
+        return -10;
+        submitMarketOrderImpl(label, symbol, amount, price, orderSide, comment);
+        baseagent;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public void updateAccountInfo(AccountInfo accountInfo)
+    {
+        double margin = accountInfo.margin;
+        setProperty("usableMargin", Double.valueOf(margin));
+        double equity = accountInfo.equity;
+        setProperty("equity", Double.valueOf(equity));
+        double balance = accountInfo.balance;
+        setProperty("balance", Double.valueOf(balance));
+    }
+
+    protected int submitEntryOrder(String label, String symbol, int cmd, double amount, double price, 
+            int stopLossPips, int takeProfitPips, String comment)
+    {
+        tempStopLossPips = stopLossPips;
+        tempTakeProfitPips = takeProfitPips;
+        BaseAgent baseagent = this;
+        JVM INSTR monitorenter ;
+        OrderSide orderSide;
+        orderSide = null;
+        if(cmd == 2 || cmd == 4 || cmd == 6 || cmd == 8)
+        {
+            orderSide = OrderSide.BUY;
+            break MISSING_BLOCK_LABEL_86;
+        }
+        if(cmd == 3 || cmd == 5 || cmd == 7 || cmd == 9)
+        {
+            orderSide = OrderSide.SELL;
+            break MISSING_BLOCK_LABEL_86;
+        }
+        return -10;
+        int rc;
+        BigDecimal onePip = BigDecimal.valueOf(StratUtils.pipValue(price));
+        BigDecimal stopLossPrice = null;
+        BigDecimal takeProfitPrice = null;
+        if(stopLossPips > 0)
+        {
+            if(orderSide == OrderSide.BUY)
+                stopLossPrice = BigDecimal.valueOf(price).subtract(onePip.multiply(BigDecimal.valueOf(stopLossPips)));
+            if(orderSide == OrderSide.SELL)
+                stopLossPrice = BigDecimal.valueOf(price).add(onePip.multiply(BigDecimal.valueOf(stopLossPips)));
+        }
+        if(takeProfitPips > 0)
+        {
+            if(orderSide == OrderSide.BUY)
+                takeProfitPrice = BigDecimal.valueOf(price).add(onePip.multiply(BigDecimal.valueOf(takeProfitPips)));
+            if(orderSide == OrderSide.SELL)
+                takeProfitPrice = BigDecimal.valueOf(price).subtract(onePip.multiply(BigDecimal.valueOf(takeProfitPips)));
+        }
+        StopDirection stopDirection = null;
+        String buttonLabel = null;
+        if(cmd == 2)
+        {
+            stopDirection = StopDirection.ASK_LESS;
+            buttonLabel = "ask<";
+        }
+        if(cmd == 6)
+        {
+            stopDirection = StopDirection.BID_LESS;
+            buttonLabel = "bid<";
+        }
+        if(cmd == 4)
+        {
+            stopDirection = StopDirection.ASK_GREATER;
+            buttonLabel = "ask>";
+        }
+        if(cmd == 8)
+        {
+            stopDirection = StopDirection.BID_GREATER;
+            buttonLabel = "bid>";
+        }
+        if(cmd == 3)
+        {
+            stopDirection = StopDirection.BID_GREATER;
+            buttonLabel = "bid>";
+        }
+        if(cmd == 7)
+        {
+            stopDirection = StopDirection.ASK_GREATER;
+            buttonLabel = "ask>";
+        }
+        if(cmd == 5)
+        {
+            stopDirection = StopDirection.BID_LESS;
+            buttonLabel = "bid<";
+        }
+        if(cmd == 9)
+        {
+            stopDirection = StopDirection.ASK_LESS;
+            buttonLabel = "ask<";
+        }
+        rc = submitEntryOrderImpl(label, symbol, cmd, orderSide, amount, price, stopDirection, stopLossPrice, takeProfitPrice, buttonLabel, comment);
+        tempStopLossPips = 0;
+        tempTakeProfitPips = 0;
+        rc;
+        baseagent;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    protected abstract int submitEntryOrderImpl(String s, String s1, int i, OrderSide orderside, double d, double d1, StopDirection stopdirection, BigDecimal bigdecimal, BigDecimal bigdecimal1, String s2, String s3);
+
+    protected abstract int submitMarketOrderImpl(String s, String s1, double d, double d1, OrderSide orderside, 
+            String s2);
+
+    protected void checkLabelUniqueness(String label)
+        throws AgentException
+    {
+        if(getPositionIdByLabel(label) != null)
+            throw new AgentException((byte)-14, (new StringBuilder()).append(" (").append(label).append(")").toString());
+        if(getEntryOrderByLabelImpl(label) != null)
+            throw new AgentException((byte)-14, (new StringBuilder()).append(" (").append(label).append(")").toString());
+        else
+            return;
+    }
+
+    protected String getPositionIdByLabel(String label)
+    {
+        Position position = getPositionByLabelImpl(label);
+        if(position != null)
+            return position.getPositionID();
+        else
+            return null;
+    }
+
+    protected void validateAmount(double amount)
+        throws AgentException
+    {
+        if(amount < 0.10000000000000001D)
+            throw new AgentException((byte)-16);
+        else
+            return;
+    }
+
+    public Date getGMT()
+    {
+        return lastTickTime;
+    }
+
+    public int setSlipageControl(double slipage)
+    {
+        slipageControl = slipage;
+        return 0;
+    }
+
+    public Object getProperty(String key)
+    {
+        return properties.get(key);
+    }
+
+    public void setProperty(String s, Object obj)
+    {
+    }
+
+    protected abstract void checkLiquidity(String s)
+        throws AgentException;
+
+    protected abstract Position getPositionByLabelImpl(String s);
+
+    protected abstract OrderGroupMessage getEntryOrderByLabelImpl(String s);
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/BaseAgent);
+    static DecimalFormat df = new DecimalFormat("#0.######");
+    protected Date lastTickTime;
+    protected int tempStopLossPips;
+    protected int tempTakeProfitPips;
+    public static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss.SSS");
+    protected double slipageControl;
+    private Map properties;
+
+}

@@ -1,0 +1,102 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyBean.java
+
+package com.dukascopy.charts.persistence;
+
+import java.io.File;
+
+// Referenced classes of package com.dukascopy.charts.persistence:
+//            ServiceBean
+
+public class StrategyBean extends ServiceBean
+{
+
+    public StrategyBean(Integer id, String sourceFullFileName, String binaryFullFileName)
+    {
+        this(id, sourceFullFileName, binaryFullFileName, null, null, null, false);
+    }
+
+    public StrategyBean(int id, File sourceFile, File binaryFile)
+    {
+        this(id, sourceFile, binaryFile, null, null, null, false);
+    }
+
+    public StrategyBean(Integer id, String sourceFullFileName, String binaryFullFileName, String strategyType, Long remoteStrategyId, String remoteStrategyName, boolean parametersDefined)
+    {
+        super(id, sourceFullFileName, binaryFullFileName);
+        if(strategyType == null)
+            this.strategyType = "_LOCAL";
+        else
+            this.strategyType = strategyType;
+        this.remoteStrategyId = remoteStrategyId;
+        this.remoteStrategyName = remoteStrategyName;
+        this.parametersDefined = parametersDefined;
+    }
+
+    public StrategyBean(int id, File sourceFile, File binaryFile, String strategyType, Long remoteStrategyId, String remoteStrategyName, boolean parametersDefined)
+    {
+        super(id, sourceFile, binaryFile);
+        if(strategyType == null)
+            this.strategyType = "_LOCAL";
+        else
+            this.strategyType = strategyType;
+        this.remoteStrategyId = remoteStrategyId;
+        this.remoteStrategyName = remoteStrategyName;
+        this.parametersDefined = parametersDefined;
+    }
+
+    public boolean isRemote()
+    {
+        return strategyType != null && !"_LOCAL".equals(strategyType);
+    }
+
+    public Long getRemoteStrategyId()
+    {
+        return remoteStrategyId;
+    }
+
+    public String getRemoteStrategyType()
+    {
+        return strategyType == null ? "_LOCAL" : strategyType;
+    }
+
+    public String getRemoteStrategyName()
+    {
+        return remoteStrategyName;
+    }
+
+    public boolean areParametersDefined()
+    {
+        return parametersDefined;
+    }
+
+    public String getRemoteProcessId()
+    {
+        return remoteProcessId;
+    }
+
+    public void setRemoteProcessId(String pid)
+    {
+        remoteProcessId = pid;
+    }
+
+    public boolean isRemoteRunAllowed()
+    {
+        return remoteRunAllowed;
+    }
+
+    public void setRemoteRunAllowed(boolean allowed)
+    {
+        remoteRunAllowed = allowed;
+    }
+
+    private static final String LOCAL_STRATEGY_TYPE = "_LOCAL";
+    private final String strategyType;
+    private final Long remoteStrategyId;
+    private final String remoteStrategyName;
+    private final boolean parametersDefined;
+    private String remoteProcessId;
+    private boolean remoteRunAllowed;
+}

@@ -1,0 +1,109 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   SpecialButtonType.java
+
+package com.dukascopy.calculator;
+
+
+public final class SpecialButtonType extends Enum
+{
+
+    public static SpecialButtonType[] values()
+    {
+        return (SpecialButtonType[])$VALUES.clone();
+    }
+
+    public static SpecialButtonType valueOf(String name)
+    {
+        return (SpecialButtonType)Enum.valueOf(com/dukascopy/calculator/SpecialButtonType, name);
+    }
+
+    private SpecialButtonType(String s, int i)
+    {
+        super(s, i);
+    }
+
+    public String toString()
+    {
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$calculator$SpecialButtonType[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$calculator$SpecialButtonType = new int[SpecialButtonType.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.NONE.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.STAT.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.SHIFT.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.SHIFT_STAT.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.SHIFT_HEX.ordinal()] = 5;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$SpecialButtonType[SpecialButtonType.HEX.ordinal()] = 6;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls1..SwitchMap.com.dukascopy.calculator.SpecialButtonType[ordinal()])
+        {
+        case 1: // '\001'
+            return "NONE";
+
+        case 2: // '\002'
+            return "STAT";
+
+        case 3: // '\003'
+        case 4: // '\004'
+        case 5: // '\005'
+            return "SHIFT";
+
+        case 6: // '\006'
+            return "HEX";
+        }
+        throw new AssertionError("Unknown SpecialButtonType");
+    }
+
+    public static final SpecialButtonType NONE;
+    public static final SpecialButtonType SHIFT;
+    public static final SpecialButtonType STAT;
+    public static final SpecialButtonType SHIFT_STAT;
+    public static final SpecialButtonType HEX;
+    public static final SpecialButtonType SHIFT_HEX;
+    private static final SpecialButtonType $VALUES[];
+
+    static 
+    {
+        NONE = new SpecialButtonType("NONE", 0);
+        SHIFT = new SpecialButtonType("SHIFT", 1);
+        STAT = new SpecialButtonType("STAT", 2);
+        SHIFT_STAT = new SpecialButtonType("SHIFT_STAT", 3);
+        HEX = new SpecialButtonType("HEX", 4);
+        SHIFT_HEX = new SpecialButtonType("SHIFT_HEX", 5);
+        $VALUES = (new SpecialButtonType[] {
+            NONE, SHIFT, STAT, SHIFT_STAT, HEX, SHIFT_HEX
+        });
+    }
+}

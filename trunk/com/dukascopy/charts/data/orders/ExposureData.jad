@@ -1,0 +1,41 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ExposureData.java
+
+package com.dukascopy.charts.data.orders;
+
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.Instrument;
+import java.math.BigDecimal;
+
+public class ExposureData
+    implements Cloneable
+{
+
+    public ExposureData(Instrument instrument)
+    {
+        amount = BigDecimal.ZERO;
+        this.instrument = instrument;
+    }
+
+    public ExposureData clone()
+    {
+        return (ExposureData)super.clone();
+        Exception e;
+        e;
+        return null;
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    public Instrument instrument;
+    public BigDecimal amount;
+    public com.dukascopy.api.IEngine.OrderCommand side;
+    public BigDecimal price;
+    public long time;
+}

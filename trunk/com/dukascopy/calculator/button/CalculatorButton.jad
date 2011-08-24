@@ -1,0 +1,289 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:31
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   CalculatorButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.*;
+import com.dukascopy.calculator.function.*;
+import com.dukascopy.dds2.greed.gui.l10n.Localizable;
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import java.awt.Font;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import javax.swing.JButton;
+
+public class CalculatorButton extends JButton
+    implements ActionListener, Localizable
+{
+
+    protected CalculatorButton()
+    {
+    }
+
+    private void setup(MainCalculatorPanel mainCalculatorPanel, PObject pobject)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPObject(pobject);
+        setText();
+        setTextSize();
+        addActionListener(this);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public void setPObject(PObject p)
+    {
+        if(p == null)
+            p = NullPObject.instance();
+        setPobject(p);
+        setText(p);
+        setShortcut(p.shortcut());
+        setToolTipKey(p.tooltip());
+    }
+
+    public void localize()
+    {
+        if(getToolTipKey() != null)
+            if("<i>&#960;</i>".equals(getToolTipKey()))
+                setToolTipText(getToolTipKey());
+            else
+            if(getToolTipKey().isEmpty())
+                setToolTipText("");
+            else
+            if("i".equals(getToolTipKey()))
+                setToolTipText(getToolTipKey());
+            else
+                setToolTipText(LocalizationManager.getText(getToolTipKey()));
+    }
+
+    public void setToolTipText(String text)
+    {
+        String strSpace = "space";
+        if(text.length() > 0)
+        {
+            if(getShortcut() == ' ')
+                super.setToolTipText((new StringBuilder()).append("<html>").append(text).append(" [").append(strSpace).append("]</html>").toString());
+            else
+            if(getShortcut() != 0)
+                super.setToolTipText((new StringBuilder()).append("<html>").append(text).append(" [").append(getShortcut()).append("]</html>").toString());
+            else
+                super.setToolTipText((new StringBuilder()).append("<html>").append(text).append("</html>").toString());
+        } else
+        if(getShortcut() == ' ')
+            super.setToolTipText((new StringBuilder()).append("<html>[").append(strSpace).append("]</html>").toString());
+        else
+        if(getShortcut() != 0)
+            super.setToolTipText((new StringBuilder()).append("<html>[").append(getShortcut()).append("]</html>").toString());
+        else
+            return;
+    }
+
+    public CalculatorButton(MainCalculatorPanel applet)
+    {
+        setup(applet, NullPObject.instance());
+    }
+
+    public CalculatorButton(MainCalculatorPanel applet, PObject pobject)
+    {
+        setup(applet, pobject);
+    }
+
+    public void setText()
+    {
+        setText(pobject);
+    }
+
+    protected void setText(PObject p)
+    {
+        StringBuilder s = new StringBuilder();
+        s.append("<html><strong>");
+        if(p != null)
+            s.append(p.shortName());
+        s.append("</strong></html>");
+        setText(s.toString());
+    }
+
+    protected MainCalculatorPanel getMainCalculatorPanel()
+    {
+        return mainCalculatorPanel;
+    }
+
+    public void setTextSize()
+    {
+        setFont(getFont().deriveFont(getMainCalculatorPanel().buttonTextSize()));
+    }
+
+    public void setAngleType(AngleType angleType)
+    {
+        if(pobject instanceof Trig)
+            ((Trig)pobject).setScale(angleType);
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+label0:
+        {
+            synchronized(mainCalculatorPanel)
+            {
+                if(getMainCalculatorPanel().getMode() == 0)
+                    break label0;
+                getMainCalculatorPanel().setMode(pobject);
+                getMainCalculatorPanel().requestFocus();
+            }
+            return;
+        }
+        char c;
+        if(!(pobject instanceof Numeral))
+            break MISSING_BLOCK_LABEL_193;
+        c = pobject.shortcut();
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$calculator$Base[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$calculator$Base = new int[Base.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$Base[Base.BINARY.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$Base[Base.OCTAL.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$Base[Base.DECIMAL.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$Base[Base.HEXADECIMAL.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        _cls1..SwitchMap.com.dukascopy.calculator.Base[getMainCalculatorPanel().getBase().ordinal()];
+        JVM INSTR tableswitch 1 4: default 193
+    //                   1 100
+    //                   2 139
+    //                   3 154
+    //                   4 193;
+           goto _L1 _L2 _L3 _L4 _L1
+_L1:
+        break MISSING_BLOCK_LABEL_193;
+_L2:
+        if(c != '2' && c != '3' && c != '4' && c != '5' && c != '6' && c != '7')
+            break MISSING_BLOCK_LABEL_193;
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+        return;
+_L3:
+        if(c != '8' && c != '9')
+            break MISSING_BLOCK_LABEL_193;
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+        return;
+_L4:
+        if(c != 'A' && c != 'B' && c != 'C' && c != 'D' && c != 'E' && c != 'F')
+            break MISSING_BLOCK_LABEL_193;
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+        return;
+        if(!(pobject instanceof NullPObject) && pobject != null) goto _L6; else goto _L5
+_L5:
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+        return;
+_L6:
+        if(pobject instanceof Mean)
+            add(getMainCalculatorPanel().statMean());
+        else
+        if(pobject instanceof StDev)
+            add(getMainCalculatorPanel().statSampleStDev());
+        else
+        if(pobject instanceof PopStDev)
+        {
+            add(getMainCalculatorPanel().statPopulationStDev());
+        } else
+        {
+            setAngleType(mainCalculatorPanel.getAngleType());
+            add(pobject);
+        }
+        getMainCalculatorPanel().updateDisplay(true, true);
+        if(getMainCalculatorPanel().getShift())
+            getMainCalculatorPanel().setShift(false);
+        getMainCalculatorPanel().requestFocus();
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+          goto _L7
+        exception;
+        throw exception;
+_L7:
+    }
+
+    protected void add(PObject p)
+    {
+        if(!(getMainCalculatorPanel().getValue() instanceof OObject))
+            return;
+        OObject value = getMainCalculatorPanel().getValue();
+        if(getMainCalculatorPanel().getParser().isEmpty() && !(p instanceof Numeral) && !(p instanceof Variable) && !(p instanceof AFunction) && !(p instanceof RFunction) && !(p instanceof LParen) && !(p instanceof RParen) && !(p instanceof I) && !(p instanceof Container))
+        {
+            Ans ans = new Ans();
+            ans.setValue(value);
+            getMainCalculatorPanel().insert(ans);
+            getMainCalculatorPanel().updateDisplay(true, true);
+            getMainCalculatorPanel().insert(p);
+        } else
+        {
+            getMainCalculatorPanel().insert(p);
+        }
+    }
+
+    public char shortcut()
+    {
+        return shortcut;
+    }
+
+    public String getToolTipKey()
+    {
+        return toolTipKey;
+    }
+
+    public void setToolTipKey(String toolTipKey)
+    {
+        this.toolTipKey = toolTipKey;
+        localize();
+    }
+
+    public char getShortcut()
+    {
+        return shortcut;
+    }
+
+    public void setShortcut(char shortcut)
+    {
+        this.shortcut = shortcut;
+    }
+
+    public PObject getPobject()
+    {
+        return pobject;
+    }
+
+    public void setPobject(PObject pobject)
+    {
+        this.pobject = pobject;
+    }
+
+    private static final long serialVersionUID = 1L;
+    protected MainCalculatorPanel mainCalculatorPanel;
+    private PObject pobject;
+    private char shortcut;
+    private String toolTipKey;
+}

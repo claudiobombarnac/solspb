@@ -1,0 +1,1117 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   JForexTaskManager.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.*;
+import com.dukascopy.api.impl.execution.TaskFlush;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.orders.ExposureData;
+import com.dukascopy.charts.data.orders.OrdersProvider;
+import com.dukascopy.charts.main.interfaces.DDSChartsController;
+import com.dukascopy.dds2.greed.agent.strategy.notification.IStrategyRateDataNotificationFactory;
+import com.dukascopy.dds2.greed.agent.strategy.notification.StrategyRateDataNotificationFactory;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import com.dukascopy.transport.client.TransportClient;
+import com.dukascopy.transport.common.model.type.*;
+import com.dukascopy.transport.common.msg.group.*;
+import com.dukascopy.transport.common.msg.news.*;
+import com.dukascopy.transport.common.msg.request.*;
+import com.dukascopy.transport.common.msg.response.ErrorResponseMessage;
+import com.dukascopy.transport.common.msg.response.NotificationMessage;
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            OrdersInternalCollection, PlatformAccountImpl, JForexEngineImpl, PlatformOrderImpl, 
+//            PlatformCalendarMessageImpl, PlatformNewsMessageImpl, StratTickData, StrategyProcessor, 
+//            InstrumentStatusMessageImpl, ConnectionStatusMessageImpl, ISystemListenerExtended, PlatformMessageImpl, 
+//            StrategiesControl, JForexContextImpl
+
+public class JForexTaskManager
+    implements LiveCandleListener
+{
+    class StopCallable
+        implements Callable
+    {
+
+        public Object call()
+            throws Exception
+        {
+            if(runningStrategy != null)
+            {
+                IStrategy strategy = runningStrategy.getStrategy();
+                try
+                {
+                    runningStrategy.onStop();
+                    fireOnStop(strategy);
+                }
+                catch(Throwable t)
+                {
+                    JForexTaskManager.LOGGER.error(t.getMessage(), t);
+                    String msg = StrategyWrapper.representError(strategy, t);
+                    NotificationUtilsProvider.getNotificationUtils().postErrorMessage(msg, t, false);
+                }
+            }
+            return null;
+        }
+
+        final JForexTaskManager this$0;
+
+        StopCallable()
+        {
+            this$0 = JForexTaskManager.this;
+            super();
+        }
+    }
+
+    public static final class Environment extends Enum
+    {
+
+        public static Environment[] values()
+        {
+            return (Environment[])$VALUES.clone();
+        }
+
+        public static Environment valueOf(String name)
+        {
+            return (Environment)Enum.valueOf(com/dukascopy/api/impl/connect/JForexTaskManager$Environment, name);
+        }
+
+        public static final Environment LOCAL_JFOREX;
+        public static final Environment LOCAL_EMBEDDED;
+        public static final Environment REMOTE;
+        private static final Environment $VALUES[];
+
+        static 
+        {
+            LOCAL_JFOREX = new Environment("LOCAL_JFOREX", 0);
+            LOCAL_EMBEDDED = new Environment("LOCAL_EMBEDDED", 1);
+            REMOTE = new Environment("REMOTE", 2);
+            $VALUES = (new Environment[] {
+                LOCAL_JFOREX, LOCAL_EMBEDDED, REMOTE
+            });
+        }
+
+        private Environment(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    public JForexTaskManager(Environment environment, boolean live, String accountName, IConsole console, TransportClient transportClient, DDSChartsController ddsChartsController, IUserInterface userInterface, 
+            IStrategyExceptionHandler exceptionHandler, AccountInfoMessage lastAccountInfo, String externalIP, String internalIP, String sessionID)
+    {
+        strategyId = 0x8000000000000000L;
+        strategyListeners = new ArrayList();
+        requiredInstruments = new HashSet();
+        if(lastAccountInfo == null)
+        {
+            throw new NullPointerException("Account info is null");
+        } else
+        {
+            history = new History(OrdersProvider.getInstance(), lastAccountInfo.getCurrency());
+            this.console = console;
+            this.transportClient = transportClient;
+            this.ddsChartsController = ddsChartsController;
+            this.userInterface = userInterface;
+            this.exceptionHandler = exceptionHandler;
+            this.lastAccountInfo = lastAccountInfo;
+            account = new PlatformAccountImpl(lastAccountInfo);
+            forexEngineImpl = new JForexEngineImpl(this, accountName, live);
+            this.environment = environment;
+            this.externalIP = externalIP;
+            this.internalIP = internalIP;
+            this.sessionID = sessionID;
+            return;
+        }
+    }
+
+    private void initExistingOrders()
+    {
+        BigDecimal oneMillion = BigDecimal.valueOf(0xf4240L);
+        Iterator i$ = FeedDataProvider.getDefaultInstance().getInstrumentsCurrentlySubscribed().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Instrument instrument = (Instrument)i$.next();
+            Collection orders = OrdersProvider.getInstance().getOrdersForInstrument(instrument).values();
+            Iterator i$ = orders.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                OrderHistoricalData order = (OrderHistoricalData)i$.next();
+                if(!order.isClosed() && (!isGlobal() || !order.isOpened()))
+                {
+                    com.dukascopy.api.IOrder.State state = null;
+                    String orderGroupId = order.getOrderGroupId();
+                    String label = null;
+                    com.dukascopy.api.IEngine.OrderCommand orderCommand = null;
+                    BigDecimal requestedAmount = BigDecimal.ZERO;
+                    double filledAmount = 0.0D;
+                    String pendingOrderId = null;
+                    String openingOrderId = null;
+                    double price = 0.0D;
+                    String stopLossOrderId = null;
+                    double stopLossPrice = 0.0D;
+                    OfferSide stopLossSide = null;
+                    double trailingStep = 0.0D;
+                    String takeProfitOrderId = null;
+                    double takeProfitPrice = 0.0D;
+                    long goodTillTime = 0L;
+                    String comment = null;
+                    long creationTime = 0L;
+                    long closeTime = 0L;
+                    long fillTime = 0L;
+                    double closePrice = 0.0D;
+                    double commission = order.getCommission().doubleValue();
+                    if(order.getPendingOrders().size() == 1)
+                    {
+                        com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData pendingOrderData = (com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData)order.getPendingOrders().get(0);
+                        state = com.dukascopy.api.IOrder.State.OPENED;
+                        label = pendingOrderData.getLabel();
+                        orderCommand = pendingOrderData.getSide();
+                        requestedAmount = pendingOrderData.getAmount().divide(oneMillion, 7, 7);
+                        openingOrderId = pendingOrderId = pendingOrderData.getOrderId();
+                        if(pendingOrderData.getOpenPrice().compareTo(OrderHistoricalData.NEG_ONE) != 0)
+                            price = pendingOrderData.getOpenPrice().doubleValue();
+                        if(pendingOrderData.getStopLossPrice().compareTo(OrderHistoricalData.NEG_ONE) != 0)
+                        {
+                            stopLossPrice = pendingOrderData.getStopLossPrice().doubleValue();
+                            stopLossOrderId = pendingOrderData.getStopLossOrderId();
+                            stopLossSide = pendingOrderData.isStopLossByBid() ? OfferSide.BID : OfferSide.ASK;
+                            if(pendingOrderData.getTrailingStep() != null)
+                                trailingStep = pendingOrderData.getTrailingStep().divide(BigDecimal.valueOf(instrument.getPipValue()), 7).doubleValue();
+                        }
+                        if(pendingOrderData.getTakeProfitPrice().compareTo(OrderHistoricalData.NEG_ONE) != 0)
+                        {
+                            takeProfitOrderId = pendingOrderData.getTakeProfitOrderId();
+                            takeProfitPrice = pendingOrderData.getTakeProfitPrice().doubleValue();
+                        }
+                        goodTillTime = pendingOrderData.getGoodTillTime();
+                        comment = pendingOrderData.getComment();
+                        creationTime = pendingOrderData.getCreationTime();
+                    }
+                    com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData entryOrder = order.getEntryOrder();
+                    if(entryOrder != null)
+                    {
+                        state = com.dukascopy.api.IOrder.State.FILLED;
+                        label = entryOrder.getLabel();
+                        orderCommand = entryOrder.getSide();
+                        requestedAmount = requestedAmount.add(entryOrder.getAmount().divide(oneMillion, 7, 7));
+                        filledAmount = entryOrder.getAmount().divide(oneMillion, 7, 7).doubleValue();
+                        openingOrderId = entryOrder.getOrderId();
+                        if(entryOrder.getOpenPrice().compareTo(OrderHistoricalData.NEG_ONE) != 0)
+                            price = entryOrder.getOpenPrice().doubleValue();
+                        if(entryOrder.getStopLossPrice().compareTo(OrderHistoricalData.NEG_ONE) != 0)
+                        {
+                            stopLossPrice = entryOrder.getStopLossPrice().doubleValue();
+                            stopLossOrderId = entryOrder.getStopLossOrderId();
+                            stopLossSide = entryOrder.isStopLossByBid() ? OfferSide.BID : OfferSide.ASK;
+                            if(entryOrder.getTrailingStep() != null)
+                                trailingStep = entryOrder.getTrailingStep().divide(BigDecimal.valueOf(instrument.getPipValue()), 7).doubleValue();
+                        }
+                        if(entryOrder.getTakeProfitPrice().compareTo(OrderHistoricalData.NEG_ONE) != 0)
+                        {
+                            takeProfitOrderId = entryOrder.getTakeProfitOrderId();
+                            takeProfitPrice = entryOrder.getTakeProfitPrice().doubleValue();
+                        }
+                        comment = entryOrder.getComment();
+                        creationTime = entryOrder.getCreationTime();
+                        fillTime = entryOrder.getFillTime();
+                    }
+                    if(!order.getCloseDataMap().isEmpty())
+                    {
+                        com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData lastCloseData = null;
+                        for(Iterator i$ = order.getCloseDataMap().values().iterator(); i$.hasNext();)
+                        {
+                            com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData closeData = (com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData)i$.next();
+                            lastCloseData = closeData;
+                        }
+
+                        if(lastCloseData != null)
+                        {
+                            closeTime = lastCloseData.getCloseTime();
+                            if(lastCloseData.getClosePrice().compareTo(OrderHistoricalData.NEG_ONE) != 0)
+                                closePrice = lastCloseData.getClosePrice().doubleValue();
+                        }
+                    }
+                    PlatformOrderImpl platformOrder = new PlatformOrderImpl(this, comment, instrument, requestedAmount.doubleValue(), filledAmount, label, takeProfitPrice, stopLossPrice, stopLossSide, trailingStep, price, closePrice, state, orderGroupId, openingOrderId, pendingOrderId, stopLossOrderId, takeProfitOrderId, goodTillTime, creationTime, fillTime, closeTime, orderCommand, commission);
+                    ordersInternalCollection.add(platformOrder);
+                }
+            } while(true);
+            if(isGlobal())
+            {
+                ExposureData exposure = OrdersProvider.getInstance().getExposureForInstrument(instrument);
+                if(exposure.amount.compareTo(BigDecimal.ZERO) > 0)
+                {
+                    String orderGroupId = (new StringBuilder()).append(lastAccountInfo.getUserId()).append(instrument).toString();
+                    PlatformOrderImpl platformOrder = new PlatformOrderImpl(this, null, instrument, exposure.amount.divide(oneMillion, 7, 7).doubleValue(), exposure.amount.divide(oneMillion, 7, 7).doubleValue(), orderGroupId, 0.0D, 0.0D, null, 0.0D, exposure.price.doubleValue(), 0.0D, com.dukascopy.api.IOrder.State.FILLED, orderGroupId, null, null, null, null, 0L, 0L, exposure.time, 0L, exposure.side, 0.0D);
+                    ordersInternalCollection.add(platformOrder);
+                }
+            }
+        } while(true);
+    }
+
+    public Future executeTask(Callable callable)
+    {
+        if(runningStrategy != null)
+            return runningStrategy.executeTask(callable, false);
+        else
+            return null;
+    }
+
+    public void onNewsMessage(NewsStoryMessage newsStoryMessage)
+    {
+        try
+        {
+            JSONObject json = newsStoryMessage.getContent();
+            String copyright = newsStoryMessage.getCopyright();
+            Set currencies = newsStoryMessage.getCurrencies();
+            Set geoRegions = newsStoryMessage.getGeoRegions();
+            String header = newsStoryMessage.getHeader();
+            Set marketSectors = newsStoryMessage.getMarketSectors();
+            Set stockIndicies = newsStoryMessage.getIndicies();
+            String newsId = newsStoryMessage.getNewsId();
+            long publishTime = newsStoryMessage.getPublishDate() != null ? newsStoryMessage.getPublishDate().getTime() : 0L;
+            NewsSource source = newsStoryMessage.getSource();
+            boolean endOfStory = newsStoryMessage.isEndOfStory();
+            boolean isHot = newsStoryMessage.isHot();
+            PlatformNewsMessageImpl message = null;
+            static class _cls5
+            {
+
+                static final int $SwitchMap$com$dukascopy$transport$common$msg$news$NewsSource[];
+                static final int $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[];
+
+                static 
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand = new int[com.dukascopy.api.IEngine.OrderCommand.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYSTOP.ordinal()] = 3;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLSTOP.ordinal()] = 4;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYSTOP_BYBID.ordinal()] = 5;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK.ordinal()] = 6;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    $SwitchMap$com$dukascopy$transport$common$msg$news$NewsSource = new int[NewsSource.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$msg$news$NewsSource[NewsSource.DJ_LIVE_CALENDAR.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$msg$news$NewsSource[NewsSource.DJ_NEWSWIRES.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                }
+            }
+
+            switch(_cls5..SwitchMap.com.dukascopy.transport.common.msg.news.NewsSource[source.ordinal()])
+            {
+            case 1: // '\001'
+                CalendarEvent calendarEvent = (CalendarEvent)json;
+                message = new PlatformCalendarMessageImpl(calendarEvent, copyright, header, newsId, publishTime, endOfStory, isHot, currencies, geoRegions, marketSectors, stockIndicies);
+                break;
+
+            case 2: // '\002'
+                PlainContent plainContent = (PlainContent)json;
+                message = new PlatformNewsMessageImpl(plainContent != null ? plainContent.getText() : null, copyright, header, newsId, publishTime, endOfStory, isHot, currencies, geoRegions, marketSectors, stockIndicies);
+                break;
+
+            default:
+                LOGGER.warn("Unknown news source");
+                break;
+            }
+            if(message != null)
+                syncMessage(message);
+        }
+        catch(Exception ex)
+        {
+            LOGGER.error(ex.getMessage(), ex);
+        }
+    }
+
+    public void onBroadcastMessage(String transactionId, IStrategyBroadcastMessage message)
+    {
+        if(!getUID().equals(transactionId))
+            syncMessage(message);
+    }
+
+    public void onErrorMessage(ErrorResponseMessage errorResponseMessage, PlatformOrderImpl platformOrderImpl)
+    {
+        if(runningStrategy != null && !isStrategyStopping())
+            runningStrategy.updateOrder(platformOrderImpl, errorResponseMessage);
+    }
+
+    public void onNotifyMessage(NotificationMessage notificationMessage)
+    {
+        if(runningStrategy == null || isStrategyStopping())
+        {
+            return;
+        } else
+        {
+            runningStrategy.updateOrder(notificationMessage);
+            return;
+        }
+    }
+
+    public void onOrderGroupReceived(OrderGroupMessage orderGroupMessage)
+    {
+        if(runningStrategy == null || isStrategyStopping())
+        {
+            return;
+        } else
+        {
+            runningStrategy.updateOrder(orderGroupMessage);
+            return;
+        }
+    }
+
+    public void onOrderReceived(OrderMessage orderMessage)
+    {
+        if(runningStrategy == null || isStrategyStopping())
+        {
+            return;
+        } else
+        {
+            runningStrategy.updateOrder(orderMessage);
+            return;
+        }
+    }
+
+    public void onOrdersMergedMessage(MergePositionsMessage mergePositionsMessage)
+    {
+        if(runningStrategy == null || isStrategyStopping())
+        {
+            return;
+        } else
+        {
+            runningStrategy.updateOrder(mergePositionsMessage);
+            return;
+        }
+    }
+
+    public void updateAccountInfo(AccountInfoMessage protocolMessage)
+    {
+        lastAccountInfo = protocolMessage;
+        account.updateFromMessage(protocolMessage);
+        if(runningStrategy != null && !isStrategyStopping())
+            runningStrategy.updateAccountInfo(account);
+    }
+
+    public void onMessage(PlatformMessageImpl platformMessageImpl)
+    {
+        if(runningStrategy != null && !isStrategyStopping())
+            runningStrategy.onMessage(platformMessageImpl, true);
+    }
+
+    private void syncMessage(IMessage message)
+    {
+        if(runningStrategy != null && !isStrategyStopping())
+            runningStrategy.onMessage(message, false);
+    }
+
+    public ITick onMarketState(CurrencyMarket market)
+    {
+        if(runningStrategy == null || isStrategyStopping())
+            return null;
+        Instrument instrument = Instrument.fromString(market.getInstrument());
+        TickData tick = FeedDataProvider.getDefaultInstance().getLastTick(instrument);
+        if(tick == null)
+        {
+            LOGGER.warn((new StringBuilder()).append("Got tick for instrument [").append(instrument).append("] that was not processed by FeedDataProvider... Instrument subscription status [").append(FeedDataProvider.getDefaultInstance().isSubscribedToInstrument(instrument)).append("] MarketState [").append(market).append("]").toString());
+            return null;
+        } else
+        {
+            tick = new StratTickData(tick, market.getTotalLiquidityAsk().divide(ONE_MILLION).doubleValue(), market.getTotalLiquidityBid().divide(ONE_MILLION).doubleValue());
+            runningStrategy.onMarket(instrument, tick);
+            return tick;
+        }
+    }
+
+    public void waitForUpdate(PlatformOrderImpl platformOrderImpl, long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        if(runningStrategy != null && !isStrategyStopping())
+            runningStrategy.waitForUpdate(platformOrderImpl, timeout, unit);
+    }
+
+    public boolean flushQueue(long timeout)
+    {
+        Object lock = new Object();
+        Object obj = lock;
+        JVM INSTR monitorenter ;
+        Future future = isStrategyStopping() ? null : executeTask(new TaskFlush(lock));
+        lock.wait(timeout);
+        if(future == null || future.isDone() || future.isCancelled())
+            return true;
+        false;
+        obj;
+        JVM INSTR monitorexit ;
+        return;
+        InterruptedException e;
+        e;
+        false;
+        obj;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public long startStrategy(IStrategy strategy, final IStrategyListener listener, final String strategyKey, boolean fullAccessGranted)
+    {
+        long rc = 0L;
+        final StrategyProcessor strategyProcessor = new StrategyProcessor(this, strategy, fullAccessGranted);
+        Future future = strategyProcessor.executeTask(new Callable() {
+
+            public Long call()
+                throws Exception
+            {
+                StrategiesControl strategiesControl = new StrategiesControl(systemListener, strategyProcessor);
+                JForexContextImpl forexContextImpl = new JForexContextImpl(strategyProcessor, forexEngineImpl, history, console, ddsChartsController, userInterface, strategiesControl);
+                strategyId = strategyProcessor.getStrategyId();
+                runningStrategy = strategyProcessor;
+                initExistingOrders();
+                StrategyMessages.strategyIsStarted(runningStrategy.getStrategy());
+                requiredInstruments = new HashSet(0);
+                try
+                {
+                    strategyId = strategyProcessor.onStart(forexContextImpl);
+                }
+                catch(Throwable t)
+                {
+                    strategyId = 0x8000000000000000L;
+                    JForexTaskManager.LOGGER.error(t.getMessage(), t);
+                }
+                if(strategyId > 0L && !forexContextImpl.isStopped())
+                {
+                    JForexTaskManager.this.strategyKey = strategyKey;
+                    if(listener != null)
+                        strategyListeners.add(listener);
+                    fireOnStart();
+                    strategyProcessor.updateAccountInfo(account);
+                } else
+                {
+                    stopStrategy();
+                }
+                return Long.valueOf(strategyId);
+            }
+
+            public volatile Object call()
+                throws Exception
+            {
+                return call();
+            }
+
+            final StrategyProcessor val$strategyProcessor;
+            final String val$strategyKey;
+            final IStrategyListener val$listener;
+            final JForexTaskManager this$0;
+
+            
+            {
+                this$0 = JForexTaskManager.this;
+                strategyProcessor = strategyprocessor;
+                strategyKey = s;
+                listener = istrategylistener;
+                super();
+            }
+        }, false);
+        try
+        {
+            rc = ((Long)future.get()).longValue();
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        return rc;
+    }
+
+    public void stopStrategy()
+    {
+        if(!strategyStopping.compareAndSet(false, true))
+            return;
+        if(runningStrategy != null)
+        {
+            StrategyMessages.stoppingStrategy(runningStrategy.getStrategy());
+            StopCallable cc = new StopCallable();
+            try
+            {
+                IStrategy strategy = runningStrategy.getStrategy();
+                runningStrategy.executeStop(cc);
+                Thread haltThread = new Thread(strategy) {
+
+                    public void run()
+                    {
+                        try
+                        {
+                            Thread.sleep(15000L);
+                        }
+                        catch(InterruptedException e)
+                        {
+                            JForexTaskManager.LOGGER.error(e.getMessage(), e);
+                        }
+                        runningStrategy.halt();
+                        long strategyId = JForexTaskManager.this.strategyId;
+                        if(strategyId != 0x8000000000000000L)
+                            fireOnStop(strategy);
+                    }
+
+                    final IStrategy val$strategy;
+                    final JForexTaskManager this$0;
+
+            
+            {
+                this$0 = JForexTaskManager.this;
+                strategy = istrategy;
+                super(x0);
+            }
+                };
+                haltThread.start();
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+    }
+
+    private void fireOnStart()
+    {
+        ISystemListenerExtended systemListener = this.systemListener;
+        if(systemListener != null)
+            systemListener.onStart(strategyId);
+        IStrategyListener listeners[] = (IStrategyListener[])strategyListeners.toArray(new IStrategyListener[strategyListeners.size()]);
+        IStrategyListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            IStrategyListener listener = arr$[i$];
+            listener.onStart(strategyId);
+        }
+
+    }
+
+    private void fireOnStop(IStrategy strategy)
+    {
+        ISystemListenerExtended systemListener = this.systemListener;
+        if(systemListener != null)
+            systemListener.onStop(strategyId);
+        IStrategyListener listeners[] = (IStrategyListener[])strategyListeners.toArray(new IStrategyListener[strategyListeners.size()]);
+        IStrategyListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            IStrategyListener listener = arr$[i$];
+            listener.onStop(strategyId);
+        }
+
+        StrategyRateDataNotificationFactory.getIsntance().unsubscribeFromAll(strategy);
+        strategyId = 0x8000000000000000L;
+        ordersInternalCollection.dispose();
+        StrategyMessages.strategyIsStopped(strategy);
+    }
+
+    public boolean isStrategyStopping()
+    {
+        return strategyStopping.get();
+    }
+
+    public boolean isThreadOk(long id)
+    {
+        return strategyId == id;
+    }
+
+    public void newCandle(Instrument instrument, Period period, CandleData askCandle, CandleData bidCandle)
+    {
+        CandleData askBar = new CandleData(askCandle.time, askCandle.open, askCandle.close, askCandle.low, askCandle.high, askCandle.vol);
+        CandleData bidBar = new CandleData(bidCandle.time, bidCandle.open, bidCandle.close, bidCandle.low, bidCandle.high, bidCandle.vol);
+        if(runningStrategy != null && !isStrategyStopping())
+            runningStrategy.onBar(instrument, period, askBar, bidBar);
+    }
+
+    public void onIntrumentUpdate(Instrument instrument, boolean tradable, long creationTime)
+    {
+        InstrumentStatusMessageImpl instrumentStatusMessage = new InstrumentStatusMessageImpl(instrument, tradable, creationTime);
+        if(runningStrategy != null && !isStrategyStopping())
+            runningStrategy.onMessage(instrumentStatusMessage, false);
+    }
+
+    public void onConnect(boolean value)
+    {
+        if(connected == null || connected.booleanValue() != value)
+        {
+            ConnectionStatusMessageImpl connectionStatusMessage = new ConnectionStatusMessageImpl(value, FeedDataProvider.getDefaultInstance().getCurrentTime());
+            if(runningStrategy != null && !isStrategyStopping())
+                runningStrategy.onMessage(connectionStatusMessage, false);
+            connected = Boolean.valueOf(value);
+        }
+    }
+
+    public boolean isConnected()
+    {
+        return connected == null || connected.booleanValue();
+    }
+
+    public void setSystemListener(ISystemListenerExtended systemListener)
+    {
+        this.systemListener = systemListener;
+    }
+
+    public TransportClient getTransportClient()
+    {
+        return transportClient;
+    }
+
+    public OrdersInternalCollection getOrdersInternalCollection()
+    {
+        return ordersInternalCollection;
+    }
+
+    public IStrategyExceptionHandler getExceptionHandler()
+    {
+        return exceptionHandler;
+    }
+
+    public long getStrategyId()
+    {
+        return strategyId;
+    }
+
+    public boolean isGlobal()
+    {
+        return lastAccountInfo.isGlobal();
+    }
+
+    public Currency getAccountCurrency()
+    {
+        return lastAccountInfo.getCurrency();
+    }
+
+    public String getUserId()
+    {
+        return lastAccountInfo.getUserId();
+    }
+
+    public String getAccountLoginId()
+    {
+        return lastAccountInfo.getAcountLoginId();
+    }
+
+    public IAccount getAccount()
+    {
+        return account;
+    }
+
+    public BigDecimal getUsableMargin()
+    {
+        Money margin = lastAccountInfo.getUsableMargin();
+        return margin != null ? margin.getValue() : null;
+    }
+
+    public Integer getLeverage()
+    {
+        return lastAccountInfo.getLeverage();
+    }
+
+    public String getStrategyKey()
+    {
+        return strategyKey;
+    }
+
+    public String getUID()
+    {
+        return String.format("%1$s:%2$s:%3$s", new Object[] {
+            Integer.valueOf(hashCode()), sessionID, strategyKey
+        });
+    }
+
+    public void setSubscribedInstruments(Set requiredInstruments)
+    {
+        if(requiredInstruments == null)
+            requiredInstruments = new HashSet(0);
+        this.requiredInstruments = requiredInstruments;
+        ISystemListenerExtended systemListener = this.systemListener;
+        if(systemListener != null)
+            systemListener.subscribeToInstruments(requiredInstruments);
+    }
+
+    public Set getSubscribedInstruments()
+    {
+        ISystemListenerExtended systemListener = this.systemListener;
+        if(systemListener != null)
+            return systemListener.getSubscribedInstruments();
+        else
+            return new HashSet(0);
+    }
+
+    public Set getRequiredInstruments()
+    {
+        if(runningStrategy != null && !isStrategyStopping())
+            return requiredInstruments;
+        else
+            return new HashSet(0);
+    }
+
+    public String getStrategyName()
+    {
+        return runningStrategy.getStrategy().getClass().getSimpleName();
+    }
+
+    public Environment getEnvironment()
+    {
+        return environment;
+    }
+
+    public String getSessionID()
+    {
+        return sessionID;
+    }
+
+    public String getInternalIP()
+    {
+        return internalIP;
+    }
+
+    public String getExternalIP()
+    {
+        return externalIP;
+    }
+
+    public void orderSynch(OrderSyncMessage orderSyncMessage)
+    {
+        if(runningStrategy == null || isStrategyStopping())
+            return;
+        Collection positionIds = orderSyncMessage.getPositionIds();
+        Collection orderIds = orderSyncMessage.getOrderIds();
+        if(!isGlobal())
+        {
+            if(!$assertionsDisabled && !orderIds.isEmpty())
+                throw new AssertionError();
+            List orders = ordersInternalCollection.allAsOrders();
+            Iterator i$ = orders.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                IOrder iOrder = (IOrder)i$.next();
+                final PlatformOrderImpl order = (PlatformOrderImpl)iOrder;
+                final String positionId = order.getId();
+                if(!positionIds.contains(positionId))
+                {
+                    LOGGER.warn((new StringBuilder()).append("Order group id [").append(positionId).append("] doesn't exist anymore").toString());
+                    if(order.getState() == com.dukascopy.api.IOrder.State.CREATED)
+                    {
+                        NotificationMessage message = new NotificationMessage();
+                        message.setTimestamp(new Date());
+                        message.setExternalSysId(order.getLabel());
+                        message.setUserId(getUserId());
+                        message.setText("Your order has been rejected");
+                        message.setNotificationCode(NotificationMessageCode.SYSTEM_UNAVAILABLE);
+                        message.setLevel("ERROR");
+                        runningStrategy.updateOrder(message);
+                    } else
+                    if(order.getState() == com.dukascopy.api.IOrder.State.OPENED)
+                    {
+                        OrderGroupMessage message = new OrderGroupMessage();
+                        message.setTimestamp(new Date());
+                        message.setUserId(getUserId());
+                        message.setAcountLoginId(getAccountLoginId());
+                        message.setAmount(new Money(BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency()));
+                        message.setOrderGroupId(positionId);
+                        message.setIsOcoMerge(Boolean.valueOf(false));
+                        message.setInstrument(order.getInstrument().toString());
+                        runningStrategy.updateOrder(message);
+                    } else
+                    if(order.getState() == com.dukascopy.api.IOrder.State.FILLED)
+                    {
+                        FeedDataProvider feedDataProvider = FeedDataProvider.getDefaultInstance();
+                        final OrderHistoricalData histOrder[] = new OrderHistoricalData[1];
+                        try
+                        {
+                            feedDataProvider.loadOrdersHistoricalData(order.getInstrument(), order.getFillTime() - 5L, feedDataProvider.getCurrentTime(), new OrdersListener() {
+
+                                public void newOrder(Instrument instrument, OrderHistoricalData orderData)
+                                {
+                                    if(orderData.getOrderGroupId().equals(positionId))
+                                        histOrder[0] = orderData;
+                                }
+
+                                public void orderChange(Instrument instrument1, OrderHistoricalData orderhistoricaldata)
+                                {
+                                }
+
+                                public void orderMerge(Instrument instrument1, OrderHistoricalData orderhistoricaldata, List list)
+                                {
+                                }
+
+                                public void ordersInvalidated(Instrument instrument1)
+                                {
+                                }
+
+                                final String val$positionId;
+                                final OrderHistoricalData val$histOrder[];
+                                final JForexTaskManager this$0;
+
+            
+            {
+                this$0 = JForexTaskManager.this;
+                positionId = s;
+                histOrder = aorderhistoricaldata;
+                super();
+            }
+                            }, new LoadingProgressListener() {
+
+                                public void dataLoaded(long l, long l1, long l2, String s)
+                                {
+                                }
+
+                                public void loadingFinished(boolean allDataLoaded, long start, long end, long currentPosition, 
+                                        Exception e)
+                                {
+                                    OrderGroupMessage message = new OrderGroupMessage();
+                                    com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData closeData = null;
+                                    if(histOrder[0] != null)
+                                    {
+                                        for(Iterator i$ = histOrder[0].getCloseDataMap().values().iterator(); i$.hasNext();)
+                                        {
+                                            com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData closeData_ = (com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData)i$.next();
+                                            closeData = closeData_;
+                                        }
+
+                                    }
+                                    message.setTimestamp(closeData != null ? new Date(closeData.getCloseTime()) : new Date());
+                                    message.setUserId(getUserId());
+                                    message.setAcountLoginId(getAccountLoginId());
+                                    message.setAmount(new Money(BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency()));
+                                    message.setOrderGroupId(positionId);
+                                    Money money = new Money(closeData != null ? closeData.getClosePrice() : BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency());
+                                    message.setPriceOpen(money);
+                                    message.setPricePosOpen(money);
+                                    message.setIsOcoMerge(Boolean.valueOf(false));
+                                    message.setInstrument(order.getInstrument().toString());
+                                    runningStrategy.updateOrder(message);
+                                }
+
+                                public boolean stopJob()
+                                {
+                                    return false;
+                                }
+
+                                final OrderHistoricalData val$histOrder[];
+                                final PlatformOrderImpl val$order;
+                                final String val$positionId;
+                                final JForexTaskManager this$0;
+
+            
+            {
+                this$0 = JForexTaskManager.this;
+                histOrder = aorderhistoricaldata;
+                order = platformorderimpl;
+                positionId = s;
+                super();
+            }
+                            });
+                        }
+                        catch(DataCacheException e)
+                        {
+                            LOGGER.error(e.getMessage(), e);
+                            OrderGroupMessage message = new OrderGroupMessage();
+                            message.setTimestamp(new Date());
+                            message.setUserId(getUserId());
+                            message.setAcountLoginId(getAccountLoginId());
+                            message.setAmount(new Money(BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency()));
+                            message.setOrderGroupId(positionId);
+                            message.setPriceOpen(new Money(BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency()));
+                            message.setPricePosOpen(new Money(BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency()));
+                            message.setIsOcoMerge(Boolean.valueOf(false));
+                            message.setInstrument(order.getInstrument().toString());
+                            runningStrategy.updateOrder(message);
+                        }
+                    }
+                }
+            } while(true);
+        } else
+        {
+            List orders = ordersInternalCollection.allAsOrders();
+            Iterator i$ = orders.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                IOrder iOrder = (IOrder)i$.next();
+                PlatformOrderImpl order = (PlatformOrderImpl)iOrder;
+                String positionId = order.getId();
+                String openingOrderId = order.getOpeningOrderId();
+                if(!positionIds.contains(positionId) && !orderIds.contains(openingOrderId))
+                    if(positionId.endsWith(order.getInstrument().toString()))
+                    {
+                        LOGGER.warn((new StringBuilder()).append("Position id [").append(positionId).append("] doesn't exist anymore").toString());
+                        OrderGroupMessage message = new OrderGroupMessage();
+                        message.setTimestamp(new Date());
+                        message.setUserId(getUserId());
+                        message.setAmount(new Money(BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency()));
+                        message.setOrderGroupId(positionId);
+                        message.setIsOcoMerge(Boolean.valueOf(false));
+                        message.setSide(order.getOrderCommand().isLong() ? PositionSide.LONG : PositionSide.SHORT);
+                        message.setInstrument(order.getInstrument().toString());
+                        message.setPriceOpen(new Money(BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency()));
+                        message.setPricePosOpen(new Money(BigDecimal.ZERO, order.getInstrument().getPrimaryCurrency()));
+                        runningStrategy.updateOrder(message);
+                    } else
+                    {
+                        LOGGER.warn((new StringBuilder()).append("Order id [").append(openingOrderId).append("] doesn't exist anymore").toString());
+                        if(order.getState() == com.dukascopy.api.IOrder.State.CREATED)
+                        {
+                            NotificationMessage message = new NotificationMessage();
+                            message.setTimestamp(new Date());
+                            message.setExternalSysId(order.getLabel());
+                            message.setUserId(getUserId());
+                            message.setText("Your order has been rejected");
+                            message.setNotificationCode(NotificationMessageCode.INVALID_ORDER);
+                            message.setLevel("ERROR");
+                            runningStrategy.updateOrder(message);
+                        } else
+                        if(order.getState() == com.dukascopy.api.IOrder.State.OPENED)
+                        {
+                            OrderMessage message = new OrderMessage();
+                            message.setTimestamp(new Date());
+                            message.setUserId(getUserId());
+                            message.setAcountLoginId(getAccountLoginId());
+                            message.setPlaceOffer(Boolean.valueOf(order.getOrderCommand() == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || order.getOrderCommand() == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER));
+                            message.setIsMcOrder(Boolean.valueOf(false));
+                            message.setOrderState(OrderState.CANCELLED);
+                            message.setAmount(new Money(BigDecimal.valueOf(order.getAmount()), order.getInstrument().getPrimaryCurrency()));
+                            message.setExternalSysId(order.getLabel());
+                            message.setOrderId(openingOrderId);
+                            message.setPriceClient(new Money(BigDecimal.valueOf(order.getOpenPrice()), order.getInstrument().getPrimaryCurrency()));
+                            message.setCreatedDate(new Date(order.getCreationTime()));
+                            message.setOrderDirection(OrderDirection.OPEN);
+                            message.setOco(Boolean.valueOf(false));
+                            message.setInstrument(order.getInstrument().toString());
+                            message.setSide(order.isLong() ? OrderSide.BUY : OrderSide.SELL);
+                            StopDirection stopDirection = null;
+                            switch(_cls5..SwitchMap.com.dukascopy.api.IEngine.OrderCommand[order.getOrderCommand().ordinal()])
+                            {
+                            case 1: // '\001'
+                                stopDirection = StopDirection.ASK_EQUALS;
+                                break;
+
+                            case 2: // '\002'
+                                stopDirection = StopDirection.BID_EQUALS;
+                                break;
+
+                            case 3: // '\003'
+                                stopDirection = StopDirection.ASK_GREATER;
+                                break;
+
+                            case 4: // '\004'
+                                stopDirection = StopDirection.BID_LESS;
+                                break;
+
+                            case 5: // '\005'
+                                stopDirection = StopDirection.BID_GREATER;
+                                break;
+
+                            case 6: // '\006'
+                                stopDirection = StopDirection.ASK_LESS;
+                                break;
+                            }
+                            if(stopDirection != null)
+                                message.setStopDirection(stopDirection);
+                            message.setPriceStop(new Money(BigDecimal.valueOf(order.getOpenPrice()), order.getInstrument().getPrimaryCurrency()));
+                            message.setParentOrderId(positionId);
+                            runningStrategy.updateOrder(message);
+                        }
+                    }
+            } while(true);
+        }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/JForexTaskManager);
+    private static final String UID_FORMAT = "%1$s:%2$s:%3$s";
+    private static final BigDecimal ONE_MILLION = BigDecimal.valueOf(0xf4240L);
+    private long strategyId;
+    private volatile StrategyProcessor runningStrategy;
+    private String strategyKey;
+    private final AtomicBoolean strategyStopping = new AtomicBoolean(false);
+    private final JForexEngineImpl forexEngineImpl;
+    private final History history;
+    private final IConsole console;
+    private final DDSChartsController ddsChartsController;
+    private final IUserInterface userInterface;
+    private volatile ISystemListenerExtended systemListener;
+    private List strategyListeners;
+    private final TransportClient transportClient;
+    private final OrdersInternalCollection ordersInternalCollection = new OrdersInternalCollection(this);
+    private final IStrategyExceptionHandler exceptionHandler;
+    private volatile PlatformAccountImpl account;
+    private volatile AccountInfoMessage lastAccountInfo;
+    private Set requiredInstruments;
+    private final Environment environment;
+    private Boolean connected;
+    private final String externalIP;
+    private final String internalIP;
+    private final String sessionID;
+    static final boolean $assertionsDisabled = !com/dukascopy/api/impl/connect/JForexTaskManager.desiredAssertionStatus();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}

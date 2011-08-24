@@ -1,0 +1,59 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterFeedDataProvider.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.Period;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.orders.IOrdersProvider;
+
+public class TesterFeedDataProvider extends FeedDataProvider
+{
+
+    public TesterFeedDataProvider(String cacheName, IOrdersProvider ordersProvider)
+        throws DataCacheException
+    {
+        super(cacheName, true, ordersProvider, null);
+        intraperiodExistsPolicy = com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy.USE_INTRAPERIOD_WHEN_POSSIBLE;
+    }
+
+    public static FeedDataProvider getDefaultInstance()
+    {
+        return null;
+    }
+
+    public void tickReceived(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        if(firstTickLocalTime == 0x8000000000000000L)
+            firstTickLocalTime = System.currentTimeMillis();
+        if(ask == 0.0D || bid == 0.0D)
+            return;
+        if(lastTicks[instrument.ordinal()] == null || DataCacheUtils.getChunkStartFast(Period.TICK, lastTicks[instrument.ordinal()].getTime()) < DataCacheUtils.getChunkStartFast(Period.TICK, time))
+            localCacheManager.newTickChunkStart(instrument, time);
+        lastTicks[instrument.ordinal()] = new TickData(time, ask, bid, askVol, bidVol);
+        currentTimes[instrument.ordinal()] = time;
+        currentTime = time;
+        lastAsks[instrument.ordinal()] = ask;
+        lastBids[instrument.ordinal()] = bid;
+        localCacheManager.newTick(instrument, time, ask, bid, askVol, bidVol, true);
+        intraperiodCandlesGenerator.newTick(instrument, time, ask, bid, askVol, bidVol);
+        fireNewTick(instrument, time, ask, bid, askVol, bidVol);
+    }
+
+    public void barsReceived(Instrument instrument, Period period, IntraPeriodCandleData askBar, IntraPeriodCandleData bidBar)
+    {
+        intraperiodCandlesGenerator.processCandle(instrument, period, askBar, bidBar);
+    }
+
+    protected LoadOrdersAction getLoadOrdersAction(Instrument instrument, long from, long to, OrdersListener ordersListener, LoadingProgressListener loadingProgress)
+        throws NoDataForPeriodException, DataCacheException
+    {
+        LoadOrdersAction action = super.getLoadOrdersAction(instrument, from, to, ordersListener, loadingProgress);
+        action.setLocalOrdersOnly(true);
+        return action;
+    }
+}

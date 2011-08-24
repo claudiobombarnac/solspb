@@ -1,0 +1,73 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   AngleType.java
+
+package com.dukascopy.calculator;
+
+
+public final class AngleType extends Enum
+{
+
+    public static AngleType[] values()
+    {
+        return (AngleType[])$VALUES.clone();
+    }
+
+    public static AngleType valueOf(String name)
+    {
+        return (AngleType)Enum.valueOf(com/dukascopy/calculator/AngleType, name);
+    }
+
+    private AngleType(String s, int i)
+    {
+        super(s, i);
+    }
+
+    public String toString()
+    {
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$calculator$AngleType[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$calculator$AngleType = new int[AngleType.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$AngleType[AngleType.DEGREES.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$AngleType[AngleType.RADIANS.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls1..SwitchMap.com.dukascopy.calculator.AngleType[ordinal()])
+        {
+        case 1: // '\001'
+            return "Degrees";
+
+        case 2: // '\002'
+            return "Radians";
+        }
+        throw new AssertionError("Unknown AngleType");
+    }
+
+    public static final AngleType DEGREES;
+    public static final AngleType RADIANS;
+    private static final AngleType $VALUES[];
+
+    static 
+    {
+        DEGREES = new AngleType("DEGREES", 0);
+        RADIANS = new AngleType("RADIANS", 1);
+        $VALUES = (new AngleType[] {
+            DEGREES, RADIANS
+        });
+    }
+}

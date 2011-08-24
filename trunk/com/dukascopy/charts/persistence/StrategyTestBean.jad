@@ -1,0 +1,354 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyTestBean.java
+
+package com.dukascopy.charts.persistence;
+
+import com.dukascopy.api.system.*;
+import java.io.Serializable;
+import java.util.Currency;
+import java.util.Set;
+
+public class StrategyTestBean
+    implements Serializable
+{
+
+    public StrategyTestBean()
+    {
+        panelChartId = -1;
+        cutFlatTicks = true;
+    }
+
+    public int getPanelChartId()
+    {
+        return panelChartId;
+    }
+
+    public void setPanelChartId(int panelChartId)
+    {
+        this.panelChartId = panelChartId;
+    }
+
+    public String getStrategyName()
+    {
+        return strategyName;
+    }
+
+    public void setStrategyName(String name)
+    {
+        strategyName = name;
+    }
+
+    public Set getInstruments()
+    {
+        return instruments;
+    }
+
+    public void setInstruments(Set instruments)
+    {
+        this.instruments = instruments;
+    }
+
+    public String getRange()
+    {
+        return range;
+    }
+
+    public void setRange(String range)
+    {
+        this.range = range;
+    }
+
+    public boolean isRangeSelected()
+    {
+        return rangeSelected;
+    }
+
+    public void setRangeSelected(boolean rangeSelected)
+    {
+        this.rangeSelected = rangeSelected;
+    }
+
+    public long getFromDate()
+    {
+        return fromDate;
+    }
+
+    public void setFromDate(long fromDate)
+    {
+        this.fromDate = fromDate;
+    }
+
+    public long getToDate()
+    {
+        return toDate;
+    }
+
+    public void setToDate(long toDate)
+    {
+        this.toDate = toDate;
+    }
+
+    public boolean isShowReport()
+    {
+        return showReport;
+    }
+
+    public void setShowReport(boolean showReport)
+    {
+        this.showReport = showReport;
+    }
+
+    public boolean isEventLogEnabled()
+    {
+        return eventLogEnabled;
+    }
+
+    public void setEventLogEnabled(boolean eventLogEnabled)
+    {
+        this.eventLogEnabled = eventLogEnabled;
+    }
+
+    public boolean isProcessingStatsEnabled()
+    {
+        return processingStatsEnabled;
+    }
+
+    public void setProcessingStatsEnabled(boolean processingStatsEnabled)
+    {
+        this.processingStatsEnabled = processingStatsEnabled;
+    }
+
+    public boolean isVisualMode()
+    {
+        return visualMode;
+    }
+
+    public void setVisualMode(boolean visualMode)
+    {
+        this.visualMode = visualMode;
+    }
+
+    public boolean isShowBalance()
+    {
+        return showBalance;
+    }
+
+    public void setShowBalance(boolean showBalance)
+    {
+        this.showBalance = showBalance;
+    }
+
+    public boolean isShowEquity()
+    {
+        return showEquity;
+    }
+
+    public void setShowEquity(boolean showEquity)
+    {
+        this.showEquity = showEquity;
+    }
+
+    public boolean isShowProfitLoss()
+    {
+        return showProfitLoss;
+    }
+
+    public void setShowProfitLoss(boolean showProfitLoss)
+    {
+        this.showProfitLoss = showProfitLoss;
+    }
+
+    public double getInitialDeposit()
+    {
+        return initialDeposit;
+    }
+
+    public void setInitialDeposit(double initialDeposit)
+    {
+        this.initialDeposit = initialDeposit;
+    }
+
+    public String getAccountCurrency()
+    {
+        return accountCurrency;
+    }
+
+    public void setAccountCurrency(Currency accountCurrency)
+    {
+        this.accountCurrency = accountCurrency.getCurrencyCode();
+    }
+
+    public int getMaxLeverage()
+    {
+        return maxLeverage;
+    }
+
+    public void setMaxLeverage(int maxLeverage)
+    {
+        this.maxLeverage = maxLeverage;
+    }
+
+    public int getMcLeverage()
+    {
+        return mcLeverage;
+    }
+
+    public void setMcLeverage(int mcLeverage)
+    {
+        this.mcLeverage = mcLeverage;
+    }
+
+    public Commissions getCommissions()
+    {
+        return commissions;
+    }
+
+    public void setCommissions(Commissions commissions)
+    {
+        this.commissions = commissions;
+    }
+
+    public Overnights getOvernights()
+    {
+        return overnights;
+    }
+
+    public void setOvernights(Overnights overnights)
+    {
+        this.overnights = overnights;
+    }
+
+    public double getMcEquity()
+    {
+        return mcEquity;
+    }
+
+    public void setMcEquity(double mcEquity)
+    {
+        this.mcEquity = mcEquity;
+    }
+
+    public int getExecutionSpeed()
+    {
+        return executionSpeed;
+    }
+
+    public void setExecutionSpeed(int executionSpeed)
+    {
+        this.executionSpeed = executionSpeed;
+    }
+
+    public boolean isCutFlatTicks()
+    {
+        return cutFlatTicks;
+    }
+
+    public void setCutFlatTicks(boolean cutFlatTicks)
+    {
+        this.cutFlatTicks = cutFlatTicks;
+    }
+
+    public boolean isSaveMessagesToFile()
+    {
+        return saveMessagesToFile;
+    }
+
+    public void setSaveMessagesToFile(boolean saveMessagesToFile)
+    {
+        this.saveMessagesToFile = saveMessagesToFile;
+    }
+
+    public String getMessagesFilePath()
+    {
+        return messagesFilePath;
+    }
+
+    public void setMessagesFilePath(String messagesFilePath)
+    {
+        this.messagesFilePath = messagesFilePath;
+    }
+
+    public String getReportFilePath()
+    {
+        return reportFilePath;
+    }
+
+    public void setReportFilePath(String reportFilePath)
+    {
+        this.reportFilePath = reportFilePath;
+    }
+
+    public boolean isOptimization()
+    {
+        return optimization;
+    }
+
+    public void setOptimization(boolean optimization)
+    {
+        this.optimization = optimization;
+    }
+
+    public boolean isMessagesDisabled()
+    {
+        return messagesDisabled;
+    }
+
+    public void setMessagesDisabled(boolean disabled)
+    {
+        messagesDisabled = disabled;
+    }
+
+    public double getBalanseDropDown()
+    {
+        return balanseDropDown;
+    }
+
+    public void setBalanseDropDown(double balanseDropDown)
+    {
+        this.balanseDropDown = balanseDropDown;
+    }
+
+    public void setDataLoadingMethod(com.dukascopy.api.system.ITesterClient.DataLoadingMethod dataLoadingMethod)
+    {
+        this.dataLoadingMethod = dataLoadingMethod;
+    }
+
+    public com.dukascopy.api.system.ITesterClient.DataLoadingMethod getDataLoadingMethod()
+    {
+        return dataLoadingMethod;
+    }
+
+    private static final long serialVersionUID = 1L;
+    private transient Set instruments;
+    private com.dukascopy.api.system.ITesterClient.DataLoadingMethod dataLoadingMethod;
+    private String range;
+    private boolean rangeSelected;
+    private long fromDate;
+    private long toDate;
+    private boolean showReport;
+    private boolean eventLogEnabled;
+    private boolean processingStatsEnabled;
+    private boolean optimization;
+    private boolean visualMode;
+    private boolean showBalance;
+    private boolean showEquity;
+    private boolean showProfitLoss;
+    private double initialDeposit;
+    private String accountCurrency;
+    private int maxLeverage;
+    private int mcLeverage;
+    private Commissions commissions;
+    private Overnights overnights;
+    private double mcEquity;
+    private boolean messagesDisabled;
+    private boolean saveMessagesToFile;
+    private String messagesFilePath;
+    private String reportFilePath;
+    private String strategyName;
+    private double balanseDropDown;
+    private int panelChartId;
+    private int executionSpeed;
+    private boolean cutFlatTicks;
+}

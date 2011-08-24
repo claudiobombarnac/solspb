@@ -1,0 +1,44 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:31
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   DownButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.MainCalculatorPanel;
+import com.dukascopy.calculator.function.Down;
+import com.dukascopy.calculator.function.PObject;
+import com.dukascopy.calculator.utils.ImageHelper;
+import java.awt.event.ActionEvent;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            CalculatorButton
+
+public class DownButton extends CalculatorButton
+{
+
+    public DownButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new Down());
+        int size = mainCalculatorPanel.minSize();
+        if(size < 3)
+            size = 3;
+        if(size > 9)
+            size = 9;
+        setIcon(ImageHelper.getImageIcon("downarrow.png", size));
+        addActionListener(this);
+        setToolTipKey(getPobject().tooltip());
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+        if(getMainCalculatorPanel().getMode() != 0)
+            return;
+        if(getMainCalculatorPanel().downHistory())
+            getMainCalculatorPanel().updateDisplay(true, true);
+        getMainCalculatorPanel().requestFocusInWindow();
+    }
+
+    private static final long serialVersionUID = 1L;
+}

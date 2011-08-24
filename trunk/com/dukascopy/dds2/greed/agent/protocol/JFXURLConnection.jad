@@ -1,0 +1,44 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JFXURLConnection.java
+
+package com.dukascopy.dds2.greed.agent.protocol;
+
+import java.io.*;
+import java.net.URL;
+import java.net.URLConnection;
+
+public class JFXURLConnection extends URLConnection
+{
+
+    protected JFXURLConnection(URL url, byte data[])
+    {
+        super(url);
+        this.data = null;
+        this.data = data;
+    }
+
+    public void connect()
+        throws IOException
+    {
+    }
+
+    public String getHeaderField(String name)
+    {
+        return super.getHeaderField(name);
+    }
+
+    public String getHeaderField(int n)
+    {
+        return super.getHeaderField(n);
+    }
+
+    public InputStream getInputStream()
+        throws IOException
+    {
+        return new ByteArrayInputStream(data);
+    }
+
+    private byte data[];
+}

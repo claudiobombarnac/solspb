@@ -1,0 +1,154 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PriceAggregationShiftableBuffer.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation.buffer;
+
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import java.util.ArrayList;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider.priceaggregation.buffer:
+//            ShiftableBuffer, IPriceAggregationShiftableBuffer
+
+public class PriceAggregationShiftableBuffer extends ShiftableBuffer
+    implements IPriceAggregationShiftableBuffer
+{
+
+    public PriceAggregationShiftableBuffer(int maxSize)
+    {
+        super(maxSize);
+    }
+
+    public boolean addOrReplace(AbstractPriceAggregationData bar)
+    {
+        PriceAggregationShiftableBuffer priceaggregationshiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        if(!containsStartTime(bar.getTime()))
+            break MISSING_BLOCK_LABEL_34;
+        int index = getStartTimeIndex(bar.getTime());
+        set(bar, index);
+        return true;
+        if(containsTime(bar.getTime())) goto _L2; else goto _L1
+_L1:
+        addToEnd(bar);
+        true;
+        priceaggregationshiftablebuffer;
+        JVM INSTR monitorexit ;
+        return;
+_L2:
+        false;
+        priceaggregationshiftablebuffer;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public boolean containsStartTime(long time)
+    {
+        PriceAggregationShiftableBuffer priceaggregationshiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        int index = getStartTimeIndex(time);
+        return index > -1;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public boolean containsTime(long time)
+    {
+        PriceAggregationShiftableBuffer priceaggregationshiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        int index = getTimeIndex(time);
+        return index > -1;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public int getStartTimeIndex(long time)
+    {
+        PriceAggregationShiftableBuffer priceaggregationshiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        int i = 0;
+_L1:
+        AbstractPriceAggregationData bar;
+        if(i >= getSize())
+            break MISSING_BLOCK_LABEL_48;
+        bar = (AbstractPriceAggregationData)get(i);
+        if(bar.getTime() == time)
+            return i;
+        i++;
+          goto _L1
+        -1;
+        priceaggregationshiftablebuffer;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public int getTimeIndex(long time)
+    {
+        PriceAggregationShiftableBuffer priceaggregationshiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        int i = 0;
+_L4:
+        AbstractPriceAggregationData bar;
+        if(i >= getSize())
+            break MISSING_BLOCK_LABEL_109;
+        bar = (AbstractPriceAggregationData)get(i);
+        if(bar.getTime() <= time && time <= bar.getEndTime())
+            return i;
+        if(i >= getSize() - 1) goto _L2; else goto _L1
+_L1:
+        AbstractPriceAggregationData nextBar = (AbstractPriceAggregationData)get(i + 1);
+        if(bar.getEndTime() >= time || time >= nextBar.getTime()) goto _L2; else goto _L3
+_L3:
+        i + 1;
+        priceaggregationshiftablebuffer;
+        JVM INSTR monitorexit ;
+        return;
+_L2:
+        i++;
+          goto _L4
+        -1;
+        priceaggregationshiftablebuffer;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public List getAfterTimeInclude(long time)
+    {
+        PriceAggregationShiftableBuffer priceaggregationshiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        List result;
+        int index = getTimeIndex(time);
+        if(index <= -1)
+            break MISSING_BLOCK_LABEL_72;
+        result = new ArrayList();
+        for(int i = index; i < getSize(); i++)
+        {
+            AbstractPriceAggregationData data = (AbstractPriceAggregationData)buffer[i];
+            result.add(data);
+        }
+
+        return result;
+        null;
+        priceaggregationshiftablebuffer;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    private static final long serialVersionUID = 1L;
+}

@@ -1,0 +1,982 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadNumberOfCandlesAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.wrapper.Weekend;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, DataCacheException, LoadCustomPeriodNumberOfCandlesAction, LoadDataAction, 
+//            CandleData, FeedDataProvider, LiveFeedListener, LoadingProgressListener, 
+//            DataCacheUtils, CurvesDataLoader
+
+public class LoadNumberOfCandlesAction extends LoadProgressingAction
+    implements Runnable
+{
+    private class TicksLoadingProgressListener
+        implements LoadingProgressListener
+    {
+
+        public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+        {
+            loadingProgress.dataLoaded(startTime, endTime, currentTime, information);
+        }
+
+        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                Exception e)
+        {
+            if(allDataLoaded)
+                ticksLiveFeedListener.theEnd();
+            loadingProgress.loadingFinished(allDataLoaded, startTime, endTime, currentTime, e);
+        }
+
+        public boolean stopJob()
+        {
+            return loadingProgress.stopJob();
+        }
+
+        private final TicksLiveFeedListener ticksLiveFeedListener;
+        final LoadNumberOfCandlesAction this$0;
+
+        public TicksLoadingProgressListener(TicksLiveFeedListener ticksLiveFeedListener)
+        {
+            this$0 = LoadNumberOfCandlesAction.this;
+            super();
+            this.ticksLiveFeedListener = ticksLiveFeedListener;
+        }
+    }
+
+    private class SaveCandlesLoadingProgressListener
+        implements LoadingProgressListener
+    {
+
+        public void dataLoaded(long l, long l1, long l2, String s)
+        {
+        }
+
+        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                Exception e)
+        {
+            loadedSuccessfully = true;
+            exception = e;
+        }
+
+        public boolean stopJob()
+        {
+            return loadingProgress.stopJob();
+        }
+
+        public boolean loadedSuccessfully;
+        public Exception exception;
+        final LoadNumberOfCandlesAction this$0;
+
+        private SaveCandlesLoadingProgressListener()
+        {
+            this$0 = LoadNumberOfCandlesAction.this;
+            super();
+            loadedSuccessfully = false;
+        }
+
+    }
+
+    private static class SaveCandlesLiveFeedListener
+        implements LiveFeedListener
+    {
+
+        public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                double close, double low, double high, double vol)
+        {
+            savedCandles.add(new CandleData(time, open, close, low, high, vol));
+        }
+
+        public void newTick(Instrument instrument1, long l, double d, double d1, 
+                double d2, double d3)
+        {
+        }
+
+        public List savedCandles;
+
+        private SaveCandlesLiveFeedListener()
+        {
+            savedCandles = new ArrayList(5);
+        }
+
+    }
+
+    private class WrappingLoadingProgressListener
+        implements LoadingProgressListener
+    {
+
+        public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+        {
+            if(filter != Filter.ALL_FLATS)
+                loadingProgress.dataLoaded(startTime, endTime, currentTime, information);
+        }
+
+        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                Exception e)
+        {
+            this.allDataLoaded = allDataLoaded;
+            exception = e;
+        }
+
+        public boolean stopJob()
+        {
+            return loadingProgress.stopJob();
+        }
+
+        private boolean allDataLoaded;
+        private Exception exception;
+        final LoadNumberOfCandlesAction this$0;
+
+
+
+        private WrappingLoadingProgressListener()
+        {
+            this$0 = LoadNumberOfCandlesAction.this;
+            super();
+            allDataLoaded = false;
+        }
+
+    }
+
+    private class CandlesLiveFeedListener
+        implements LiveFeedListener
+    {
+
+        public void newCandle(Instrument instrument, Period period, OfferSide side, long candleTime, double open, 
+                double close, double low, double high, double vol)
+        {
+            if(weekendsIterator != null && (weekend == null || weekend.getEnd() < candleTime))
+                if(weekendsIterator.hasNext())
+                {
+                    weekend = (Weekend)weekendsIterator.next();
+                } else
+                {
+                    weekendsIterator = null;
+                    weekend = null;
+                }
+            if(weekend == null || candleTime < weekend.getStart() || candleTime > weekend.getEnd())
+            {
+                if(listener != null)
+                    if(filter == Filter.ALL_FLATS)
+                    {
+                        if((numberOfCandlesBefore > 0 || numberOfCandlesBefore == 0 && candleTime >= time) && (previousClose != (-1.0D / 0.0D) && open != previousClose || open != close || close != low || low != high))
+                        {
+                            CandleData candle = new CandleData(candleTime, open, close, low, high, vol);
+                            if(candleTime < time)
+                                filteredDataBefore.add(candle);
+                            else
+                            if(candleTime == time)
+                                filteredData = candle;
+                            else
+                                filteredDataAfter.add(candle);
+                        }
+                    } else
+                    {
+                        listener.newCandle(instrument, period, side, candleTime, open, close, low, high, vol);
+                    }
+                ++candlesCount;
+            } else
+            {
+                previousClose = (-1.0D / 0.0D);
+            }
+            previousClose = close;
+        }
+
+        public void newTick(Instrument instrument1, long l, double d, double d1, 
+                double d2, double d3)
+        {
+        }
+
+        private Iterator weekendsIterator;
+        private Weekend weekend;
+        final LoadNumberOfCandlesAction this$0;
+
+        public CandlesLiveFeedListener(List weekends)
+        {
+            this$0 = LoadNumberOfCandlesAction.this;
+            super();
+            weekendsIterator = weekends.iterator();
+        }
+    }
+
+    private class TicksLiveFeedListener
+        implements LiveFeedListener
+    {
+
+        public void newTick(Instrument instrument, long time, double ask, double bid, 
+                double askVol, double bidVol)
+        {
+            if(weekendsIterator != null && (weekend == null || weekend.getEnd() < time))
+                if(weekendsIterator.hasNext())
+                {
+                    weekend = (Weekend)weekendsIterator.next();
+                } else
+                {
+                    weekendsIterator = null;
+                    weekend = null;
+                }
+            if(weekend == null || time < weekend.getStart() || time >= weekend.getEnd() + 1000L)
+            {
+                if(listener != null && time >= from)
+                    listener.newTick(instrument, time, ask, bid, askVol, bidVol);
+            } else
+            {
+                return;
+            }
+            if(time < from)
+            {
+                if(currentAskCandle == null)
+                {
+                    currentAskCandle = new CandleData();
+                    currentBidCandle = new CandleData();
+                }
+                currentAskCandle.time = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, time);
+                currentBidCandle.time = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, time);
+                currentAskCandle.close = ask;
+                currentBidCandle.close = bid;
+                return;
+            }
+            if(currentAskCandle == null)
+            {
+                currentAskCandle = createCurrentCandleFromTenSec(OfferSide.ASK, ask);
+                currentBidCandle = createCurrentCandleFromTenSec(OfferSide.BID, bid);
+            }
+            if(currentAskCandle.time / 1000L == time / 1000L)
+            {
+                addTickAtTheEnd(currentAskCandle, ask, askVol);
+                addTickAtTheEnd(currentBidCandle, bid, bidVol);
+            } else
+            {
+                long currentCandleTime = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, time);
+                for(long previousNextCandleTime = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, currentAskCandle.time); previousNextCandleTime < currentCandleTime; previousNextCandleTime = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, previousNextCandleTime))
+                {
+                    sendCurrentCandle();
+                    double priceAsk = currentAskCandle.close;
+                    double priceBid = currentBidCandle.close;
+                    currentAskCandle.time = previousNextCandleTime;
+                    currentAskCandle.open = priceAsk;
+                    currentAskCandle.close = priceAsk;
+                    currentAskCandle.low = priceAsk;
+                    currentAskCandle.high = priceAsk;
+                    currentAskCandle.vol = 0.0D;
+                    currentBidCandle.time = previousNextCandleTime;
+                    currentBidCandle.open = priceBid;
+                    currentBidCandle.close = priceBid;
+                    currentBidCandle.low = priceBid;
+                    currentBidCandle.high = priceBid;
+                    currentBidCandle.vol = 0.0D;
+                }
+
+                sendCurrentCandle();
+                newCandleFromTick(currentAskCandle, currentCandleTime, ask, askVol);
+                newCandleFromTick(currentBidCandle, currentCandleTime, bid, bidVol);
+            }
+        }
+
+        private void newCandleFromTick(CandleData candle, long time, double price, double vol)
+        {
+            candle.time = time;
+            candle.open = price;
+            candle.close = price;
+            candle.high = price;
+            candle.low = price;
+            candle.vol = vol;
+        }
+
+        private void sendCurrentCandle()
+        {
+            if(listener != null && currentAskCandle.time >= from && (filter == Filter.NO_FILTER || !weekendsCandle(currentAskCandle.time)))
+            {
+                listener.newCandle(instrument, Period.ONE_SEC, OfferSide.ASK, currentAskCandle.time, currentAskCandle.open, currentAskCandle.close, currentAskCandle.low, currentAskCandle.high, currentAskCandle.vol);
+                listener.newCandle(instrument, Period.ONE_SEC, OfferSide.BID, currentBidCandle.time, currentBidCandle.open, currentBidCandle.close, currentBidCandle.low, currentBidCandle.high, currentBidCandle.vol);
+            }
+        }
+
+        private boolean weekendsCandle(long time)
+        {
+            for(Iterator i$ = weekends.iterator(); i$.hasNext();)
+            {
+                Weekend weekend = (Weekend)i$.next();
+                if(time >= weekend.getStart() && time <= weekend.getEnd())
+                    return true;
+            }
+
+            return false;
+        }
+
+        private void addTickAtTheEnd(CandleData candle, double price, double vol)
+        {
+            candle.close = price;
+            candle.high = candle.high >= candle.close ? candle.high : candle.close;
+            candle.low = candle.low <= candle.close ? candle.low : candle.close;
+            candle.vol = StratUtils.round(candle.vol + vol, 2);
+        }
+
+        private CandleData createCurrentCandleFromTenSec(OfferSide side, double defaultPrice)
+        {
+            CandleData candle = createCurrentCandleFromTenSec(side);
+            if(candle == null)
+            {
+                if(!loadingProgress.stopJob())
+                    LoadNumberOfCandlesAction.LOGGER.error("Cannot get previous close price to create flats, using open price of the next candle");
+                candle = new CandleData();
+                candle.time = DataCacheUtils.getPreviousCandleStartFast(Period.ONE_SEC, from);
+                candle.close = defaultPrice;
+            }
+            return candle;
+        }
+
+        private CandleData createCurrentCandleFromTenSec(OfferSide side)
+        {
+            CandleData candle;
+            SaveCandlesLiveFeedListener liveFeedListener = new SaveCandlesLiveFeedListener();
+            SaveCandlesLoadingProgressListener loadingProgressListener = new SaveCandlesLoadingProgressListener();
+            long previousCandleTime = DataCacheUtils.getPreviousCandleStartFast(Period.ONE_MIN, allignedFrom);
+            LoadDataAction load10SecCandleAction = new LoadDataAction(feedDataProvider, instrument, Period.ONE_MIN, side, previousCandleTime, previousCandleTime, liveFeedListener, loadingProgressListener, stackTraceElements, false, intraperiodExistsPolicy, false);
+            load10SecCandleAction.run();
+            if(!loadingProgressListener.loadedSuccessfully || liveFeedListener.savedCandles.size() != 1)
+                break MISSING_BLOCK_LABEL_160;
+            CandleData tenSecCandle = (CandleData)liveFeedListener.savedCandles.get(0);
+            candle = new CandleData();
+            candle.time = DataCacheUtils.getPreviousCandleStartFast(Period.ONE_SEC, from);
+            candle.close = tenSecCandle.close;
+            return candle;
+            return null;
+            DataCacheException e;
+            e;
+            LoadNumberOfCandlesAction.LOGGER.error(e.getMessage(), e);
+            return null;
+        }
+
+        public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                double d1, double d2, double d3, double d4)
+        {
+        }
+
+        public void theEnd()
+        {
+            if(currentAskCandle == null)
+            {
+                currentAskCandle = createCurrentCandleFromTenSec(OfferSide.ASK);
+                currentBidCandle = createCurrentCandleFromTenSec(OfferSide.BID);
+                if(currentAskCandle == null || currentBidCandle == null)
+                {
+                    LoadNumberOfCandlesAction.LOGGER.error("Cannot get previous close price to create flats");
+                    return;
+                }
+            }
+            long previousNextCandleTime = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, currentAskCandle.time);
+            for(long candleTo = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, to); previousNextCandleTime < candleTo; previousNextCandleTime = DataCacheUtils.getNextCandleStartFast(Period.ONE_SEC, previousNextCandleTime))
+            {
+                sendCurrentCandle();
+                double priceAsk = currentAskCandle.close;
+                double priceBid = currentBidCandle.close;
+                currentAskCandle = new CandleData(previousNextCandleTime, priceAsk, priceAsk, priceAsk, priceAsk, 0.0D);
+                currentBidCandle = new CandleData(previousNextCandleTime, priceBid, priceBid, priceBid, priceBid, 0.0D);
+            }
+
+            sendCurrentCandle();
+        }
+
+        private long allignedFrom;
+        private long from;
+        private long to;
+        private List weekends;
+        private Iterator weekendsIterator;
+        private Weekend weekend;
+        private CandleData currentAskCandle;
+        private CandleData currentBidCandle;
+        final LoadNumberOfCandlesAction this$0;
+
+        public TicksLiveFeedListener(long allignedFrom, long from, long to, 
+                List weekends)
+        {
+            this$0 = LoadNumberOfCandlesAction.this;
+            super();
+            this.allignedFrom = allignedFrom;
+            this.from = from;
+            this.to = to;
+            this.weekends = weekends;
+            if(weekends != null)
+                weekendsIterator = weekends.iterator();
+        }
+    }
+
+
+    public LoadNumberOfCandlesAction(FeedDataProvider feedDataProvider, Instrument instrument, Period period, OfferSide side, int numberOfCandlesBefore, int numberOfCandlesAfter, long time, Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, StackTraceElement stackTraceElements[])
+        throws DataCacheException
+    {
+        super(loadingProgress);
+        previousClose = (-1.0D / 0.0D);
+        candlesCount = 0;
+        this.instrument = instrument;
+        this.period = period;
+        this.side = side;
+        this.numberOfCandlesBefore = numberOfCandlesBefore;
+        this.numberOfCandlesAfter = numberOfCandlesAfter;
+        if(filter == Filter.ALL_FLATS)
+        {
+            safetyNumberBefore = numberOfCandlesBefore;
+            if(safetyNumberBefore != 0 && safetyNumberBefore < 30)
+                safetyNumberBefore = 30;
+            safetyNumberAfter = numberOfCandlesAfter;
+            if(safetyNumberAfter != 0 && safetyNumberAfter < 30)
+                safetyNumberAfter = 30;
+        }
+        this.time = time;
+        this.filter = filter;
+        listener = candleListener;
+        this.stackTraceElements = stackTraceElements;
+        this.feedDataProvider = feedDataProvider;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        if(instrument == null || period == null || loadingProgress == null || period == Period.TICK)
+            throw new DataCacheException((new StringBuilder()).append("Wrong parameters: instrument=").append(instrument).append(" / period=").append(period).append(" / ").append(time).append(" / ").append(loadingProgress).toString());
+        if(DataCacheUtils.getCandleStart(period, time) != time)
+            throw new DataCacheException("Time is not valid candle start time for period requested");
+        if(numberOfCandlesBefore < 0 || numberOfCandlesAfter < 0 || numberOfCandlesBefore == 0 && numberOfCandlesAfter == 0)
+            throw new DataCacheException("Number of candles requested should be positive integer (numberOfCandles > 0)");
+        filteredDataBefore = new ArrayList(numberOfCandlesBefore);
+        filteredDataAfter = new ArrayList(numberOfCandlesAfter);
+        if(Period.isPeriodBasic(period) == null)
+            loadCustomPeriodDataAction = new LoadCustomPeriodNumberOfCandlesAction(feedDataProvider, instrument, period, side, filter, numberOfCandlesBefore, numberOfCandlesAfter, time, listener, loadingProgress, stackTraceElements, intraperiodExistsPolicy);
+        else
+            loadCustomPeriodDataAction = null;
+    }
+
+    public LoadNumberOfCandlesAction(FeedDataProvider feedDataProvider, Instrument instrument, int numberOfSecondsBefore, int numberOfSecondsAfter, long time, Filter filter, 
+            LiveFeedListener tickListener, LoadingProgressListener loadingProgress, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, StackTraceElement stackTrace[])
+        throws DataCacheException
+    {
+        super(loadingProgress);
+        previousClose = (-1.0D / 0.0D);
+        candlesCount = 0;
+        this.instrument = instrument;
+        period = Period.TICK;
+        side = null;
+        numberOfCandlesBefore = numberOfSecondsBefore;
+        numberOfCandlesAfter = numberOfSecondsAfter;
+        this.time = time;
+        this.filter = filter;
+        listener = tickListener;
+        stackTraceElements = stackTrace;
+        this.feedDataProvider = feedDataProvider;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        if(filter != Filter.NO_FILTER && filter != Filter.WEEKENDS)
+            throw new DataCacheException("Cannot apply filter on ticks");
+        if(instrument == null || loadingProgress == null)
+            throw new DataCacheException((new StringBuilder()).append("Wrong parameters: ").append(instrument).append(" / ").append(loadingProgress).toString());
+        if(DataCacheUtils.getCandleStartFast(Period.ONE_SEC, time) != time)
+            throw new DataCacheException("Time is not valid candle start time for period requested");
+        if(numberOfCandlesBefore < 0 || numberOfCandlesAfter < 0 || numberOfCandlesBefore + numberOfCandlesAfter == 0)
+        {
+            throw new DataCacheException("Number of tick seconds requested should be positive integer (numberOfSeconds > 0)");
+        } else
+        {
+            filteredDataBefore = new ArrayList(numberOfCandlesBefore);
+            filteredDataAfter = new ArrayList(numberOfCandlesAfter);
+            loadCustomPeriodDataAction = null;
+            return;
+        }
+    }
+
+    public void run()
+    {
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, null);
+            return;
+        }
+        if(Period.isPeriodBasic(period) == null)
+        {
+            loadCustomPeriodDataAction.run();
+            break MISSING_BLOCK_LABEL_3073;
+        }
+        if(period != Period.TICK && (filter == Filter.NO_FILTER || period.getInterval() > Period.DAILY.getInterval()))
+        {
+            long from = DataCacheUtils.getTimeForNCandlesBackFast(period, time, numberOfCandlesBefore != 0 ? numberOfCandlesBefore : 1);
+            long to = DataCacheUtils.getTimeForNCandlesForwardFast(period, time, numberOfCandlesAfter != 0 ? numberOfCandlesAfter + 1 : 1);
+            try
+            {
+                LoadDataAction loadDataAction = new LoadDataAction(feedDataProvider, instrument, period, side, from, to, listener, loadingProgress, stackTraceElements, false, intraperiodExistsPolicy, false);
+                loadDataAction.run();
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+                loadingProgress.loadingFinished(false, from, to, from, e);
+            }
+            break MISSING_BLOCK_LABEL_3073;
+        }
+        if(period == Period.TICK && filter == Filter.NO_FILTER)
+        {
+            long from = DataCacheUtils.getTimeForNCandlesBackFast(Period.ONE_SEC, time, numberOfCandlesBefore != 0 ? numberOfCandlesBefore : 1);
+            long to = DataCacheUtils.getTimeForNCandlesForwardFast(Period.ONE_SEC, time, numberOfCandlesAfter != 0 ? numberOfCandlesAfter + 1 : 1) + 999L;
+            long allignedFrom = DataCacheUtils.getCandleStartFast(Period.ONE_MIN, from);
+            try
+            {
+                TicksLiveFeedListener ticksLiveFeedListener = new TicksLiveFeedListener(allignedFrom, from, to, null);
+                LoadDataAction loadDataAction = new LoadDataAction(feedDataProvider, instrument, from, to, ticksLiveFeedListener, new TicksLoadingProgressListener(ticksLiveFeedListener), stackTraceElements, false, intraperiodExistsPolicy, false);
+                loadDataAction.run();
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+                loadingProgress.loadingFinished(false, from, to, from, e);
+            }
+            break MISSING_BLOCK_LABEL_3073;
+        }
+        int attempts = 0;
+_L4:
+        List weekends;
+        long fromTo[];
+        weekends = new ArrayList();
+        fromTo = calculateResultingFromTo(weekends);
+        if(fromTo == null)
+            return;
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, null);
+            return;
+        }
+        WrappingLoadingProgressListener loadingProgressToUse;
+        long lastTickTime;
+        long correctedFrom;
+        long timeOfFirstCandle;
+        loadingProgressToUse = new WrappingLoadingProgressListener();
+        if(period == Period.TICK)
+            lastTickTime = feedDataProvider.getLastTickTime(instrument);
+        else
+            lastTickTime = feedDataProvider.getCurrentTime(instrument);
+        correctedFrom = fromTo[0];
+        timeOfFirstCandle = feedDataProvider.getTimeOfFirstCandle(instrument, period);
+        if(timeOfFirstCandle == 0x7fffffffffffffffL)
+        {
+            loadingProgress.dataLoaded(fromTo[0], fromTo[1], fromTo[1], "Data loaded!");
+            loadingProgress.loadingFinished(true, fromTo[0], fromTo[1], fromTo[1], null);
+            return;
+        }
+        long correctedTo;
+        if(period == Period.TICK)
+        {
+            if(correctedFrom < timeOfFirstCandle)
+                correctedFrom = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, timeOfFirstCandle);
+            correctedTo = fromTo[1];
+            if(lastTickTime > correctedTo)
+            {
+                if(lastTickTime < correctedTo + 999L)
+                    correctedTo = lastTickTime;
+                else
+                    correctedTo += 999L;
+            } else
+            {
+                correctedTo += 999L;
+            }
+        } else
+        {
+            correctedTo = fromTo[1];
+            if(correctedFrom < timeOfFirstCandle)
+                for(correctedFrom = DataCacheUtils.getCandleStartFast(period, correctedFrom); correctedFrom < timeOfFirstCandle; correctedFrom = DataCacheUtils.getNextCandleStartFast(period, correctedFrom));
+            if(lastTickTime != 0x8000000000000000L)
+            {
+                long lastTickCandleStartTime = DataCacheUtils.getCandleStartFast(period, lastTickTime);
+                if(correctedTo >= lastTickCandleStartTime)
+                    correctedTo = DataCacheUtils.getPreviousCandleStartFast(period, lastTickCandleStartTime);
+            }
+        }
+        if(correctedFrom > correctedTo)
+        {
+            loadingProgress.dataLoaded(fromTo[0], fromTo[1], fromTo[1], "Data loaded!");
+            loadingProgress.loadingFinished(true, fromTo[0], fromTo[1], fromTo[1], null);
+            return;
+        }
+        Weekend weekend;
+        long currentCorrectedFrom;
+        Iterator iterator;
+        if(period == Period.TICK)
+        {
+            long allignedFrom = DataCacheUtils.getCandleStartFast(Period.ONE_MIN, correctedFrom);
+            TicksLiveFeedListener ticksLiveFeedListener = new TicksLiveFeedListener(allignedFrom, correctedFrom, correctedTo, weekends);
+            LoadDataAction loadDataAction = new LoadDataAction(feedDataProvider, instrument, correctedFrom, correctedTo, ticksLiveFeedListener, new TicksLoadingProgressListener(ticksLiveFeedListener), stackTraceElements, false, intraperiodExistsPolicy, false);
+            loadDataAction.run();
+            break MISSING_BLOCK_LABEL_1451;
+        }
+        if(filter != Filter.WEEKENDS && filter != Filter.ALL_FLATS || period.getInterval() >= Period.ONE_HOUR.getInterval() || weekends.size() <= 0)
+            break MISSING_BLOCK_LABEL_1396;
+        weekend = null;
+        currentCorrectedFrom = correctedFrom;
+        iterator = weekends.iterator();
+_L2:
+        if(!iterator.hasNext() || currentCorrectedFrom > correctedTo)
+            break MISSING_BLOCK_LABEL_1220;
+        weekend = (Weekend)iterator.next();
+        if(currentCorrectedFrom < weekend.getStart())
+        {
+            long to = Math.min(correctedTo, DataCacheUtils.getPreviousCandleStartFast(period, weekend.getStart()));
+            LoadDataAction loadDataAction = new LoadDataAction(feedDataProvider, instrument, period, side, currentCorrectedFrom, to, new CandlesLiveFeedListener(weekends), loadingProgressToUse, stackTraceElements, false, intraperiodExistsPolicy, false);
+            loadDataAction.run();
+            if(loadingProgress.stopJob() || !loadingProgressToUse.allDataLoaded)
+            {
+                if(filter == Filter.ALL_FLATS)
+                    loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, loadingProgressToUse.exception);
+                else
+                    loadingProgress.loadingFinished(false, correctedFrom, to, to, loadingProgressToUse.exception);
+                return;
+            }
+        }
+        currentCorrectedFrom = Math.max(DataCacheUtils.getNextCandleStartFast(period, weekend.getEnd()), correctedFrom);
+        previousClose = (-1.0D / 0.0D);
+        if(true) goto _L2; else goto _L1
+_L1:
+        if(!$assertionsDisabled && weekend == null)
+            throw new AssertionError();
+        if(correctedTo >= currentCorrectedFrom)
+        {
+            LoadDataAction loadDataAction = new LoadDataAction(feedDataProvider, instrument, period, side, currentCorrectedFrom, correctedTo, new CandlesLiveFeedListener(weekends), loadingProgressToUse, stackTraceElements, false, intraperiodExistsPolicy, false);
+            loadDataAction.run();
+            if(loadingProgress.stopJob() || !loadingProgressToUse.allDataLoaded)
+            {
+                if(filter == Filter.ALL_FLATS)
+                    loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, loadingProgressToUse.exception);
+                else
+                    loadingProgress.loadingFinished(false, correctedFrom, correctedTo, correctedTo, loadingProgressToUse.exception);
+                return;
+            }
+        }
+        break MISSING_BLOCK_LABEL_1451;
+        LoadDataAction loadDataAction = new LoadDataAction(feedDataProvider, instrument, period, side, correctedFrom, correctedTo, new CandlesLiveFeedListener(weekends), loadingProgressToUse, stackTraceElements, false, intraperiodExistsPolicy, false);
+        loadDataAction.run();
+        int filteredDataBeforeCount;
+        int filteredDataAfterCount;
+        filteredDataBeforeCount = filteredDataBefore.size() + (filteredData != null ? 1 : 0);
+        filteredDataAfterCount = filteredDataAfter.size() + (filteredData != null && numberOfCandlesBefore <= 0 ? 1 : 0);
+        if(filter != Filter.ALL_FLATS)
+        {
+            if(loadingProgress.stopJob() || !loadingProgressToUse.allDataLoaded)
+                loadingProgress.loadingFinished(false, correctedFrom, correctedTo, correctedFrom, loadingProgressToUse.exception);
+            else
+                loadingProgress.loadingFinished(true, correctedFrom, correctedTo, correctedTo, loadingProgressToUse.exception);
+            return;
+        }
+        if(filteredDataBeforeCount >= numberOfCandlesBefore || correctedFrom <= timeOfFirstCandle)
+            break MISSING_BLOCK_LABEL_1999;
+        if(loadingProgress.stopJob() || !loadingProgressToUse.allDataLoaded)
+        {
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, loadingProgressToUse.exception);
+            return;
+        }
+        double percent = (double)filteredDataBeforeCount / (double)candlesCount;
+        if(percent > 0.90000000000000002D)
+            percent = 0.90000000000000002D;
+        else
+        if(percent < 0.29999999999999999D)
+            percent = 0.29999999999999999D;
+        int numberOfCandlesToAdd = (int)((double)(numberOfCandlesBefore - filteredDataBeforeCount) / percent);
+        if(numberOfCandlesToAdd < (attempts + 1) * (432 - (20 - attempts) * 19))
+            numberOfCandlesToAdd = (attempts + 1) * (432 - (20 - attempts) * 19);
+        safetyNumberBefore += numberOfCandlesToAdd;
+        if(LOGGER.isDebugEnabled())
+        {
+            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Attempt to load candles while filtering all flats missed. [").append(numberOfCandlesBefore).append("] candles was requested before time [").append(format.format(new Date(time))).append("]").append(". Attempt to load was from [").append(format.format(new Date(correctedFrom))).append("] to [").append(format.format(new Date(correctedTo))).append("] with [").append(weekends.size()).append("] weekends in between, but only [").append(filteredDataBeforeCount).append("] candles was loaded. Doing new attempt by adding [").append(numberOfCandlesToAdd).append("] candles to before number, total number of requested candles will be [").append(safetyNumberBefore).append("] before and [").append(safetyNumberAfter).append("] after").toString());
+        }
+        filteredDataBefore.clear();
+        filteredDataAfter.clear();
+        filteredData = null;
+        candlesCount = 0;
+        previousClose = (-1.0D / 0.0D);
+        attempts++;
+        continue; /* Loop/switch isn't completed */
+        if(filteredDataAfterCount >= numberOfCandlesAfter || period == Period.TICK && correctedTo == lastTickTime || correctedTo == DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, lastTickTime)))
+            break MISSING_BLOCK_LABEL_2448;
+        if(loadingProgress.stopJob() || !loadingProgressToUse.allDataLoaded)
+        {
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, loadingProgressToUse.exception);
+            return;
+        }
+        double percent = (double)filteredDataAfterCount / (double)candlesCount;
+        if(percent > 0.90000000000000002D)
+            percent = 0.90000000000000002D;
+        else
+        if(percent < 0.29999999999999999D)
+            percent = 0.29999999999999999D;
+        int numberOfCandlesToAdd = (int)((double)(numberOfCandlesAfter - filteredDataAfterCount) / percent);
+        if(numberOfCandlesToAdd < (attempts + 1) * (432 - (20 - attempts) * 19))
+            numberOfCandlesToAdd = (attempts + 1) * (432 - (20 - attempts) * 19);
+        safetyNumberAfter += numberOfCandlesToAdd;
+        if(LOGGER.isDebugEnabled())
+        {
+            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Attempt to load candles while filtering all flats missed. [").append(numberOfCandlesAfter).append("] candles was requested after time [").append(format.format(new Date(time))).append("]").append(". Attempt to load was from [").append(format.format(new Date(correctedFrom))).append("] to [").append(format.format(new Date(correctedTo))).append("] with [").append(weekends.size()).append("] weekends in between, but only [").append(filteredDataAfterCount).append("] candles was loaded. Doing new attempt by adding [").append(numberOfCandlesToAdd).append("] candles to after number, total number of requested candles will be [").append(safetyNumberBefore).append("] before and [").append(safetyNumberAfter).append("] after").toString());
+        }
+        filteredDataBefore.clear();
+        filteredDataAfter.clear();
+        filteredData = null;
+        candlesCount = 0;
+        previousClose = (-1.0D / 0.0D);
+        attempts++;
+        continue; /* Loop/switch isn't completed */
+        if(listener == null)
+            break MISSING_BLOCK_LABEL_2857;
+        if(!loadingProgressToUse.allDataLoaded)
+        {
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, loadingProgressToUse.exception);
+            return;
+        }
+        List toSend;
+        if(numberOfCandlesBefore > 0)
+        {
+            if(filteredDataBefore.size() > numberOfCandlesBefore)
+                toSend = filteredDataBefore.subList(filteredDataBefore.size() - (numberOfCandlesBefore - (filteredData != null ? 1 : 0)), filteredDataBefore.size());
+            else
+                toSend = filteredDataBefore;
+        } else
+        {
+            toSend = new ArrayList(numberOfCandlesAfter);
+        }
+        if(filteredData != null)
+            toSend.add(filteredData);
+        if(numberOfCandlesAfter > 0)
+            if(filteredDataAfter.size() >= numberOfCandlesAfter)
+                toSend.addAll(filteredDataAfter.subList(0, numberOfCandlesAfter - (filteredData != null && numberOfCandlesBefore <= 0 ? 1 : 0)));
+            else
+                toSend.addAll(filteredDataAfter);
+        CandleData data;
+        for(Iterator i$ = toSend.iterator(); i$.hasNext(); listener.newCandle(instrument, period, side, data.time, data.open, data.close, data.low, data.high, data.vol))
+            data = (CandleData)i$.next();
+
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, null);
+            return;
+        }
+        try
+        {
+            loadingProgress.loadingFinished(true, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, null);
+            return;
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, 0L, e);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, 0L, null);
+        }
+        break MISSING_BLOCK_LABEL_3073;
+        if(loadingProgress.stopJob() || !loadingProgressToUse.allDataLoaded)
+        {
+            loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, loadingProgressToUse.exception);
+            return;
+        }
+        loadingProgress.loadingFinished(true, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, null);
+        return;
+        if(attempts < 22) goto _L4; else goto _L3
+_L3:
+        loadingProgress.loadingFinished(false, 0L, numberOfCandlesBefore + numberOfCandlesAfter, numberOfCandlesBefore + numberOfCandlesAfter, new Exception("Attempt to load candles while filtering all flats missed"));
+    }
+
+    private long[] calculateResultingFromTo(List weekends)
+        throws DataCacheException
+    {
+        long expectedFrom;
+        long expectedTo;
+        if(period == Period.TICK)
+        {
+            expectedFrom = time - (long)((numberOfCandlesBefore != 0 ? numberOfCandlesBefore : 1) - 1) * Period.ONE_SEC.getInterval();
+            expectedTo = time + (long)((numberOfCandlesAfter != 0 ? numberOfCandlesAfter : 1) - 1) * Period.ONE_SEC.getInterval();
+        } else
+        {
+            expectedFrom = DataCacheUtils.getTimeForNCandlesBackFast(period, time, (numberOfCandlesBefore != 0 ? numberOfCandlesBefore : 1) + safetyNumberBefore);
+            expectedTo = DataCacheUtils.getTimeForNCandlesForwardFast(period, time, (numberOfCandlesAfter != 0 ? numberOfCandlesAfter : 1) + safetyNumberAfter);
+            if(numberOfCandlesBefore == 0 && filter == Filter.ALL_FLATS)
+                expectedFrom = DataCacheUtils.getPreviousCandleStartFast(period, time);
+        }
+        int numberOfDays = DataCacheUtils.getCandlesCountBetween(Period.DAILY, DataCacheUtils.getCandleStart(Period.DAILY, expectedFrom), DataCacheUtils.getCandleStart(Period.DAILY, expectedTo));
+        expectedFrom -= (long)(numberOfDays / 7) * Period.DAILY.getInterval();
+        expectedTo += (long)(numberOfDays / 7) * Period.DAILY.getInterval();
+        if(period == Period.TICK)
+            expectedTo += Period.ONE_SEC.getInterval();
+        else
+            expectedTo = DataCacheUtils.getNextCandleStartFast(period, expectedTo);
+        loadingProgress.dataLoaded(0L, numberOfCandlesBefore + numberOfCandlesAfter, 0L, "Calculating weekends start and end times...");
+        long from = period == Period.TICK || numberOfCandlesBefore != 0 || filter != Filter.ALL_FLATS ? time : DataCacheUtils.getPreviousCandleStartFast(period, time);
+        long to = time;
+        do
+        {
+            List calculatedWeekends = feedDataProvider.calculateWeekends(period, numberOfCandlesBefore + numberOfCandlesAfter, expectedFrom, expectedTo, loadingProgress);
+            if(calculatedWeekends == null)
+                return null;
+            weekends.clear();
+            weekends.addAll(calculatedWeekends);
+            if(numberOfCandlesBefore > 0)
+                from = calculateFromTo(weekends, time, false, numberOfCandlesBefore, safetyNumberBefore);
+            if(numberOfCandlesAfter > 0)
+                to = calculateFromTo(weekends, time, true, numberOfCandlesAfter, safetyNumberAfter);
+            if(expectedTo >= to && expectedFrom <= from)
+                break;
+            if(expectedTo < to)
+            {
+                if(expectedTo >= feedDataProvider.getCurrentTime() + 60000L)
+                    break;
+                expectedTo = to + 0xf731400L;
+            }
+            if(expectedFrom <= from)
+                continue;
+            if(expectedFrom <= feedDataProvider.getTimeOfFirstCandle(instrument, period))
+                break;
+            expectedFrom = from - 0xf731400L;
+        } while(true);
+        return (new long[] {
+            from, to
+        });
+    }
+
+    long calculateFromTo(List weekends, long fromTo, boolean isAfter, int numberOfCandles, int safetyNumber)
+    {
+        long from;
+        long to;
+        Period calcPeriod;
+label0:
+        {
+            boolean timeInWeekend;
+label1:
+            {
+                calcPeriod = period;
+                if(period == Period.TICK)
+                {
+                    if(isAfter)
+                    {
+                        from = fromTo;
+                        to = fromTo + (long)((numberOfCandles - 1) * 1000);
+                    } else
+                    {
+                        from = fromTo - (long)((numberOfCandles - 1) * 1000);
+                        to = fromTo;
+                    }
+                    calcPeriod = Period.ONE_SEC;
+                } else
+                if(isAfter)
+                {
+                    from = fromTo;
+                    to = DataCacheUtils.getTimeForNCandlesForwardFast(period, fromTo, numberOfCandles + safetyNumber);
+                } else
+                {
+                    from = DataCacheUtils.getTimeForNCandlesBackFast(period, fromTo, numberOfCandles + safetyNumber);
+                    to = fromTo;
+                }
+                if(!isAfter || numberOfCandlesBefore <= 0 || numberOfCandlesAfter <= 0)
+                    break label0;
+                timeInWeekend = false;
+                if(filter != Filter.WEEKENDS)
+                    break label1;
+                Iterator i$ = weekends.iterator();
+                Weekend weekend;
+                do
+                {
+                    if(!i$.hasNext())
+                        break label1;
+                    weekend = (Weekend)i$.next();
+                } while(time < weekend.getStart() || time > weekend.getEnd());
+                timeInWeekend = true;
+            }
+            if(!timeInWeekend)
+                if(period == Period.TICK)
+                    to += Period.ONE_SEC.getInterval();
+                else
+                    to = DataCacheUtils.getNextCandleStartFast(period, to);
+        }
+        ListIterator iterator = weekends.listIterator(isAfter ? 0 : weekends.size());
+        do
+        {
+            if((!isAfter || !iterator.hasNext()) && (isAfter || !iterator.hasPrevious()))
+                break;
+            Weekend weekendTimes;
+            if(isAfter)
+                weekendTimes = (Weekend)iterator.next();
+            else
+                weekendTimes = (Weekend)iterator.previous();
+            if(isAfter)
+            {
+                if(weekendTimes.getStart() <= to && weekendTimes.getEnd() >= from)
+                    if(to > weekendTimes.getEnd() && from <= weekendTimes.getEnd() && from >= weekendTimes.getStart())
+                        to = DataCacheUtils.getTimeForNCandlesForwardFast(calcPeriod, to, DataCacheUtils.getCandlesCountBetweenFast(calcPeriod, from, weekendTimes.getEnd()) + 1);
+                    else
+                    if(to >= weekendTimes.getEnd() && from < weekendTimes.getStart())
+                        to = DataCacheUtils.getTimeForNCandlesForwardFast(calcPeriod, to, DataCacheUtils.getCandlesCountBetweenFast(calcPeriod, weekendTimes.getStart(), weekendTimes.getEnd()) + 1);
+                    else
+                    if(from >= weekendTimes.getStart() && to <= weekendTimes.getEnd())
+                        to = DataCacheUtils.getTimeForNCandlesForwardFast(calcPeriod, weekendTimes.getEnd(), DataCacheUtils.getCandlesCountBetweenFast(calcPeriod, from, to) + 1);
+                    else
+                    if(to < weekendTimes.getEnd() && from <= weekendTimes.getStart())
+                        to = DataCacheUtils.getTimeForNCandlesForwardFast(calcPeriod, weekendTimes.getEnd(), DataCacheUtils.getCandlesCountBetweenFast(calcPeriod, weekendTimes.getStart(), to) + 1);
+            } else
+            if(weekendTimes.getStart() <= to && weekendTimes.getEnd() >= from)
+                if(from < weekendTimes.getStart() && to >= weekendTimes.getStart() && to <= weekendTimes.getEnd())
+                    from = DataCacheUtils.getTimeForNCandlesBackFast(calcPeriod, from, DataCacheUtils.getCandlesCountBetweenFast(calcPeriod, weekendTimes.getStart(), to) + 1);
+                else
+                if(from <= weekendTimes.getStart() && to > weekendTimes.getEnd())
+                    from = DataCacheUtils.getTimeForNCandlesBackFast(calcPeriod, from, DataCacheUtils.getCandlesCountBetweenFast(calcPeriod, weekendTimes.getStart(), weekendTimes.getEnd()) + 1);
+                else
+                if(from >= weekendTimes.getStart() && to <= weekendTimes.getEnd())
+                    from = DataCacheUtils.getTimeForNCandlesBackFast(calcPeriod, weekendTimes.getStart(), DataCacheUtils.getCandlesCountBetweenFast(calcPeriod, from, to) + 1);
+                else
+                if(from > weekendTimes.getStart() && to >= weekendTimes.getEnd())
+                    from = DataCacheUtils.getTimeForNCandlesBackFast(calcPeriod, weekendTimes.getStart(), DataCacheUtils.getCandlesCountBetweenFast(calcPeriod, from, weekendTimes.getEnd()) + 1);
+        } while(true);
+        if(isAfter)
+            return to;
+        else
+            return from;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/LoadNumberOfCandlesAction);
+    private final Instrument instrument;
+    private final Period period;
+    private final OfferSide side;
+    protected final int numberOfCandlesBefore;
+    protected final int numberOfCandlesAfter;
+    protected int safetyNumberBefore;
+    protected int safetyNumberAfter;
+    protected final long time;
+    private final Filter filter;
+    private final LiveFeedListener listener;
+    private final StackTraceElement stackTraceElements[];
+    private double previousClose;
+    private final List filteredDataBefore;
+    private CandleData filteredData;
+    private final List filteredDataAfter;
+    private int candlesCount;
+    private final FeedDataProvider feedDataProvider;
+    private final CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    private final LoadCustomPeriodNumberOfCandlesAction loadCustomPeriodDataAction;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/datacache/LoadNumberOfCandlesAction.desiredAssertionStatus();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}

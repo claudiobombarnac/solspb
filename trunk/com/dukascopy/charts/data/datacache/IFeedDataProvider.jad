@@ -1,0 +1,307 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IFeedDataProvider.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.pnf.IPointAndFigureLiveFeedListener;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
+import com.dukascopy.charts.data.datacache.rangebar.IPriceRangeLiveFeedListener;
+import com.dukascopy.charts.data.datacache.rangebar.PriceRangeData;
+import com.dukascopy.charts.data.datacache.tickbar.ITickBarLiveFeedListener;
+import com.dukascopy.charts.data.datacache.tickbar.TickBarData;
+import com.dukascopy.dds2.greed.util.IOrderUtils;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            NoDataForPeriodException, DataCacheException, LiveFeedListener, TickData, 
+//            LiveCandleListener, OrdersListener, InstrumentSubscriptionListener, CacheDataUpdatedListener, 
+//            CandleData, LoadingProgressListener
+
+public interface IFeedDataProvider
+{
+
+    public abstract long getTimeOfFirstCandle(Instrument instrument, Period period);
+
+    public abstract void subscribeToLiveFeed(Instrument instrument, LiveFeedListener livefeedlistener);
+
+    public abstract void unsubscribeToLiveFeed(Instrument instrument, LiveFeedListener livefeedlistener);
+
+    public abstract long getCurrentTime(Instrument instrument);
+
+    public abstract long getLastTickTime(Instrument instrument);
+
+    public abstract TickData getLastTick(Instrument instrument);
+
+    public abstract long getCurrentTime();
+
+    public abstract void subscribeToPeriodNotifications(Instrument instrument, Period period, OfferSide offerside, LiveFeedListener livefeedlistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void unsubscribeToPeriodNotifications(Instrument instrument, Period period, OfferSide offerside, LiveFeedListener livefeedlistener);
+
+    public abstract void subscribeToAllPeriodNotifications(Instrument instrument, OfferSide offerside, LiveFeedListener livefeedlistener);
+
+    public abstract void unsubscribeToAllPeriodNotifications(Instrument instrument, OfferSide offerside, LiveFeedListener livefeedlistener);
+
+    public abstract void subscribeToAllCandlePeriods(LiveCandleListener livecandlelistener);
+
+    public abstract void unsubscribeFromAllCandlePeriods(LiveCandleListener livecandlelistener);
+
+    public abstract void subscribeToOrdersNotifications(Instrument instrument, OrdersListener orderslistener);
+
+    public abstract void unsubscribeToOrdersNotifications(Instrument instrument, OrdersListener orderslistener);
+
+    public abstract void addInstrumentSubscriptionListener(InstrumentSubscriptionListener instrumentsubscriptionlistener);
+
+    public abstract void removeInstrumentSubscriptionListener(InstrumentSubscriptionListener instrumentsubscriptionlistener);
+
+    public abstract void addInProgressCandleListener(Instrument instrument, Period period, OfferSide offerside, LiveFeedListener livefeedlistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void removeInProgressCandleListener(Instrument instrument, Period period, OfferSide offerside, LiveFeedListener livefeedlistener);
+
+    public abstract void addCacheDataUpdatedListener(Instrument instrument, CacheDataUpdatedListener cachedataupdatedlistener);
+
+    public abstract void removeCacheDataUpdatedListener(Instrument instrument, CacheDataUpdatedListener cachedataupdatedlistener);
+
+    public abstract CandleData getInProgressCandle(Instrument instrument, Period period, OfferSide offerside);
+
+    public abstract CandleData getInProgressCandleBlocking(Instrument instrument, Period period, OfferSide offerside)
+        throws DataCacheException;
+
+    public abstract List getInstrumentsCurrentlySubscribed();
+
+    public abstract boolean isSubscribedToInstrument(Instrument instrument);
+
+    public abstract void loadTicksData(Instrument instrument, long l, long l1, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataSynched(Instrument instrument, long l, long l1, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataBlockingSynched(Instrument instrument, long l, long l1, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataBefore(Instrument instrument, int i, long l, Filter filter, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataAfter(Instrument instrument, int i, long l, Filter filter, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataBeforeAfter(Instrument instrument, int i, int j, long l, Filter filter, LiveFeedListener livefeedlistener, 
+            LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataBeforeSynched(Instrument instrument, int i, long l, Filter filter, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataAfterSynched(Instrument instrument, int i, long l, Filter filter, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataBeforeAfterSynched(Instrument instrument, int i, int j, long l, Filter filter, LiveFeedListener livefeedlistener, 
+            LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadLastAvailableTicksDataSynched(Instrument instrument, long l, long l1, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadLastAvailableNumberOfTicksDataSynched(Instrument instrument, int i, long l, Filter filter, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadCandlesData(Instrument instrument, Period period, OfferSide offerside, long l, long l1, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataSynched(Instrument instrument, Period period, OfferSide offerside, long l, long l1, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataBlockingSynched(Instrument instrument, Period period, OfferSide offerside, long l, long l1, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadInProgressCandleData(Instrument instrument, long l, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadInProgressCandleDataSynched(Instrument instrument, long l, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataBefore(Instrument instrument, Period period, OfferSide offerside, int i, long l, Filter filter, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataAfter(Instrument instrument, Period period, OfferSide offerside, int i, long l, Filter filter, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataBeforeAfter(Instrument instrument, Period period, OfferSide offerside, int i, int j, long l, 
+            Filter filter, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataBeforeSynched(Instrument instrument, Period period, OfferSide offerside, int i, long l, Filter filter, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataAfterSynched(Instrument instrument, Period period, OfferSide offerside, int i, long l, Filter filter, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataBeforeAfterSynched(Instrument instrument, Period period, OfferSide offerside, int i, int j, long l, 
+            Filter filter, LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadLastAvailableCandlesDataSynched(Instrument instrument, Period period, OfferSide offerside, long l, long l1, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadLastAvailableNumberOfCandlesDataSynched(Instrument instrument, Period period, OfferSide offerside, int i, long l, Filter filter, 
+            LiveFeedListener livefeedlistener, LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract boolean isDataCached(Instrument instrument, Period period, OfferSide offerside, long l, long l1)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadTicksDataInCache(Instrument instrument, long l, long l1, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadTicksDataInCacheSynched(Instrument instrument, long l, long l1, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadCandlesDataInCache(Instrument instrument, Period period, OfferSide offerside, long l, long l1, 
+            LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadCandlesDataInCacheSynched(Instrument instrument, Period period, OfferSide offerside, long l, long l1, 
+            LoadingProgressListener loadingprogresslistener)
+        throws NoDataForPeriodException, DataCacheException;
+
+    public abstract void loadOrdersHistoricalData(Instrument instrument, long l, long l1, OrdersListener orderslistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadOrdersHistoricalDataSynched(Instrument instrument, long l, long l1, OrdersListener orderslistener, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadOrdersHistoricalDataInCache(Instrument instrument, long l, long l1, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract void loadOrdersHistoricalDataInCacheSynched(Instrument instrument, long l, long l1, LoadingProgressListener loadingprogresslistener)
+        throws DataCacheException;
+
+    public abstract IOrderUtils getOrderUtils();
+
+    public abstract void loadPriceRangeData(Instrument instrument, OfferSide offerside, int i, long l, int j, PriceRange pricerange, 
+            IPriceRangeLiveFeedListener ipricerangelivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract void loadPriceRangeDataSynched(Instrument instrument, OfferSide offerside, int i, long l, int j, PriceRange pricerange, 
+            IPriceRangeLiveFeedListener ipricerangelivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract List loadPriceRangeData(Instrument instrument, OfferSide offerside, int i, long l, int j, PriceRange pricerange);
+
+    public abstract PriceRangeData loadLastPriceRangeDataSynched(Instrument instrument, OfferSide offerside, PriceRange pricerange);
+
+    public abstract void loadPointAndFigureData(Instrument instrument, OfferSide offerside, int i, long l, int j, PriceRange pricerange, 
+            ReversalAmount reversalamount, IPointAndFigureLiveFeedListener ipointandfigurelivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract void loadPointAndFigureDataSynched(Instrument instrument, OfferSide offerside, long l, int i, int j, PriceRange pricerange, 
+            ReversalAmount reversalamount, IPointAndFigureLiveFeedListener ipointandfigurelivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract List loadPointAndFigureData(Instrument instrument, OfferSide offerside, long l, int i, int j, PriceRange pricerange, 
+            ReversalAmount reversalamount);
+
+    public abstract PointAndFigureData loadLastPointAndFigureDataSynched(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount);
+
+    public abstract void loadTickBarDataSynched(Instrument instrument, OfferSide offerside, int i, long l, int j, TickBarSize tickbarsize, 
+            ITickBarLiveFeedListener itickbarlivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract List loadTickBarData(Instrument instrument, OfferSide offerside, int i, long l, int j, TickBarSize tickbarsize);
+
+    public abstract void loadTickBarData(Instrument instrument, OfferSide offerside, int i, long l, int j, TickBarSize tickbarsize, 
+            ITickBarLiveFeedListener itickbarlivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract TickBarData loadLastTickBarDataSynched(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize);
+
+    public abstract void addInProgressPriceRangeListener(Instrument instrument, OfferSide offerside, PriceRange pricerange, IPriceRangeLiveFeedListener ipricerangelivefeedlistener);
+
+    public abstract void removeInProgressPriceRangeListener(IPriceRangeLiveFeedListener ipricerangelivefeedlistener);
+
+    public abstract void addPriceRangeNotificationListener(Instrument instrument, OfferSide offerside, PriceRange pricerange, IPriceRangeLiveFeedListener ipricerangelivefeedlistener);
+
+    public abstract void removePriceRangeNotificationListener(IPriceRangeLiveFeedListener ipricerangelivefeedlistener);
+
+    public abstract void addInProgressPointAndFigureListener(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount, IPointAndFigureLiveFeedListener ipointandfigurelivefeedlistener);
+
+    public abstract void removeInProgressPointAndFigureListener(IPointAndFigureLiveFeedListener ipointandfigurelivefeedlistener);
+
+    public abstract void addPointAndFigureNotificationListener(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount, IPointAndFigureLiveFeedListener ipointandfigurelivefeedlistener);
+
+    public abstract void removePointAndFigureNotificationListener(IPointAndFigureLiveFeedListener ipointandfigurelivefeedlistener);
+
+    public abstract void addInProgressTickBarListener(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize, ITickBarLiveFeedListener itickbarlivefeedlistener);
+
+    public abstract void removeInProgressTickBarListener(ITickBarLiveFeedListener itickbarlivefeedlistener);
+
+    public abstract void addTickBarNotificationListener(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize, ITickBarLiveFeedListener itickbarlivefeedlistener);
+
+    public abstract void removeTickBarNotificationListener(ITickBarLiveFeedListener itickbarlivefeedlistener);
+
+    public abstract PriceRangeData getInProgressPriceRange(Instrument instrument, OfferSide offerside, PriceRange pricerange);
+
+    public abstract PriceRangeData getOrLoadInProgressPriceRange(Instrument instrument, OfferSide offerside, PriceRange pricerange);
+
+    public abstract boolean isInProgressPriceRangeLoadingNow(Instrument instrument, OfferSide offerside, PriceRange pricerange);
+
+    public abstract PointAndFigureData getInProgressPointAndFigure(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount);
+
+    public abstract PointAndFigureData getOrLoadInProgressPointAndFigure(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount);
+
+    public abstract boolean isInProgressPointAndFigureLoadingNow(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount);
+
+    public abstract TickBarData getInProgressTickBar(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize);
+
+    public abstract TickBarData getOrLoadInProgressTickBar(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize);
+
+    public abstract boolean isInProgressTickBarLoadingNow(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize);
+
+    public abstract long getLatestKnownTimeOrCurrentGMTTime(Instrument instrument);
+
+    public abstract void loadPriceRangeTimeIntervalSynched(Instrument instrument, OfferSide offerside, PriceRange pricerange, long l, long l1, 
+            IPriceRangeLiveFeedListener ipricerangelivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract void loadPriceRangeTimeInterval(Instrument instrument, OfferSide offerside, PriceRange pricerange, long l, long l1, 
+            IPriceRangeLiveFeedListener ipricerangelivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract List loadPriceRangeTimeInterval(Instrument instrument, OfferSide offerside, PriceRange pricerange, long l, long l1);
+
+    public abstract void loadPointAndFigureTimeIntervalSynched(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount, long l, long l1, IPointAndFigureLiveFeedListener ipointandfigurelivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract void loadPointAndFigureTimeInterval(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount, long l, long l1, IPointAndFigureLiveFeedListener ipointandfigurelivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract List loadPointAndFigureTimeInterval(Instrument instrument, OfferSide offerside, PriceRange pricerange, ReversalAmount reversalamount, long l, long l1);
+
+    public abstract void loadTickBarTimeIntervalSynched(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize, long l, long l1, 
+            ITickBarLiveFeedListener itickbarlivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract void loadTickBarTimeInterval(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize, long l, long l1, 
+            ITickBarLiveFeedListener itickbarlivefeedlistener, LoadingProgressListener loadingprogresslistener);
+
+    public abstract List loadTickBarTimeInterval(Instrument instrument, OfferSide offerside, TickBarSize tickbarsize, long l, long l1);
+
+    public abstract List loadTicksBefore(Instrument instrument, int i, long l)
+        throws Exception;
+
+    public abstract List loadTicksAfter(Instrument instrument, long l, int i)
+        throws Exception;
+
+    public abstract List loadCandlesBefore(Instrument instrument, Period period, OfferSide offerside, int i, long l)
+        throws Exception;
+
+    public abstract List loadCandlesAfter(Instrument instrument, Period period, OfferSide offerside, long l, int i)
+        throws Exception;
+
+    public abstract void startInBackgroundFeedPreloadingToLocalCache();
+
+    public static final int VERSION = 5;
+}

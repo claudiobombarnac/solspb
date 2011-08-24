@@ -1,0 +1,38 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DoubleSpinnerModel.java
+
+package com.dukascopy.dds2.greed.gui.component;
+
+import java.math.BigDecimal;
+import javax.swing.SpinnerNumberModel;
+
+public class DoubleSpinnerModel extends SpinnerNumberModel
+{
+
+    public DoubleSpinnerModel(double value, double minimum, double maximum, double step)
+    {
+        super(value, minimum, maximum, step);
+    }
+
+    public Object getNextValue()
+    {
+        double value = BigDecimal.valueOf(((Double)getValue()).doubleValue()).add(BigDecimal.valueOf(getStepSize().doubleValue())).doubleValue();
+        Comparable maximum = getMaximum();
+        if(maximum != null && maximum.compareTo(Double.valueOf(value)) < 0)
+            return null;
+        else
+            return Double.valueOf(value);
+    }
+
+    public Object getPreviousValue()
+    {
+        double value = BigDecimal.valueOf(((Double)getValue()).doubleValue()).subtract(BigDecimal.valueOf(getStepSize().doubleValue())).doubleValue();
+        Comparable minimum = getMinimum();
+        if(minimum != null && minimum.compareTo(Double.valueOf(value)) > 0)
+            return null;
+        else
+            return Double.valueOf(value);
+    }
+}

@@ -1,0 +1,40 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JResizableLabel.java
+
+package com.dukascopy.dds2.greed.gui.resizing.components;
+
+import com.dukascopy.dds2.greed.gui.resizing.Resizable;
+import java.awt.Font;
+import javax.swing.JLabel;
+
+public class JResizableLabel extends JLabel
+    implements Resizable
+{
+
+    public JResizableLabel()
+    {
+    }
+
+    public JResizableLabel(String text)
+    {
+        super(text);
+    }
+
+    public JResizableLabel(String text, int horizontalAlignment)
+    {
+        super(text, horizontalAlignment);
+    }
+
+    public Object getDefaultSize()
+    {
+        return Integer.valueOf(getFont().getSize());
+    }
+
+    public void setSizeMode(Object obj)
+    {
+    }
+
+    private static final long serialVersionUID = 1L;
+}

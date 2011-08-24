@@ -1,0 +1,64 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   E.java
+
+package com.dukascopy.calculator.function;
+
+import com.dukascopy.calculator.OObject;
+import com.dukascopy.calculator.complex.Complex;
+import javax.swing.JOptionPane;
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            DFunction
+
+public class E extends DFunction
+{
+
+    public E()
+    {
+        ftooltip = "sc.calculator.e.number.tooltip";
+        fshortcut = 'e';
+        base(10);
+    }
+
+    public double function(double x, double y)
+    {
+        return x * Math.exp(y * Math.log(base));
+    }
+
+    public OObject function(OObject x, OObject y)
+    {
+        return x.multiply(y.multiply((new Complex(base, 0.0D)).log()).exp());
+    }
+
+    public String[] name_array()
+    {
+        return fname;
+    }
+
+    public static void main(String args[])
+    {
+        E o = new E();
+        StringBuilder s = new StringBuilder("<html>");
+        s.append(o.name());
+        s.append("</html>");
+        JOptionPane.showMessageDialog(null, s.toString());
+    }
+
+    public int base()
+    {
+        return base;
+    }
+
+    public void base(int base)
+    {
+        this.base = base;
+    }
+
+    private int base;
+    private static final String fname[] = {
+        "e"
+    };
+
+}

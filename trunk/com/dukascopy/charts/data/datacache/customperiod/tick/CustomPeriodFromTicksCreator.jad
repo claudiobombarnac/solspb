@@ -1,0 +1,358 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CustomPeriodFromTicksCreator.java
+
+package com.dukascopy.charts.data.datacache.customperiod.tick;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.customperiod.AbstractCustomPeriodCreator;
+import com.dukascopy.charts.data.datacache.wrapper.Weekend;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.text.SimpleDateFormat;
+import java.util.List;
+import java.util.TimeZone;
+
+public class CustomPeriodFromTicksCreator extends AbstractCustomPeriodCreator
+{
+
+    public CustomPeriodFromTicksCreator(Instrument instrument, OfferSide offerSide, int desiredCandlesCount, Period desiredPeriod, Filter filter, boolean inverseOrder, Long desiredFirstDataTime, 
+            Double firstDataValue, List weekends)
+    {
+        super(instrument, offerSide, desiredPeriod);
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+        this.desiredCandlesCount = desiredCandlesCount;
+        this.inverseOrder = inverseOrder;
+        this.filter = filter;
+        this.firstDataValue = firstDataValue;
+        this.desiredFirstDataTime = desiredFirstDataTime == null ? null : new Long(DataCacheUtils.getCandleStartFast(desiredPeriod, desiredFirstDataTime.longValue()));
+        if(weekends != null)
+            this.weekends = (Weekend[])weekends.toArray(new Weekend[weekends.size()]);
+        else
+            this.weekends = null;
+        reset();
+    }
+
+    public void reset()
+    {
+        if(desiredFirstDataTime != null)
+            desiredFirstDataTimeStr = DATE_FORMAT.format(desiredFirstDataTime);
+        lastElementIndex = -1;
+        firstTime = null;
+        lastTime = null;
+        loadedCandlesCount = 0;
+        result = new CandleData[desiredCandlesCount];
+    }
+
+    public boolean analyseTickData(TickData data)
+    {
+        if(data == null)
+            return false;
+        long candleStartTime = getCandleStartFast(data);
+        if(firstTime == null)
+            firstTime = new Long(candleStartTime);
+        lastTime = new Long(candleStartTime);
+        if(currentCandleDataUnderAnalysis == null)
+        {
+            if(desiredFirstDataTime != null && timesBelongToDifferentCandles(candleStartTime, desiredFirstDataTime.longValue()))
+            {
+                double price = getFirstDataValue() == null ? getPrice(data, getOfferSide()) : getFirstDataValue().doubleValue();
+                currentCandleDataUnderAnalysis = new CandleData(desiredFirstDataTime.longValue(), price, price, price, price, 0.0D);
+                boolean result = finishCurrentCandleCreation(data, candleStartTime, previouslyAnalysedCandleData);
+                if(result)
+                    return true;
+            } else
+            {
+                currentCandleDataUnderAnalysis = startNewCandleData(data, candleStartTime, true);
+            }
+        } else
+        if(timesBelongToDifferentCandles(candleStartTime, currentCandleDataUnderAnalysis.getTime()))
+        {
+            boolean result = finishCurrentCandleCreation(data, candleStartTime, previouslyAnalysedCandleData);
+            if(result)
+                return true;
+        } else
+        {
+            continueCurrentCandleAnalysis(data);
+        }
+        return false;
+    }
+
+    private boolean finishCurrentCandleCreation(TickData data, long candleStartTime, CandleData previouslyAnalysedCandleData)
+    {
+        CandleData flats[] = null;
+        if(!Filter.ALL_FLATS.equals(getFilter()))
+            flats = checkPreviousFlatsIfAny(data, currentCandleDataUnderAnalysis, getDesiredPeriod());
+        CandleData prevCandle = previouslyAnalysedCandleData;
+        CandleData candleDataResult = finishCurrentCandleAnalysis();
+        if(!Filter.ALL_FLATS.equals(getFilter()) || !isFlat(candleDataResult, prevCandle))
+        {
+            if(!Filter.WEEKENDS.equals(getFilter()) || !DataCacheUtils.isWeekendTime(candleDataResult.getTime(), weekends))
+                addCompletedCandle(candleDataResult);
+            if(flats != null)
+            {
+                for(int i = 0; i < flats.length; i++)
+                {
+                    if(isItEnoughCandles(loadedCandlesCount))
+                        return true;
+                    CandleData flat = flats[i];
+                    if(!Filter.WEEKENDS.equals(getFilter()) || !DataCacheUtils.isWeekendTime(flat.getTime(), weekends))
+                        addCompletedCandle(flat);
+                }
+
+            }
+        }
+        if(isItEnoughCandles(loadedCandlesCount))
+        {
+            return true;
+        } else
+        {
+            currentCandleDataUnderAnalysis = startNewCandleData(data, candleStartTime, false);
+            return false;
+        }
+    }
+
+    private boolean timesBelongToDifferentCandles(long time1, long time2)
+    {
+        boolean value = Math.abs(time1 - time2) >= getDesiredPeriod().getInterval();
+        return value;
+    }
+
+    private long getCandleStartFast(TickData tickData)
+    {
+        long time = tickData.getTime();
+        long candleStartTime = DataCacheUtils.getCandleStartFast(getDesiredPeriod(), time);
+        return candleStartTime;
+    }
+
+    protected void addCompletedCandle(CandleData candleData)
+    {
+        loadedCandlesCount++;
+        lastElementIndex++;
+        result[lastElementIndex] = candleData;
+        fireNewCandle(candleData);
+    }
+
+    private CandleData[] checkPreviousFlatsIfAny(TickData data, CandleData currentCandleDataUnderAnalysis, Period period)
+    {
+        if(currentCandleDataUnderAnalysis == null)
+            return null;
+        long targetTime = getCandleStartFast(data);
+        long currentTime = currentCandleDataUnderAnalysis.getTime();
+        long candlesCountInTimePeriod = Math.abs(targetTime - currentTime) / period.getInterval();
+        candlesCountInTimePeriod--;
+        if(candlesCountInTimePeriod > 0L)
+        {
+            CandleData result[] = new CandleData[(int)candlesCountInTimePeriod];
+            long time = 0L;
+            double value = -1D;
+            if(!getInverseOrder())
+            {
+                if(getFirstDataValue() != null && getLoadedCandleCount() == 0)
+                    value = getFirstDataValue().doubleValue();
+                else
+                    value = currentCandleDataUnderAnalysis.getClose();
+            } else
+            {
+                value = getPrice(data, getOfferSide());
+            }
+            for(int i = 0; i < result.length; i++)
+            {
+                if(!getInverseOrder())
+                    time = currentTime + (long)(i + 1) * period.getInterval();
+                else
+                    time = currentTime - (long)(i + 1) * period.getInterval();
+                CandleData candleData = createFlat(value, time);
+                result[i] = candleData;
+            }
+
+            return result;
+        } else
+        {
+            return null;
+        }
+    }
+
+    private CandleData createFlat(double value, long time)
+    {
+        CandleData candleData = new CandleData();
+        candleData.setClose(value);
+        candleData.setOpen(value);
+        candleData.setHigh(value);
+        candleData.setLow(value);
+        candleData.setVolume(0.0D);
+        candleData.setTime(time);
+        return candleData;
+    }
+
+    protected boolean isFlat(CandleData candleDataResult, CandleData previousCandleData)
+    {
+        boolean isFlat = candleDataResult.getOpen() == candleDataResult.getClose() && candleDataResult.getHigh() == candleDataResult.getLow() && candleDataResult.getOpen() == candleDataResult.getLow() && candleDataResult.getVolume() <= 0.0D;
+        if(!isFlat || previousCandleData == null)
+        {
+            return isFlat;
+        } else
+        {
+            double previousCandleEndValue = getInverseOrder() ? previousCandleData.getOpen() : previousCandleData.getClose();
+            boolean value = previousCandleEndValue == candleDataResult.getOpen();
+            return value;
+        }
+    }
+
+    private void continueCurrentCandleAnalysis(TickData data)
+    {
+        currentCandleDataUnderAnalysis.setVolume(round(currentCandleDataUnderAnalysis.getVolume() + getVolume(data, getOfferSide())));
+        double value = getPrice(data, getOfferSide());
+        if(getInverseOrder())
+            currentCandleDataUnderAnalysis.setOpen(value);
+        else
+            currentCandleDataUnderAnalysis.setClose(value);
+        if(currentCandleDataUnderAnalysis.getLow() > value)
+            currentCandleDataUnderAnalysis.setLow(value);
+        if(currentCandleDataUnderAnalysis.getHigh() < value)
+            currentCandleDataUnderAnalysis.setHigh(value);
+    }
+
+    private CandleData finishCurrentCandleAnalysis()
+    {
+        previouslyAnalysedCandleData = currentCandleDataUnderAnalysis;
+        currentCandleDataUnderAnalysis = null;
+        return previouslyAnalysedCandleData;
+    }
+
+    private CandleData startNewCandleData(TickData data, long time, boolean firstTime)
+    {
+        return startNewCandleData(time, getPrice(data, getOfferSide()), getVolume(data, getOfferSide()), firstTime);
+    }
+
+    private CandleData startNewCandleData(long time, double value, double volume, boolean firstTime)
+    {
+        CandleData candleData = new CandleData();
+        if(firstTime && getDesiredFirstDataTime() != null)
+            time = getDesiredFirstDataTime().longValue();
+        candleData.setTime(time);
+        candleData.setOpen(value);
+        candleData.setClose(value);
+        candleData.setHigh(value);
+        candleData.setLow(value);
+        candleData.setVolume(volume);
+        return candleData;
+    }
+
+    protected boolean isItEnoughCandles(int loadedCandleCount)
+    {
+        return loadedCandleCount == getDesiredCandlesCount();
+    }
+
+    private double getVolume(TickData tickData, OfferSide offerSide)
+    {
+        if(OfferSide.ASK.equals(offerSide))
+            return tickData.getAskVolume();
+        else
+            return tickData.getBidVolume();
+    }
+
+    private double getPrice(TickData tickData, OfferSide offerSide)
+    {
+        if(OfferSide.ASK.equals(offerSide))
+            return tickData.getAsk();
+        else
+            return tickData.getBid();
+    }
+
+    public int getDesiredCandlesCount()
+    {
+        return desiredCandlesCount;
+    }
+
+    public boolean allDesiredDataLoaded()
+    {
+        return getLoadedCandleCount() == getDesiredCandlesCount();
+    }
+
+    public Long getFirstTime()
+    {
+        return firstTime;
+    }
+
+    public Long getLastTime()
+    {
+        return lastTime;
+    }
+
+    public int getLoadedCandleCount()
+    {
+        return loadedCandlesCount;
+    }
+
+    public boolean getInverseOrder()
+    {
+        return inverseOrder;
+    }
+
+    public CandleData[] getResult()
+    {
+        return result;
+    }
+
+    protected int getLastElementIndex()
+    {
+        return lastElementIndex;
+    }
+
+    protected void setLastElementIndex(int lastElementIndex)
+    {
+        this.lastElementIndex = lastElementIndex;
+    }
+
+    protected Filter getFilter()
+    {
+        return filter;
+    }
+
+    protected Long getDesiredFirstDataTime()
+    {
+        return desiredFirstDataTime;
+    }
+
+    protected Double getFirstDataValue()
+    {
+        return firstDataValue;
+    }
+
+    private double round(double value)
+    {
+        return StratUtils.round(value, 8);
+    }
+
+    public CandleData getLastData()
+    {
+        if(getResult() != null && getLastElementIndex() > -1 && getLastElementIndex() < getResult().length)
+            return getResult()[getLastElementIndex()];
+        else
+            return null;
+    }
+
+    public CandleData getCurrentCandleDataUnderAnalysis()
+    {
+        return currentCandleDataUnderAnalysis;
+    }
+
+    protected static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss:SSS");
+    private final int desiredCandlesCount;
+    private final boolean inverseOrder;
+    private final Filter filter;
+    private Long desiredFirstDataTime;
+    private final Double firstDataValue;
+    private String desiredFirstDataTimeStr;
+    private CandleData currentCandleDataUnderAnalysis;
+    private CandleData previouslyAnalysedCandleData;
+    protected CandleData result[];
+    private int lastElementIndex;
+    private Long firstTime;
+    private Long lastTime;
+    private int loadedCandlesCount;
+    private final Weekend weekends[];
+
+}

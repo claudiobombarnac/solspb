@@ -1,0 +1,79 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadInProgressCandleDataAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.Period;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, DataCacheException, LoadDataAction, FeedDataProvider, 
+//            LiveFeedListener, LoadingProgressListener, DataCacheUtils, CurvesDataLoader
+
+public class LoadInProgressCandleDataAction extends LoadProgressingAction
+    implements Runnable
+{
+
+    public LoadInProgressCandleDataAction(FeedDataProvider feedDataProvider, Instrument instrument, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress, StackTraceElement stackTrace[])
+        throws DataCacheException
+    {
+        super(loadingProgress);
+        this.instrument = instrument;
+        this.to = to;
+        listener = candleListener;
+        this.stackTrace = stackTrace;
+        this.feedDataProvider = feedDataProvider;
+        if(instrument == null || listener == null || loadingProgress == null)
+            throw new DataCacheException((new StringBuilder()).append("Wrong parameters: instrument=").append(instrument).append(" / ").append(to).append(" / ").append(loadingProgress).toString());
+        else
+            return;
+    }
+
+    public void run()
+    {
+        long candleStart = DataCacheUtils.getCandleStartFast(Period.TEN_SECS, to);
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, candleStart, to, candleStart, null);
+            return;
+        }
+        loadingProgress.dataLoaded(candleStart, to, candleStart, "Downloading in-progress candle data...");
+        try
+        {
+            CurvesDataLoader curvesDataLoader = feedDataProvider.getCurvesDataLoader();
+            curvesDataLoader.loadInProgressCandle(instrument, to, listener, loadingProgress);
+            loadingProgress.dataLoaded(candleStart, to, to, "Data loaded!");
+            loadingProgress.loadingFinished(true, candleStart, to, to, null);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            loadingProgress.loadingFinished(false, candleStart, to, candleStart, e);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            loadingProgress.loadingFinished(false, candleStart, to, candleStart, null);
+        }
+    }
+
+    private static SimpleDateFormat formatter;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/LoadDataAction);
+    private final Instrument instrument;
+    private final long to;
+    private final LiveFeedListener listener;
+    private final StackTraceElement stackTrace[];
+    private final FeedDataProvider feedDataProvider;
+
+    static 
+    {
+        formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+        formatter.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+    }
+}

@@ -1,0 +1,94 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Variable.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.Base;
+import com.dukascopy.calculator.Notation;
+import com.dukascopy.calculator.OObject;
+import com.dukascopy.calculator.StringArray;
+import com.dukascopy.calculator.Substitution;
+import com.dukascopy.calculator.function.PObject;
+import java.util.Iterator;
+import java.util.LinkedList;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            Expression, Product
+
+public class Variable extends Expression
+{
+
+    public Variable(com.dukascopy.calculator.function.Variable variable)
+    {
+        this.variable = variable;
+    }
+
+    public PObject pObject()
+    {
+        return variable;
+    }
+
+    public char get()
+    {
+        return variable.get();
+    }
+
+    public String name()
+    {
+        return variable.name();
+    }
+
+    public String[] name_array()
+    {
+        return variable.name_array();
+    }
+
+    public StringArray toHTMLSubString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray r = new StringArray();
+        r.add(name_array());
+        return r;
+    }
+
+    public StringArray toHTMLParenString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        return toHTMLSubString(maxChars, precision, base, notation, polarFactor);
+    }
+
+    public Product negate()
+    {
+        Product p = new Product(this, false);
+        return p.negate();
+    }
+
+    public int compareTo(Variable variable)
+    {
+        return get() >= variable.get() ? ((int) (get() != variable.get() ? 1 : 0)) : -1;
+    }
+
+    public OObject substitute(Substitution substitution)
+    {
+        for(Iterator i = substitution.getSubstitutions().iterator(); i.hasNext();)
+        {
+            com.dukascopy.calculator.Substitution.Pair pair = (com.dukascopy.calculator.Substitution.Pair)i.next();
+            if(pair.variable.name().equals(name()))
+                return pair.oobject;
+        }
+
+        return this;
+    }
+
+    public volatile Expression negate()
+    {
+        return negate();
+    }
+
+    public volatile OObject negate()
+    {
+        return negate();
+    }
+
+    private com.dukascopy.calculator.function.Variable variable;
+}

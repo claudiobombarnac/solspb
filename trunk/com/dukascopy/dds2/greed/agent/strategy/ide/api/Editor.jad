@@ -1,0 +1,113 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Editor.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.api;
+
+import java.awt.Component;
+import java.io.File;
+import java.io.IOException;
+import javax.swing.JComponent;
+import javax.swing.KeyStroke;
+import javax.swing.event.CaretListener;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.ide.api:
+//            ServiceSourceLanguage, FileChangeListener
+
+public interface Editor
+{
+    public static final class Action extends Enum
+    {
+
+        public static Action[] values()
+        {
+            return (Action[])$VALUES.clone();
+        }
+
+        public static Action valueOf(String name)
+        {
+            return (Action)Enum.valueOf(com/dukascopy/dds2/greed/agent/strategy/ide/api/Editor$Action, name);
+        }
+
+        public KeyStroke getKeyStroke()
+        {
+            return keyStroke;
+        }
+
+        public static final Action REDO;
+        public static final Action UNDO;
+        public static final Action FIND;
+        public static final Action REPLACE;
+        public static final Action SAVE;
+        public static final Action COMPILE;
+        public static final Action HELP;
+        private KeyStroke keyStroke;
+        private static final Action $VALUES[];
+
+        static 
+        {
+            REDO = new Action("REDO", 0, "control Y");
+            UNDO = new Action("UNDO", 1, "control Z");
+            FIND = new Action("FIND", 2, "control F");
+            REPLACE = new Action("REPLACE", 3, "control R");
+            SAVE = new Action("SAVE", 4, "control S");
+            COMPILE = new Action("COMPILE", 5, "F5");
+            HELP = new Action("HELP", 6, "F1");
+            $VALUES = (new Action[] {
+                REDO, UNDO, FIND, REPLACE, SAVE, COMPILE, HELP
+            });
+        }
+
+        private Action(String s, int i, String keyStroke)
+        {
+            super(s, i);
+            this.keyStroke = KeyStroke.getKeyStroke(keyStroke);
+        }
+    }
+
+
+    public abstract void focus();
+
+    public abstract void open(File file)
+        throws IOException;
+
+    public abstract boolean close();
+
+    public abstract boolean save()
+        throws IOException;
+
+    public abstract boolean saveAs(File file)
+        throws IOException;
+
+    public abstract boolean saveAs(Component component, String s, ServiceSourceLanguage servicesourcelanguage)
+        throws IOException;
+
+    public abstract void find();
+
+    public abstract void replace();
+
+    public abstract boolean contentWasModified();
+
+    public abstract File getFile();
+
+    public abstract JComponent getGUIComponent();
+
+    public abstract void addFileChangeListener(FileChangeListener filechangelistener);
+
+    public abstract boolean addCaretListener(CaretListener caretlistener);
+
+    public abstract void selectLine(int i);
+
+    public abstract void setSyntaxStyle(String s);
+
+    public abstract void setContent(String s);
+
+    public abstract String getContent();
+
+    public abstract boolean isJavaSource();
+
+    public abstract void setEditable(boolean flag);
+
+    public abstract void reloadEditor(File file, File file1);
+}

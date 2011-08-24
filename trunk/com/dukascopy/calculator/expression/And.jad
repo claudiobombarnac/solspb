@@ -1,0 +1,36 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   And.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.OObject;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            Dyadic, Product, Expression
+
+public class And extends Dyadic
+{
+
+    public And(OObject expression1, OObject expression2)
+    {
+        super(new com.dukascopy.calculator.function.And(), expression1, expression2);
+    }
+
+    public Product negate()
+    {
+        Product p = new Product(this, false);
+        return p.negate();
+    }
+
+    public volatile Expression negate()
+    {
+        return negate();
+    }
+
+    public volatile OObject negate()
+    {
+        return negate();
+    }
+}

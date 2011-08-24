@@ -1,0 +1,818 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   TaLibMetaData.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.impl.talib.FuncInfoHolder;
+import com.dukascopy.api.impl.talib.Holder;
+import com.dukascopy.api.impl.talib.InputParameterInfoHolder;
+import com.dukascopy.api.impl.talib.IntegerListHolder;
+import com.dukascopy.api.impl.talib.IntegerRangeHolder;
+import com.dukascopy.api.impl.talib.OptInputParameterInfoHolder;
+import com.dukascopy.api.impl.talib.OutputParameterInfoHolder;
+import com.dukascopy.api.impl.talib.RealListHolder;
+import com.dukascopy.api.impl.talib.RealRangeHolder;
+import com.dukascopy.api.impl.talib.TaFuncService;
+import com.dukascopy.api.impl.talib.TaGrpService;
+import com.tictactec.ta.lib.*;
+import com.tictactec.ta.lib.meta.PriceInputParameter;
+import com.tictactec.ta.lib.meta.annotation.*;
+import java.lang.annotation.Annotation;
+import java.lang.annotation.IncompleteAnnotationException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.*;
+
+public class TaLibMetaData
+    implements Comparable, Cloneable
+{
+
+    protected TaLibMetaData()
+    {
+        name = null;
+        function = null;
+        lookback = null;
+        callInputParams = null;
+        callOutputParams = null;
+        callOptInputParams = null;
+        synchronized(coreClass)
+        {
+            if(taCore == null)
+                taCore = new CoreAnnotated();
+        }
+    }
+
+    public int compareTo(TaLibMetaData arg)
+    {
+        return name.compareTo(arg.name);
+    }
+
+    private static Map getAllFuncs()
+    {
+        synchronized(coreClass)
+        {
+            if(taFuncMap == null)
+                taFuncMap = getTaFuncMetaInfoMap();
+        }
+        return taFuncMap;
+    }
+
+    private static Map getAllGrps()
+    {
+        synchronized(coreClass)
+        {
+            if(taGrpMap == null)
+                taGrpMap = getTaGrpMetaInfoMap();
+        }
+        return taGrpMap;
+    }
+
+    private static Map getLookbackMethodMap()
+    {
+        Map map = new HashMap();
+        Method ms[] = coreClass.getDeclaredMethods();
+        Method arr$[] = ms;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Method m = arr$[i$];
+            if(m.getName().endsWith("Lookback"))
+                map.put(m.getName(), m);
+        }
+
+        return map;
+    }
+
+    private static Map getTaFuncMetaInfoMap()
+    {
+        Map result = new TreeMap();
+        Method ms[] = coreClass.getDeclaredMethods();
+        Map lookbackMap = getLookbackMethodMap();
+        Method arr$[] = ms;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Method funcMethod = arr$[i$];
+            String fn = funcMethod.getName();
+            if(!funcMethod.getReturnType().equals(com/tictactec/ta/lib/RetCode))
+                continue;
+            String lookbackName = (new StringBuilder()).append(fn).append("Lookback").toString();
+            Method lookbackMethod = (Method)lookbackMap.get(lookbackName);
+            if(lookbackMethod != null)
+            {
+                FuncInfoHolder info = getFuncInfo(funcMethod);
+                String funcName = info.name;
+                TaLibMetaData mi = new TaLibMetaData();
+                mi.name = funcName;
+                mi.function = funcMethod;
+                mi.lookback = lookbackMethod;
+                result.put(funcName, mi);
+            }
+        }
+
+        return result;
+    }
+
+    private static Map getTaGrpMetaInfoMap()
+    {
+        if(taFuncMap == null)
+            getAllFuncs();
+        Map result = new TreeMap();
+        TaLibMetaData mi;
+        Set set;
+        for(Iterator i$ = taFuncMap.keySet().iterator(); i$.hasNext(); set.add(mi))
+        {
+            String func = (String)i$.next();
+            mi = (TaLibMetaData)taFuncMap.get(func);
+            String group = mi.getFuncInfo().group;
+            set = (Set)result.get(group);
+            if(set == null)
+            {
+                set = new TreeSet();
+                result.put(group, set);
+            }
+        }
+
+        return result;
+    }
+
+    private static FuncInfoHolder getFuncInfo(Method method)
+        throws IncompleteAnnotationException
+    {
+        FuncInfo annotation = (FuncInfo)method.getAnnotation(com/tictactec/ta/lib/meta/annotation/FuncInfo);
+        if(annotation != null)
+        {
+            FuncInfoHolder holder = new FuncInfoHolder();
+            holder.name = annotation.name();
+            holder.group = annotation.group();
+            holder.hint = annotation.hint();
+            holder.helpFile = annotation.helpFile();
+            holder.flags = annotation.flags();
+            holder.nbInput = annotation.nbInput();
+            holder.nbOptInput = annotation.nbOptInput();
+            holder.nbOutput = annotation.nbOutput();
+            return holder;
+        } else
+        {
+            throw new IncompleteAnnotationException(com/tictactec/ta/lib/meta/annotation/FuncInfo, (new StringBuilder()).append("Method ").append(method.getName()).toString());
+        }
+    }
+
+    static TaLibMetaData getFuncHandle(String name)
+        throws NoSuchMethodException
+    {
+        TaLibMetaData mi = (TaLibMetaData)getAllFuncs().get(name.toUpperCase());
+        if(mi == null)
+            throw new NoSuchMethodException(name.toUpperCase());
+        mi.callInputParams = null;
+        mi.callOutputParams = null;
+        mi.callOptInputParams = null;
+        if(mi != null)
+            return mi;
+        else
+            throw new NoSuchMethodException((new StringBuilder()).append("Function ").append(name).toString());
+    }
+
+    public static TaLibMetaData getInstance(String name)
+        throws NoSuchMethodException
+    {
+        return getFuncHandle(name).clone();
+    }
+
+    protected TaLibMetaData clone()
+    {
+        TaLibMetaData clone;
+        getFuncInfo();
+        getParameterAnnotations();
+        clone = (TaLibMetaData)super.clone();
+        callInputParams = null;
+        callOutputParams = null;
+        callOptInputParams = null;
+        return clone;
+        CloneNotSupportedException e;
+        e;
+        return null;
+    }
+
+    public FuncInfoHolder getFuncInfo()
+        throws IncompleteAnnotationException
+    {
+        if(funcInfo == null)
+            funcInfo = getFuncInfo(function);
+        return funcInfo;
+    }
+
+    private Holder getParameterInfo(int paramIndex, Class paramAnnotation)
+    {
+        if(paramIndex < 0)
+            throw new IllegalArgumentException("Index out of bounds");
+        int i = 0;
+        Holder arr$[][] = getParameterAnnotations();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Holder annArray[] = arr$[i$];
+            Holder arr$[] = annArray;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Holder ann = arr$[i$];
+                if(ann.annotationType == paramAnnotation && paramIndex == i++)
+                    return ann;
+            }
+
+        }
+
+        return null;
+    }
+
+    private Holder[][] getParameterAnnotations()
+    {
+        if(parameterAnnotations == null)
+        {
+            Annotation annotations[][] = function.getParameterAnnotations();
+            parameterAnnotations = new Holder[annotations.length][];
+            for(int i = 0; i < annotations.length; i++)
+            {
+                Annotation paramAnnotations[] = annotations[i];
+                parameterAnnotations[i] = new Holder[paramAnnotations.length];
+                for(int j = 0; j < paramAnnotations.length; j++)
+                {
+                    Annotation annotation = paramAnnotations[j];
+                    Holder holder = null;
+                    Class annotationType = annotation.annotationType();
+                    if(annotationType == com/tictactec/ta/lib/meta/annotation/InputParameterInfo)
+                    {
+                        InputParameterInfo infoAnnotation = (InputParameterInfo)annotation;
+                        InputParameterInfoHolder infoHolder = new InputParameterInfoHolder();
+                        infoHolder.annotationType = com/tictactec/ta/lib/meta/annotation/InputParameterInfo;
+                        infoHolder.flags = infoAnnotation.flags();
+                        infoHolder.paramName = infoAnnotation.paramName();
+                        infoHolder.type = infoAnnotation.type();
+                        holder = infoHolder;
+                    } else
+                    if(annotationType == com/tictactec/ta/lib/meta/annotation/OptInputParameterInfo)
+                    {
+                        OptInputParameterInfo infoAnnotation = (OptInputParameterInfo)annotation;
+                        OptInputParameterInfoHolder infoHolder = new OptInputParameterInfoHolder();
+                        infoHolder.annotationType = com/tictactec/ta/lib/meta/annotation/OptInputParameterInfo;
+                        infoHolder.type = infoAnnotation.type();
+                        infoHolder.paramName = infoAnnotation.paramName();
+                        infoHolder.flags = infoAnnotation.flags();
+                        infoHolder.displayName = infoAnnotation.displayName();
+                        infoHolder.dataSet = infoAnnotation.dataSet();
+                        holder = infoHolder;
+                    } else
+                    if(annotationType == com/tictactec/ta/lib/meta/annotation/OutputParameterInfo)
+                    {
+                        OutputParameterInfo infoAnnotation = (OutputParameterInfo)annotation;
+                        OutputParameterInfoHolder infoHolder = new OutputParameterInfoHolder();
+                        infoHolder.annotationType = com/tictactec/ta/lib/meta/annotation/OutputParameterInfo;
+                        infoHolder.type = infoAnnotation.type();
+                        infoHolder.paramName = infoAnnotation.paramName();
+                        infoHolder.flags = infoAnnotation.flags();
+                        holder = infoHolder;
+                    } else
+                    if(annotationType == com/tictactec/ta/lib/meta/annotation/IntegerList)
+                    {
+                        IntegerList infoAnnotation = (IntegerList)annotation;
+                        IntegerListHolder infoHolder = new IntegerListHolder();
+                        infoHolder.annotationType = com/tictactec/ta/lib/meta/annotation/IntegerList;
+                        infoHolder.value = infoAnnotation.value();
+                        infoHolder.paramName = infoAnnotation.paramName();
+                        infoHolder.defaultValue = infoAnnotation.defaultValue();
+                        infoHolder.string = infoAnnotation.string();
+                        holder = infoHolder;
+                    } else
+                    if(annotationType == com/tictactec/ta/lib/meta/annotation/RealList)
+                    {
+                        RealList infoAnnotation = (RealList)annotation;
+                        RealListHolder infoHolder = new RealListHolder();
+                        infoHolder.annotationType = com/tictactec/ta/lib/meta/annotation/RealList;
+                        infoHolder.value = infoAnnotation.value();
+                        infoHolder.paramName = infoAnnotation.paramName();
+                        infoHolder.defaultValue = infoAnnotation.defaultValue();
+                        infoHolder.string = infoAnnotation.string();
+                        holder = infoHolder;
+                    } else
+                    if(annotationType == com/tictactec/ta/lib/meta/annotation/IntegerRange)
+                    {
+                        IntegerRange infoAnnotation = (IntegerRange)annotation;
+                        IntegerRangeHolder infoHolder = new IntegerRangeHolder();
+                        infoHolder.annotationType = com/tictactec/ta/lib/meta/annotation/IntegerRange;
+                        infoHolder.paramName = infoAnnotation.paramName();
+                        infoHolder.defaultValue = infoAnnotation.defaultValue();
+                        infoHolder.max = infoAnnotation.max();
+                        infoHolder.min = infoAnnotation.min();
+                        infoHolder.suggested_start = infoAnnotation.suggested_start();
+                        infoHolder.suggested_end = infoAnnotation.suggested_end();
+                        infoHolder.suggested_increment = infoAnnotation.suggested_increment();
+                        holder = infoHolder;
+                    } else
+                    if(annotationType == com/tictactec/ta/lib/meta/annotation/RealRange)
+                    {
+                        RealRange infoAnnotation = (RealRange)annotation;
+                        RealRangeHolder infoHolder = new RealRangeHolder();
+                        infoHolder.annotationType = com/tictactec/ta/lib/meta/annotation/RealRange;
+                        infoHolder.paramName = infoAnnotation.paramName();
+                        infoHolder.defaultValue = infoAnnotation.defaultValue();
+                        infoHolder.max = infoAnnotation.max();
+                        infoHolder.min = infoAnnotation.min();
+                        infoHolder.suggested_start = infoAnnotation.suggested_start();
+                        infoHolder.suggested_end = infoAnnotation.suggested_end();
+                        infoHolder.suggested_increment = infoAnnotation.suggested_increment();
+                        infoHolder.precision = infoAnnotation.precision();
+                        holder = infoHolder;
+                    }
+                    parameterAnnotations[i][j] = holder;
+                }
+
+            }
+
+        }
+        return parameterAnnotations;
+    }
+
+    private Holder getParameterInfo(int paramIndex, Class paramAnnotation, Class paramExtraAnnotation)
+    {
+        if(paramIndex < 0)
+            throw new IllegalArgumentException("Index out of bounds");
+        int i = 0;
+        Holder arr$[][] = getParameterAnnotations();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Holder annArray[] = arr$[i$];
+            Holder arr$[] = annArray;
+            int len$ = arr$.length;
+label0:
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Holder ann = arr$[i$];
+                if(ann.annotationType != paramAnnotation || paramIndex != i++)
+                    continue;
+                Holder arr$[] = annArray;
+                int len$ = arr$.length;
+                int i$ = 0;
+                do
+                {
+                    if(i$ >= len$)
+                        continue label0;
+                    Holder annExt = arr$[i$];
+                    if(annExt.annotationType == paramExtraAnnotation)
+                        return annExt;
+                    i$++;
+                } while(true);
+            }
+
+        }
+
+        return null;
+    }
+
+    public InputParameterInfoHolder getInputParameterInfo(int paramIndex)
+        throws IllegalArgumentException
+    {
+        return (InputParameterInfoHolder)getParameterInfo(paramIndex, com/tictactec/ta/lib/meta/annotation/InputParameterInfo);
+    }
+
+    public OutputParameterInfoHolder getOutputParameterInfo(int paramIndex)
+        throws IllegalArgumentException
+    {
+        return (OutputParameterInfoHolder)getParameterInfo(paramIndex, com/tictactec/ta/lib/meta/annotation/OutputParameterInfo);
+    }
+
+    public OptInputParameterInfoHolder getOptInputParameterInfo(int paramIndex)
+        throws IllegalArgumentException
+    {
+        return (OptInputParameterInfoHolder)getParameterInfo(paramIndex, com/tictactec/ta/lib/meta/annotation/OptInputParameterInfo);
+    }
+
+    public IntegerListHolder getOptInputIntegerList(int paramIndex)
+        throws IllegalArgumentException
+    {
+        return (IntegerListHolder)getParameterInfo(paramIndex, com/tictactec/ta/lib/meta/annotation/OptInputParameterInfo, com/tictactec/ta/lib/meta/annotation/IntegerList);
+    }
+
+    public IntegerRangeHolder getOptInputIntegerRange(int paramIndex)
+        throws IllegalArgumentException
+    {
+        return (IntegerRangeHolder)getParameterInfo(paramIndex, com/tictactec/ta/lib/meta/annotation/OptInputParameterInfo, com/tictactec/ta/lib/meta/annotation/IntegerRange);
+    }
+
+    public RealListHolder getOptInputRealList(int paramIndex)
+        throws IllegalArgumentException
+    {
+        return (RealListHolder)getParameterInfo(paramIndex, com/tictactec/ta/lib/meta/annotation/OptInputParameterInfo, com/tictactec/ta/lib/meta/annotation/RealList);
+    }
+
+    public RealRangeHolder getOptInputRealRange(int paramIndex)
+        throws IllegalArgumentException
+    {
+        return (RealRangeHolder)getParameterInfo(paramIndex, com/tictactec/ta/lib/meta/annotation/OptInputParameterInfo, com/tictactec/ta/lib/meta/annotation/RealRange);
+    }
+
+    public void setOptInputParamInteger(int paramIndex, int value)
+        throws IllegalArgumentException
+    {
+        OptInputParameterInfoHolder param = getOptInputParameterInfo(paramIndex);
+        if(param == null)
+            throw new InternalError("Parameter with specified index was not found");
+        if(param.type == OptInputParameterType.TA_OptInput_IntegerList)
+        {
+            IntegerListHolder list = getOptInputIntegerList(paramIndex);
+            int values[] = list.value;
+            for(int i = 0; i < values.length; i++)
+                if(value == values[i])
+                {
+                    String strValue = list.string[i];
+                    MAType fields[] = MAType.values();
+                    MAType arr$[] = fields;
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        MAType maType = arr$[i$];
+                        if(maType.name().toUpperCase().equals(strValue.toUpperCase()))
+                        {
+                            if(callOptInputParams == null)
+                                callOptInputParams = new Object[getFuncInfo().nbOptInput];
+                            callOptInputParams[paramIndex] = maType;
+                            return;
+                        }
+                    }
+
+                }
+
+        } else
+        if(param.type == OptInputParameterType.TA_OptInput_IntegerRange)
+        {
+            IntegerRangeHolder range = getOptInputIntegerRange(paramIndex);
+            if(value >= range.min && value <= range.max)
+            {
+                if(callOptInputParams == null)
+                    callOptInputParams = new Object[getFuncInfo().nbOptInput];
+                callOptInputParams[paramIndex] = Integer.valueOf(value);
+                return;
+            }
+        }
+        throw new InternalError("Unknown parameter type");
+    }
+
+    public void setOptInputParamInteger(int paramIndex, String string)
+        throws IllegalArgumentException
+    {
+        try
+        {
+            Integer v = new Integer(string);
+            setOptInputParamInteger(paramIndex, v.intValue());
+        }
+        catch(NumberFormatException e)
+        {
+            OptInputParameterInfoHolder param = getOptInputParameterInfo(paramIndex);
+            if(param == null)
+                throw new InternalError("Parameter with specified index was not found");
+            if(param.type != OptInputParameterType.TA_OptInput_IntegerList)
+                throw new InternalError("Unexpected parameter type");
+            MAType fields[] = MAType.values();
+            MAType arr$[] = fields;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                MAType value = arr$[i$];
+                if(value.name().toUpperCase().equals(string.toUpperCase()))
+                {
+                    if(callOptInputParams == null)
+                        callOptInputParams = new Object[getFuncInfo().nbOptInput];
+                    callOptInputParams[paramIndex] = value;
+                    return;
+                }
+            }
+
+            throw new InternalError("Unexpected parameter value");
+        }
+    }
+
+    public void setOptInputParamReal(int paramIndex, double value)
+        throws IllegalArgumentException
+    {
+        OptInputParameterInfoHolder param = getOptInputParameterInfo(paramIndex);
+        if(param.type == OptInputParameterType.TA_OptInput_RealList)
+        {
+            RealListHolder list = getOptInputRealList(paramIndex);
+            double arr$[] = list.value;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                double entry = arr$[i$];
+                if(value == entry)
+                {
+                    if(callOptInputParams == null)
+                        callOptInputParams = new Object[getFuncInfo().nbOptInput];
+                    callOptInputParams[paramIndex] = Double.valueOf(value);
+                    return;
+                }
+            }
+
+        } else
+        if(param.type == OptInputParameterType.TA_OptInput_RealRange)
+        {
+            RealRangeHolder range = getOptInputRealRange(paramIndex);
+            if(value >= range.min && value <= range.max)
+            {
+                if(callOptInputParams == null)
+                    callOptInputParams = new Object[getFuncInfo().nbOptInput];
+                callOptInputParams[paramIndex] = Double.valueOf(value);
+                return;
+            }
+        }
+        throw new InternalError("Unknown parameter type");
+    }
+
+    public void setOptInputParamReal(int paramIndex, String string)
+        throws IllegalArgumentException
+    {
+        try
+        {
+            Double v = new Double(string);
+            setOptInputParamReal(paramIndex, v.doubleValue());
+        }
+        catch(NumberFormatException e)
+        {
+            OptInputParameterInfoHolder param = getOptInputParameterInfo(paramIndex);
+            if(param == null)
+                throw new InternalError("Parameter with specified index was not found");
+            if(param.type == OptInputParameterType.TA_OptInput_RealList)
+            {
+                RealListHolder list = getOptInputRealList(paramIndex);
+                for(int i = 0; i < list.string.length; i++)
+                    if(string.toUpperCase().equals(list.string[i]))
+                    {
+                        if(callOptInputParams == null)
+                            callOptInputParams = new Object[getFuncInfo().nbOptInput];
+                        double value = list.value[i];
+                        callOptInputParams[paramIndex] = Double.valueOf(value);
+                        return;
+                    }
+
+                throw new InternalError("Unexpected parameter value");
+            } else
+            {
+                throw new InternalError("Unexpected parameter type");
+            }
+        }
+    }
+
+    public void setInputParamReal(int paramIndex, Object array)
+        throws IllegalArgumentException, NullPointerException
+    {
+        if(array == null)
+            throw new NullPointerException("Array is null");
+        InputParameterInfoHolder param = getInputParameterInfo(paramIndex);
+        if(param == null)
+            throw new InternalError("Parameter with specified index was not found");
+        if(param.type != InputParameterType.TA_Input_Real)
+            throw new InternalError("Unexpected parameter type");
+        if(!(array instanceof double[]))
+            throw new IllegalArgumentException("double[] expected");
+        if(callInputParams == null)
+            callInputParams = new Object[getFuncInfo().nbInput];
+        callInputParams[paramIndex] = array;
+    }
+
+    public void setInputParamInteger(int paramIndex, Object array)
+        throws IllegalArgumentException, NullPointerException
+    {
+        if(array == null)
+            throw new NullPointerException("Array is null");
+        InputParameterInfoHolder param = getInputParameterInfo(paramIndex);
+        if(param == null)
+            throw new InternalError("Parameter with specified index was not found");
+        if(param.type != InputParameterType.TA_Input_Integer)
+            throw new InternalError("Unexpected parameter type");
+        if(!(array instanceof int[]))
+            throw new IllegalArgumentException("int[] expected");
+        if(callInputParams == null)
+            callInputParams = new Object[getFuncInfo().nbInput];
+        callInputParams[paramIndex] = array;
+    }
+
+    public void setInputParamPrice(int paramIndex, double open[], double high[], double low[], double close[], double volume[], double openInterest[])
+        throws IllegalArgumentException, NullPointerException
+    {
+        InputParameterInfoHolder param = getInputParameterInfo(paramIndex);
+        if(param == null)
+            throw new InternalError("Parameter with specified index was not found");
+        if(param.type != InputParameterType.TA_Input_Price)
+            throw new InternalError("Unexpected parameter type");
+        if(callInputParams == null)
+            callInputParams = new Object[getFuncInfo().nbInput];
+        callInputParams[paramIndex] = new PriceInputParameter(param.flags, open, high, low, close, volume, openInterest);
+    }
+
+    public void setOutputParamReal(int paramIndex, Object array)
+        throws IllegalArgumentException, NullPointerException, ClassCastException
+    {
+        if(array == null)
+            throw new NullPointerException("Array is null");
+        OutputParameterInfoHolder param = getOutputParameterInfo(paramIndex);
+        if(param == null)
+            throw new InternalError("Parameter with specified index was not found");
+        if(param.type != OutputParameterType.TA_Output_Real)
+            throw new InternalError("Unexpected parameter type");
+        if(!(array instanceof double[]))
+            throw new IllegalArgumentException("double[] expected");
+        if(callOutputParams == null)
+            callOutputParams = new Object[getFuncInfo().nbOutput];
+        callOutputParams[paramIndex] = array;
+    }
+
+    public void setOutputParamInteger(int paramIndex, Object array)
+        throws IllegalArgumentException, NullPointerException, ClassCastException
+    {
+        if(array == null)
+            throw new NullPointerException("Array is null");
+        OutputParameterInfoHolder param = getOutputParameterInfo(paramIndex);
+        if(param == null)
+            throw new InternalError("Parameter with specified index was not found");
+        if(param.type != OutputParameterType.TA_Output_Integer)
+            throw new InternalError("Unexpected parameter type");
+        if(!(array instanceof int[]))
+            throw new IllegalArgumentException("int[] expected");
+        if(callOutputParams == null)
+            callOutputParams = new Object[getFuncInfo().nbOutput];
+        callOutputParams[paramIndex] = array;
+    }
+
+    public static void forEachFunc(TaFuncService service)
+        throws Exception
+    {
+        TaLibMetaData mi;
+        for(Iterator i$ = getAllFuncs().values().iterator(); i$.hasNext(); service.execute(mi))
+            mi = (TaLibMetaData)i$.next();
+
+    }
+
+    public static void forEachGrp(TaGrpService service)
+        throws Exception
+    {
+        String group;
+        for(Iterator i$ = getAllGrps().keySet().iterator(); i$.hasNext(); service.execute(group, (Set)taGrpMap.get(group)))
+            group = (String)i$.next();
+
+    }
+
+    private Object[] getOptInputParameters()
+    {
+        int size = getFuncInfo().nbOptInput;
+        if(callOptInputParams == null)
+            callOptInputParams = new Object[size];
+        for(int i = 0; i < size; i++)
+        {
+            if(callOptInputParams[i] != null)
+                continue;
+            OptInputParameterInfoHolder param = getOptInputParameterInfo(i);
+            if(param == null)
+                throw new InternalError("Parameter with specified index was not found");
+            if(param.type == OptInputParameterType.TA_OptInput_IntegerList)
+            {
+                IntegerListHolder list = getOptInputIntegerList(i);
+                callOptInputParams[i] = Integer.valueOf(list.defaultValue);
+                continue;
+            }
+            if(param.type == OptInputParameterType.TA_OptInput_IntegerRange)
+            {
+                IntegerRangeHolder range = getOptInputIntegerRange(i);
+                callOptInputParams[i] = Integer.valueOf(range.defaultValue);
+                continue;
+            }
+            if(param.type == OptInputParameterType.TA_OptInput_RealList)
+            {
+                RealListHolder list = getOptInputRealList(i);
+                callOptInputParams[i] = Double.valueOf(list.defaultValue);
+                continue;
+            }
+            if(param.type == OptInputParameterType.TA_OptInput_RealRange)
+            {
+                RealRangeHolder range = getOptInputRealRange(i);
+                callOptInputParams[i] = Double.valueOf(range.defaultValue);
+            } else
+            {
+                throw new InternalError("Unknown parameter type");
+            }
+        }
+
+        return callOptInputParams;
+    }
+
+    public int getLookback()
+        throws IllegalArgumentException, IllegalAccessException, InvocationTargetException
+    {
+        Object params[] = getOptInputParameters();
+        return ((Integer)lookback.invoke(taCore, params)).intValue();
+    }
+
+    public void callFunc(int startIndex, int endIndex, MInteger outBegIdx, MInteger outNbElement)
+        throws IllegalArgumentException, IllegalAccessException, InvocationTargetException
+    {
+        int count = 0;
+        Object arr$[] = callInputParams;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Object item = arr$[i$];
+            if(com/tictactec/ta/lib/meta/PriceInputParameter == item.getClass())
+                count += ((PriceInputParameter)item).getCount();
+            else
+                count++;
+        }
+
+        count += callOutputParams.length;
+        count += callOptInputParams.length;
+        Object params[] = new Object[count + 4];
+        count = 0;
+        params[count++] = Integer.valueOf(startIndex);
+        params[count++] = Integer.valueOf(endIndex);
+        Object arr$[] = callInputParams;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Object item = arr$[i$];
+            if(com/tictactec/ta/lib/meta/PriceInputParameter == item.getClass())
+            {
+                Object objs[] = ((PriceInputParameter)item).toArrays();
+                for(int i = 0; i < objs.length; i++)
+                    params[count++] = objs[i];
+
+            } else
+            {
+                params[count++] = item;
+            }
+        }
+
+        arr$ = callOptInputParams;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Object item = arr$[i$];
+            params[count++] = item;
+        }
+
+        params[count++] = outBegIdx;
+        params[count++] = outNbElement;
+        arr$ = callOutputParams;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Object item = arr$[i$];
+            params[count++] = item;
+        }
+
+        java.lang.reflect.Type types[] = function.getGenericParameterTypes();
+        if(types.length != params.length)
+        {
+            throw new IllegalArgumentException("Illegal number of arguments");
+        } else
+        {
+            function.invoke(taCore, params);
+            return;
+        }
+    }
+
+    protected volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    public volatile int compareTo(Object x0)
+    {
+        return compareTo((TaLibMetaData)x0);
+    }
+
+    private static final transient String PARAM_NOT_FOUND = "Parameter with specified index was not found";
+    private static final transient String UNKNOWN_PARAM_TYPE = "Unknown parameter type";
+    private static final transient String UNEXPECTED_PARAM_TYPE = "Unexpected parameter type";
+    private static final transient String UNEXPECTED_PARAM_VALUE = "Unexpected parameter value";
+    private static final transient String INDEX_OUT_OF_BOUNDS = "Index out of bounds";
+    private static final transient String ILLEGAL_NUMBER_OF_ARGUMENTS = "Illegal number of arguments";
+    private static final transient String ARRAY_IS_NULL = "Array is null";
+    private static final transient String INT_ARRAY_EXPECTED = "int[] expected";
+    private static final transient String DOUBLE_ARRAY_EXPECTED = "double[] expected";
+    private static final transient String PRICE_EXPECTED = "PriceInputParameter object expected";
+    private static final transient Class coreClass = com/tictactec/ta/lib/CoreAnnotated;
+    private static final transient String LOOKBACK_SUFFIX = "Lookback";
+    private static transient CoreAnnotated taCore = null;
+    private String name;
+    private Method function;
+    private Method lookback;
+    private static transient Map taFuncMap = null;
+    private static transient Map taGrpMap = null;
+    private transient Object callInputParams[];
+    private transient Object callOutputParams[];
+    private transient Object callOptInputParams[];
+    private transient FuncInfoHolder funcInfo;
+    private transient Holder parameterAnnotations[][];
+
+}

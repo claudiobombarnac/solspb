@@ -1,0 +1,49 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   RightButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.MainCalculatorPanel;
+import com.dukascopy.calculator.function.PObject;
+import com.dukascopy.calculator.function.Right;
+import com.dukascopy.calculator.utils.ImageHelper;
+import java.awt.event.ActionEvent;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            CalculatorButton
+
+public class RightButton extends CalculatorButton
+{
+
+    public RightButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new Right());
+        setToolTipKey(getPobject().tooltip());
+        int size = mainCalculatorPanel.minSize();
+        if(size < 3)
+            size = 3;
+        if(size > 9)
+            size = 9;
+        setIcon(ImageHelper.getImageIcon("rightarrow.png", size));
+        addActionListener(this);
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+        if(getMainCalculatorPanel().getMode() != 0)
+        {
+            return;
+        } else
+        {
+            getMainCalculatorPanel().right();
+            getMainCalculatorPanel().updateDisplay(true, true);
+            getMainCalculatorPanel().requestFocusInWindow();
+            return;
+        }
+    }
+
+    private static final long serialVersionUID = 1L;
+}

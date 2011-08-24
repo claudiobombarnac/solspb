@@ -1,0 +1,103 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyPointAndFigureNotificationManager.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification.pnf;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.feed.IPointAndFigure;
+import com.dukascopy.api.feed.IPointAndFigureFeedListener;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.impl.connect.StrategyProcessor;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureLiveFeedAdapter;
+import com.dukascopy.dds2.greed.agent.strategy.notification.AbstractLiveBarFeedListenerWrapper;
+import com.dukascopy.dds2.greed.agent.strategy.notification.AbstractStrategyRateDataNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.tester.IStrategyRunner;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.IDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.PointAndFigureDataLoadingThread;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import java.util.concurrent.ArrayBlockingQueue;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.notification.pnf:
+//            LivePointAndFigureFeedListenerWrapper, IStrategyPointAndFigureNotificationManager
+
+public class StrategyPointAndFigureNotificationManager extends AbstractStrategyRateDataNotificationManager
+    implements IStrategyPointAndFigureNotificationManager
+{
+
+    public StrategyPointAndFigureNotificationManager(FeedDataProvider feedDataProvider)
+    {
+        super(feedDataProvider);
+    }
+
+    protected void addLiveInProgressBarListener(Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, LivePointAndFigureFeedListenerWrapper listenerWrapper)
+    {
+        getFeedDataProvider().addPointAndFigureNotificationListener(instrument, offerSide, jForexPeriod.getPriceRange(), jForexPeriod.getReversalAmount(), listenerWrapper);
+    }
+
+    protected IDataLoadingThread createDataLoadingThread(IStrategyRunner strategyRunner, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, ArrayBlockingQueue queue)
+    {
+        String name = (new StringBuilder()).append("Strategy tester data loading thread - ").append(jForexPeriod.toString()).toString();
+        return new PointAndFigureDataLoadingThread(name, instrument, jForexPeriod, offerSide, queue, strategyRunner.getFrom(), strategyRunner.getTo(), strategyRunner.getFeedDataProvider());
+    }
+
+    protected LivePointAndFigureFeedListenerWrapper createListenerWrapper(Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IPointAndFigureFeedListener barFeedListener, IStrategyExceptionHandler exceptionHandler, JForexTaskManager taskManager, StrategyProcessor strategyProcessor, 
+            INotificationUtils notificationUtils)
+    {
+        return new LivePointAndFigureFeedListenerWrapper(barFeedListener, new PointAndFigureLiveFeedAdapter() {
+
+            final StrategyPointAndFigureNotificationManager this$0;
+
+            
+            {
+                this$0 = StrategyPointAndFigureNotificationManager.this;
+                super();
+            }
+        }, instrument, jForexPeriod, offerSide, exceptionHandler, taskManager, strategyProcessor, notificationUtils);
+    }
+
+    protected void onBar(LivePointAndFigureFeedListenerWrapper listenerWrapper, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IPointAndFigure bar)
+    {
+        ((IPointAndFigureFeedListener)listenerWrapper.getLiveBarFormedListener()).onBar(instrument, offerSide, jForexPeriod.getPriceRange(), jForexPeriod.getReversalAmount(), bar);
+    }
+
+    protected void removeLiveInProgressBarListener(LivePointAndFigureFeedListenerWrapper listenerWrapper)
+    {
+        getFeedDataProvider().removePointAndFigureNotificationListener(listenerWrapper);
+    }
+
+    protected String validateJForexPeriodFields(JForexPeriod jForexPeriod)
+    {
+        if(!DataType.POINT_AND_FIGURE.equals(jForexPeriod.getDataType()))
+            return (new StringBuilder()).append("DataType has to be ").append(DataType.POINT_AND_FIGURE).toString();
+        if(jForexPeriod.getPeriod() == null || jForexPeriod.getPriceRange() == null || jForexPeriod.getReversalAmount() == null)
+            return "Period, Price Range and Reversal Amount could not be null!";
+        else
+            return null;
+    }
+
+    protected volatile void onBar(AbstractLiveBarFeedListenerWrapper x0, Instrument x1, JForexPeriod x2, OfferSide x3, IBar x4)
+    {
+        onBar((LivePointAndFigureFeedListenerWrapper)x0, x1, x2, x3, (IPointAndFigure)x4);
+    }
+
+    protected volatile void removeLiveInProgressBarListener(AbstractLiveBarFeedListenerWrapper x0)
+    {
+        removeLiveInProgressBarListener((LivePointAndFigureFeedListenerWrapper)x0);
+    }
+
+    protected volatile void addLiveInProgressBarListener(Instrument x0, JForexPeriod x1, OfferSide x2, AbstractLiveBarFeedListenerWrapper x3)
+    {
+        addLiveInProgressBarListener(x0, x1, x2, (LivePointAndFigureFeedListenerWrapper)x3);
+    }
+
+    protected volatile AbstractLiveBarFeedListenerWrapper createListenerWrapper(Instrument x0, JForexPeriod x1, OfferSide x2, Object x3, IStrategyExceptionHandler x4, JForexTaskManager x5, StrategyProcessor x6, 
+            INotificationUtils x7)
+    {
+        return createListenerWrapper(x0, x1, x2, (IPointAndFigureFeedListener)x3, x4, x5, x6, x7);
+    }
+}
