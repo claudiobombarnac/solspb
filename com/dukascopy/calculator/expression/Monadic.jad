@@ -1,0 +1,66 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Monadic.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.*;
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.function.SFunction;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            Expression, Product
+
+public abstract class Monadic extends Expression
+{
+
+    public Monadic(SFunction function, Expression expression)
+    {
+        this.function = function;
+        this.expression = expression;
+    }
+
+    public Product negate()
+    {
+        Product p = new Product(this, false);
+        return p.negate();
+    }
+
+    public StringArray toHTMLSubString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray s = new StringArray();
+        s.add(function.name_array());
+        s.addAll(expression.toHTMLParenString(maxChars, precision, base, notation, polarFactor));
+        return s;
+    }
+
+    public OObject auto_simplify()
+    {
+        OObject o = expression.auto_simplify();
+        if(o instanceof Complex)
+            return function.function((Complex)o);
+        if(o instanceof Expression)
+            return this;
+        else
+            return new Error("Function.auto_simplify() error");
+    }
+
+    public OObject substitute(Substitution substitution)
+    {
+        return function.function(expression.substitute(substitution));
+    }
+
+    public volatile Expression negate()
+    {
+        return negate();
+    }
+
+    public volatile OObject negate()
+    {
+        return negate();
+    }
+
+    protected final SFunction function;
+    protected Expression expression;
+}

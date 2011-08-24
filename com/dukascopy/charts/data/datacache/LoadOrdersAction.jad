@@ -1,0 +1,170 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadOrdersAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.charts.data.orders.IOrdersProvider;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, DataCacheException, OrderHistoricalData, FeedDataProvider, 
+//            OrdersListener, LoadingProgressListener, CurvesDataLoader, LocalCacheManager
+
+public class LoadOrdersAction extends LoadProgressingAction
+    implements Runnable
+{
+
+    public LoadOrdersAction(FeedDataProvider feedDataProvider, String accountId, Instrument instrument, long from, long to, 
+            OrdersListener ordersListener, LoadingProgressListener loadingProgress, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, StackTraceElement stackTrace[])
+        throws DataCacheException
+    {
+        super(loadingProgress);
+        this.accountId = accountId;
+        this.instrument = instrument;
+        this.from = from;
+        this.to = to;
+        listener = ordersListener;
+        this.stackTrace = stackTrace;
+        this.feedDataProvider = feedDataProvider;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        if(instrument == null || from > to || loadingProgress == null || ordersListener == null)
+            throw new DataCacheException((new StringBuilder()).append("Wrong parameters: instrument=").append(instrument).append(" / ").append(from).append(", ").append(to).append(" / ").append(loadingProgress).append(" / ").append(ordersListener).toString());
+        else
+            return;
+    }
+
+    public boolean isLocalOrdersOnly()
+    {
+        return localOrdersOnly;
+    }
+
+    public void setLocalOrdersOnly(boolean localOrdersOnly)
+    {
+        this.localOrdersOnly = localOrdersOnly;
+    }
+
+    public void run()
+    {
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, from, to, to, null);
+            return;
+        }
+        loadingProgress.dataLoaded(from, to, from, "Downloading data...");
+        long correctedFrom;
+        long correctedTo;
+        CurvesDataLoader curvesDataLoader = feedDataProvider.getCurvesDataLoader();
+        if(LOGGER.isDebugEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS ZZZ");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Loading orders, from [").append(dateFormat.format(Long.valueOf(from))).append("], to [").append(dateFormat.format(Long.valueOf(to))).append("]").toString());
+        }
+        long currentTime = feedDataProvider.getCurrentTime();
+        correctedFrom = from;
+        correctedTo = to;
+        if(correctedFrom < 0xdc6acfac00L)
+            correctedFrom = 0xdc6acfac00L;
+        if(currentTime == 0x8000000000000000L)
+            throw new DataCacheException("Orders history can't be accessed before first tick arrives into the system");
+        if(correctedTo > currentTime + 500L)
+            correctedTo = currentTime + 500L;
+        if(localOrdersOnly)
+            break MISSING_BLOCK_LABEL_365;
+        if(accountId == null)
+            throw new DataCacheException("Not connected, accountId unknown");
+        curvesDataLoader.loadOrders(accountId, instrument, correctedFrom, correctedTo, intraperiodExistsPolicy, loadingProgress);
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, from, to, to, null);
+            return;
+        }
+        Collection orderDataList;
+        orderDataList = feedDataProvider.getLocalCacheManager().readOrdersData(accountId, instrument, correctedFrom, correctedTo);
+        orderDataList.addAll(feedDataProvider.getOrdersProvider().getOpenOrdersForInstrument(instrument, correctedFrom, correctedTo));
+        break MISSING_BLOCK_LABEL_386;
+        orderDataList = feedDataProvider.getOrdersProvider().getOpenOrdersForInstrument(instrument, correctedFrom, correctedTo);
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, from, to, to, null);
+            return;
+        }
+        Iterator i$;
+        if(listener == null)
+            break MISSING_BLOCK_LABEL_537;
+        List sortedOrderData = new ArrayList(orderDataList);
+        Collections.sort(sortedOrderData, new Comparator() {
+
+            public int compare(OrderHistoricalData o1, OrderHistoricalData o2)
+            {
+                if(o1.getHistoryStart() > o2.getHistoryStart())
+                    return 1;
+                return o1.getHistoryStart() >= o2.getHistoryStart() ? 0 : -1;
+            }
+
+            public volatile int compare(Object x0, Object x1)
+            {
+                return compare((OrderHistoricalData)x0, (OrderHistoricalData)x1);
+            }
+
+            final LoadOrdersAction this$0;
+
+            
+            {
+                this$0 = LoadOrdersAction.this;
+                super();
+            }
+        });
+        i$ = sortedOrderData.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break MISSING_BLOCK_LABEL_537;
+            OrderHistoricalData orderData = (OrderHistoricalData)i$.next();
+            listener.newOrder(instrument, orderData);
+        } while(!loadingProgress.stopJob());
+        loadingProgress.loadingFinished(false, from, to, to, null);
+        return;
+        try
+        {
+            loadingProgress.dataLoaded(from, to, to, "Data loaded!");
+            loadingProgress.loadingFinished(true, from, to, to, null);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            loadingProgress.loadingFinished(false, from, to, from, e);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            loadingProgress.loadingFinished(false, from, to, from, null);
+        }
+        return;
+    }
+
+    private static SimpleDateFormat formatter;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/LoadOrdersAction);
+    private final String accountId;
+    private final Instrument instrument;
+    private final long from;
+    private final long to;
+    private final OrdersListener listener;
+    private final StackTraceElement stackTrace[];
+    private final FeedDataProvider feedDataProvider;
+    private boolean localOrdersOnly;
+    private final CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+
+    static 
+    {
+        formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+        formatter.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+    }
+}

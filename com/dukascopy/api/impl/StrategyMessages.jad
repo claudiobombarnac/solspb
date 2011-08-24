@@ -1,0 +1,295 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyMessages.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.Configurable;
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.dds2.greed.agent.strategy.StrategyRunParameter;
+import com.dukascopy.dds2.greed.agent.strategy.params.Variable;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import java.lang.reflect.Field;
+import java.text.*;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl:
+//            StrategyWrapper
+
+public final class StrategyMessages
+{
+
+    private StrategyMessages()
+    {
+    }
+
+    public static void startingStrategy(boolean isRemoteRun, StrategyWrapper wrapper)
+    {
+        printStartingStrategy(getStrategyName(wrapper), isRemoteRun);
+    }
+
+    public static void startingStrategy(IStrategy strategy)
+    {
+        printStartingStrategy(getStrategyName(strategy), false);
+    }
+
+    private static void printStartingStrategy(String strategyName, boolean isRemoteRun)
+    {
+        StringBuilder str = new StringBuilder();
+        str.append("Starting \"").append(strategyName).append("\" strategy at ").append(DATE_FORMATTER.format(new Date()));
+        if(isRemoteRun)
+            str.append(" on the remote server");
+        else
+            str.append(" on the local computer");
+        NotificationUtilsProvider.getNotificationUtils().postInfoMessage(str.toString(), false);
+    }
+
+    public static void strategyIsStarted(boolean isRemoteRun, String strategyName, List params)
+    {
+        printStrategyIsStarted(strategyName, getParameters(params), isRemoteRun, null);
+    }
+
+    public static void strategyIsStarted(String strategyName, List params, boolean isRemoteRun, Date date)
+    {
+        printStrategyIsStarted(strategyName, getParameters(params), isRemoteRun, date);
+    }
+
+    public static void strategyIsStarted(IStrategy strategy)
+    {
+        printStrategyIsStarted(getStrategyName(strategy), getParameters(strategy), false, null);
+    }
+
+    private static void printStrategyIsStarted(String strategyName, String parameters, boolean isRemoteRun, Date date)
+    {
+        if(date == null)
+            date = new Date();
+        StringBuilder message = new StringBuilder();
+        message.append("Strategy \"").append(strategyName).append("\" is started at ").append(DATE_FORMATTER.format(date));
+        if(isRemoteRun)
+            message.append(" on the remote server");
+        else
+            message.append(" on the local computer");
+        if(parameters.length() > 0)
+            message.append(" with parameters ").append(parameters);
+        else
+            message.append(" with no parameters");
+        NotificationUtilsProvider.getNotificationUtils().postInfoMessage(message.toString(), false);
+    }
+
+    public static void strategyIsModified(boolean isRemoteRun, StrategyWrapper wrapper, List params)
+    {
+        printStrategyIsModified(getStrategyName(wrapper), getParameters(params), isRemoteRun);
+    }
+
+    public static void strategyIsModified(boolean isRemoteRun, String strategyName, IStrategy strategy)
+    {
+        printStrategyIsModified(strategyName, getParameters(strategy), isRemoteRun);
+    }
+
+    public static void strategyIsModified(IStrategy strategy)
+    {
+        printStrategyIsModified(getStrategyName(strategy), getParameters(strategy), false);
+    }
+
+    private static void printStrategyIsModified(String strategyName, String parameters, boolean isRemoteRun)
+    {
+        StringBuilder message = new StringBuilder();
+        message.append("Strategy \"").append(strategyName).append("\" is modified at ").append(DATE_FORMATTER.format(new Date()));
+        if(isRemoteRun)
+            message.append(" on the remote server");
+        else
+            message.append(" on the local computer");
+        if(parameters.length() > 0)
+            message.append(" with parameters ").append(parameters);
+        else
+            message.append(" with no parameters");
+        NotificationUtilsProvider.getNotificationUtils().postInfoMessage(message.toString(), false);
+    }
+
+    public static void stoppingStrategy(boolean isRemoteRun, StrategyWrapper wrapper)
+    {
+        printStoppingStrategy(getStrategyName(wrapper), isRemoteRun);
+    }
+
+    public static void stoppingStrategy(boolean isRemoteRun, String strategyName)
+    {
+        printStoppingStrategy(strategyName, isRemoteRun);
+    }
+
+    public static void stoppingStrategy(IStrategy strategy)
+    {
+        printStoppingStrategy(getStrategyName(strategy), false);
+    }
+
+    private static void printStoppingStrategy(String strategyName, boolean isRemoteRun)
+    {
+        StringBuilder message = new StringBuilder();
+        message.append("Stopping \"").append(strategyName).append("\" strategy at ").append(DATE_FORMATTER.format(new Date()));
+        if(isRemoteRun)
+            message.append(" on the remote server");
+        else
+            message.append(" on the local computer");
+        NotificationUtilsProvider.getNotificationUtils().postInfoMessage(message.toString(), false);
+    }
+
+    public static void strategyIsStopped(boolean isRemoteRun, String strategyName, List params)
+    {
+        printStrategyIsStopped(strategyName, getParameters(params), isRemoteRun, null);
+    }
+
+    public static void strategyIsStopped(String strategyName, List params, boolean isRemoteRun, Date date)
+    {
+        printStrategyIsStopped(strategyName, getParameters(params), isRemoteRun, date);
+    }
+
+    public static void strategyIsStopped(IStrategy strategy)
+    {
+        printStrategyIsStopped(getStrategyName(strategy), getParameters(strategy), false, null);
+    }
+
+    private static void printStrategyIsStopped(String strategyName, String parameters, boolean isRemoteRun, Date date)
+    {
+        if(date == null)
+            date = new Date();
+        StringBuilder message = new StringBuilder();
+        message.append("Strategy \"").append(strategyName).append("\" is stopped at ").append(DATE_FORMATTER.format(new Date()));
+        if(isRemoteRun)
+            message.append(" on the remote server");
+        else
+            message.append(" on the local computer");
+        if(parameters.length() > 0)
+            message.append(" with parameters ").append(parameters);
+        else
+            message.append(" with no parameters");
+        NotificationUtilsProvider.getNotificationUtils().postInfoMessage(message.toString(), false);
+    }
+
+    private static String getParameters(List parameters)
+    {
+        StringBuilder result = new StringBuilder();
+        if(parameters != null)
+        {
+            String name;
+            Variable var;
+            boolean dateAsLong;
+            for(Iterator i$ = parameters.iterator(); i$.hasNext(); appendNameValue(result, name, var.getType(), var.getValue(), dateAsLong))
+            {
+                StrategyRunParameter strategyRunParameter = (StrategyRunParameter)i$.next();
+                name = strategyRunParameter.getTitle();
+                var = strategyRunParameter.getVariable();
+                dateAsLong = strategyRunParameter.isDateAsLong();
+            }
+
+        }
+        if(result.toString().endsWith(", "))
+            result.setLength(result.length() - ", ".length());
+        return result.toString();
+    }
+
+    private static String getParameters(IStrategy strategy)
+    {
+        StringBuilder result = new StringBuilder();
+        Field fields[] = strategy.getClass().getFields();
+        Field arr$[] = fields;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Field field = arr$[i$];
+            Configurable configurable = (Configurable)field.getAnnotation(com/dukascopy/api/Configurable);
+            if(configurable == null)
+                continue;
+            String uiName = configurable.value();
+            Class type = field.getType();
+            Object value;
+            try
+            {
+                value = field.get(strategy);
+            }
+            catch(Exception ex)
+            {
+                String message = MessageFormat.format("Error getting value from field {0}.", new Object[] {
+                    uiName
+                });
+                LOGGER.debug(message, ex);
+                value = null;
+            }
+            appendNameValue(result, uiName, type, value, configurable.datetimeAsLong());
+        }
+
+        if(result.toString().endsWith(", "))
+            result.setLength(result.length() - ", ".length());
+        return result.toString();
+    }
+
+    private static void appendNameValue(StringBuilder builder, String uiName, Class type, Object value, boolean dateAsLong)
+    {
+        String valueAsString;
+        try
+        {
+            valueAsString = valueAsString(type, value, dateAsLong);
+        }
+        catch(RuntimeException ex)
+        {
+            String message = MessageFormat.format("Error getting value from field {0}.", new Object[] {
+                uiName
+            });
+            LOGGER.debug(message, ex);
+            valueAsString = "?";
+        }
+        builder.append("\"").append(uiName).append("\"=[").append(valueAsString).append("]");
+        builder.append(", ");
+    }
+
+    private static String valueAsString(Class fieldType, Object value, boolean datetimeAsLong)
+        throws RuntimeException
+    {
+        if(value == null)
+            return "null";
+        if((Long.TYPE.equals(fieldType) || java/lang/Long.equals(fieldType)) && datetimeAsLong)
+            return DATE_FORMATTER.format(new Date(((Long)value).longValue()));
+        if(java/util/Calendar.isAssignableFrom(fieldType))
+            return DATE_FORMATTER.format(((Calendar)value).getTime());
+        if(java/util/Date.isAssignableFrom(fieldType))
+            return DATE_FORMATTER.format((Date)value);
+        if(Double.TYPE.equals(fieldType) || java/lang/Double.equals(fieldType))
+            return DECIMAL_FORMATTER.format(value);
+        else
+            return value.toString();
+    }
+
+    private static String getStrategyName(IStrategy strategy)
+    {
+        return strategy.getClass().getSimpleName();
+    }
+
+    private static String getStrategyName(StrategyWrapper wrapper)
+    {
+        String name = wrapper.getName();
+        int index = name.lastIndexOf(".");
+        if(index > 0)
+            return name.substring(0, index);
+        else
+            return name;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/JForexTaskManager);
+    private static final String PARAMS_SEPARATOR = ", ";
+    private static final String UNKNOWN_VALUE = "?";
+    private static final String WITH_PARAMETERS = " with parameters ";
+    private static final String WITH_NO_PARAMETERS = " with no parameters";
+    private static final String ON_THE_LOCAL_COMPUTER = " on the local computer";
+    private static final String ON_THE_REMOTE_SERVER = " on the remote server";
+    private static final SimpleDateFormat DATE_FORMATTER;
+    private static final DecimalFormat DECIMAL_FORMATTER = new DecimalFormat("0.0####");
+
+    static 
+    {
+        DATE_FORMATTER = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS 'GMT'");
+        DATE_FORMATTER.setTimeZone(TimeZone.getTimeZone("GMT"));
+    }
+}

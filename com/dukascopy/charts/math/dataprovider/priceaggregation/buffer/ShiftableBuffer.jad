@@ -1,0 +1,246 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ShiftableBuffer.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation.buffer;
+
+import com.dukascopy.charts.data.datacache.priceaggregation.TimeDataUtils;
+import java.util.Arrays;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider.priceaggregation.buffer:
+//            IShiftableBuffer
+
+public class ShiftableBuffer
+    implements IShiftableBuffer
+{
+
+    public ShiftableBuffer(int maxSize)
+    {
+        if(maxSize < 0)
+        {
+            throw new IllegalArgumentException("Negative buffer size");
+        } else
+        {
+            this.maxSize = maxSize;
+            buffer = createArray(maxSize);
+            return;
+        }
+    }
+
+    protected Object[] createArray(int size)
+    {
+        return new Object[size];
+    }
+
+    protected Object[] createArray(Object data)
+    {
+        return (new Object[] {
+            data
+        });
+    }
+
+    public void clear()
+    {
+        synchronized(this)
+        {
+            lastIndex = -1;
+        }
+    }
+
+    public int getMaxSize()
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        return maxSize;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public int getSize()
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        return getLastIndex() + 1;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public int getLastIndex()
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        return lastIndex;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public boolean isEmpty()
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        return getSize() <= 0;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public boolean isFull()
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        return getSize() >= getMaxSize();
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public void addToEnd(Object data)
+    {
+        synchronized(this)
+        {
+            if(data == null)
+                throw new NullPointerException();
+            if(!isFull())
+            {
+                lastIndex++;
+                buffer[getLastIndex()] = data;
+            } else
+            {
+                TimeDataUtils.shiftBufferLeft(buffer, createArray(data));
+            }
+        }
+    }
+
+    public void addToHead(Object data)
+    {
+        synchronized(this)
+        {
+            if(data == null)
+                throw new NullPointerException();
+            if(!isFull())
+                lastIndex++;
+            TimeDataUtils.shiftBufferRight(buffer, createArray(data));
+        }
+    }
+
+    public void addToEnd(Object data[])
+    {
+        synchronized(this)
+        {
+            if(data == null)
+                throw new NullPointerException();
+            int index;
+            for(index = 0; !isFull(); index++)
+                addToEnd(data[index]);
+
+            if(index + 1 < data.length)
+            {
+                Object tale[] = Arrays.copyOfRange(data, index, data.length - 1);
+                TimeDataUtils.shiftBufferLeft(buffer, tale);
+            }
+        }
+    }
+
+    public void addToHead(Object data[])
+    {
+        synchronized(this)
+        {
+            if(data == null)
+                throw new NullPointerException();
+            int newSize = Math.max(getMaxSize(), data.length + getSize());
+            TimeDataUtils.shiftBufferRight(buffer, data);
+            lastIndex += newSize;
+        }
+    }
+
+    public Object[] getAll(Object array[])
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        if(array == null)
+            throw new NullPointerException();
+        System.arraycopy(((Object) (buffer)), 0, ((Object) (array)), 0, getSize());
+        return array;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public Object getFirst()
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        if(isEmpty())
+            return null;
+        buffer[0];
+        shiftablebuffer;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public Object getLast()
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        if(isEmpty())
+            return null;
+        buffer[getLastIndex()];
+        shiftablebuffer;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public void set(Object bar, int index)
+    {
+        synchronized(this)
+        {
+            if(bar == null)
+                throw new NullPointerException();
+            if(0 <= index && index <= getLastIndex())
+                buffer[index] = bar;
+            else
+                throw new ArrayIndexOutOfBoundsException(index);
+        }
+    }
+
+    public void setUp(Object newBuffer[])
+    {
+        synchronized(this)
+        {
+            if(newBuffer == null)
+                throw new NullPointerException();
+            if(newBuffer.length > getMaxSize())
+                throw new ArrayIndexOutOfBoundsException();
+            int newLength = Math.min(getMaxSize(), newBuffer.length);
+            System.arraycopy(((Object) (newBuffer)), 0, ((Object) (buffer)), 0, newLength);
+            lastIndex = newLength - 1;
+        }
+    }
+
+    public Object get(int index)
+    {
+        ShiftableBuffer shiftablebuffer = this;
+        JVM INSTR monitorenter ;
+        if(index > -1 && index < getSize())
+            return buffer[index];
+        else
+            throw new ArrayIndexOutOfBoundsException(index);
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    protected final int maxSize;
+    protected final Object buffer[];
+    protected int lastIndex;
+}

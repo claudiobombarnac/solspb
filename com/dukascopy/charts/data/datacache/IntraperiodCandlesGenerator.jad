@@ -1,0 +1,1290 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IntraperiodCandlesGenerator.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.intraperiod.IIntraperiodBarsGenerator;
+import com.dukascopy.charts.data.datacache.intraperiod.IntraperiodBarsGenerator;
+import com.dukascopy.charts.data.datacache.wrapper.PeriodOfferSideCandle;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            TickData, IntraPeriodCandleData, CandleData, DataCacheException, 
+//            CacheDataUpdatedListener, FeedDataProvider, LiveFeedListener, DataCacheUtils, 
+//            LocalCacheManager, LoadingProgressListener
+
+public class IntraperiodCandlesGenerator
+    implements CacheDataUpdatedListener
+{
+
+    public IntraperiodCandlesGenerator(boolean testerFeedDataProvider, FeedDataProvider feedDataProvider)
+    {
+        inProgressWaitNotify = new Object();
+        this.feedDataProvider = feedDataProvider;
+        intraperiodBarsGenerator = new IntraperiodBarsGenerator(feedDataProvider);
+        this.testerFeedDataProvider = testerFeedDataProvider;
+        executorService = new ThreadPoolExecutor(1, 1, 5000L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue());
+        executorService.allowCoreThreadTimeOut(true);
+        flatsGeneratorByTimeout = new Thread(new Runnable() {
+
+            public void run()
+            {
+                List formedCandles = new ArrayList();
+                do
+                {
+                    if(stop)
+                        break;
+                    long currentTimeMillis = System.currentTimeMillis();
+                    int latency = feedDataProvider != null ? feedDataProvider.getLatency() : 0;
+                    long timeNow;
+                    synchronized(this)
+                    {
+                        synchronized(generatedCandlesMap)
+                        {
+                            timeNow = currentTimeMillis;
+                            timeNow -= latency;
+                            timeNow -= 1000L;
+                            formedCandles.clear();
+                            checkCandlesForFlats(timeNow, formedCandles);
+                        }
+                        if(!formedCandles.isEmpty())
+                        {
+                            if(formedCandles.size() > 1)
+                                Collections.sort(formedCandles, new Comparator() {
+
+                                    public int compare(Object o1[], Object o2[])
+                                    {
+                                        long time1 = ((CandleData)o1[2]).time;
+                                        long time2 = ((CandleData)o2[2]).time;
+                                        return time1 >= time2 ? ((int) (time1 != time2 ? 1 : 0)) : -1;
+                                    }
+
+                                    public volatile int compare(Object x0, Object x1)
+                                    {
+                                        return compare((Object[])x0, (Object[])x1);
+                                    }
+
+                                    final _cls1 this$1;
+
+                    
+                    {
+                        this$1 = _cls1.this;
+                        super();
+                    }
+                                });
+                            Object formedCandle[];
+                            for(Iterator i$ = formedCandles.iterator(); i$.hasNext(); fireCandlesFormed((Instrument)formedCandle[0], (Period)formedCandle[1], (IntraPeriodCandleData)formedCandle[2], (IntraPeriodCandleData)formedCandle[3]))
+                            {
+                                formedCandle = (Object[])i$.next();
+                                if(IntraperiodCandlesGenerator.LOGGER.isTraceEnabled())
+                                {
+                                    SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss SSS");
+                                    format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                                    IntraperiodCandlesGenerator.LOGGER.trace((new StringBuilder()).append("Candle for instrument [").append(formedCandle[0]).append("] period [").append(formedCandle[1]).append("] at time [").append(format.format(new Date(((IntraPeriodCandleData)formedCandle[2]).time))).append("] closed by timeout. Last tick time [").append(format.format(new Date(feedDataProvider.getCurrentTime()))).append("], current calculated time [").append(format.format(new Date(timeNow))).append("]").toString());
+                                }
+                            }
+
+                        }
+                    }
+                    if(timeNow != 0x8000000000000000L)
+                    {
+                        Period basePeriod = Period.ONE_SEC;
+                        long current10SecCandleStart = DataCacheUtils.getCandleStartFast(basePeriod, timeNow);
+                        current10SecCandleStart += latency;
+                        current10SecCandleStart += basePeriod.getInterval() + 1000L;
+                        try
+                        {
+                            long sleepTime = current10SecCandleStart - currentTimeMillis;
+                            if(sleepTime < 0L)
+                                sleepTime = 1L;
+                            Thread.sleep(sleepTime);
+                        }
+                        catch(InterruptedException e) { }
+                        catch(IllegalArgumentException e)
+                        {
+                            IntraperiodCandlesGenerator.LOGGER.error((new StringBuilder()).append("wrong time for sleep method [").append(current10SecCandleStart - timeNow).append("], current10SecCandleStart [").append(current10SecCandleStart).append("], timeNow [").append(timeNow).append("], latency [").append(latency).append("]").toString(), e);
+                        }
+                    } else
+                    {
+                        try
+                        {
+                            Thread.sleep(1000L);
+                        }
+                        catch(InterruptedException e)
+                        {
+                            IntraperiodCandlesGenerator.LOGGER.debug(e.getMessage(), e);
+                        }
+                    }
+                } while(true);
+            }
+
+            final IntraperiodCandlesGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodCandlesGenerator.this;
+                super();
+            }
+        }, "Flats generator by timeout");
+        flatsGeneratorByTimeout.setDaemon(true);
+        if(!testerFeedDataProvider)
+            flatsGeneratorByTimeout.start();
+        if(feedDataProvider != null)
+        {
+            Instrument arr$[] = Instrument.values();
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Instrument instrument = arr$[i$];
+                feedDataProvider.addCacheDataUpdatedListener(instrument, this);
+            }
+
+        }
+    }
+
+    public void processTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        IntraperiodCandlesGenerator intraperiodcandlesgenerator = this;
+        JVM INSTR monitorenter ;
+        List formedCandles = new ArrayList();
+        Map periodMap;
+        intraperiodBarsGenerator.processTick(instrument, new TickData(time, ask, bid, askVol, bidVol));
+        synchronized(generatedCandlesMap)
+        {
+            periodMap = getPeriodGeneratedCandlesMap(instrument);
+        }
+        if(periodMap != null)
+            break MISSING_BLOCK_LABEL_78;
+        return;
+        try
+        {
+            synchronized(periodMap)
+            {
+                formedCandles.clear();
+                addTickToCandles(time, ask, bid, askVol, bidVol, instrument, periodMap, formedCandles, this);
+            }
+            Object formedCandle[];
+            for(Iterator i$ = formedCandles.iterator(); i$.hasNext(); fireCandlesFormed(instrument, (Period)formedCandle[0], (IntraPeriodCandleData)formedCandle[1], (IntraPeriodCandleData)formedCandle[2]))
+                formedCandle = (Object[])i$.next();
+
+            List dataToFire = new ArrayList();
+            synchronized(periodMap)
+            {
+                for(Iterator i$ = periodMap.keySet().iterator(); i$.hasNext();)
+                {
+                    Period period = (Period)i$.next();
+                    Map offerSideMap = getOfferSideGeneratedCandlesMap(instrument, period);
+                    if(offerSideMap != null)
+                    {
+                        Iterator i$ = offerSideMap.keySet().iterator();
+                        while(i$.hasNext()) 
+                        {
+                            OfferSide offerSide = (OfferSide)i$.next();
+                            if(offerSideMap.get(offerSide) != null)
+                            {
+                                PeriodOfferSideCandle data = new PeriodOfferSideCandle(period, offerSide, (CandleData)offerSideMap.get(offerSide));
+                                dataToFire.add(data);
+                            }
+                        }
+                    }
+                }
+
+            }
+            PeriodOfferSideCandle data;
+            for(Iterator i$ = dataToFire.iterator(); i$.hasNext(); fireInProgressCandleUpdated(instrument, data.getPeriod(), data.getOfferSide(), data.getCandleData()))
+                data = (PeriodOfferSideCandle)i$.next();
+
+        }
+        catch(Throwable e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        break MISSING_BLOCK_LABEL_442;
+        Exception exception3;
+        exception3;
+        throw exception3;
+    }
+
+    public synchronized void processCandle(Instrument instrument, Period period, IntraPeriodCandleData askCandle, IntraPeriodCandleData bidCandle)
+    {
+        synchronized(generatedCandlesMap)
+        {
+            processCandle(instrument, period, OfferSide.ASK, askCandle);
+            processCandle(instrument, period, OfferSide.BID, bidCandle);
+        }
+        fireCandlesFormed(instrument, period, askCandle, bidCandle);
+    }
+
+    private void processCandle(Instrument instrument, Period period, OfferSide offerSide, IntraPeriodCandleData candle)
+    {
+        if(candle == null)
+            return;
+        Map offerSideMap = getOfferSideGeneratedCandlesMap(instrument, period);
+        if(offerSideMap == null)
+            return;
+        IntraPeriodCandleData askCandleData = (IntraPeriodCandleData)offerSideMap.get(offerSide);
+        if(askCandleData == null)
+        {
+            askCandleData = new IntraPeriodCandleData();
+            askCandleData.time = DataCacheUtils.getNextCandleStartFast(period, candle.time);
+            makeFlat(askCandleData, candle);
+            put(offerSideMap, offerSide, askCandleData);
+        } else
+        {
+            long currentCandleTime = candle.time;
+            if(askCandleData.time > currentCandleTime)
+            {
+                DataCacheException notThrownException = new DataCacheException("Last candle time is bigger than new candle time, ignoring candle update");
+                LOGGER.error(notThrownException.getMessage(), notThrownException);
+                return;
+            }
+            long inProgressCandleTime = askCandleData.time;
+            if(inProgressCandleTime == currentCandleTime)
+            {
+                askCandleData = new IntraPeriodCandleData();
+                askCandleData.time = DataCacheUtils.getNextCandleStartFast(period, inProgressCandleTime);
+                makeFlat(askCandleData, candle);
+                put(offerSideMap, offerSide, askCandleData);
+            } else
+            {
+                LOGGER.debug("WARNING! Trying to replace non current candle");
+            }
+        }
+    }
+
+    public static void addTickToCandles(long time, double ask, double bid, double askVol, 
+            double bidVol, Instrument instrument, Map periodMap, List formedCandles, IntraperiodCandlesGenerator generator)
+    {
+        if(periodMap == null)
+            return;
+        Map intProgressPeriodMap = null;
+        Iterator i$ = periodMap.keySet().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Period period = (Period)i$.next();
+            Map offerSideMap = (Map)periodMap.get(period);
+            if(offerSideMap == null)
+                continue;
+            IntraPeriodCandleData askCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+            IntraPeriodCandleData bidCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.BID);
+            if(askCandleData == null || bidCandleData == null)
+            {
+                askCandleData = new IntraPeriodCandleData();
+                bidCandleData = new IntraPeriodCandleData();
+                askCandleData.empty = bidCandleData.empty = true;
+                askCandleData.time = bidCandleData.time = DataCacheUtils.getCandleStartFast(period, time);
+                addTickToCandle(ask, askVol, askCandleData);
+                addTickToCandle(bid, bidVol, bidCandleData);
+                if(intProgressPeriodMap == null)
+                    intProgressPeriodMap = new HashMap();
+                if(intProgressPeriodMap.get(period) == null)
+                    intProgressPeriodMap.put(period, new HashMap());
+                Map inProgressOfferSideMap = (Map)intProgressPeriodMap.get(period);
+                put(inProgressOfferSideMap, OfferSide.ASK, askCandleData);
+                put(inProgressOfferSideMap, OfferSide.BID, bidCandleData);
+            } else
+            {
+                long tickCandleTime = DataCacheUtils.getCandleStartFast(period, time);
+                if(askCandleData.time > tickCandleTime || askCandleData.time != bidCandleData.time)
+                    continue;
+                if(askCandleData.time >= tickCandleTime)
+                {
+                    addTickToCandle(ask, askVol, askCandleData);
+                    addTickToCandle(bid, bidVol, bidCandleData);
+                } else
+                {
+                    do
+                    {
+                        long lastTime = askCandleData.time;
+                        askCandleData = closeCandle(askCandleData);
+                        bidCandleData = closeCandle(bidCandleData);
+                        formedCandles.add(((Object) (new Object[] {
+                            period, askCandleData, bidCandleData
+                        })));
+                        IntraPeriodCandleData newAskCandleData = new IntraPeriodCandleData();
+                        IntraPeriodCandleData newBidCandleData = new IntraPeriodCandleData();
+                        newAskCandleData.time = newBidCandleData.time = DataCacheUtils.getNextCandleStartFast(period, lastTime);
+                        makeFlat(newAskCandleData, askCandleData);
+                        makeFlat(newBidCandleData, bidCandleData);
+                        askCandleData = newAskCandleData;
+                        bidCandleData = newBidCandleData;
+                    } while(askCandleData.time < tickCandleTime);
+                    if(!$assertionsDisabled && (askCandleData.time != tickCandleTime || askCandleData.time != bidCandleData.time))
+                        throw new AssertionError();
+                    addTickToCandle(ask, askVol, askCandleData);
+                    addTickToCandle(bid, bidVol, bidCandleData);
+                }
+            }
+            put(offerSideMap, OfferSide.ASK, askCandleData);
+            put(offerSideMap, OfferSide.BID, bidCandleData);
+        } while(true);
+        if(intProgressPeriodMap != null && generator != null)
+            if(generator.testerFeedDataProvider)
+            {
+                i$ = intProgressPeriodMap.keySet().iterator();
+                do
+                {
+                    if(!i$.hasNext())
+                        break;
+                    Period period = (Period)i$.next();
+                    Map offerSideMap = (Map)intProgressPeriodMap.get(period);
+                    if(offerSideMap != null)
+                    {
+                        IntraPeriodCandleData askCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+                        IntraPeriodCandleData bidCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.BID);
+                        generator.fillInProgressBars(instrument, period, askCandleData, bidCandleData, time, false);
+                    }
+                } while(true);
+            } else
+            {
+                generator.fillInProgressBars(instrument, intProgressPeriodMap, time, false);
+            }
+    }
+
+    private static IntraPeriodCandleData closeCandle(IntraPeriodCandleData candle)
+    {
+        candle.open = StratUtils.round(candle.open, 5);
+        candle.close = StratUtils.round(candle.close, 5);
+        candle.high = StratUtils.round(candle.high, 5);
+        candle.low = StratUtils.round(candle.low, 5);
+        candle.vol = StratUtils.round(candle.vol, 6);
+        return candle;
+    }
+
+    private void checkCandlesForFlats(long time, List formedCandles)
+    {
+        Instrument arr$[] = Instrument.values();
+        int len$ = arr$.length;
+label0:
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Instrument instrument = arr$[i$];
+            Map periodMap = getPeriodGeneratedCandlesMap(instrument);
+            if(periodMap == null)
+                continue;
+            Iterator i$ = periodMap.keySet().iterator();
+            do
+            {
+                Period period;
+                Map offerSideMap;
+                IntraPeriodCandleData askCandleData;
+                IntraPeriodCandleData bidCandleData;
+                long lastTime;
+                long currentCandleTime;
+                do
+                {
+                    do
+                    {
+                        do
+                        {
+                            if(!i$.hasNext())
+                                continue label0;
+                            period = (Period)i$.next();
+                            offerSideMap = (Map)periodMap.get(period);
+                        } while(offerSideMap == null);
+                        askCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+                        bidCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.BID);
+                    } while(askCandleData == null || bidCandleData == null);
+                    lastTime = askCandleData.time;
+                    currentCandleTime = DataCacheUtils.getCandleStartFast(period, time);
+                } while(lastTime >= currentCandleTime);
+                do
+                {
+                    lastTime = askCandleData.time;
+                    askCandleData = closeCandle(askCandleData);
+                    bidCandleData = closeCandle(bidCandleData);
+                    formedCandles.add(((Object) (new Object[] {
+                        instrument, period, askCandleData, bidCandleData
+                    })));
+                    IntraPeriodCandleData newAskCandleData = new IntraPeriodCandleData();
+                    IntraPeriodCandleData newBidCandleData = new IntraPeriodCandleData();
+                    newAskCandleData.time = newBidCandleData.time = DataCacheUtils.getNextCandleStartFast(period, lastTime);
+                    makeFlat(newAskCandleData, askCandleData);
+                    makeFlat(newBidCandleData, bidCandleData);
+                    askCandleData = newAskCandleData;
+                    bidCandleData = newBidCandleData;
+                } while(askCandleData.time < currentCandleTime);
+                if(!$assertionsDisabled && (askCandleData.time != currentCandleTime || askCandleData.time != bidCandleData.time))
+                    throw new AssertionError();
+                put(offerSideMap, OfferSide.ASK, askCandleData);
+                put(offerSideMap, OfferSide.BID, bidCandleData);
+            } while(true);
+        }
+
+    }
+
+    public void cacheUpdated(Instrument instrument, long from, long to)
+    {
+        Map periodMapToProcess;
+        boolean process;
+        Iterator i$;
+        Map periodMap = getPeriodGeneratedCandlesMap(instrument);
+        if(periodMap == null)
+            break MISSING_BLOCK_LABEL_178;
+        periodMapToProcess = new HashMap();
+        process = false;
+        i$ = periodMap.keySet().iterator();
+_L3:
+        Period period;
+        boolean fill;
+        Map offerSideMap;
+        IntraPeriodCandleData askIntraPeriodCandleData;
+label0:
+        {
+            if(!i$.hasNext())
+                break; /* Loop/switch isn't completed */
+            period = (Period)i$.next();
+            fill = false;
+            synchronized(generatedCandlesMap)
+            {
+                offerSideMap = getOfferSideGeneratedCandlesMap(instrument, period);
+                if(offerSideMap == null)
+                    break MISSING_BLOCK_LABEL_125;
+                askIntraPeriodCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+                if(askIntraPeriodCandleData != null)
+                    break label0;
+            }
+            continue; /* Loop/switch isn't completed */
+        }
+        if(to > askIntraPeriodCandleData.time)
+            fill = true;
+        map;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+        if(fill)
+        {
+            periodMapToProcess.put(period, offerSideMap);
+            process = true;
+        }
+        if(true) goto _L3; else goto _L2
+_L2:
+        if(process)
+            fillInProgressBars(instrument, periodMapToProcess, 0x8000000000000000L, true);
+    }
+
+    private void fillInProgressBars(final Instrument instrument, final Map periodMap, final long to, final boolean refill)
+    {
+        if(feedDataProvider == null)
+        {
+            return;
+        } else
+        {
+            executorService.execute(new Runnable() {
+
+                public void run()
+                {
+                    TickData tick;
+                    if(!refill)
+                        break MISSING_BLOCK_LABEL_186;
+                    tick = feedDataProvider.getLastTick(instrument);
+                    if(tick == null)
+                        return;
+                    Iterator i$ = periodMap.keySet().iterator();
+_L2:
+                    Period period;
+                    IntraPeriodCandleData askIntraPeriodCandleData;
+                    IntraPeriodCandleData bidIntraPeriodCandleData;
+                    do
+                    {
+                        if(!i$.hasNext())
+                            break MISSING_BLOCK_LABEL_186;
+                        period = (Period)i$.next();
+                        Map offerSideMap = (Map)periodMap.get(period);
+                        askIntraPeriodCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+                        bidIntraPeriodCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+                    } while(askIntraPeriodCandleData == null || bidIntraPeriodCandleData == null);
+                    askIntraPeriodCandleData.setVolume(tick.askVol);
+                    bidIntraPeriodCandleData.setVolume(tick.bidVol);
+                    if(toTime > DataCacheUtils.getNextCandleStartFast(period, askIntraPeriodCandleData.time))
+                    {
+                        feedDataProvider.fireCacheDataChanged(instrument, 0x8000000000000000L, 0x8000000000000000L);
+                        return;
+                    }
+                    toTime = tick.time;
+                    if(true) goto _L2; else goto _L1
+_L1:
+                    final Map candles;
+                    final int result[];
+                    final Exception exceptions[];
+                    LoadingProgressListener loadingProgressListener;
+                    LiveFeedListener feedListener;
+                    candles = new HashMap();
+                    result = (new int[] {
+                        0
+                    });
+                    exceptions = new Exception[1];
+                    loadingProgressListener = new LoadingProgressListener() {
+
+                        public void dataLoaded(long l, long l1, long l2, String s)
+                        {
+                        }
+
+                        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                                Exception e)
+                        {
+                            result[0] = allDataLoaded ? 1 : 2;
+                            exceptions[0] = e;
+                        }
+
+                        public boolean stopJob()
+                        {
+                            return stop;
+                        }
+
+                        final int val$result[];
+                        final Exception val$exceptions[];
+                        final _cls2 this$1;
+
+                    
+                    {
+                        this$1 = _cls2.this;
+                        result = ai;
+                        exceptions = aexception;
+                        super();
+                    }
+                    };
+                    feedListener = new LiveFeedListener() {
+
+                        public void newTick(Instrument instrument1, long l, double d, double d1, 
+                                double d2, double d3)
+                        {
+                        }
+
+                        public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                                double close, double low, double high, double vol)
+                        {
+                            CandleData data[] = (CandleData[])candles.get(period);
+                            if(data == null)
+                            {
+                                data = new CandleData[2];
+                                candles.put(period, data);
+                            }
+                            data[side != OfferSide.ASK ? 1 : 0] = new CandleData(time, open, close, low, high, vol);
+                        }
+
+                        final Map val$candles;
+                        final _cls2 this$1;
+
+                    
+                    {
+                        this$1 = _cls2.this;
+                        candles = map;
+                        super();
+                    }
+                    };
+                    if(stop)
+                        return;
+                    result[0] = 0;
+                    candles.clear();
+                    feedDataProvider.loadInProgressCandleDataSynched(instrument, toTime, feedListener, loadingProgressListener);
+                    if(exceptions[0] != null)
+                        IntraperiodCandlesGenerator.LOGGER.error(exceptions[0].getMessage(), exceptions[0]);
+                    Iterator i$ = periodMap.keySet().iterator();
+                    do
+                    {
+                        if(!i$.hasNext())
+                            break;
+                        Period period = (Period)i$.next();
+                        if(Period.isPeriodBasic(period) == null || result[0] == 2)
+                        {
+                            Map offerSideMap = (Map)periodMap.get(period);
+                            if(offerSideMap != null)
+                            {
+                                IntraPeriodCandleData askCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+                                IntraPeriodCandleData bidCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.BID);
+                                fillInProgressBars(instrument, period, askCandleData, bidCandleData, to, refill);
+                            }
+                        }
+                    } while(true);
+                    if(result[0] == 2)
+                        return;
+                    if(candles.isEmpty())
+                        return;
+                    try
+                    {
+                        boolean reload = false;
+                        Iterator i$ = periodMap.keySet().iterator();
+                        do
+                        {
+                            if(!i$.hasNext())
+                                break;
+                            Period period = (Period)i$.next();
+                            CandleData data[] = (CandleData[])candles.get(period);
+                            Map offerSideMap = (Map)periodMap.get(period);
+                            if(offerSideMap != null)
+                            {
+                                IntraPeriodCandleData askCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+                                IntraPeriodCandleData bidCandleData = (IntraPeriodCandleData)offerSideMap.get(OfferSide.BID);
+                                if(data != null && askCandleData != null && bidCandleData != null)
+                                {
+                                    IntraperiodCandlesGenerator.addInProgressDataCandleToCandle(askCandleData, data[0]);
+                                    IntraperiodCandlesGenerator.addInProgressDataCandleToCandle(bidCandleData, data[1]);
+                                    askCandleData.empty = false;
+                                    bidCandleData.empty = false;
+                                    if(Period.isPeriodBasic(period) != null)
+                                    {
+                                        feedDataProvider.getLocalCacheManager().addIntraPeriodCandle(instrument, period, OfferSide.ASK, askCandleData);
+                                        feedDataProvider.getLocalCacheManager().addIntraPeriodCandle(instrument, period, OfferSide.BID, bidCandleData);
+                                    }
+                                    synchronized(inProgressWaitNotify)
+                                    {
+                                        inProgressWaitNotify.notifyAll();
+                                    }
+                                    synchronized(this)
+                                    {
+                                        CandleData inProgressCandle = getInProgressCandle(instrument, period, OfferSide.ASK);
+                                        long candleDataTime = askCandleData.time;
+                                        if(!reload && inProgressCandle != null && candleDataTime >= inProgressCandle.time)
+                                        {
+                                            feedDataProvider.fireInProgressCandleUpdated(instrument, period, OfferSide.ASK, askCandleData);
+                                            feedDataProvider.fireInProgressCandleUpdated(instrument, period, OfferSide.BID, bidCandleData);
+                                        } else
+                                        {
+                                            reload = true;
+                                        }
+                                    }
+                                }
+                            }
+                        } while(true);
+                        if(reload)
+                            feedDataProvider.fireCacheDataChanged(instrument, 0x8000000000000000L, 0x8000000000000000L);
+                    }
+                    catch(DataCacheException e)
+                    {
+                        IntraperiodCandlesGenerator.LOGGER.error(e.getMessage(), e);
+                    }
+                    return;
+                }
+
+                private long toTime;
+                final long val$to;
+                final boolean val$refill;
+                final Instrument val$instrument;
+                final Map val$periodMap;
+                final IntraperiodCandlesGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodCandlesGenerator.this;
+                to = l;
+                refill = flag;
+                instrument = instrument1;
+                periodMap = map;
+                super();
+                toTime = to;
+            }
+            });
+            return;
+        }
+    }
+
+    private void fillInProgressBars(final Instrument instrument, final Period period, final IntraPeriodCandleData askCandleData, final IntraPeriodCandleData bidCandleData, final long to, final boolean refill)
+    {
+        if(feedDataProvider == null)
+        {
+            return;
+        } else
+        {
+            executorService.execute(new Runnable() {
+
+                public void run()
+                {
+                    TickData tick;
+                    if(!refill)
+                        break MISSING_BLOCK_LABEL_57;
+                    tick = feedDataProvider.getLastTick(instrument);
+                    if(tick == null)
+                        return;
+                    askCandleData.setVolume(tick.askVol);
+                    bidCandleData.setVolume(tick.bidVol);
+                    toTime = tick.time;
+                    if(toTime > DataCacheUtils.getNextCandleStartFast(period, askCandleData.time))
+                    {
+                        feedDataProvider.fireCacheDataChanged(instrument, 0x8000000000000000L, 0x8000000000000000L);
+                        return;
+                    }
+                    final List candles;
+                    final List ticks;
+                    final int result[];
+                    final Exception exceptions[];
+                    LoadingProgressListener loadingProgressListener;
+                    LiveFeedListener feedListener;
+                    boolean firstBidCandle;
+                    boolean firstAskCandle;
+                    DataCacheUtils.ToLoad arr$[];
+                    int len$;
+                    int i$;
+                    DataCacheUtils.ToLoad intervalsToLoad[] = DataCacheUtils.getIntervalsToLoadForCandleFilling(period, toTime);
+                    candles = new ArrayList();
+                    ticks = new ArrayList();
+                    result = (new int[] {
+                        0
+                    });
+                    exceptions = new Exception[1];
+                    loadingProgressListener = new LoadingProgressListener() {
+
+                        public void dataLoaded(long l, long l1, long l2, String s)
+                        {
+                        }
+
+                        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                                Exception e)
+                        {
+                            result[0] = allDataLoaded ? 1 : 2;
+                            exceptions[0] = e;
+                        }
+
+                        public boolean stopJob()
+                        {
+                            return stop;
+                        }
+
+                        final int val$result[];
+                        final Exception val$exceptions[];
+                        final _cls3 this$1;
+
+                    
+                    {
+                        this$1 = _cls3.this;
+                        result = ai;
+                        exceptions = aexception;
+                        super();
+                    }
+                    };
+                    feedListener = new LiveFeedListener() {
+
+                        public void newTick(Instrument instrument, long time, double ask, double bid, 
+                                double askVol, double bidVol)
+                        {
+                            ticks.add(new TickData(time, ask, bid, askVol, bidVol));
+                        }
+
+                        public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                                double close, double low, double high, double vol)
+                        {
+                            candles.add(new CandleData(time, open, close, low, high, vol));
+                        }
+
+                        final List val$ticks;
+                        final List val$candles;
+                        final _cls3 this$1;
+
+                    
+                    {
+                        this$1 = _cls3.this;
+                        ticks = list;
+                        candles = list1;
+                        super();
+                    }
+                    };
+                    firstBidCandle = true;
+                    firstAskCandle = true;
+                    arr$ = intervalsToLoad;
+                    len$ = arr$.length;
+                    i$ = 0;
+_L2:
+                    DataCacheUtils.ToLoad toLoad;
+                    if(i$ >= len$)
+                        break MISSING_BLOCK_LABEL_514;
+                    toLoad = arr$[i$];
+                    if(stop)
+                        return;
+                    if(toLoad.period == Period.TICK)
+                        break MISSING_BLOCK_LABEL_425;
+                    candles.clear();
+                    feedDataProvider.loadCandlesDataSynched(instrument, toLoad.period, OfferSide.ASK, toLoad.from, toLoad.to, feedListener, loadingProgressListener);
+                    if(result[0] == 2)
+                    {
+                        if(exceptions[0] != null)
+                            IntraperiodCandlesGenerator.LOGGER.error(exceptions[0].getMessage(), exceptions[0]);
+                        return;
+                    }
+                    if(candles.isEmpty())
+                        break MISSING_BLOCK_LABEL_508;
+                    firstAskCandle = IntraperiodCandlesGenerator.addCandlesToCandle(askCandleData, candles, firstAskCandle);
+                    result[0] = 0;
+                    exceptions[0] = null;
+                    candles.clear();
+                    feedDataProvider.loadCandlesDataSynched(instrument, toLoad.period, OfferSide.BID, toLoad.from, toLoad.to, feedListener, loadingProgressListener);
+                    if(result[0] == 2)
+                    {
+                        if(exceptions[0] != null)
+                            IntraperiodCandlesGenerator.LOGGER.error(exceptions[0].getMessage(), exceptions[0]);
+                        return;
+                    }
+                    firstBidCandle = IntraperiodCandlesGenerator.addCandlesToCandle(bidCandleData, candles, firstBidCandle);
+                    break MISSING_BLOCK_LABEL_508;
+                    ticks.clear();
+                    feedDataProvider.loadTicksDataSynched(instrument, toLoad.from, toLoad.to, feedListener, loadingProgressListener);
+                    if(result[0] == 2)
+                        return;
+                    if(!ticks.isEmpty())
+                    {
+                        IntraperiodCandlesGenerator.addTicksToCandle(askCandleData, ticks, firstAskCandle, true);
+                        IntraperiodCandlesGenerator.addTicksToCandle(bidCandleData, ticks, firstBidCandle, false);
+                        firstAskCandle = false;
+                        firstBidCandle = false;
+                    }
+                    i$++;
+                    if(true) goto _L2; else goto _L1
+_L1:
+                    askCandleData.empty = false;
+                    bidCandleData.empty = false;
+                    synchronized(inProgressWaitNotify)
+                    {
+                        inProgressWaitNotify.notifyAll();
+                    }
+                    if(Period.isPeriodBasic(period) != null)
+                    {
+                        feedDataProvider.getLocalCacheManager().addIntraPeriodCandle(instrument, period, OfferSide.ASK, askCandleData);
+                        feedDataProvider.getLocalCacheManager().addIntraPeriodCandle(instrument, period, OfferSide.BID, bidCandleData);
+                    }
+                    synchronized(this)
+                    {
+                        CandleData inProgressCandle = getInProgressCandle(instrument, period, OfferSide.ASK);
+                        long candleDataTime = askCandleData.time;
+                        if(inProgressCandle != null)
+                            if(candleDataTime < inProgressCandle.time)
+                            {
+                                feedDataProvider.fireCacheDataChanged(instrument, 0x8000000000000000L, 0x8000000000000000L);
+                            } else
+                            {
+                                feedDataProvider.fireInProgressCandleUpdated(instrument, period, OfferSide.ASK, askCandleData);
+                                feedDataProvider.fireInProgressCandleUpdated(instrument, period, OfferSide.BID, bidCandleData);
+                            }
+                    }
+                    break MISSING_BLOCK_LABEL_785;
+                    DataCacheException e;
+                    e;
+                    IntraperiodCandlesGenerator.LOGGER.error(e.getMessage(), e);
+                }
+
+                private long toTime;
+                final long val$to;
+                final boolean val$refill;
+                final Instrument val$instrument;
+                final IntraPeriodCandleData val$askCandleData;
+                final IntraPeriodCandleData val$bidCandleData;
+                final Period val$period;
+                final IntraperiodCandlesGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodCandlesGenerator.this;
+                to = l;
+                refill = flag;
+                instrument = instrument1;
+                askCandleData = intraperiodcandledata;
+                bidCandleData = intraperiodcandledata1;
+                period = period1;
+                super();
+                toTime = to;
+            }
+            });
+            return;
+        }
+    }
+
+    private static void addInProgressDataCandleToCandle(IntraPeriodCandleData candleData, CandleData candle)
+    {
+        if(candleData == null || candle == null)
+            return;
+        if(candleData.open != candleData.close || candleData.close != candleData.high || candleData.high != candleData.low || candleData.vol != 0.0D)
+        {
+            candleData.open = candle.open;
+            candleData.flat = false;
+            candleData.high = candleData.high >= candle.high ? candleData.high : candle.high;
+            candleData.low = candleData.low <= candle.low ? candleData.low : candle.low;
+            candleData.vol = StratUtils.round(candleData.vol + candle.vol, 6);
+        }
+    }
+
+    private static boolean addCandlesToCandle(IntraPeriodCandleData candleData, List candles, boolean firstCandle)
+    {
+        Iterator i$ = candles.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            CandleData candle = (CandleData)i$.next();
+            if(candleData.open != candleData.close || candleData.close != candleData.high || candleData.high != candleData.low || candleData.vol != 0.0D)
+            {
+                if(firstCandle)
+                {
+                    candleData.open = candle.open;
+                    candleData.high = candle.high;
+                    candleData.low = candle.low;
+                    candleData.flat = false;
+                    firstCandle = false;
+                }
+                candleData.high = candleData.high >= candle.high ? candleData.high : candle.high;
+                candleData.low = candleData.low <= candle.low ? candleData.low : candle.low;
+                candleData.vol = StratUtils.round(candleData.vol + candle.vol, 6);
+            }
+        } while(true);
+        return firstCandle;
+    }
+
+    private static void addTicksToCandle(IntraPeriodCandleData candleData, List ticks, boolean firstCandle, boolean ask)
+    {
+        for(Iterator i$ = ticks.iterator(); i$.hasNext();)
+        {
+            TickData tick = (TickData)i$.next();
+            double price = ask ? tick.ask : tick.bid;
+            if(firstCandle)
+            {
+                candleData.open = price;
+                candleData.high = price;
+                candleData.low = price;
+                candleData.flat = false;
+                firstCandle = false;
+            }
+            candleData.high = candleData.high >= price ? candleData.high : price;
+            candleData.low = candleData.low <= price ? candleData.low : price;
+            candleData.vol = StratUtils.round(candleData.vol + (ask ? tick.askVol : tick.bidVol), 6);
+        }
+
+    }
+
+    private static void addTickToCandle(double price, double vol, IntraPeriodCandleData candleData)
+    {
+        if(candleData.flat)
+        {
+            candleData.open = price;
+            candleData.high = price;
+            candleData.low = price;
+            candleData.flat = false;
+        }
+        candleData.high = candleData.high >= price ? candleData.high : price;
+        candleData.low = candleData.low <= price ? candleData.low : price;
+        candleData.vol = StratUtils.round(candleData.vol + vol, 6);
+        candleData.close = price;
+    }
+
+    private static void makeFlat(IntraPeriodCandleData newCandleData, IntraPeriodCandleData candleData)
+    {
+        newCandleData.flat = true;
+        newCandleData.open = candleData.close;
+        newCandleData.high = candleData.close;
+        newCandleData.low = candleData.close;
+        newCandleData.vol = 0.0D;
+        newCandleData.close = candleData.close;
+    }
+
+    public void addInstrument(Instrument instrument)
+    {
+        synchronized(generatedCandlesMap)
+        {
+            List periods = DataCacheUtils.getOldBasicPeriods();
+            Iterator i$ = periods.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                Period period = (Period)i$.next();
+                if(period != Period.TICK)
+                {
+                    putIntraPeriodCandleData(instrument, period, OfferSide.ASK, null);
+                    putIntraPeriodCandleData(instrument, period, OfferSide.BID, null);
+                }
+            } while(true);
+        }
+    }
+
+    public void removeInstrument(Instrument instrument)
+    {
+        synchronized(generatedCandlesMap)
+        {
+            freePeriodMap((Map)generatedCandlesMap.get(instrument));
+            generatedCandlesMap.remove(instrument);
+        }
+    }
+
+    protected void fireInProgressCandleUpdated(Instrument instrument, Period period, OfferSide side, CandleData candle)
+    {
+        feedDataProvider.fireInProgressCandleUpdated(instrument, period, side, candle);
+    }
+
+    public CandleData getInProgressCandle(Instrument instrument, Period period, OfferSide side)
+    {
+        Map map = generatedCandlesMap;
+        JVM INSTR monitorenter ;
+        IntraPeriodCandleData candle = getIntraPeriodCandleData(instrument, period, side);
+        if(candle != null)
+            return candle.empty ? null : candle.clone();
+        null;
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public CandleData getInProgressCandleBlocking(Instrument instrument, Period period, OfferSide side)
+        throws DataCacheException
+    {
+        long start;
+        long timeout;
+        start = System.currentTimeMillis();
+        timeout = 0x1d4c0L;
+_L5:
+        if(start + timeout <= System.currentTimeMillis())
+            break; /* Loop/switch isn't completed */
+        Map map = generatedCandlesMap;
+        JVM INSTR monitorenter ;
+        Map sides = getOfferSideGeneratedCandlesMap(instrument, period);
+        if(sides == null)
+            return null;
+        IntraPeriodCandleData candle;
+        candle = (IntraPeriodCandleData)sides.get(side);
+        if(candle != null)
+            candle = candle.empty ? null : (IntraPeriodCandleData)candle.clone();
+        if(candle == null) goto _L2; else goto _L1
+_L1:
+        candle;
+        map;
+        JVM INSTR monitorexit ;
+        return;
+_L2:
+        map;
+        JVM INSTR monitorexit ;
+          goto _L3
+        Exception exception;
+        exception;
+        throw exception;
+_L3:
+        synchronized(inProgressWaitNotify)
+        {
+            long timeToWait = (start + timeout) - System.currentTimeMillis();
+            if(timeToWait > 200L)
+                timeToWait = 200L;
+            if(timeToWait > 0L)
+                try
+                {
+                    inProgressWaitNotify.wait(timeToWait);
+                }
+                catch(InterruptedException e) { }
+        }
+        if(true) goto _L5; else goto _L4
+_L4:
+        throw new DataCacheException("Failed to load in-progress candle data in timeout period");
+    }
+
+    protected void fireCandlesFormed(Instrument instrument, Period period, IntraPeriodCandleData askCandleData, IntraPeriodCandleData bidCandleData)
+    {
+        try
+        {
+            if(Period.isPeriodBasic(period) != null)
+            {
+                if(askCandleData != null)
+                    feedDataProvider.getLocalCacheManager().addIntraPeriodCandle(instrument, period, OfferSide.ASK, askCandleData);
+                if(bidCandleData != null)
+                    feedDataProvider.getLocalCacheManager().addIntraPeriodCandle(instrument, period, OfferSide.BID, bidCandleData);
+            }
+            if(LOGGER.isTraceEnabled())
+                LOGGER.trace((new StringBuilder()).append("Added candle ").append(instrument).append(" period ").append(period).append(" time ").append(askCandleData == null ? bidCandleData.time : askCandleData.time).toString());
+            feedDataProvider.fireCandlesFormed(instrument, period, askCandleData, bidCandleData);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+        }
+    }
+
+    public void newTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        processTick(instrument, time, ask, bid, askVol, bidVol);
+    }
+
+    public void stop()
+    {
+        stop = true;
+        flatsGeneratorByTimeout.interrupt();
+    }
+
+    private Map getPeriodGeneratedCandlesMap(Instrument instrument)
+    {
+        return (Map)generatedCandlesMap.get(instrument);
+    }
+
+    private Map getOfferSideGeneratedCandlesMap(Instrument instrument, Period period)
+    {
+        Map periodMap = getPeriodGeneratedCandlesMap(instrument);
+        if(periodMap == null)
+            return null;
+        else
+            return (Map)periodMap.get(period);
+    }
+
+    private IntraPeriodCandleData getIntraPeriodCandleData(Instrument instrument, Period period, OfferSide offerSide)
+    {
+        Map offerSideMap = getOfferSideGeneratedCandlesMap(instrument, period);
+        if(offerSideMap == null)
+            return null;
+        else
+            return (IntraPeriodCandleData)offerSideMap.get(offerSide);
+    }
+
+    private void putIntraPeriodCandleData(Instrument instrument, Period period, OfferSide offerSide, IntraPeriodCandleData intraPeriodCandleData)
+    {
+        Map periodMap = getPeriodGeneratedCandlesMap(instrument);
+        if(periodMap == null)
+        {
+            generatedCandlesMap.put(instrument, new HashMap());
+            periodMap = getPeriodGeneratedCandlesMap(instrument);
+        }
+        Map offerSideMap = getOfferSideGeneratedCandlesMap(instrument, period);
+        if(offerSideMap == null)
+        {
+            synchronized(periodMap)
+            {
+                periodMap.put(period, new HashMap());
+            }
+            offerSideMap = getOfferSideGeneratedCandlesMap(instrument, period);
+        }
+        put(offerSideMap, offerSide, intraPeriodCandleData);
+    }
+
+    private static void freePeriodMap(Map periodMap)
+    {
+        if(periodMap == null)
+            return;
+        Period period;
+        for(Iterator i$ = periodMap.keySet().iterator(); i$.hasNext(); freeOfferSideMap((Map)periodMap.get(period)))
+            period = (Period)i$.next();
+
+        periodMap.clear();
+    }
+
+    private static void freeOfferSideMap(Map offerSideMap)
+    {
+        if(offerSideMap == null)
+        {
+            return;
+        } else
+        {
+            offerSideMap.clear();
+            return;
+        }
+    }
+
+    public static void addTickToCandles(long time, double ask, double bid, double askVolume, 
+            double bidVolume, Instrument instrument, IntraPeriodCandleData generatedCandles[][], List formedCandles, IntraperiodCandlesGenerator generator)
+    {
+        Map periodMap = new HashMap();
+        for(int i = generatedCandles.length - 1; i >= 0; i--)
+        {
+            IntraPeriodCandleData candleData[] = generatedCandles[i];
+            if(candleData == null)
+                continue;
+            Period period = Period.values()[i];
+            Map offerSideMap = new HashMap();
+            periodMap.put(period, offerSideMap);
+            if(candleData.length > 0)
+            {
+                put(offerSideMap, OfferSide.ASK, candleData[0]);
+                put(offerSideMap, OfferSide.BID, candleData[1]);
+            } else
+            {
+                put(offerSideMap, OfferSide.ASK, null);
+                put(offerSideMap, OfferSide.BID, null);
+            }
+        }
+
+        addTickToCandles(time, ask, bid, askVolume, bidVolume, instrument, periodMap, formedCandles, generator);
+        for(int i = generatedCandles.length - 1; i >= 0; i--)
+        {
+            if(generatedCandles[i] == null)
+                continue;
+            Period period = Period.values()[i];
+            Map offerSideMap = (Map)periodMap.get(period);
+            if(offerSideMap == null)
+                continue;
+            if(generatedCandles[i].length > 0)
+            {
+                generatedCandles[i][0] = (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK);
+                generatedCandles[i][1] = (IntraPeriodCandleData)offerSideMap.get(OfferSide.BID);
+            } else
+            {
+                generatedCandles[i] = (new IntraPeriodCandleData[] {
+                    (IntraPeriodCandleData)offerSideMap.get(OfferSide.ASK), (IntraPeriodCandleData)offerSideMap.get(OfferSide.BID)
+                });
+            }
+        }
+
+    }
+
+    public void inProgressCandleListenerAdded(Instrument instrument, Period period, OfferSide side, LiveFeedListener listener)
+    {
+        synchronized(generatedCandlesMap)
+        {
+            if(getIntraPeriodCandleData(instrument, period, side) == null)
+            {
+                putIntraPeriodCandleData(instrument, period, OfferSide.ASK, null);
+                putIntraPeriodCandleData(instrument, period, OfferSide.BID, null);
+            }
+        }
+    }
+
+    public void inProgressCandleListenerRemoved(Instrument instrument, Period period, OfferSide side, LiveFeedListener listener)
+    {
+        Map periodMap;
+        synchronized(generatedCandlesMap)
+        {
+            periodMap = getPeriodGeneratedCandlesMap(instrument);
+        }
+        if(periodMap != null && !feedDataProvider.isPeriodSubscribedInProgressCandle(instrument, period) && Period.isPeriodBasic(period) == null)
+            synchronized(periodMap)
+            {
+                periodMap.remove(period);
+            }
+    }
+
+    private static void put(Map offerSideMap, OfferSide offerSide, IntraPeriodCandleData data)
+    {
+        offerSideMap.put(offerSide, data);
+    }
+
+    public IIntraperiodBarsGenerator getIntraperiodBarsGenerator()
+    {
+        return intraperiodBarsGenerator;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/IntraperiodCandlesGenerator);
+    private final Map generatedCandlesMap = new HashMap();
+    private ThreadPoolExecutor executorService;
+    private Thread flatsGeneratorByTimeout;
+    private FeedDataProvider feedDataProvider;
+    private boolean testerFeedDataProvider;
+    private volatile boolean stop;
+    private Object inProgressWaitNotify;
+    private final IIntraperiodBarsGenerator intraperiodBarsGenerator;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/datacache/IntraperiodCandlesGenerator.desiredAssertionStatus();
+
+
+
+
+
+
+
+
+
+
+
+}

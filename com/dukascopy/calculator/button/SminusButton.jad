@@ -1,0 +1,78 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   SminusButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.*;
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.function.*;
+import java.awt.event.ActionEvent;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            CalculatorButton
+
+public class SminusButton extends CalculatorButton
+{
+
+    public SminusButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new SigmaMinus());
+        setText();
+        setTextSize();
+        setShortcut('M');
+        addActionListener(this);
+        setToolTipKey("sc.calculator.removes.current.expression.or.most.recent.result.from.statistics.memory");
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+label0:
+        {
+            synchronized(mainCalculatorPanel)
+            {
+                if(getMainCalculatorPanel().getMode() == 0)
+                    break label0;
+                getMainCalculatorPanel().setMode(getPobject());
+                getMainCalculatorPanel().requestFocusInWindow();
+            }
+            return;
+        }
+        getMainCalculatorPanel().pushHistory();
+        OObject o = getMainCalculatorPanel().getValue();
+        if(!getMainCalculatorPanel().getParser().isEmpty())
+        {
+            PObject p = getMainCalculatorPanel().getParser().getLast();
+            if((o instanceof Complex) && ((p instanceof RFunction) || (p instanceof DFunction) || (p instanceof MFunction) || (p instanceof AFunction)))
+            {
+                Ans ans = new Ans();
+                ans.setValue((Complex)o);
+                getMainCalculatorPanel().insert(ans);
+                getMainCalculatorPanel().updateDisplay(true, true);
+            }
+        } else
+        {
+            Ans ans = new Ans();
+            ans.setValue((Complex)o);
+            getMainCalculatorPanel().insert(ans);
+            getMainCalculatorPanel().updateDisplay(true, true);
+        }
+        o = getMainCalculatorPanel().getParser().evaluate(getMainCalculatorPanel().getAngleType());
+        Complex d = (Complex)o;
+        getMainCalculatorPanel().setValue(getMainCalculatorPanel().statSub(d));
+        getMainCalculatorPanel().updateDisplay(false, true);
+        getMainCalculatorPanel().setShift(false);
+        getMainCalculatorPanel().newExpression();
+        getMainCalculatorPanel().requestFocusInWindow();
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    private static final long serialVersionUID = 1L;
+}

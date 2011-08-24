@@ -1,0 +1,234 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DDSChartsActionAdapter.java
+
+package com.dukascopy.charts.main;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.api.indicators.*;
+import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.main.interfaces.DDSChartsActionListener;
+import com.dukascopy.charts.persistence.IndicatorBean;
+import com.dukascopy.charts.persistence.LastUsedIndicatorBean;
+import com.dukascopy.charts.presentation.*;
+import com.dukascopy.dds2.greed.gui.table.ColumnDescriptor;
+import java.util.*;
+
+public class DDSChartsActionAdapter
+    implements DDSChartsActionListener
+{
+
+    public DDSChartsActionAdapter()
+    {
+    }
+
+    public static List convertToIndicatorBeans(List indicatorWrappers)
+    {
+        List result = new ArrayList();
+        if(indicatorWrappers != null && !indicatorWrappers.isEmpty())
+        {
+            IndicatorBean indicatorBean;
+            for(Iterator i$ = indicatorWrappers.iterator(); i$.hasNext(); result.add(indicatorBean))
+            {
+                IndicatorWrapper indicatorWrapper = (IndicatorWrapper)i$.next();
+                indicatorBean = convertToIndicatorBean(indicatorWrapper);
+            }
+
+        }
+        return result;
+    }
+
+    public static IndicatorBean convertToIndicatorBean(IndicatorWrapper indicatorWrapper, Integer subchartId)
+    {
+        IndicatorBean indicatorBean = new IndicatorBean(indicatorWrapper.getId(), indicatorWrapper.getName(), indicatorWrapper.getOfferSidesForTicks(), indicatorWrapper.getAppliedPricesForCandles(), indicatorWrapper.getOptParams(), indicatorWrapper.getOutputColors(), indicatorWrapper.getOutputColors2(), indicatorWrapper.getShowValuesOnChart(), indicatorWrapper.getShowOutputs(), indicatorWrapper.getOpacityAlphas(), indicatorWrapper.getDrawingStyles(), indicatorWrapper.getLineWidths(), indicatorWrapper.getOutputShifts(), subchartId, indicatorWrapper.getChartObjects(), indicatorWrapper.getLevelInfoList());
+        return indicatorBean;
+    }
+
+    public static IndicatorBean convertToIndicatorBean(IndicatorWrapper indicatorWrapper)
+    {
+        return convertToIndicatorBean(indicatorWrapper, indicatorWrapper.getSubPanelId());
+    }
+
+    public static List convertToIndicatorWrapers(List indicatorBeans)
+    {
+        List result = new ArrayList();
+        if(indicatorBeans != null && !indicatorBeans.isEmpty())
+        {
+            IndicatorWrapper indicatorWrapper;
+            for(Iterator i$ = indicatorBeans.iterator(); i$.hasNext(); result.add(indicatorWrapper))
+            {
+                IndicatorBean indicatorBean = (IndicatorBean)i$.next();
+                indicatorWrapper = convertToIndicatorWraper(indicatorBean);
+            }
+
+        }
+        return result;
+    }
+
+    public static IndicatorWrapper convertToIndicatorWraper(IndicatorBean indicatorBean)
+    {
+        IndicatorWrapper indicatorWrapper = new IndicatorWrapper(indicatorBean.getName(), indicatorBean.getId().intValue(), indicatorBean.getSidesForTicks(), indicatorBean.getAppliedPricesForCandles(), indicatorBean.getOptParams(), indicatorBean.getOutputColors(), indicatorBean.getOutputColors2(), indicatorBean.getShowValuesOnChart(), indicatorBean.getShowOutputs(), indicatorBean.getOpacityAlphas(), indicatorBean.getDrawingStyles(), indicatorBean.getLineWidths(), indicatorBean.getOutputShifts(), indicatorBean.getSubPanelId(), indicatorBean.getChartObjects(), indicatorBean.getLevelInfoList());
+        IIndicator indicator = indicatorWrapper.getIndicator();
+        for(int i = 0; i < indicator.getIndicatorInfo().getNumberOfOutputs(); i++)
+        {
+            OutputParameterInfo outputParameterInfo = indicator.getOutputParameterInfo(i);
+            outputParameterInfo.setShowOutput(indicatorWrapper.showOutput(i));
+            outputParameterInfo.setOpacityAlpha(indicatorWrapper.getOpacityAlphas()[i]);
+            outputParameterInfo.setDrawingStyle(indicatorWrapper.getDrawingStyles()[i]);
+            outputParameterInfo.setColor(indicatorWrapper.getOutputColors()[i]);
+            outputParameterInfo.setColor2(indicatorWrapper.getOutputColors2()[i]);
+            outputParameterInfo.setShift(indicatorWrapper.getOutputShifts()[i]);
+        }
+
+        return indicatorWrapper;
+    }
+
+    public static LastUsedIndicatorBean convertToLastUsedIndicatorBean(IndicatorWrapper indicatorWrapper)
+    {
+        LastUsedIndicatorBean lastUsedIndicatorBean = new LastUsedIndicatorBean(indicatorWrapper.getId(), indicatorWrapper.getName(), indicatorWrapper.getOfferSidesForTicks(), indicatorWrapper.getAppliedPricesForCandles(), indicatorWrapper.getOptParams(), indicatorWrapper.getOutputColors(), indicatorWrapper.getOutputColors2(), indicatorWrapper.getShowValuesOnChart(), indicatorWrapper.getShowOutputs(), indicatorWrapper.getOpacityAlphas(), indicatorWrapper.getDrawingStyles(), indicatorWrapper.getLineWidths(), indicatorWrapper.getOutputShifts(), indicatorWrapper.getChartObjects(), indicatorWrapper.getLevelInfoList());
+        return lastUsedIndicatorBean;
+    }
+
+    public void indicatorAdded(IndicatorWrapper indicatorwrapper, int i)
+    {
+    }
+
+    public void indicatorChanged(IndicatorWrapper indicatorwrapper, int i)
+    {
+    }
+
+    public void indicatorRemoved(IndicatorWrapper indicatorwrapper)
+    {
+    }
+
+    public void indicatorsRemoved(List list)
+    {
+    }
+
+    public void periodChanged(Period period)
+    {
+    }
+
+    public void offerSideChanged(OfferSide offerside)
+    {
+    }
+
+    public void filterChanged(Filter filter)
+    {
+    }
+
+    public void drawingAdded(IChartObject ichartobject)
+    {
+    }
+
+    public void drawingAdded(int i, IChartObject ichartobject)
+    {
+    }
+
+    public void drawingRemoved(IChartObject ichartobject)
+    {
+    }
+
+    public void drawingRemoved(int i, IChartObject ichartobject)
+    {
+    }
+
+    public void drawingsRemoved(List list)
+    {
+    }
+
+    public void drawingChanged(IChartObject ichartobject)
+    {
+    }
+
+    public void timeFrameMoved(long l, long l1, boolean flag, int i)
+    {
+    }
+
+    public void timeFrameMoved(int i, int j, int k, int l, boolean flag)
+    {
+    }
+
+    public void candleTypeChanged(TimePeriodAggregationPresentationType timeperiodaggregationpresentationtype)
+    {
+    }
+
+    public void tickTypeChanged(TicksPresentationType tickspresentationtype)
+    {
+    }
+
+    public void gridVisibilityChanged(boolean flag)
+    {
+    }
+
+    public void mouseCursorVisibilityChanged(boolean flag)
+    {
+    }
+
+    public void lastCandleVisibilityChanged(boolean flag)
+    {
+    }
+
+    public void verticalChartMovementChanged(boolean flag)
+    {
+    }
+
+    public void timeFrameMoved(boolean flag)
+    {
+    }
+
+    public void timeFrameMoved(boolean flag, int i)
+    {
+    }
+
+    public void zoomOutEnabled(boolean flag)
+    {
+    }
+
+    public void zoomInEnabled(boolean flag)
+    {
+    }
+
+    public void instrumentChanged(Instrument instrument)
+    {
+    }
+
+    public void chartObjectCreatedForNewDrawing(IChartObject ichartobject)
+    {
+    }
+
+    public void dataTypeChanged(DataType datatype)
+    {
+    }
+
+    public void priceRangeChanged(PriceRange pricerange)
+    {
+    }
+
+    public void priceRangesPresentationTypeChanged(PriceRangeAggregationPresentationType pricerangeaggregationpresentationtype)
+    {
+    }
+
+    public void jForexPeriodChanged(JForexPeriod jforexperiod)
+    {
+    }
+
+    public void reversalAmountChanged(ReversalAmount reversalamount)
+    {
+    }
+
+    public void pointAndFigurePresentationTypeChanged(PointAndFigurePresentationType pointandfigurepresentationtype)
+    {
+    }
+
+    public void tickBarPresentationTypeChanged(TickBarPresentationType tickbarpresentationtype)
+    {
+    }
+
+    public void dataChanged(ColumnDescriptor columndescriptor, Data data, Object obj, Object obj1)
+    {
+    }
+}

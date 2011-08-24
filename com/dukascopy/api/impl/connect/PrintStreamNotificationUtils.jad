@@ -1,0 +1,120 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   PrintStreamNotificationUtils.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import java.io.PrintStream;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            ActivityLogger
+
+public class PrintStreamNotificationUtils
+    implements INotificationUtils
+{
+
+    public PrintStreamNotificationUtils(PrintStream out, PrintStream err)
+    {
+        this.out = out;
+        this.err = err;
+    }
+
+    public void postInfoMessage(String message)
+    {
+        postInfoMessage(message, null, false);
+    }
+
+    public void postInfoMessage(String message, boolean localMessage)
+    {
+        postInfoMessage(message, null, localMessage);
+    }
+
+    public void postInfoMessage(String message, Throwable t)
+    {
+        postInfoMessage(message, t, false);
+    }
+
+    public void postInfoMessage(String message, Throwable t, boolean localMessage)
+    {
+        out.println(message);
+        if(t != null)
+        {
+            out.print((new StringBuilder()).append(t.getMessage()).append(": ").toString());
+            t.printStackTrace(err);
+        }
+        if(!localMessage && ActivityLogger.getInstance() != null)
+            ActivityLogger.getInstance().add(message);
+    }
+
+    public void postWarningMessage(String message)
+    {
+        postErrorMessage(message, null, false);
+    }
+
+    public void postWarningMessage(String message, boolean localMessage)
+    {
+        postErrorMessage(message, null, localMessage);
+    }
+
+    public void postWarningMessage(String message, Throwable t)
+    {
+        postErrorMessage(message, t, false);
+    }
+
+    public void postWarningMessage(String message, Throwable t, boolean localMessage)
+    {
+        postErrorMessage(message, t, localMessage);
+    }
+
+    public void postErrorMessage(String message)
+    {
+        postErrorMessage(message, null, false);
+    }
+
+    public void postErrorMessage(String message, boolean localMessage)
+    {
+        postErrorMessage(message, null, localMessage);
+    }
+
+    public void postErrorMessage(String message, Throwable t)
+    {
+        postErrorMessage(message, t, false);
+    }
+
+    public void postErrorMessage(String message, Throwable t, boolean localMessage)
+    {
+        err.println(message);
+        if(t != null)
+        {
+            err.print((new StringBuilder()).append(t.getMessage()).append(": ").toString());
+            t.printStackTrace(err);
+        }
+        if(!localMessage && ActivityLogger.getInstance() != null)
+            ActivityLogger.getInstance().add(message);
+    }
+
+    public void postFatalMessage(String message)
+    {
+        postErrorMessage(message, null, false);
+    }
+
+    public void postFatalMessage(String message, boolean localMessage)
+    {
+        postErrorMessage(message, null, localMessage);
+    }
+
+    public void postFatalMessage(String message, Throwable t)
+    {
+        postErrorMessage(message, t, false);
+    }
+
+    public void postFatalMessage(String message, Throwable t, boolean localMessage)
+    {
+        postErrorMessage(message, t, localMessage);
+    }
+
+    private final PrintStream out;
+    private final PrintStream err;
+}

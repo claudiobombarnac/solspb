@@ -1,0 +1,1098 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OrdersProvider.java
+
+package com.dukascopy.charts.data.orders;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.AbstractCurrencyConverter;
+import com.dukascopy.dds2.greed.util.IOrderUtils;
+import com.dukascopy.transport.common.model.type.*;
+import com.dukascopy.transport.common.msg.group.*;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.orders:
+//            AbstractOrdersProvider, ExposureData, IOrdersProvider, CalculatedAccount
+
+public class OrdersProvider extends AbstractOrdersProvider
+    implements IOrdersProvider, OrderGroupListener
+{
+
+    public static OrdersProvider getInstance()
+    {
+        if(ordersProvider == null)
+            throw new IllegalStateException();
+        else
+            return ordersProvider;
+    }
+
+    public static void createInstance(IOrderUtils orderUtils)
+    {
+        if(ordersProvider == null)
+            ordersProvider = new OrdersProvider(orderUtils);
+    }
+
+    static void clearInstance()
+    {
+        ordersProvider = null;
+    }
+
+    private OrdersProvider(IOrderUtils orderUtils)
+    {
+        super(orderUtils);
+        currencyConverter = new AbstractCurrencyConverter() {
+
+            protected double getLastMarketPrice(Instrument instrument, OfferSide side)
+            {
+                TickData lastTick = FeedDataProvider.getDefaultInstance().getLastTick(instrument);
+                if(lastTick == null)
+                    return (0.0D / 0.0D);
+                if(side == OfferSide.ASK)
+                    return lastTick.getAsk();
+                if(side == OfferSide.BID)
+                    return lastTick.getBid();
+                else
+                    return StratUtils.roundHalfEven((lastTick.getBid() + lastTick.getAsk()) / 2D, 7);
+            }
+
+            final OrdersProvider this$0;
+
+            
+            {
+                this$0 = OrdersProvider.this;
+                super();
+            }
+        };
+    }
+
+    public synchronized void clearOrders()
+    {
+        for(int i = 0; i < ordersByInstrument.length; i++)
+        {
+            Instrument instrument = Instrument.values()[i];
+            Map orders = ordersByInstrument[i];
+            if(orders == null)
+                continue;
+            boolean someOrdersDeleted = false;
+            Iterator iterator = orders.entrySet().iterator();
+            do
+            {
+                if(!iterator.hasNext())
+                    break;
+                java.util.Map.Entry ordersEntry = (java.util.Map.Entry)iterator.next();
+                OrderHistoricalData order = (OrderHistoricalData)ordersEntry.getValue();
+                if(!order.isClosed())
+                {
+                    someOrdersDeleted = true;
+                    iterator.remove();
+                }
+            } while(true);
+            if(someOrdersDeleted)
+                fireOrdersInvalidated(instrument);
+        }
+
+    }
+
+    public synchronized void orderSynch(OrderSyncMessage synchMessage)
+    {
+        Collection positionIds = synchMessage.getPositionIds();
+        Collection orderIds = synchMessage.getOrderIds();
+        for(int i = 0; i < ordersByInstrument.length; i++)
+        {
+            Instrument instrument = Instrument.values()[i];
+            Map orders = ordersByInstrument[i];
+            if(orders == null)
+                continue;
+            boolean someOrdersDeleted = false;
+            Iterator iterator = orders.values().iterator();
+            do
+            {
+                if(!iterator.hasNext())
+                    break;
+                OrderHistoricalData order = (OrderHistoricalData)iterator.next();
+                if(!positionIds.contains(order.getOrderGroupId()) && !orderIds.contains(order.getOrderGroupId()))
+                {
+                    List pendingOrders = order.getPendingOrders();
+                    if(pendingOrders == null || pendingOrders.isEmpty() || !orderIds.contains(((com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData)pendingOrders.get(0)).getOrderId()))
+                    {
+                        iterator.remove();
+                        someOrdersDeleted = true;
+                    }
+                }
+            } while(true);
+            if(someOrdersDeleted)
+                fireOrdersInvalidated(instrument);
+        }
+
+    }
+
+    public synchronized void groupsMerged(MergePositionsMessage mergePositionsMessage)
+    {
+        boolean debugEnabled = LOGGER.isDebugEnabled();
+        String newOrderGroupId = mergePositionsMessage.getNewOrderGroupId();
+        if(!$assertionsDisabled && newOrderGroupId == null)
+            throw new AssertionError("newOrderGroupId in mergePositionsMessage is null");
+        Collection mergedGroupIds = mergePositionsMessage.getPositionsList();
+        if(!$assertionsDisabled && mergedGroupIds.size() <= 1)
+            throw new AssertionError("number of merged positions is less than 2, how possible?");
+        if(debugEnabled)
+            LOGGER.debug((new StringBuilder()).append("groupsMerged method called with new group id [").append(newOrderGroupId).append("] and merged positions count [").append(mergedGroupIds.size()).append("]").toString());
+        OrderHistoricalDataMutable newOrderGroup = null;
+        Instrument instrument = null;
+        int i = 0;
+        do
+        {
+            if(i >= ordersByInstrument.length)
+                break;
+            Map orderHistData = ordersByInstrument[i];
+            if(orderHistData != null && orderHistData.containsKey(newOrderGroupId))
+            {
+                OrderHistoricalData orderHistoricalData = (OrderHistoricalData)orderHistData.get(newOrderGroupId);
+                newOrderGroup = orderHistoricalData != null ? new OrderHistoricalDataMutable(orderHistoricalData) : null;
+                instrument = INSTRUMENT_VALUES[i];
+                break;
+            }
+            i++;
+        } while(true);
+        boolean newOrder = false;
+        if(newOrderGroup == null)
+        {
+            LOGGER.debug((new StringBuilder()).append("merged resulting group with id [").append(newOrderGroupId).append("] was not found").toString());
+            if(mergedGroupIds.isEmpty())
+                return;
+            String mergedGroupId = (String)mergedGroupIds.iterator().next();
+            int i = 0;
+            do
+            {
+                if(i >= ordersByInstrument.length)
+                    break;
+                Map orderHistData = ordersByInstrument[i];
+                if(orderHistData != null && orderHistData.containsKey(mergedGroupId))
+                {
+                    instrument = INSTRUMENT_VALUES[i];
+                    break;
+                }
+                i++;
+            } while(true);
+            if(instrument == null)
+            {
+                LOGGER.error("Could not find merged group");
+                return;
+            }
+            newOrder = true;
+            if(debugEnabled)
+                LOGGER.debug((new StringBuilder()).append("Order group [").append(newOrderGroupId).append("] is new merging-to-zerro order").toString());
+            newOrderGroup = new OrderHistoricalDataMutable();
+            newOrderGroup.setOrderGroupId(newOrderGroupId);
+            newOrderGroup.setClosed(true);
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData closeData = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData();
+            closeData.setAmount(BigDecimal.ZERO);
+            newOrderGroup.putCloseData(newOrderGroupId, closeData);
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData entryOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData();
+            entryOrder.setAmount(BigDecimal.ZERO);
+            newOrderGroup.setEntryOrder(entryOrder);
+            newOrderGroup.setOpened(true);
+        } else
+        {
+            newOrderGroup.getEntryOrder().setFillTime(mergePositionsMessage.getTimestamp().getTime());
+        }
+        if(!$assertionsDisabled && instrument == null)
+            throw new AssertionError("instrument cannot be null if merge resulting group was found");
+        List mergedOrders = new ArrayList(mergedGroupIds.size());
+        BigDecimal closePrice = BigDecimal.ZERO;
+        BigDecimal amount = BigDecimal.ZERO;
+        com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData entryOrder = newOrderGroup.getEntryOrder();
+        for(Iterator i$ = mergedGroupIds.iterator(); i$.hasNext();)
+        {
+            String mergedGroupId = (String)i$.next();
+            String mergedFrom[] = new String[entryOrder.getMergedFrom() != null ? entryOrder.getMergedFrom().length + 1 : 1];
+            if(entryOrder.getMergedFrom() != null)
+                System.arraycopy(entryOrder.getMergedFrom(), 0, mergedFrom, 0, entryOrder.getMergedFrom().length);
+            mergedFrom[mergedFrom.length - 1] = mergedGroupId;
+            entryOrder.setMergedFrom(mergedFrom);
+            Map orderGroups = ordersByInstrument[instrument.ordinal()];
+            OrderHistoricalData orderHistoricalData = (OrderHistoricalData)orderGroups.get(mergedGroupId);
+            if(orderHistoricalData == null)
+            {
+                LOGGER.error((new StringBuilder()).append("merged group with id [").append(mergedGroupId).append("] was not found").toString());
+            } else
+            {
+                OrderHistoricalDataMutable mergedGroup = new OrderHistoricalDataMutable(orderHistoricalData);
+                mergedGroup.removeCloseData(mergedGroupId);
+                mergedGroup.setClosed(false);
+                mergedGroup.setMergedToGroupId(newOrderGroupId);
+                mergedGroup.setMergedToTime(mergePositionsMessage.getTimestamp().getTime());
+                extendOrderHistoryRange(mergedGroup, mergedGroup.getMergedToTime());
+                orderGroups.remove(mergedGroupId);
+                com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData mergedGroupEntryOrder = mergedGroup.getEntryOrder();
+                if(mergedGroupEntryOrder != null)
+                {
+                    extendOrderHistoryRange(newOrderGroup, mergedGroupEntryOrder.getFillTime());
+                    closePrice = closePrice.add(mergedGroupEntryOrder.getAmount().multiply(mergedGroupEntryOrder.getOpenPrice()));
+                    amount = amount.add(mergedGroupEntryOrder.getAmount());
+                }
+                if(debugEnabled)
+                    LOGGER.debug((new StringBuilder()).append("group [").append(mergedGroupId).append("] merged and removed from global orders list").toString());
+                orderHistoricalData = new OrderHistoricalData(mergedGroup);
+                mergedOrders.add(orderHistoricalData);
+            }
+        }
+
+        extendOrderHistoryRange(newOrderGroup, entryOrder.getFillTime());
+        if(newOrder)
+        {
+            entryOrder.setFillTime(mergePositionsMessage.getTimestamp().getTime());
+            entryOrder.setCreationTime(mergePositionsMessage.getTimestamp().getTime());
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData closeData = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData)newOrderGroup.getCloseDataMap().get(newOrderGroupId);
+            closeData.setCloseTime(mergePositionsMessage.getTimestamp().getTime());
+            closeData.setClosePrice(closePrice.divide(amount, BigDecimal.valueOf(instrument.getPipValue()).scale() + 1, 6));
+            entryOrder.setOpenPrice(closeData.getClosePrice());
+        }
+        Map orderGroups = ordersByInstrument[instrument.ordinal()];
+        if(orderGroups == null)
+        {
+            orderGroups = new HashMap();
+            ordersByInstrument[instrument.ordinal()] = orderGroups;
+        }
+        OrderHistoricalData immutableOrderGroup = new OrderHistoricalData(newOrderGroup);
+        orderGroups.put(newOrderGroupId, immutableOrderGroup);
+        fireOrderMerge(instrument, immutableOrderGroup, mergedOrders);
+    }
+
+    public synchronized void updateOrderGroup(OrderGroupMessage orderGroup)
+    {
+        boolean debugEnabled;
+        Instrument instrument;
+        List ordersUnsorted;
+        Map orderGroups;
+        boolean isNew;
+        OrderHistoricalData orderHistoricalData;
+        ExposureData exposure;
+        Money amount;
+        debugEnabled = LOGGER.isDebugEnabled();
+        if(debugEnabled)
+            LOGGER.debug((new StringBuilder()).append("Order group update recived [").append(orderGroup.getOrderGroupId()).append("]").toString());
+        if(orderGroup.getInstrument() == null)
+        {
+            LOGGER.debug("Instrument is not passed.");
+            return;
+        }
+        instrument = Instrument.fromString(orderGroup.getInstrument());
+        ordersUnsorted = orderGroup.getOrders();
+        if(!$assertionsDisabled && instrument == null)
+            throw new AssertionError((new StringBuilder()).append("Instrument of order group cannot be recognized [").append(orderGroup.getInstrument()).append("]").toString());
+        orderGroups = ordersByInstrument[instrument.ordinal()];
+        if(orderGroups == null)
+        {
+            orderGroups = new HashMap();
+            ordersByInstrument[instrument.ordinal()] = orderGroups;
+        }
+        isNew = false;
+        orderHistoricalData = (OrderHistoricalData)orderGroups.get(orderGroup.getOrderGroupId());
+        if(orderHistoricalData != null)
+            break MISSING_BLOCK_LABEL_454;
+        if(!ordersUnsorted.isEmpty())
+            break MISSING_BLOCK_LABEL_391;
+        exposure = exposures[instrument.ordinal()];
+        if(exposure == null)
+        {
+            exposure = new ExposureData(instrument);
+            exposures[instrument.ordinal()] = exposure;
+        }
+label0:
+        {
+            synchronized(exposure)
+            {
+                amount = orderGroup.getAmount();
+                if(amount != null)
+                    break label0;
+            }
+            return;
+        }
+        PositionSide side;
+        Money price;
+        if(amount.getValue().compareTo(BigDecimal.ZERO) == 0)
+        {
+            exposure.amount = BigDecimal.ZERO;
+            exposure.side = null;
+            exposure.price = null;
+            exposure.time = 0L;
+            break MISSING_BLOCK_LABEL_376;
+        }
+        side = orderGroup.getSide();
+        price = orderGroup.getPricePosOpen();
+        if(price != null && side != null)
+            break MISSING_BLOCK_LABEL_322;
+        exposuredata;
+        JVM INSTR monitorexit ;
+        return;
+        exposure.amount = amount.getValue();
+        exposure.side = side != PositionSide.LONG ? com.dukascopy.api.IEngine.OrderCommand.SELL : com.dukascopy.api.IEngine.OrderCommand.BUY;
+        exposure.price = price.getValue();
+        exposure.time = orderGroup.getTimestamp().getTime();
+        exposuredata;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+        return;
+        OrderHistoricalDataMutable lineData;
+        if(debugEnabled)
+            LOGGER.debug((new StringBuilder()).append("Order group [").append(orderGroup.getOrderGroupId()).append("] is new").toString());
+        lineData = new OrderHistoricalDataMutable();
+        lineData.setOrderGroupId(orderGroup.getOrderGroupId());
+        isNew = true;
+        break MISSING_BLOCK_LABEL_465;
+        lineData = new OrderHistoricalDataMutable(orderHistoricalData);
+        SortedSet orders = new TreeSet(new Comparator() {
+
+            public int compare(OrderMessage o1, OrderMessage o2)
+            {
+                if(o1.isOpening() && !o2.isOpening())
+                    return -1;
+                if(o2.isOpening() && !o1.isOpening())
+                    return 1;
+                else
+                    return o1.getOrderId().compareTo(o2.getOrderId());
+            }
+
+            public volatile int compare(Object x0, Object x1)
+            {
+                return compare((OrderMessage)x0, (OrderMessage)x1);
+            }
+
+            final OrdersProvider this$0;
+
+            
+            {
+                this$0 = OrdersProvider.this;
+                super();
+            }
+        });
+        orders.addAll(ordersUnsorted);
+        if(debugEnabled)
+            LOGGER.debug((new StringBuilder()).append("Number of orders [").append(orders.size()).append("]").toString());
+        if(orders.isEmpty())
+        {
+            if(!lineData.isClosed())
+            {
+                if(debugEnabled)
+                    LOGGER.debug((new StringBuilder()).append("Empty order group recived, order group [").append(orderGroup.getOrderGroupId()).append("] isn't closed, ").append("saving closing data and marking lineData as closed").toString());
+                com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData closeData = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData)lineData.getCloseDataMap().get(orderGroup.getOrderGroupId());
+                if(closeData == null)
+                {
+                    closeData = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData();
+                    lineData.putCloseData(orderGroup.getOrderGroupId(), closeData);
+                }
+                if(orderGroup.getTimestamp() != null)
+                    closeData.setCloseTime(orderGroup.getTimestamp().getTime());
+                else
+                    closeData.setCloseTime(System.currentTimeMillis());
+                extendOrderHistoryRange(lineData, closeData.getCloseTime());
+                if(lineData.getEntryOrder() != null)
+                    closeData.setAmount(lineData.getEntryOrder().getAmount());
+                else
+                if(!lineData.getPendingOrders().isEmpty())
+                {
+                    orderGroups.remove(orderGroup.getOrderGroupId());
+                    lineData.setClosed(true);
+                    fireOrderChange(instrument, new OrderHistoricalData(lineData));
+                    return;
+                } else
+                {
+                    orderGroups.remove(orderGroup.getOrderGroupId());
+                    return;
+                }
+                Money priceOpen = orderGroup.getPriceOpen();
+                if(priceOpen != null)
+                {
+                    closeData.setClosePrice(priceOpen.getValue());
+                    if(lineData.isOpened())
+                        updateClosedCorrection(instrument, lineData.getEntryOrder().getSide(), lineData.getEntryOrder().getOpenPrice().doubleValue(), closeData.getClosePrice().doubleValue(), closeData.getAmount().doubleValue());
+                } else
+                {
+                    closeData.setClosePrice(OrderHistoricalData.NEG_ONE);
+                }
+                if(debugEnabled)
+                    LOGGER.debug((new StringBuilder()).append("Close data - [").append(orderGroup.getOrderGroupId()).append(", ").append(closeData.getCloseTime()).append(", ").append(closeData.getClosePrice()).append("]").toString());
+            }
+            lineData.setClosed(true);
+            if(!lineData.isOpened())
+                orderGroups.remove(orderGroup.getOrderGroupId());
+        } else
+        {
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData entryOrder = lineData.getEntryOrder();
+            if(entryOrder != null)
+            {
+                entryOrder.setStopLossPrice(OrderHistoricalData.NEG_ONE);
+                entryOrder.setStopLossSlippage(null);
+                entryOrder.setStopLossOrderId(null);
+                entryOrder.setTrailingStep(null);
+                entryOrder.setTakeProfitPrice(OrderHistoricalData.NEG_ONE);
+                entryOrder.setTakeProfitSlippage(null);
+                entryOrder.setTakeProfitOrderId(null);
+            }
+            lineData.clearPendingOrders();
+            lineData.setClosed(false);
+            lineData.setOco(false);
+        }
+        Iterator i$ = orders.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            OrderMessage orderMessage = (OrderMessage)i$.next();
+            static class _cls3
+            {
+
+                static final int $SwitchMap$com$dukascopy$transport$common$model$type$OrderState[];
+                static final int $SwitchMap$com$dukascopy$transport$common$model$type$StopDirection[];
+
+                static 
+                {
+                    $SwitchMap$com$dukascopy$transport$common$model$type$StopDirection = new int[StopDirection.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$StopDirection[StopDirection.BID_GREATER.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$StopDirection[StopDirection.ASK_EQUALS.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$StopDirection[StopDirection.ASK_GREATER.ordinal()] = 3;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$StopDirection[StopDirection.ASK_LESS.ordinal()] = 4;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$StopDirection[StopDirection.BID_EQUALS.ordinal()] = 5;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$StopDirection[StopDirection.BID_LESS.ordinal()] = 6;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    $SwitchMap$com$dukascopy$transport$common$model$type$OrderState = new int[OrderState.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$OrderState[OrderState.PENDING.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$OrderState[OrderState.EXECUTING.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$OrderState[OrderState.FILLED.ordinal()] = 3;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$OrderState[OrderState.REJECTED.ordinal()] = 4;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$OrderState[OrderState.ERROR.ordinal()] = 5;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$transport$common$model$type$OrderState[OrderState.CANCELLED.ordinal()] = 6;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                }
+            }
+
+            if(orderMessage.isOpening())
+            {
+                switch(_cls3..SwitchMap.com.dukascopy.transport.common.model.type.OrderState[orderMessage.getOrderState().ordinal()])
+                {
+                case 1: // '\001'
+                case 2: // '\002'
+                    com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData pendingOpeningOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData();
+                    pendingOpeningOrder.setOrderId(orderMessage.getOrderId());
+                    pendingOpeningOrder.setCreationTime(orderMessage.getCreatedDate().getTime());
+                    pendingOpeningOrder.setAmount(orderMessage.getAmount().getValue());
+                    pendingOpeningOrder.setOpenPrice(getStopPrice(orderMessage));
+                    pendingOpeningOrder.setOpenSlippage(orderMessage.getPriceTrailingLimit() != null ? orderMessage.getPriceTrailingLimit().getValue() : null);
+                    if(orderMessage.getOrderState() == OrderState.EXECUTING)
+                        pendingOpeningOrder.setExecuting(true);
+                    OrderSide side = orderMessage.getSide();
+                    if(side != null)
+                        pendingOpeningOrder.setSide(convert(side, orderMessage.getStopDirection(), false, orderMessage.isPlaceOffer()));
+                    pendingOpeningOrder.setLabel(orderMessage.getExternalSysId());
+                    if(pendingOpeningOrder.getLabel() == null)
+                        pendingOpeningOrder.setLabel((new StringBuilder()).append("JF").append(orderMessage.getOrderId()).toString());
+                    pendingOpeningOrder.setComment(orderMessage.getTag());
+                    lineData.addPendingOrder(pendingOpeningOrder);
+                    if(orderMessage.isOco().booleanValue())
+                        lineData.setOco(true);
+                    if(orderMessage.getExecTimeoutMillis() != null)
+                        pendingOpeningOrder.setGoodTillTime(orderMessage.getExecTimeoutMillis().longValue());
+                    if(debugEnabled)
+                        LOGGER.debug((new StringBuilder()).append("Pending opening order found [").append(orderMessage.getOrderId()).append(", ").append(pendingOpeningOrder.getSide()).append(", ").append(pendingOpeningOrder.getOpenPrice()).append("]").toString());
+                    break;
+
+                case 3: // '\003'
+                    if(!lineData.isOpened())
+                    {
+                        lineData.setOpened(true);
+                        Date timestamp = orderMessage.getTimestamp();
+                        if(!$assertionsDisabled && (orderMessage.getSide() == null || timestamp == null))
+                            throw new AssertionError("Opening side or time is null");
+                        com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData entryOrder = lineData.getEntryOrder();
+                        if(lineData.getEntryOrder() == null)
+                        {
+                            entryOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData();
+                            lineData.setEntryOrder(entryOrder);
+                            entryOrder.setOrderId(orderMessage.getOrderId());
+                            entryOrder.setCreationTime(orderMessage.getCreatedDate().getTime());
+                            extendOrderHistoryRange(lineData, entryOrder.getCreationTime());
+                        } else
+                        if(!entryOrder.getOrderId().equals(orderMessage.getOrderId()))
+                        {
+                            LOGGER.warn("Got entry order with order id different than was saved for this order group message");
+                            entryOrder.setOrderId(orderMessage.getOrderId());
+                        }
+                        entryOrder.setSide(convert(orderMessage.getSide(), orderMessage.getStopDirection(), true, false));
+                        entryOrder.setOpenPrice(orderGroup.getPosition().getPriceOpen().getValue());
+                        entryOrder.setFillTime(timestamp.getTime());
+                        entryOrder.setLabel(orderMessage.getExternalSysId());
+                        if(entryOrder.getLabel() == null)
+                            entryOrder.setLabel((new StringBuilder()).append("JF").append(orderMessage.getOrderId()).toString());
+                        entryOrder.setComment(orderMessage.getTag());
+                        extendOrderHistoryRange(lineData, entryOrder.getFillTime());
+                        entryOrder.setOpenSlippage(null);
+                        lineData.setOco(false);
+                        entryOrder.setAmount(orderMessage.getAmount().getValue());
+                        if(debugEnabled)
+                            LOGGER.debug((new StringBuilder()).append("Filled opening order found [").append(orderMessage.getOrderId()).append(", ").append(entryOrder.getSide()).append(", ").append(entryOrder.getFillTime()).append(", ").append(entryOrder.getOpenPrice()).append("]").toString());
+                    } else
+                    {
+                        if(debugEnabled)
+                            LOGGER.debug("Checking if order group was partially closed");
+                        if(orderMessage.getAmount() == null)
+                            LOGGER.error((new StringBuilder()).append("Order group [").append(orderGroup.getOrderGroupId()).append("], order [").append(orderMessage.getOrderId()).append("] doesn't have amount set").toString());
+                        else
+                        if(orderMessage.getOrderState() == null)
+                        {
+                            LOGGER.error((new StringBuilder()).append("Order group [").append(orderGroup.getOrderGroupId()).append("], order [").append(orderMessage.getOrderId()).append("] doesn't have order state set").toString());
+                        } else
+                        {
+                            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData entryOrder = lineData.getEntryOrder();
+                            entryOrder.setLabel(orderMessage.getExternalSysId());
+                            if(entryOrder.getLabel() == null)
+                                entryOrder.setLabel((new StringBuilder()).append("JF").append(orderMessage.getOrderId()).toString());
+                            entryOrder.setComment(orderMessage.getTag());
+                            if(!entryOrder.getOrderId().equals(orderMessage.getOrderId()) && orderMessage.getAmount().getValue().compareTo(entryOrder.getAmount()) < 0)
+                            {
+                                Money priceOpen = orderGroup.getPriceOpen();
+                                if(priceOpen != null)
+                                {
+                                    com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData closeData = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData)lineData.getCloseDataMap().get(orderMessage.getOrderId());
+                                    if(closeData == null)
+                                    {
+                                        closeData = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData();
+                                        lineData.putCloseData(orderMessage.getOrderId(), closeData);
+                                    }
+                                    closeData.setClosePrice(priceOpen.getValue());
+                                    closeData.setCloseTime(orderGroup.getTimestamp().getTime());
+                                    extendOrderHistoryRange(lineData, closeData.getCloseTime());
+                                    closeData.setAmount(entryOrder.getAmount().subtract(orderMessage.getAmount().getValue()));
+                                    if(debugEnabled)
+                                        LOGGER.debug((new StringBuilder()).append("Filled closing order found [").append(orderMessage.getOrderId()).append(", ").append(closeData.getCloseTime()).append(", ").append(closeData.getClosePrice()).append(", ").append(closeData.getAmount()).append("]").toString());
+                                    entryOrder.setAmount(orderMessage.getAmount().getValue());
+                                    updateClosedCorrection(instrument, entryOrder.getSide(), entryOrder.getOpenPrice().doubleValue(), closeData.getClosePrice().doubleValue(), closeData.getAmount().doubleValue());
+                                }
+                            }
+                            if(!entryOrder.getOrderId().equals(orderMessage.getOrderId()) && orderMessage.getAmount().getValue().compareTo(entryOrder.getAmount()) > 0)
+                            {
+                                extendOrderHistoryRange(lineData, orderMessage.getTimestamp().getTime());
+                                entryOrder.setAmount(orderMessage.getAmount().getValue());
+                            }
+                        }
+                    }
+                    break;
+                }
+                continue;
+            }
+            if(!orderMessage.isClosing())
+                continue;
+label1:
+            switch(_cls3..SwitchMap.com.dukascopy.transport.common.model.type.OrderState[orderMessage.getOrderState().ordinal()])
+            {
+            case 2: // '\002'
+            default:
+                break;
+
+            case 1: // '\001'
+                if(orderMessage.isStopLoss())
+                {
+                    com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData openData;
+label2:
+                    {
+                        String parentOrderId = orderMessage.getIfdParentOrderId();
+                        openData = null;
+                        if(lineData.getEntryOrder() != null && lineData.getEntryOrder().getOrderId().equals(parentOrderId))
+                        {
+                            openData = lineData.getEntryOrder();
+                            break label2;
+                        }
+                        Iterator i$ = lineData.getPendingOrders().iterator();
+                        com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData orderOpenData;
+                        do
+                        {
+                            if(!i$.hasNext())
+                                break label2;
+                            orderOpenData = (com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData)i$.next();
+                        } while(!orderOpenData.getOrderId().equals(parentOrderId));
+                        openData = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData)orderOpenData;
+                    }
+                    if(openData == null)
+                    {
+                        openData = lineData.getEntryOrder();
+                        if(openData == null && lineData.getPendingOrders() != null && !lineData.getPendingOrders().isEmpty())
+                            openData = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData)lineData.getPendingOrders().get(0);
+                    }
+                    if(openData != null)
+                    {
+                        openData.setStopLossPrice(getStopPrice(orderMessage));
+                        openData.setStopLossSlippage(orderMessage.getPriceTrailingLimit() != null ? orderMessage.getPriceTrailingLimit().getValue() : null);
+                        openData.setStopLossByBid(orderMessage.getStopDirection() == null && openData.getSide().isLong() || orderMessage.getStopDirection() != null && (orderMessage.getStopDirection() == StopDirection.BID_GREATER || orderMessage.getStopDirection() == StopDirection.BID_LESS));
+                        openData.setStopLossOrderId(orderMessage.getOrderId());
+                        openData.setTrailingStep(orderMessage.getPriceLimit() != null ? orderMessage.getPriceLimit().getValue() : null);
+                        if(debugEnabled)
+                            LOGGER.debug((new StringBuilder()).append("Pending closing stop loss order found [").append(orderMessage.getOrderId()).append(", ").append(openData.getStopLossPrice()).append("]").toString());
+                        if(openData == lineData.getEntryOrder())
+                            extendOrderHistoryRange(lineData, orderMessage.getTimestamp().getTime());
+                    } else
+                    {
+                        LOGGER.warn((new StringBuilder()).append("Couldn't find where stop loss order [").append(orderMessage.getOrderId()).append("] belongs").toString());
+                    }
+                    break;
+                } else
+                {
+                    com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData openData;
+label3:
+                    {
+                        if(!orderMessage.isTakeProfit())
+                            break label1;
+                        String parentOrderId = orderMessage.getIfdParentOrderId();
+                        openData = null;
+                        if(lineData.getEntryOrder() != null && lineData.getEntryOrder().getOrderId().equals(parentOrderId))
+                        {
+                            openData = lineData.getEntryOrder();
+                            break label3;
+                        }
+                        Iterator i$ = lineData.getPendingOrders().iterator();
+                        com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData orderOpenData;
+                        do
+                        {
+                            if(!i$.hasNext())
+                                break label3;
+                            orderOpenData = (com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData)i$.next();
+                        } while(!orderOpenData.getOrderId().equals(parentOrderId));
+                        openData = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData)orderOpenData;
+                    }
+                    if(openData == null)
+                    {
+                        openData = lineData.getEntryOrder();
+                        if(openData == null && lineData.getPendingOrders() != null && !lineData.getPendingOrders().isEmpty())
+                            openData = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData)lineData.getPendingOrders().get(0);
+                    }
+                    if(openData != null)
+                    {
+                        openData.setTakeProfitPrice(getStopPrice(orderMessage));
+                        openData.setTakeProfitSlippage(orderMessage.getPriceTrailingLimit() != null ? orderMessage.getPriceTrailingLimit().getValue() : null);
+                        openData.setTakeProfitOrderId(orderMessage.getOrderId());
+                        if(debugEnabled)
+                            LOGGER.debug((new StringBuilder()).append("Pending closing take profit order found [").append(orderMessage.getOrderId()).append(", ").append(openData.getTakeProfitPrice()).append("]").toString());
+                        if(openData == lineData.getEntryOrder())
+                            extendOrderHistoryRange(lineData, orderMessage.getTimestamp().getTime());
+                    } else
+                    {
+                        LOGGER.warn((new StringBuilder()).append("Couldn't find where take profit order [").append(orderMessage.getOrderId()).append("] belongs").toString());
+                    }
+                    break;
+                }
+
+            case 3: // '\003'
+                com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData closeData = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData)lineData.getCloseDataMap().get(orderMessage.getOrderId());
+                if(closeData == null)
+                {
+                    closeData = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData();
+                    lineData.putCloseData(orderMessage.getOrderId(), closeData);
+                }
+                closeData.setClosePrice(getStopPrice(orderMessage));
+                closeData.setCloseTime(orderMessage.getCreatedDate().getTime());
+                extendOrderHistoryRange(lineData, closeData.getCloseTime());
+                closeData.setAmount(orderMessage.getAmount().getValue());
+                if(debugEnabled)
+                    LOGGER.debug((new StringBuilder()).append("Filled closing order found [").append(orderMessage.getOrderId()).append(", ").append(closeData.getCloseTime()).append(", ").append(closeData.getClosePrice()).append(", ").append(closeData.getAmount()).append("], marking line data as closed").toString());
+                lineData.setClosed(true);
+                if(!lineData.isOpened())
+                    orderGroups.remove(orderGroup.getOrderGroupId());
+                else
+                    updateClosedCorrection(instrument, lineData.getEntryOrder().getSide(), lineData.getEntryOrder().getOpenPrice().doubleValue(), closeData.getClosePrice().doubleValue(), closeData.getAmount().doubleValue());
+                break;
+
+            case 4: // '\004'
+            case 5: // '\005'
+            case 6: // '\006'
+                if(debugEnabled)
+                    LOGGER.debug((new StringBuilder()).append("Cancelled closing order found [").append(orderMessage.getOrderId()).append("]").toString());
+                if(lineData.removeCloseData(orderMessage.getOrderId()) != null)
+                {
+                    if(debugEnabled)
+                        LOGGER.debug("Cancelled closing order removed from closeDataMap");
+                    lineData.setClosed(false);
+                }
+                break;
+            }
+        } while(true);
+        Money orderGroupCommission = orderGroup.getSummaryComission();
+        if(orderGroupCommission != null)
+            if(!orderGroupCommission.getCurrency().equals(calculatedAccount.getCurrency()))
+                LOGGER.error("Order commission currency {} differs from current account's currency {}", orderGroupCommission.getCurrency(), calculatedAccount.getCurrency());
+            else
+                lineData.setCommission(orderGroupCommission.getValue());
+        OrderHistoricalData immutableLineData = new OrderHistoricalData(lineData);
+        orderGroups.put(orderGroup.getOrderGroupId(), immutableLineData);
+        if(isNew)
+            fireOrderNew(instrument, immutableLineData);
+        else
+            fireOrderChange(instrument, immutableLineData);
+        return;
+    }
+
+    public synchronized void updateOrder(OrderMessage orderMessage)
+    {
+        boolean debugEnabled = LOGGER.isDebugEnabled();
+        if(debugEnabled)
+            LOGGER.debug((new StringBuilder()).append("Order update recived [").append(orderMessage.getOrderId()).append("]").toString());
+        Instrument instrument = Instrument.fromString(orderMessage.getInstrument());
+        if(!$assertionsDisabled && instrument == null)
+            throw new AssertionError((new StringBuilder()).append("Instrument of order group cannot be recognized [").append(orderMessage.getInstrument()).append("]").toString());
+        Map orderGroups = ordersByInstrument[instrument.ordinal()];
+        if(orderGroups == null)
+        {
+            orderGroups = new HashMap();
+            ordersByInstrument[instrument.ordinal()] = orderGroups;
+        }
+        boolean isNew = false;
+        OrderHistoricalData orderHistoricalData = (OrderHistoricalData)orderGroups.get(orderMessage.getParentOrderId());
+        OrderHistoricalDataMutable lineData;
+        if(orderHistoricalData == null)
+        {
+            if(debugEnabled)
+                LOGGER.debug((new StringBuilder()).append("Order [").append(orderMessage.getOrderId()).append("] is new").toString());
+            lineData = new OrderHistoricalDataMutable();
+            lineData.setOrderGroupId(orderMessage.getParentOrderId());
+            isNew = true;
+        } else
+        {
+            lineData = new OrderHistoricalDataMutable(orderHistoricalData);
+        }
+        lineData.clearPendingOrders();
+        switch(_cls3..SwitchMap.com.dukascopy.transport.common.model.type.OrderState[orderMessage.getOrderState().ordinal()])
+        {
+        default:
+            break;
+
+        case 1: // '\001'
+        case 2: // '\002'
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData pendingOpeningOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData();
+            pendingOpeningOrder.setOrderId(orderMessage.getOrderId());
+            pendingOpeningOrder.setCreationTime(orderMessage.getCreatedDate().getTime());
+            pendingOpeningOrder.setAmount(orderMessage.getAmount().getValue());
+            pendingOpeningOrder.setOpenPrice(getStopPrice(orderMessage));
+            pendingOpeningOrder.setOpenSlippage(orderMessage.getPriceTrailingLimit() != null ? orderMessage.getPriceTrailingLimit().getValue() : null);
+            if(orderMessage.getOrderState() == OrderState.EXECUTING)
+                pendingOpeningOrder.setExecuting(true);
+            OrderSide side = orderMessage.getSide();
+            if(side != null)
+                pendingOpeningOrder.setSide(convert(side, orderMessage.getStopDirection(), false, orderMessage.isPlaceOffer()));
+            pendingOpeningOrder.setLabel(orderMessage.getExternalSysId());
+            if(pendingOpeningOrder.getLabel() == null)
+                pendingOpeningOrder.setLabel((new StringBuilder()).append("JF").append(orderMessage.getOrderId()).toString());
+            pendingOpeningOrder.setComment(orderMessage.getTag());
+            lineData.addPendingOrder(pendingOpeningOrder);
+            if(orderMessage.getExecTimeoutMillis() != null)
+                pendingOpeningOrder.setGoodTillTime(orderMessage.getExecTimeoutMillis().longValue());
+            if(debugEnabled)
+                LOGGER.debug((new StringBuilder()).append("Pending opening order found [").append(orderMessage.getOrderId()).append(", ").append(pendingOpeningOrder.getSide()).append(", ").append(pendingOpeningOrder.getOpenPrice()).append("]").toString());
+            break;
+
+        case 3: // '\003'
+            Date timestamp = null;
+            if(!lineData.isOpened())
+            {
+                timestamp = orderMessage.getTimestamp();
+                if(!$assertionsDisabled && timestamp == null)
+                    throw new AssertionError("Opening time is null");
+            }
+            lineData.setOpened(true);
+            if(!$assertionsDisabled && orderMessage.getSide() == null)
+                throw new AssertionError("Opening side is null");
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData entryOrder = lineData.getEntryOrder();
+            if(entryOrder == null)
+            {
+                entryOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData();
+                lineData.setEntryOrder(entryOrder);
+                entryOrder.setOrderId(orderMessage.getOrderId());
+                entryOrder.setCreationTime(orderMessage.getCreatedDate().getTime());
+            } else
+            if(!entryOrder.getOrderId().equals(orderMessage.getOrderId()))
+            {
+                LOGGER.warn("Got entry order with order id different than was saved for this order group message");
+                entryOrder.setOrderId(orderMessage.getOrderId());
+            }
+            entryOrder.setSide(convert(orderMessage.getSide(), orderMessage.getStopDirection(), true, false));
+            entryOrder.setOpenPrice(orderMessage.getPriceClient().getValue());
+            if(timestamp != null)
+                entryOrder.setFillTime(timestamp.getTime());
+            entryOrder.setLabel(orderMessage.getExternalSysId());
+            if(entryOrder.getLabel() == null)
+                entryOrder.setLabel((new StringBuilder()).append("JF").append(orderMessage.getOrderId()).toString());
+            entryOrder.setComment(orderMessage.getTag());
+            extendOrderHistoryRange(lineData, entryOrder.getFillTime());
+            entryOrder.setOpenSlippage(null);
+            lineData.setOco(false);
+            entryOrder.setAmount(orderMessage.getAmount().getValue());
+            if(debugEnabled)
+                LOGGER.debug((new StringBuilder()).append("Filled opening order found [").append(orderMessage.getOrderId()).append(", ").append(entryOrder.getSide()).append(", ").append(entryOrder.getFillTime()).append(", ").append(entryOrder.getOpenPrice()).append("]").toString());
+            break;
+
+        case 4: // '\004'
+        case 5: // '\005'
+        case 6: // '\006'
+            lineData.setClosed(true);
+            if(!lineData.isOpened())
+                orderGroups.remove(orderMessage.getOrderId());
+            break;
+        }
+        OrderHistoricalData immutableLineData = new OrderHistoricalData(lineData);
+        orderGroups.put(orderMessage.getParentOrderId(), immutableLineData);
+        if(isNew)
+            fireOrderNew(instrument, immutableLineData);
+        else
+            fireOrderChange(instrument, immutableLineData);
+    }
+
+    private void updateClosedCorrection(Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double openPrice, double closePrice, double amount)
+    {
+        if(calculatedAccount.getCurrency() == null)
+            return;
+        double proffLoseInSecCCY;
+        OfferSide side;
+        if(orderCommand.isLong())
+        {
+            proffLoseInSecCCY = (closePrice - openPrice) * amount;
+            side = OfferSide.BID;
+        } else
+        {
+            proffLoseInSecCCY = (openPrice - closePrice) * amount;
+            side = OfferSide.ASK;
+        }
+        double val = currencyConverter.convert(proffLoseInSecCCY, instrument.getSecondaryCurrency(), calculatedAccount.getCurrency(), side);
+        if(!Double.isNaN(val))
+        {
+            BigDecimal bigDecimal = BigDecimal.valueOf(val);
+            if(bigDecimal != null)
+                closedCorrection += bigDecimal.doubleValue();
+        }
+    }
+
+    public synchronized void updateAccountInfoData(AccountInfoMessage accountInfoMessage)
+    {
+        String mcLeverageUse = accountInfoMessage.getString("mcLevUse");
+        if(mcLeverageUse != null)
+            calculatedAccount.setMarginCutLevel(Integer.parseInt(mcLeverageUse));
+        if(accountInfoMessage.getWeekendLeverage() != null)
+            calculatedAccount.setOverTheWeekendLeverage(accountInfoMessage.getWeekendLeverage().intValue());
+        calculatedAccount.setCurrency(accountInfoMessage.getCurrency());
+        Integer leverage = accountInfoMessage.getLeverage();
+        if(leverage == null)
+            calculatedAccount.setLeverage(1.0D);
+        else
+            calculatedAccount.setLeverage(leverage.intValue());
+        if(accountInfoMessage.getUsableMargin() != null)
+            calculatedAccount.setAccountInfoCreditLine(accountInfoMessage.getUsableMargin().getValue().multiply(new BigDecimal(calculatedAccount.getLeverage())).doubleValue());
+        else
+            calculatedAccount.setAccountInfoCreditLine(0.0D);
+        if(accountInfoMessage.getEquity() != null && accountInfoMessage.getEquity().getValue().doubleValue() > 0.0D)
+            calculatedAccount.setAccountInfoEquity(accountInfoMessage.getEquity().getValue().doubleValue());
+        else
+            calculatedAccount.setAccountInfoEquity(0.0D);
+        if(accountInfoMessage.getBaseEquity() != null && accountInfoMessage.getBaseEquity().getValue().doubleValue() > 0.0D)
+            calculatedAccount.setBaseEquity(accountInfoMessage.getBaseEquity().getValue().doubleValue());
+        if(accountInfoMessage.getBalance() != null && accountInfoMessage.getBalance().getValue().doubleValue() > 0.0D)
+            calculatedAccount.setBalance(accountInfoMessage.getBalance().getValue().doubleValue());
+        if(accountInfoMessage.getAcountLoginId() != null)
+            calculatedAccount.setAccountId(accountInfoMessage.getUserId());
+        if(accountInfoMessage.getEquity() != null && accountInfoMessage.getEquity().getValue().doubleValue() > 0.0D && accountInfoMessage.getUsableMargin() != null)
+        {
+            double accountInfoUseOfLeverage = accountInfoMessage.getEquity().getValue().subtract(accountInfoMessage.getUsableMargin().getValue()).divide(accountInfoMessage.getEquity().getValue(), 2, RoundingMode.HALF_EVEN).doubleValue();
+            calculatedAccount.setAccountInfoUseOfLeverage(StratUtils.round(accountInfoUseOfLeverage * 100D, 5));
+        } else
+        {
+            calculatedAccount.setAccountInfoUseOfLeverage(0.0D);
+        }
+        calculatedAccount.setGlobal(accountInfoMessage.isGlobal());
+        closedCorrection = 0.0D;
+    }
+
+    public double recalculateEquity()
+    {
+        if((double)FeedDataProvider.getDefaultInstance().getCurrentTime() > calculatedAccount.getCalculationTime())
+        {
+            recalculateAccountData();
+            calculatedAccount.setCalculationTime(FeedDataProvider.getDefaultInstance().getCurrentTime());
+        }
+        return calculatedAccount.getEquity();
+    }
+
+    protected ITick getLastTick(Instrument instrument)
+    {
+        return FeedDataProvider.getDefaultInstance().getLastTick(instrument);
+    }
+
+    public double convert(double amount, Currency sourceCurrency, Currency targetCurrency, OfferSide side)
+    {
+        return currencyConverter.convert(amount, sourceCurrency, targetCurrency, side);
+    }
+
+    public BigDecimal convert(BigDecimal amount, Currency sourceCurrency, Currency targetCurrency, OfferSide side)
+    {
+        return currencyConverter.convert(amount, sourceCurrency, targetCurrency, side);
+    }
+
+    private BigDecimal getStopPrice(OrderMessage order)
+    {
+        Money stopPrice = order.getPriceStop();
+        if(stopPrice == null && order.isPlaceOffer())
+            return order.getPriceClient().getValue();
+        boolean stopDirExists = null != order.getStopDirection() && null != stopPrice;
+        if(stopDirExists)
+            return stopPrice.getValue();
+        if(order.getPriceClient() == null)
+        {
+            double val;
+            if(order.getSide() == OrderSide.BUY)
+            {
+                val = FeedDataProvider.getDefaultInstance().getLastAsk(Instrument.fromString(order.getInstrument()));
+                if(!Double.isNaN(val))
+                    return BigDecimal.valueOf(val);
+                else
+                    return BigDecimal.ZERO;
+            }
+            val = FeedDataProvider.getDefaultInstance().getLastBid(Instrument.fromString(order.getInstrument()));
+            if(!Double.isNaN(val))
+                return BigDecimal.valueOf(val);
+            else
+                return BigDecimal.ZERO;
+        } else
+        {
+            return order.getPriceClient().getValue();
+        }
+    }
+
+    public static com.dukascopy.api.IEngine.OrderCommand convert(OrderSide side, StopDirection stopDirection, boolean filled, boolean isBidOffer)
+    {
+        if(OrderSide.BUY == side)
+        {
+            if(stopDirection == null && !isBidOffer || filled)
+                return com.dukascopy.api.IEngine.OrderCommand.BUY;
+            if(isBidOffer)
+                return com.dukascopy.api.IEngine.OrderCommand.PLACE_BID;
+            switch(_cls3..SwitchMap.com.dukascopy.transport.common.model.type.StopDirection[stopDirection.ordinal()])
+            {
+            case 1: // '\001'
+                return com.dukascopy.api.IEngine.OrderCommand.BUYSTOP_BYBID;
+
+            case 2: // '\002'
+                return com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT;
+
+            case 3: // '\003'
+                return com.dukascopy.api.IEngine.OrderCommand.BUYSTOP;
+
+            case 4: // '\004'
+                return com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT;
+
+            case 5: // '\005'
+                return com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID;
+
+            case 6: // '\006'
+                return com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID;
+            }
+            return null;
+        }
+        if(OrderSide.SELL == side)
+        {
+            if(stopDirection == null && !isBidOffer || filled)
+                return com.dukascopy.api.IEngine.OrderCommand.SELL;
+            if(isBidOffer)
+                return com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER;
+            switch(_cls3..SwitchMap.com.dukascopy.transport.common.model.type.StopDirection[stopDirection.ordinal()])
+            {
+            case 1: // '\001'
+                return com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT;
+
+            case 2: // '\002'
+                return com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT;
+
+            case 3: // '\003'
+                return com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK;
+
+            case 4: // '\004'
+                return com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK;
+
+            case 5: // '\005'
+                return com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT;
+
+            case 6: // '\006'
+                return com.dukascopy.api.IEngine.OrderCommand.SELLSTOP;
+            }
+            return null;
+        } else
+        {
+            return null;
+        }
+    }
+
+    public void close()
+    {
+        super.close();
+        if(this == getInstance())
+            ordersProvider = null;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/orders/OrdersProvider);
+    private static final Instrument INSTRUMENT_VALUES[] = Instrument.values();
+    private static OrdersProvider ordersProvider;
+    private AbstractCurrencyConverter currencyConverter;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/orders/OrdersProvider.desiredAssertionStatus();
+
+}

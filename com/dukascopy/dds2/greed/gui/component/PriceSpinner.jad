@@ -1,0 +1,365 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PriceSpinner.java
+
+package com.dukascopy.dds2.greed.gui.component;
+
+import com.dukascopy.dds2.greed.util.HalfPipRounder;
+import com.dukascopy.dds2.greed.util.PlatformSpecific;
+import java.awt.Insets;
+import java.awt.event.FocusEvent;
+import java.io.PrintStream;
+import java.math.BigDecimal;
+import java.text.ParseException;
+import javax.swing.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.component:
+//            PriceAmountTextFieldM, PriceAmountTextField
+
+public class PriceSpinner extends JSpinner
+    implements PlatformSpecific
+{
+    public class PriceString
+    {
+
+        public String toString()
+        {
+            return price;
+        }
+
+        private String price;
+        final PriceSpinner this$0;
+
+
+        PriceString()
+        {
+            this$0 = PriceSpinner.this;
+            super();
+        }
+
+        PriceString(String val)
+        {
+            this$0 = PriceSpinner.this;
+            super();
+            price = val;
+        }
+    }
+
+    private class PriceFormatter extends javax.swing.JFormattedTextField.AbstractFormatter
+    {
+
+        public Object stringToValue(String text)
+            throws ParseException
+        {
+            try
+            {
+                new PriceString(text);
+            }
+            catch(Exception e)
+            {
+                PriceSpinner.LOGGER.error((new StringBuilder()).append("bad input ").append(text).append("  ").append(e.getMessage()).toString(), e);
+            }
+            return new PriceString(text);
+        }
+
+        public String valueToString(Object value)
+            throws ParseException
+        {
+            return ((PriceString)value).toString();
+        }
+
+        final PriceSpinner this$0;
+
+        private PriceFormatter()
+        {
+            this$0 = PriceSpinner.this;
+            super();
+        }
+
+    }
+
+    private class PriceAmountVerifier extends InputVerifier
+    {
+
+        public boolean verify(JComponent input)
+        {
+            String text;
+            javax.swing.JFormattedTextField.AbstractFormatter formatter;
+            if(!(input instanceof JFormattedTextField))
+                break MISSING_BLOCK_LABEL_35;
+            text = ((JFormattedTextField)input).getText();
+            formatter = ((JFormattedTextField)input).getFormatter();
+            formatter.stringToValue(text);
+            return true;
+            ParseException e;
+            e;
+            return false;
+            return true;
+        }
+
+        public boolean shouldYieldFocus(JComponent input)
+        {
+            return verify(input);
+        }
+
+        final PriceSpinner this$0;
+
+        private PriceAmountVerifier()
+        {
+            this$0 = PriceSpinner.this;
+            super();
+        }
+
+    }
+
+
+    public PriceSpinner()
+    {
+        caretPosition = 0;
+        priceString = new PriceString();
+        setMinimum(new BigDecimal(0));
+        setMaximum(new BigDecimal("1000000"));
+    }
+
+    public void setText(String text)
+    {
+        getTextField().setText(text);
+    }
+
+    protected JComponent createEditor(SpinnerModel model)
+    {
+        setTextField(new PriceAmountTextFieldM(8) {
+
+            protected void processFocusEvent(FocusEvent event)
+            {
+                if(1005 == event.getID())
+                    try
+                    {
+                        priceString = new PriceString(getTextField().getText());
+                    }
+                    catch(Exception e)
+                    {
+                        PriceSpinner.LOGGER.error(e.getMessage(), e);
+                    }
+                super.processFocusEvent(event);
+            }
+
+            final PriceSpinner this$0;
+
+            
+            {
+                this$0 = PriceSpinner.this;
+                super(x0);
+            }
+        });
+        getTextField().setMargin(new Insets(0, 5, 0, 5));
+        if(MACOSX)
+            getTextField().putClientProperty("JComponent.sizeVariant", "small");
+        getTextField().setColumns(8);
+        getTextField().setValue(new PriceString());
+        getTextField().setFormatterFactory(new javax.swing.JFormattedTextField.AbstractFormatterFactory() {
+
+            public javax.swing.JFormattedTextField.AbstractFormatter getFormatter(JFormattedTextField tf)
+            {
+                return new PriceFormatter();
+            }
+
+            final PriceSpinner this$0;
+
+            
+            {
+                this$0 = PriceSpinner.this;
+                super();
+            }
+        });
+        getTextField().setInputVerifier(new PriceAmountVerifier());
+        getTextField().setFocusLostBehavior(1);
+        return getTextField();
+    }
+
+    public void setMargin(Insets m)
+    {
+        getTextField().setMargin(m);
+    }
+
+    public Insets getMargin()
+    {
+        return getTextField().getMargin();
+    }
+
+    public void clear()
+    {
+        getTextField().clear();
+    }
+
+    public void setHorizontalAlignment(int alignment)
+    {
+        getTextField().setHorizontalAlignment(alignment);
+    }
+
+    public void showMessage(String message)
+    {
+        getTextField().showMessage(message);
+    }
+
+    public JComponent getEditor()
+    {
+        return getTextField();
+    }
+
+    public Object getValue()
+    {
+        return priceString;
+    }
+
+    public void setValue(Object value)
+    {
+        if(value == null || !(value instanceof PriceString))
+            throw new IllegalArgumentException("Number is null or not a PriceString");
+        PriceString newValue = (PriceString)value;
+        BigDecimal newPrice = new BigDecimal(newValue.price);
+        if(newPrice.compareTo(maximum) > 0 || newPrice.compareTo(minimum) < 0)
+        {
+            throw new IllegalArgumentException((new StringBuilder()).append("Price is less than minimum or bigger than maximum: ").append(newPrice).append(" max: ").append(maximum).append(" min:").append(minimum).toString());
+        } else
+        {
+            getTextField().setValue(newValue);
+            getTextField().setCaretPosition(caretPosition);
+            fireStateChanged();
+            return;
+        }
+    }
+
+    public Object getPreviousValue()
+    {
+        return adjustPrice(-1);
+    }
+
+    public Object getNextValue()
+    {
+        return adjustPrice(1);
+    }
+
+    public BigDecimal getMinimum()
+    {
+        return minimum;
+    }
+
+    public void setMinimum(BigDecimal min)
+    {
+        minimum = min;
+    }
+
+    public BigDecimal getMaximum()
+    {
+        return maximum;
+    }
+
+    public void setMaximum(BigDecimal max)
+    {
+        maximum = max;
+    }
+
+    public boolean validatePrice()
+    {
+        BigDecimal newValue = new BigDecimal(getTextField().getText());
+        return newValue.compareTo(maximum) <= 0 && newValue.compareTo(minimum) >= 0;
+    }
+
+    public void refreshToMin()
+    {
+        getTextField().setValue(new PriceString(getMinimum().toPlainString()));
+    }
+
+    public void refreshToMax()
+    {
+        getTextField().setValue(new PriceString(getMaximum().toPlainString()));
+    }
+
+    private PriceString adjustPrice(int direction)
+    {
+        caretPosition = getTextField().getCaretPosition();
+        String text = getTextField().getText();
+        BigDecimal normalized = new BigDecimal(text);
+        BigDecimal adjusted = HalfPipRounder.adjustPrice(normalized, direction);
+        if(adjusted != null)
+        {
+            if(adjusted.compareTo(maximum) > 0 || adjusted.compareTo(minimum) < 0)
+                return null;
+            else
+                return new PriceString(adjusted.toString());
+        } else
+        {
+            return new PriceString(text);
+        }
+    }
+
+    public String getText()
+    {
+        if("".equalsIgnoreCase(textField.getText()))
+            showMessage("label.error.property.is.empty");
+        return getTextField().getText();
+    }
+
+    PriceAmountVerifier getVerifier()
+    {
+        return (PriceAmountVerifier)getTextField().getInputVerifier();
+    }
+
+    private void setTextField(PriceAmountTextFieldM textField)
+    {
+        this.textField = textField;
+    }
+
+    private PriceAmountTextFieldM getTextField()
+    {
+        return textField;
+    }
+
+    public void setPriceString(PriceString priceString)
+    {
+        this.priceString = priceString;
+    }
+
+    public PriceString getPriceString()
+    {
+        return priceString;
+    }
+
+    public static void main(String args[])
+    {
+        SwingUtilities.invokeLater(new Runnable() {
+
+            public void run()
+            {
+                JFrame frame = new JFrame("SpinnerDemo");
+                frame.setDefaultCloseOperation(3);
+                JPanel newContentPane = new JPanel();
+                newContentPane.setLayout(new BoxLayout(newContentPane, 1));
+                PriceSpinner priceSpinner = new PriceSpinner();
+                priceSpinner.setText("12.08175");
+                System.err.println((new StringBuilder()).append("text = ").append(priceSpinner.getText()).toString());
+                System.err.println((new StringBuilder()).append("val = ").append(((PriceString)priceSpinner.getValue()).toString()).toString());
+                newContentPane.add(priceSpinner);
+                newContentPane.setOpaque(true);
+                frame.setContentPane(newContentPane);
+                frame.pack();
+                frame.setVisible(true);
+            }
+
+        });
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/gui/component/PriceSpinner);
+    private PriceAmountTextFieldM textField;
+    private PriceString priceString;
+    private int caretPosition;
+    private BigDecimal minimum;
+    private BigDecimal maximum;
+
+
+
+}

@@ -1,0 +1,204 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IndicatorsFilter.java
+
+package com.dukascopy.charts.math.indicators;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class IndicatorsFilter
+{
+
+    public IndicatorsFilter()
+    {
+    }
+
+    public static String getTitle(String name)
+    {
+        return (String)titles.get(name);
+    }
+
+    private static final Map titles;
+    private static final Map inputParams;
+    private static final Map optInputParams;
+    private static final Map outputParams;
+
+    static 
+    {
+        titles = new HashMap();
+        inputParams = new HashMap();
+        optInputParams = new HashMap();
+        outputParams = new HashMap();
+        titles.put("ACOS", "Vector Trigonometric ACos");
+        titles.put("AD", "Chaikin A/D Line");
+        inputParams.put("AD", new String[] {
+            "param1"
+        });
+        optInputParams.put("AD", new String[] {
+            "optParam1"
+        });
+        outputParams.put("AD", new String[] {
+            "outputParam1"
+        });
+        titles.put("ADD", "Vector Arithmetic Add");
+        titles.put("ADOSC", "Chaikin A/D Oscillator");
+        inputParams.put("ADOSC", new String[0]);
+        optInputParams.put("ADOSC", new String[0]);
+        outputParams.put("ADOSC", new String[] {
+            "outputParam1"
+        });
+        titles.put("ADX", "Average Directional Movement Index");
+        titles.put("ADXR", "Average Directional Movement Index Rating");
+        titles.put("APO", "Absolute Price Oscillator");
+        titles.put("AROON", "Aroon");
+        titles.put("AROONOSC", "Aroon Oscillator");
+        titles.put("ASIN", "Vector Trigonometric ASin");
+        titles.put("ATAN", "Vector Trigonometric ATan");
+        titles.put("ATR", "Average True Range");
+        titles.put("AVGPRICE", "Average Price");
+        titles.put("BBANDS", "Bollinger Bands");
+        titles.put("BETA", "Beta");
+        titles.put("BOP", "Balance Of Power");
+        titles.put("CCI", "Commodity Channel Index");
+        titles.put("CDL2CROWS", "Two Crows");
+        titles.put("CDL3BLACKCROWS", "Three Black Crows");
+        titles.put("CDL3INSIDE", "Three Inside Up/Down");
+        titles.put("CDL3LINESTRIKE", "Three-Line Strike ");
+        titles.put("CDL3OUTSIDE", "Three Outside Up/Down");
+        titles.put("CDL3STARSINSOUTH", "Three Stars In The South");
+        titles.put("CDL3WHITESOLDIERS", "Three Advancing White Soldiers");
+        titles.put("CDLABANDONEDBABY", "Abandoned Baby");
+        titles.put("CDLADVANCEBLOCK", "Advance Block");
+        titles.put("CDLBELTHOLD", "Belt-hold");
+        titles.put("CDLBREAKAWAY", "Breakaway");
+        titles.put("CDLCLOSINGMARUBOZU", "Closing Marubozu");
+        titles.put("CDLCONCEALBABYSWALL", "Concealing Baby Swallow");
+        titles.put("CDLCOUNTERATTACK", "Counterattack");
+        titles.put("CDLDARKCLOUDCOVER", "Dark Cloud Cover");
+        titles.put("CDLDOJI", "Doji");
+        titles.put("CDLDOJISTAR", "Doji Star");
+        titles.put("CDLDRAGONFLYDOJI", "Dragonfly Doji");
+        titles.put("CDLENGULFING", "Engulfing Pattern");
+        titles.put("CDLEVENINGDOJISTAR", "Evening Doji Star");
+        titles.put("CDLEVENINGSTAR", "Evening Star");
+        titles.put("CDLGAPSIDESIDEWHITE", "Up/Down-gap side-by-side white lines");
+        titles.put("CDLGRAVESTONEDOJI", "Gravestone Doji");
+        titles.put("CDLHAMMER", "Hammer");
+        titles.put("CDLHANGINGMAN", "Hanging Man");
+        titles.put("CDLHARAMI", "Harami Pattern");
+        titles.put("CDLHARAMICROSS", "Harami Cross Pattern");
+        titles.put("CDLHIGHWAVE", "High-Wave Candle");
+        titles.put("CDLHIKKAKE", "Hikkake Pattern");
+        titles.put("CDLHIKKAKEMOD", "Modified Hikkake Pattern");
+        titles.put("CDLHOMINGPIGEON", "Homing Pigeon");
+        titles.put("CDLIDENTICAL3CROWS", "Identical Three Crows");
+        titles.put("CDLINNECK", "In-Neck Pattern");
+        titles.put("CDLINVERTEDHAMMER", "Inverted Hammer");
+        titles.put("CDLKICKING", "Kicking");
+        titles.put("CDLKICKINGBYLENGTH", "Kicking - bull/bear determined by the longer marubozu");
+        titles.put("CDLLADDERBOTTOM", "Ladder Bottom");
+        titles.put("CDLLONGLEGGEDDOJI", "Long Legged Doji");
+        titles.put("CDLLONGLINE", "Long Line Candle");
+        titles.put("CDLMARUBOZU", "Marubozu");
+        titles.put("CDLMATCHINGLOW", "Matching Low");
+        titles.put("CDLMATHOLD", "Mat Hold");
+        titles.put("CDLMORNINGDOJISTAR", "Morning Doji Star");
+        titles.put("CDLMORNINGSTAR", "Morning Star");
+        titles.put("CDLONNECK", "On-Neck Pattern");
+        titles.put("CDLPIERCING", "Piercing Pattern");
+        titles.put("CDLRICKSHAWMAN", "Rickshaw Man");
+        titles.put("CDLRISEFALL3METHODS", "Rising/Falling Three Methods");
+        titles.put("CDLSEPARATINGLINES", "Separating Lines");
+        titles.put("CDLSHOOTINGSTAR", "Shooting Star");
+        titles.put("CDLSHORTLINE", "Short Line Candle");
+        titles.put("CDLSPINNINGTOP", "Spinning Top");
+        titles.put("CDLSTALLEDPATTERN", "Stalled Pattern");
+        titles.put("CDLSTICKSANDWICH", "Stick Sandwich");
+        titles.put("CDLTAKURI", "Takuri (Dragonfly Doji with very long lower shadow)");
+        titles.put("CDLTASUKIGAP", "Tasuki Gap");
+        titles.put("CDLTHRUSTING", "Thrusting Pattern");
+        titles.put("CDLTRISTAR", "Tristar Pattern");
+        titles.put("CDLUNIQUE3RIVER", "Unique 3 River");
+        titles.put("CDLUPSIDEGAP2CROWS", "Upside Gap Two Crows");
+        titles.put("CDLXSIDEGAP3METHODS", "Upside/Downside Gap Three Methods");
+        titles.put("CEIL", "Vector Ceil");
+        titles.put("CMO", "Chande Momentum Oscillator");
+        titles.put("CORREL", "Pearson's Correlation Coefficient (r)");
+        titles.put("COS", "Vector Trigonometric Cos");
+        titles.put("COSH", "Vector Trigonometric Cosh");
+        titles.put("DEMA", "Double Exponential Moving Average");
+        titles.put("DIV", "Vector Arithmetic Div");
+        titles.put("DX", "Directional Movement Index");
+        titles.put("EMA", "Exponential Moving Average");
+        titles.put("EXP", "Vector Arithmetic Exp");
+        titles.put("FLOOR", "Vector Floor");
+        titles.put("HT_DCPERIOD", "Hilbert Transform - Dominant Cycle Period");
+        titles.put("HT_DCPHASE", "Hilbert Transform - Dominant Cycle Phase");
+        titles.put("HT_PHASOR", "Hilbert Transform - Phasor Components");
+        titles.put("HT_SINE", "Hilbert Transform - SineWave");
+        titles.put("HT_TRENDLINE", "Hilbert Transform - Instantaneous Trendline");
+        titles.put("HT_TRENDMODE", "Hilbert Transform - Trend vs Cycle Mode");
+        titles.put("KAMA", "Kaufman Adaptive Moving Average");
+        titles.put("LINEARREG", "Linear Regression");
+        titles.put("LINEARREG_ANGLE", "Linear Regression Angle");
+        titles.put("LINEARREG_INTERCEPT", "Linear Regression Intercept");
+        titles.put("LINEARREG_SLOPE", "Linear Regression Slope");
+        titles.put("LN", "Vector Log Natural");
+        titles.put("LOG10", "Vector Log10");
+        titles.put("MA", "Moving average");
+        titles.put("MACD", "Moving Average Convergence/Divergence");
+        titles.put("MACDEXT", "MACD with controllable MA type");
+        titles.put("MACDFIX", "Moving Average Convergence/Divergence Fix 12/26");
+        titles.put("MAMA", "MESA Adaptive Moving Average");
+        titles.put("MAVP", "Moving average with variable period");
+        titles.put("MAX", "Highest value over a specified period");
+        titles.put("MEDPRICE", "Median Price");
+        titles.put("MFI", "Money Flow Index");
+        titles.put("MIDPOINT", "MidPoint over period");
+        titles.put("MIDPRICE", "Midpoint Price over period");
+        titles.put("MIN", "Lowest value over a specified period");
+        titles.put("MINMAX", "Lowest and highest values over a specified period");
+        titles.put("MINUS_DI", "Minus Directional Indicator");
+        titles.put("MINUS_DM", "Minus Directional Movement");
+        titles.put("MOM", "Momentum");
+        titles.put("MULT", "Vector Arithmetic Mult");
+        titles.put("NATR", "Normalized Average True Range");
+        titles.put("OBV", "On Balance Volume");
+        titles.put("PLUS_DI", "Plus Directional Indicator");
+        titles.put("PLUS_DM", "Plus Directional Movement");
+        titles.put("PPO", "Percentage Price Oscillator");
+        titles.put("ROC", "Rate of change : ((price/prevPrice)-1)*100");
+        titles.put("ROCP", "Rate of change Percentage: (price-prevPrice)/prevPrice");
+        titles.put("ROCR", "Rate of change ratio: (price/prevPrice)");
+        titles.put("ROCR100", "Rate of change ratio 100 scale: (price/prevPrice)*100");
+        titles.put("RSI", "Relative Strength Index");
+        titles.put("SAR", "Parabolic SAR");
+        titles.put("SAREXT", "Parabolic SAR - Extended");
+        titles.put("SIN", "Vector Trigonometric Sin");
+        titles.put("SINH", "Vector Trigonometric Sinh");
+        titles.put("SMA", "Simple Moving Average");
+        titles.put("SQRT", "Vector Square Root");
+        titles.put("STDDEV", "Standard Deviation");
+        titles.put("STOCH", "Stochastic");
+        titles.put("STOCHF", "Stochastic Fast");
+        titles.put("STOCHRSI", "Stochastic Relative Strength Index");
+        titles.put("SUB", "Vector Arithmetic Substraction");
+        titles.put("SUM", "Summation");
+        titles.put("T3", "Triple Exponential Moving Average (T3)");
+        titles.put("TAN", "Vector Trigonometric Tan");
+        titles.put("TANH", "Vector Trigonometric Tanh");
+        titles.put("TEMA", "Triple Exponential Moving Average");
+        titles.put("TRANGE", "True Range");
+        titles.put("TRIMA", "Triangular Moving Average");
+        titles.put("TRIX", "1-day Rate-Of-Change (ROC) of a Triple Smooth EMA");
+        titles.put("TSF", "Time Series Forecast");
+        titles.put("TYPPRICE", "Typical Price");
+        titles.put("ULTOSC", "Ultimate Oscillator");
+        titles.put("VAR", "Variance");
+        titles.put("WCLPRICE", "Weighted Close Price");
+        titles.put("WILLR", "Williams' %R");
+        titles.put("WMA", "Weighted Moving Average");
+    }
+}

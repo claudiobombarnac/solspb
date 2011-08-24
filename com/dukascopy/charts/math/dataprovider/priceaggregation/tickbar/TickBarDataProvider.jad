@@ -1,0 +1,229 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TickBarDataProvider.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation.tickbar;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.DataCacheException;
+import com.dukascopy.charts.data.datacache.IFeedDataProvider;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.data.datacache.priceaggregation.IPriceAggregationCreator;
+import com.dukascopy.charts.data.datacache.tickbar.*;
+import com.dukascopy.charts.math.dataprovider.AbstractDataProvider;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.AbstractPriceAggregationDataProvider;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.AbstractPriceAggregationDataSequence;
+import java.util.Map;
+import org.slf4j.Logger;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider.priceaggregation.tickbar:
+//            TickBarDataSequence
+
+public class TickBarDataProvider extends AbstractPriceAggregationDataProvider
+{
+
+    public TickBarDataProvider(Instrument instrument, OfferSide side, TickBarSize tickBarSize, int maxNumberOfCandles, int bufferSizeMultiplier, long lastTime, 
+            Filter filter, IFeedDataProvider feedDataProvider)
+    {
+        super(instrument, Period.TICK, side, maxNumberOfCandles, bufferSizeMultiplier, lastTime, filter, feedDataProvider);
+        this.tickBarSize = tickBarSize;
+        inProgressBarListener = new TickBarLiveFeedAdapter() {
+
+            public void newPriceData(TickBarData tickBar)
+            {
+                inProgressBarUpdated(tickBar);
+            }
+
+            public volatile void newPriceData(AbstractPriceAggregationData x0)
+            {
+                newPriceData((TickBarData)x0);
+            }
+
+            final TickBarDataProvider this$0;
+
+            
+            {
+                this$0 = TickBarDataProvider.this;
+                super();
+            }
+        };
+        latestBarNotificationListener = new TickBarLiveFeedAdapter() {
+
+            public void newPriceData(TickBarData tickBar)
+            {
+                latestBarArrived(tickBar);
+            }
+
+            public volatile void newPriceData(AbstractPriceAggregationData x0)
+            {
+                newPriceData((TickBarData)x0);
+            }
+
+            final TickBarDataProvider this$0;
+
+            
+            {
+                this$0 = TickBarDataProvider.this;
+                super();
+            }
+        };
+    }
+
+    protected TickBarData[] createArray(int size)
+    {
+        return new TickBarData[size];
+    }
+
+    protected TickBarData[] createArray(TickBarData data)
+    {
+        return (new TickBarData[] {
+            data
+        });
+    }
+
+    protected TickBarDataSequence createDataSequence(long from, long to, int extraBefore, int extraAfter, TickBarData data[], 
+            long gaps[][], Map formulaOutputs, Map indicators, boolean latestDataVisible, boolean includesLatestData)
+    {
+        return new TickBarDataSequence(from, to, extraBefore, extraAfter, data, gaps, formulaOutputs, indicators, latestDataVisible, includesLatestData);
+    }
+
+    protected void performDataLoad(int numOfCandlesBefore, long reqTime, int numOfCandlesAfter)
+        throws DataCacheException
+    {
+        feedDataProvider.loadTickBarData(getInstrument(), getOfferSide(), numOfCandlesBefore, reqTime, numOfCandlesAfter, tickBarSize, createTickBarLiveFeedListener(), loadingProgressListener);
+    }
+
+    protected ITickBarLiveFeedListener createTickBarLiveFeedListener()
+    {
+        return new TickBarLiveFeedAdapter() {
+
+            public void newPriceDatas(TickBarData tickBarDatas[], int loadedNumberBefore, int loadedNumberAfter)
+            {
+                historicalBarsArived(tickBarDatas);
+            }
+
+            public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+            {
+                newPriceDatas((TickBarData[])x0, x1, x2);
+            }
+
+            final TickBarDataProvider this$0;
+
+            
+            {
+                this$0 = TickBarDataProvider.this;
+                super();
+            }
+        };
+    }
+
+    public void setFilter(Filter filter1)
+    {
+    }
+
+    public void setInstrument(Instrument instrument)
+    {
+        setParams(instrument, period, filter, side, tickBarSize);
+    }
+
+    public void setOfferSide(OfferSide offerSide)
+    {
+        setParams(instrument, period, filter, offerSide, tickBarSize);
+    }
+
+    public void setPeriod(Period period1)
+    {
+    }
+
+    public TickBarSize getTickBarSize()
+    {
+        return tickBarSize;
+    }
+
+    public void setParams(Instrument instrument, Period period, Filter filter, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Setting filter ").append(filter).append(" for [").append(instrument).append("] [").append(period).append("] [").append(offerSide).append("] provider").toString());
+        if(parentDataProvider != null)
+            synchronized(parentDataProvider)
+            {
+                synchronized(this)
+                {
+                    synchronizeParams(instrument, period, filter, offerSide, tickBarSize);
+                }
+            }
+        else
+            synchronized(this)
+            {
+                synchronizeParams(instrument, period, filter, offerSide, tickBarSize);
+            }
+    }
+
+    private boolean isAnyParameterChanged(Instrument instrument, Period period, Filter filter, OfferSide side, TickBarSize tickBarSize)
+    {
+        return !this.period.equals(period) || !this.side.equals(side) || !this.filter.equals(filter) || !this.tickBarSize.equals(tickBarSize) || !this.instrument.equals(instrument);
+    }
+
+    private void synchronizeParams(Instrument instrument, Period period, Filter filter, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        boolean isAnyParamChanged = isAnyParameterChanged(instrument, period, filter, offerSide, tickBarSize);
+        this.tickBarSize = tickBarSize;
+        super.synchronizeParams(instrument, period, filter, offerSide, isAnyParamChanged);
+    }
+
+    protected void removeInProgressBarListeners()
+    {
+        feedDataProvider.removeInProgressTickBarListener((ITickBarLiveFeedListener)inProgressBarListener);
+        feedDataProvider.removeTickBarNotificationListener((ITickBarLiveFeedListener)latestBarNotificationListener);
+    }
+
+    protected void addInProgressBarListeners()
+    {
+        feedDataProvider.addInProgressTickBarListener(instrument, side, tickBarSize, (ITickBarLiveFeedListener)inProgressBarListener);
+        feedDataProvider.addTickBarNotificationListener(instrument, side, tickBarSize, (ITickBarLiveFeedListener)latestBarNotificationListener);
+    }
+
+    protected long getMaxTimeIntervalBetweenTwoBars()
+    {
+        return 60000L;
+    }
+
+    protected TickBarData getInProgressBar()
+    {
+        TickBarData bar = feedDataProvider.getInProgressTickBar(instrument, side, tickBarSize);
+        return bar;
+    }
+
+    protected Period getBarsBasedOnCandlesPeriod()
+    {
+        return Period.TICK;
+    }
+
+    protected volatile AbstractPriceAggregationDataSequence createDataSequence(long x0, long x1, int x2, int x3, AbstractPriceAggregationData x4[], 
+            long x5[][], Map x6, Map x7, boolean x8, boolean x9)
+    {
+        return createDataSequence(x0, x1, x2, x3, (TickBarData[])x4, x5, x6, x7, x8, x9);
+    }
+
+    protected volatile AbstractPriceAggregationData getInProgressBar()
+    {
+        return getInProgressBar();
+    }
+
+    protected volatile AbstractPriceAggregationData[] createArray(AbstractPriceAggregationData x0)
+    {
+        return createArray((TickBarData)x0);
+    }
+
+    protected volatile AbstractPriceAggregationData[] createArray(int x0)
+    {
+        return createArray(x0);
+    }
+
+    protected IPriceAggregationCreator latestTickBarCreator;
+    private TickBarSize tickBarSize;
+
+
+
+}

@@ -1,0 +1,301 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JFXCompiler.java
+
+package com.dukascopy.dds2.greed.agent.compiler;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.indicators.IIndicator;
+import com.dukascopy.dds2.greed.agent.compiler.utils.CompilerUtils;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import java.io.*;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.jar.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
+import org.eclipse.jdt.internal.compiler.batch.Main;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.compiler:
+//            CompilerWriter, ProcessInputStreamThread, JFXPack
+
+public class JFXCompiler
+{
+
+    public JFXCompiler()
+    {
+    }
+
+    private static String prepareClasspath(Class clazz, String jarName)
+    {
+        String classpath = null;
+        File libPath = new File((new StringBuilder()).append(CompilerUtils.getRootPath().getPath()).append(File.separator).append("lib").toString());
+        libPath.mkdirs();
+        try
+        {
+            if(clazz.getProtectionDomain().getCodeSource() != null)
+            {
+                URL iMainURL = clazz.getProtectionDomain().getCodeSource().getLocation();
+                if(iMainURL.getProtocol().equals("file"))
+                {
+                    String str = URLDecoder.decode(iMainURL.getFile(), "UTF-8");
+                    classpath = (new File(str)).getAbsolutePath();
+                } else
+                {
+                    LOGGER.debug("library...");
+                    File file = new File((new StringBuilder()).append(libPath).append(File.separator).append(jarName).toString());
+                    FileOutputStream fileOutputStream = new FileOutputStream(file);
+                    if(returnURL(iMainURL, fileOutputStream))
+                        classpath = file.getPath();
+                    fileOutputStream.close();
+                    LOGGER.debug("ready.");
+                }
+            }
+        }
+        catch(IOException exc)
+        {
+            LOGGER.error(exc.getMessage(), exc);
+        }
+        return classpath;
+    }
+
+    private static boolean prepareLib()
+    {
+        if(classpathAgent == null)
+            classpathAgent = prepareClasspath(com/dukascopy/api/IStrategy, "dds2-agent.jar");
+        LOGGER.info((new StringBuilder()).append("Agent classpath [").append(classpathAgent).append("]").toString());
+        if(classpathJDT == null)
+            classpathJDT = prepareClasspath(org/eclipse/jdt/internal/compiler/batch/Main, "ecj.jar");
+        LOGGER.info((new StringBuilder()).append("JDT classpath [").append(classpathJDT).append("]").toString());
+        if(classpathConnector == null)
+            classpathConnector = prepareClasspath(com/dukascopy/api/ConnectorStrategy, "connector.jar");
+        LOGGER.info((new StringBuilder()).append("Connector classpath [").append(classpathConnector).append("]").toString());
+        return classpathAgent != null && classpathJDT != null && classpathConnector != null;
+    }
+
+    public static boolean returnURL(URL url, OutputStream out)
+        throws IOException
+    {
+        InputStream urlIn = url.openStream();
+        BufferedInputStream in = new BufferedInputStream(urlIn);
+        if(!CompilerUtils.isJarMagic(CompilerUtils.readMagic(in)))
+        {
+            GZIPInputStream gIn = new GZIPInputStream(in);
+            JarOutputStream jostream = new JarOutputStream(out);
+            java.util.jar.Pack200.Unpacker unpacker = Pack200.newUnpacker();
+            unpacker.unpack(gIn, jostream);
+            jostream.close();
+            gIn.close();
+        } else
+        {
+            JarOutputStream jostream = new JarOutputStream(out);
+            CompilerUtils.copyJarFile(new JarInputStream(in), jostream);
+            jostream.close();
+        }
+        in.close();
+        return true;
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return false;
+    }
+
+    public static boolean compile(File srcFile, IConsole console)
+    {
+        boolean result = false;
+        PrintWriter errWriter;
+        PrintWriter outWriter;
+        errWriter = null;
+        outWriter = null;
+        if(console != null)
+        {
+            errWriter = new CompilerWriter(console.getErr());
+            outWriter = new CompilerWriter(console.getOut());
+        }
+        outWriter.println((new StringBuilder()).append("Compiling ").append(srcFile.getName()).toString());
+        outWriter.flush();
+        if(prepareLib())
+            break MISSING_BLOCK_LABEL_86;
+        errWriter.println("Unable to compile. Please restart platform.\n");
+        return result;
+        String classname;
+        File tmpDir;
+        classname = srcFile.getName().substring(0, srcFile.getName().length() - 5);
+        tmpDir = new File((new StringBuilder()).append(CompilerUtils.getRootPath().getPath()).append(File.separator).append("tmp").toString());
+        if(CompilerUtils.recreateDir(tmpDir))
+            break MISSING_BLOCK_LABEL_160;
+        errWriter.println("Unable to compile.\n");
+        return result;
+        File tmpSrcFile;
+        tmpSrcFile = new File((new StringBuilder()).append(tmpDir).append(File.separator).append(srcFile.getName()).toString());
+        if(CompilerUtils.copyFiles(srcFile, tmpSrcFile))
+            break MISSING_BLOCK_LABEL_214;
+        errWriter.println("Unable to compile.\n");
+        return result;
+        File jars[];
+        String tmpClasspath;
+        File arr$[];
+        int len$;
+        int i$;
+        jars = prepareAdditionalLibraries(tmpSrcFile);
+        tmpClasspath = classpathAgent;
+        if(jars.length <= 0)
+            break MISSING_BLOCK_LABEL_342;
+        arr$ = jars;
+        len$ = arr$.length;
+        i$ = 0;
+_L1:
+        File file;
+        if(i$ >= len$)
+            break MISSING_BLOCK_LABEL_342;
+        file = arr$[i$];
+        if(file.exists())
+            break MISSING_BLOCK_LABEL_305;
+        console.getErr().println((new StringBuilder()).append("File ").append(file.getAbsolutePath()).append(" not found.").toString());
+        return result;
+        tmpClasspath = (new StringBuilder()).append(tmpClasspath).append(File.pathSeparatorChar).append(file.getAbsolutePath()).toString();
+        i$++;
+          goto _L1
+        boolean success = false;
+        try
+        {
+            List command = new ArrayList();
+            command.add(System.getProperty("jfxcompiler.java.path", "java"));
+            command.add("-classpath");
+            command.add(classpathJDT);
+            command.add("org.eclipse.jdt.internal.compiler.batch.Main");
+            command.add("-classpath");
+            command.add(tmpClasspath);
+            command.add("-classpath");
+            command.add(classpathConnector);
+            command.add("-encoding");
+            command.add("UTF8");
+            command.add("-sourcepath");
+            command.add(tmpSrcFile.getParent());
+            command.add("-warn:none");
+            command.add("-source");
+            command.add("1.6");
+            command.add("-target");
+            command.add("1.6");
+            command.add(tmpSrcFile.getPath());
+            LOGGER.debug("Compile command : {}", command);
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+            Process process = processBuilder.start();
+            Thread inputReader = new ProcessInputStreamThread(process.getInputStream(), console.getOut());
+            inputReader.start();
+            Thread errorReader = new ProcessInputStreamThread(process.getErrorStream(), console.getErr());
+            errorReader.start();
+            success = process.waitFor() == 0;
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        JFXPack pack = null;
+        if(success)
+        {
+            File classFile = new File(tmpSrcFile.getParent(), (new StringBuilder()).append(classname).append(".class").toString());
+            classFile.deleteOnExit();
+            try
+            {
+                pack = JFXPack.buildFromClass(classFile, jars);
+                classFile.delete();
+                File jxfFile = new File((new StringBuilder()).append(srcFile.getParent()).append(File.separator).append(classFile.getName().substring(0, classFile.getName().lastIndexOf('.'))).append(".jfx").toString());
+                Class targetClass = pack.getTargetClass(true);
+                if(targetClass == null)
+                    throw new Exception("Cannot load target class");
+                try
+                {
+                    targetClass.getDeclaredConstructor(new Class[0]);
+                }
+                catch(NoSuchMethodException e)
+                {
+                    throw new Exception("Class doesn't have default constructor");
+                }
+                if(!com/dukascopy/api/IStrategy.isAssignableFrom(targetClass) && !com/dukascopy/api/indicators/IIndicator.isAssignableFrom(targetClass))
+                    throw new Exception("Class doesn't implement IStrategy or IIndicator interface");
+                if(jxfFile.exists())
+                    jxfFile.delete();
+                if(!jxfFile.exists())
+                {
+                    pack.write(jxfFile);
+                    outWriter.println((new StringBuilder()).append("Compilation successful. Strategy ID: ").append(pack.getMD5HexString()).toString());
+                    outWriter.flush();
+                    result = true;
+                } else
+                {
+                    errWriter.println((new StringBuilder()).append("File ").append(jxfFile.getName()).append(" is locked").toString());
+                    outWriter.flush();
+                }
+            }
+            catch(Exception ex)
+            {
+                LOGGER.error(ex.getMessage(), ex);
+                errWriter.println(ex.getMessage());
+                errWriter.flush();
+                outWriter.flush();
+            }
+        } else
+        {
+            errWriter.println("\n");
+            errWriter.flush();
+        }
+        CompilerUtils.recreateDir(tmpDir);
+        break MISSING_BLOCK_LABEL_1043;
+        RuntimeException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        throw e;
+        return result;
+    }
+
+    private static File[] prepareAdditionalLibraries(File tmpSrcFile)
+    {
+        List listFile = new ArrayList();
+        byte b[] = StratUtils.readFile(tmpSrcFile.getAbsolutePath());
+        String allPath = new String(b);
+        Pattern pattern = Pattern.compile("@Library\\(\"(.*?)\"\\)");
+        Matcher matcher = pattern.matcher(allPath);
+        String libPath = null;
+        if(matcher.find())
+        {
+            libPath = matcher.group(1);
+            String jarPath[] = libPath.split(File.pathSeparator);
+            String arr$[] = jarPath;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                String path = arr$[i$];
+                File theFile = null;
+                if(path.indexOf("/") != -1 || path.indexOf("\\") != -1)
+                {
+                    theFile = new File(path);
+                } else
+                {
+                    path = (new StringBuilder()).append(FilePathManager.getInstance().getFilesForStrategiesDir()).append(File.separator).append(path).toString();
+                    theFile = new File(path);
+                }
+                listFile.add(theFile);
+            }
+
+        }
+        return (File[])listFile.toArray(new File[0]);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/compiler/JFXCompiler);
+    private static String classpathAgent = null;
+    private static String classpathJDT = null;
+    private static String classpathConnector = null;
+    public static final String JAVA_PATH_KEY = "jfxcompiler.java.path";
+    private static final String JAVA_PATH_DEFAULT_VALUE = "java";
+
+}

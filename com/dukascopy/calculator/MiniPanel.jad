@@ -1,0 +1,60 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   MiniPanel.java
+
+package com.dukascopy.calculator;
+
+import java.awt.*;
+import javax.swing.JPanel;
+import javax.swing.border.EmptyBorder;
+
+public class MiniPanel extends JPanel
+{
+
+    public MiniPanel(boolean left)
+    {
+        this.left = left;
+        setBorder(new EmptyBorder(0, 0, 0, 0));
+        setIlluminated(false);
+    }
+
+    public void paintComponent(Graphics graphics)
+    {
+        Graphics2D g = (Graphics2D)graphics;
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.clearRect(0, 0, getWidth(), getHeight());
+        if(illuminated)
+        {
+            int l = 0;
+            int r = 0;
+            int w = (int)(0.80000000000000004D * (double)getWidth() + 0.5D);
+            int c = (int)(0.80000000000000004D * (double)getHeight() + 0.5D);
+            if(left)
+            {
+                r = (int)((double)(getWidth() - w) * 0.5D + 0.5D);
+                l = r + w;
+            } else
+            {
+                l = (int)((double)(getWidth() - w) * 0.5D + 0.5D);
+                r = l + w;
+            }
+            g.setPaint(Color.gray);
+            Polygon triangle = new Polygon();
+            triangle.addPoint(l, c);
+            triangle.addPoint(l, c + w);
+            triangle.addPoint(r, c);
+            triangle.addPoint(l, c - w);
+            g.fill(triangle);
+        }
+    }
+
+    void setIlluminated(boolean illuminated)
+    {
+        this.illuminated = illuminated;
+    }
+
+    private boolean illuminated;
+    private final boolean left;
+    private static final long serialVersionUID = 1L;
+}

@@ -1,0 +1,66 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   Substitution.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.expression.Variable;
+import java.util.Iterator;
+import java.util.LinkedList;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            OObject
+
+public class Substitution
+{
+    public class Pair
+    {
+
+        public Variable variable;
+        public OObject oobject;
+        final Substitution this$0;
+
+        public Pair()
+        {
+            this$0 = Substitution.this;
+            super();
+        }
+    }
+
+
+    public Substitution()
+    {
+        substitutions = new LinkedList();
+    }
+
+    public void add(Variable variable, OObject oobject)
+    {
+        if(variable == null)
+            return;
+        for(Iterator i = substitutions.iterator(); i.hasNext();)
+        {
+            Pair pair = (Pair)i.next();
+            if(pair.variable.name().equals(variable.name()))
+            {
+                if(oobject == null)
+                    i.remove();
+                else
+                    pair.oobject = oobject;
+                return;
+            }
+        }
+
+        Pair pair = new Pair();
+        pair.variable = variable;
+        pair.oobject = oobject;
+        substitutions.add(pair);
+    }
+
+    public final LinkedList getSubstitutions()
+    {
+        return substitutions;
+    }
+
+    private LinkedList substitutions;
+}

@@ -1,0 +1,86 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AgentException.java
+
+package com.dukascopy.dds2.greed.agent;
+
+
+public class AgentException extends RuntimeException
+{
+
+    public AgentException(byte code)
+    {
+        this.code = -12;
+        message = null;
+        this.code = code;
+    }
+
+    public AgentException(byte code, String message)
+    {
+        this.code = -12;
+        this.message = null;
+        this.code = code;
+        this.message = message;
+    }
+
+    public byte getCode()
+    {
+        return code;
+    }
+
+    public String getMessage()
+    {
+        switch(code)
+        {
+        case -10: 
+            message = (new StringBuilder()).append("Command unknown").append(message != null ? message : "").toString();
+            break;
+
+        case -11: 
+            message = (new StringBuilder()).append("Timeout error").append(message != null ? message : "").toString();
+            break;
+
+        case -12: 
+            message = (new StringBuilder()).append("DDS Exception").append(message != null ? message : "").toString();
+            break;
+
+        case -13: 
+            message = (new StringBuilder()).append("Reference ID not found").append(message != null ? message : "").toString();
+            break;
+
+        case -14: 
+            message = (new StringBuilder()).append("Reference ID not unique").append(message != null ? message : "").toString();
+            break;
+
+        case -15: 
+            message = (new StringBuilder()).append("Negative price").append(message != null ? message : "").toString();
+            break;
+
+        case -16: 
+            message = (new StringBuilder()).append("Invalid amount").append(message != null ? message : "").toString();
+            break;
+
+        case -17: 
+            message = (new StringBuilder()).append("No liquidity").append(message != null ? message : "").toString();
+            break;
+
+        case -18: 
+            message = (new StringBuilder()).append("Negative time").append(message != null ? message : "").toString();
+            break;
+
+        case -19: 
+            message = (new StringBuilder()).append("Thread incorrect").append(message != null ? message : "").toString();
+            break;
+
+        default:
+            message = (new StringBuilder()).append("Error message undefined").append(message != null ? message : "").toString();
+            break;
+        }
+        return message;
+    }
+
+    private static final long serialVersionUID = 0x72e5145119bfb1ddL;
+    private byte code;
+    private String message;
+}

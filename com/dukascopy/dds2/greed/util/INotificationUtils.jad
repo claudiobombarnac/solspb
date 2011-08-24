@@ -1,0 +1,43 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   INotificationUtils.java
+
+package com.dukascopy.dds2.greed.util;
+
+
+public interface INotificationUtils
+{
+
+    public abstract void postInfoMessage(String s);
+
+    public abstract void postInfoMessage(String s, boolean flag);
+
+    public abstract void postInfoMessage(String s, Throwable throwable);
+
+    public abstract void postInfoMessage(String s, Throwable throwable, boolean flag);
+
+    public abstract void postWarningMessage(String s);
+
+    public abstract void postWarningMessage(String s, boolean flag);
+
+    public abstract void postWarningMessage(String s, Throwable throwable);
+
+    public abstract void postWarningMessage(String s, Throwable throwable, boolean flag);
+
+    public abstract void postErrorMessage(String s);
+
+    public abstract void postErrorMessage(String s, boolean flag);
+
+    public abstract void postErrorMessage(String s, Throwable throwable);
+
+    public abstract void postErrorMessage(String s, Throwable throwable, boolean flag);
+
+    public abstract void postFatalMessage(String s);
+
+    public abstract void postFatalMessage(String s, boolean flag);
+
+    public abstract void postFatalMessage(String s, Throwable throwable);
+
+    public abstract void postFatalMessage(String s, Throwable throwable, boolean flag);
+}

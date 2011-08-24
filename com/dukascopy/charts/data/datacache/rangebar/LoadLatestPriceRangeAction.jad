@@ -1,0 +1,58 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadLatestPriceRangeAction.java
+
+package com.dukascopy.charts.data.datacache.rangebar;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.rangebar:
+//            LoadNumberOfPriceRangeAction, PriceRangeData, IPriceRangeLiveFeedListener
+
+public class LoadLatestPriceRangeAction extends LoadNumberOfPriceRangeAction
+{
+
+    public LoadLatestPriceRangeAction(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, PriceRange priceRange, IPriceRangeLiveFeedListener priceRangeLiveFeedListener, LoadingProgressListener loadingProgressListener, com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy)
+    {
+        super(instrument, offerSide, 10, 0x8000000000000000L, 10, priceRange, feedDataProvider, priceRangeLiveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+    }
+
+    protected long getToTime()
+    {
+        return getFeedDataProvider().getLatestKnownTimeOrCurrentGMTTime(getInstrument());
+    }
+
+    protected PriceRangeData[] extractRequestedBars(PriceRangeData target[])
+    {
+        PriceRangeData lastBar = (PriceRangeData)extractLastBar(target);
+        if(lastBar == null)
+            return null;
+        else
+            return (new PriceRangeData[] {
+                lastBar
+            });
+    }
+
+    protected long updateToTime(long toTime)
+    {
+        return getFeedDataProvider().getLatestKnownTimeOrCurrentGMTTime(getInstrument());
+    }
+
+    protected long getLastKnownTime()
+    {
+        return getToTime();
+    }
+
+    protected boolean inProgressBarExists()
+    {
+        return true;
+    }
+
+    protected volatile AbstractPriceAggregationData[] extractRequestedBars(AbstractPriceAggregationData x0[])
+    {
+        return extractRequestedBars((PriceRangeData[])x0);
+    }
+}

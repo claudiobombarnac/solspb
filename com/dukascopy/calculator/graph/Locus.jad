@@ -1,0 +1,278 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Locus.java
+
+package com.dukascopy.calculator.graph;
+
+import com.dukascopy.calculator.OObject;
+import com.dukascopy.calculator.Substitution;
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.expression.Variable;
+import java.awt.Graphics2D;
+import java.awt.geom.Path2D;
+import java.io.PrintStream;
+import java.util.LinkedList;
+import java.util.ListIterator;
+import java.util.Vector;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            Element, Point, PointList, Transformation, 
+//            Model, View
+
+public class Locus extends Element
+    implements Runnable
+{
+    protected class FindResult
+    {
+
+        public Point point;
+        public boolean interiorPoint;
+        public boolean success;
+        final Locus this$0;
+
+        FindResult(Point point, boolean interiorPoint, boolean success)
+        {
+            this$0 = Locus.this;
+            super();
+            this.point = point;
+            this.interiorPoint = interiorPoint;
+            this.success = success;
+        }
+    }
+
+
+    public Locus(OObject oobject, View view)
+    {
+        incrementValue = 10D;
+        distance = 16D;
+        lock = new Object();
+        this.oobject = oobject;
+        path = new java.awt.geom.Path2D.Double();
+        incrementValue = 2D;
+        substitution = new Substitution();
+        setup(view);
+    }
+
+    public void setup(View view)
+    {
+        System.out.println("Locus.setup()");
+        this.view = view;
+        restart = new AtomicBoolean(false);
+        thread = new Thread(this);
+        thread.start();
+    }
+
+    public void run()
+    {
+        Thread thisThread = Thread.currentThread();
+_L1:
+        Vector pl;
+        PointList pointList;
+        do
+        {
+            LinkedList list;
+            do
+            {
+                Transformation t;
+                do
+                {
+                    if(thread != thisThread)
+                        break MISSING_BLOCK_LABEL_1104;
+                    restart.set(false);
+                    double xv = -view.distance();
+                    list = new LinkedList();
+                    t = view.getTransformation();
+                    double x = -view.distance();
+                    do
+                    {
+                        if(x >= (double)view.getWidth() + view.distance())
+                            break;
+                        list.add(new Point(x, function(x, t)));
+                        if(restart.get())
+                            break;
+                        x += increment();
+                    } while(true);
+                } while(restart.get());
+                ListIterator i = list.listIterator();
+                do
+                {
+                    if(!i.hasNext() || restart.get())
+                        break;
+                    Point p = (Point)i.next();
+                    if(!i.hasNext())
+                        break;
+                    Point q = (Point)i.next();
+                    i.previous();
+                    double xp = p.getX();
+                    double xq = q.getX();
+                    double d = xq - xp;
+                    double yp = p.getY();
+                    double yq = q.getY();
+                    if(yp < (double)view.getHeight() && yp > 0.0D && (java.lang.Double.isInfinite(yq) || java.lang.Double.isNaN(yq)))
+                    {
+                        if(d > 1E-008D)
+                        {
+                            i.add(new Point(xp + d / 2D, function(xp + d / 2D, t)));
+                            i.previous();
+                            if(i.hasPrevious())
+                                i.previous();
+                        }
+                    } else
+                    if(yq < (double)view.getHeight() && yq > 0.0D && (java.lang.Double.isInfinite(yp) || java.lang.Double.isNaN(yp)))
+                    {
+                        if(d > 1E-008D)
+                        {
+                            i.add(new Point(xp + d / 2D, function(xp + d / 2D, t)));
+                            i.previous();
+                            if(i.hasPrevious())
+                                i.previous();
+                        }
+                    } else
+                    if(!java.lang.Double.isInfinite(yp) && !java.lang.Double.isNaN(yp) && !java.lang.Double.isInfinite(yq) && !java.lang.Double.isNaN(yq) && (yp < (double)view.getHeight() && yp > 0.0D || yq < (double)view.getHeight() && yq > 0.0D) && p.distance(q) > distance && d > 1E-008D)
+                    {
+                        i.add(new Point(xp + d / 2D, function(xp + d / 2D, t)));
+                        i.previous();
+                        if(i.hasPrevious())
+                            i.previous();
+                    }
+                } while(true);
+            } while(restart.get());
+            double lb = 0.0D;
+            double ub = view.getHeight();
+            pl = new Vector();
+            pointList = new PointList();
+            ListIterator i = list.listIterator();
+            do
+            {
+                if(!i.hasNext() || restart.get())
+                    break;
+                Point p = (Point)i.next();
+                double yp = p.getY();
+                if(!java.lang.Double.isInfinite(yp) && !java.lang.Double.isNaN(yp))
+                    if(yp > lb && yp < ub)
+                        pointList.add(p);
+                    else
+                    if(pointList.isEmpty())
+                    {
+                        if(i.hasNext())
+                        {
+                            Point q = (Point)i.next();
+                            double yq = q.getY();
+                            i.previous();
+                            if(!java.lang.Double.isInfinite(yq) && !java.lang.Double.isNaN(yq) && yq > lb && yq < ub)
+                                pointList.add(p);
+                        }
+                    } else
+                    {
+                        pointList.add(p);
+                        pl.add(pointList);
+                        pointList = new PointList();
+                    }
+            } while(true);
+            System.out.println("restart 4");
+        } while(restart.get());
+        if(!pointList.isEmpty())
+            pl.add(pointList);
+        java.awt.geom.Path2D.Double localPath = new java.awt.geom.Path2D.Double();
+        PointList l;
+        for(ListIterator j = pl.listIterator(); j.hasNext(); l.addToPath(localPath, restart))
+            l = (PointList)j.next();
+
+        synchronized(path)
+        {
+            path = localPath;
+        }
+        view.setCursor(null);
+        view.repaint();
+        Object obj = lock;
+        JVM INSTR monitorenter ;
+        if(!restart.get()) goto _L2; else goto _L1
+_L2:
+        try
+        {
+            System.out.println("Waiting");
+            lock.wait();
+            System.out.println("finished waiting");
+        }
+        catch(InterruptedException exception)
+        {
+            System.out.println("interrupted");
+        }
+        obj;
+        JVM INSTR monitorexit ;
+          goto _L1
+        Exception exception2;
+        exception2;
+        throw exception2;
+    }
+
+    public void updatePath()
+    {
+        if(thread == null)
+            return;
+        restart.set(true);
+        synchronized(lock)
+        {
+            System.out.println("updatePath()");
+            lock.notifyAll();
+        }
+    }
+
+    public void stop()
+    {
+        thread = null;
+    }
+
+    protected OObject substitute(double x)
+    {
+        substitution.add(variable, new Complex(x));
+        OObject result = oobject.substitute(substitution).auto_simplify();
+        return result;
+    }
+
+    protected double function(double x, Transformation t)
+    {
+        OObject p = substitute(t.toModelX(x));
+        if(p instanceof Complex)
+        {
+            Complex z = (Complex)p;
+            if(Math.abs(z.imaginary()) < 1.0000000000000001E-032D)
+            {
+                double y = z.real();
+                return t.toViewY(z.real());
+            }
+        }
+        return (0.0D / 0.0D);
+    }
+
+    public void draw(Model model, View view, Graphics2D graphics2d)
+    {
+        synchronized(path)
+        {
+            java.awt.Rectangle r = path.getBounds();
+            java.awt.Rectangle v = view.getBounds();
+            graphics2d.draw(path);
+        }
+    }
+
+    double increment()
+    {
+        return incrementValue;
+    }
+
+    protected static final Variable variable = new Variable(new com.dukascopy.calculator.function.Variable('x'));
+    protected Substitution substitution;
+    protected static final double epsilon = 1.0000000000000001E-032D;
+    protected static final double delta = 1E-008D;
+    private double incrementValue;
+    private double distance;
+    private final OObject oobject;
+    private java.awt.geom.Path2D.Double path;
+    private View view;
+    private Thread thread;
+    private Object lock;
+    AtomicBoolean restart;
+
+}

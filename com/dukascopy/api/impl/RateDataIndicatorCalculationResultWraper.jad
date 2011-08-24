@@ -1,0 +1,39 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:23
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   RateDataIndicatorCalculationResultWraper.java
+
+package com.dukascopy.api.impl;
+
+import java.util.List;
+
+public class RateDataIndicatorCalculationResultWraper
+{
+
+    public RateDataIndicatorCalculationResultWraper()
+    {
+    }
+
+    public Object[] getIndicatorCalculationResult()
+    {
+        return indicatorCalculationResult;
+    }
+
+    public void setIndicatorCalculationResult(Object indicatorCalculationResult[])
+    {
+        this.indicatorCalculationResult = indicatorCalculationResult;
+    }
+
+    public List getSourceData()
+    {
+        return sourceData;
+    }
+
+    public void setSourceData(List sourceData)
+    {
+        this.sourceData = sourceData;
+    }
+
+    private Object indicatorCalculationResult[];
+    private List sourceData;
+}

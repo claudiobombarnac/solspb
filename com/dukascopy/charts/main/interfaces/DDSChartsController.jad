@@ -1,0 +1,165 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DDSChartsController.java
+
+package com.dukascopy.charts.main.interfaces;
+
+import com.dukascopy.api.IChart;
+import com.dukascopy.api.IChartObject;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.PriceRange;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.listener.ChartModeChangeListener;
+import com.dukascopy.charts.listener.DisableEnableListener;
+import com.dukascopy.charts.persistence.ChartBean;
+import com.dukascopy.charts.persistence.IChartSettingsStorage;
+import com.dukascopy.charts.presentation.PointAndFigurePresentationType;
+import com.dukascopy.charts.presentation.PriceRangeAggregationPresentationType;
+import com.dukascopy.charts.presentation.TickBarPresentationType;
+import com.dukascopy.charts.presentation.TicksPresentationType;
+import com.dukascopy.charts.presentation.TimePeriodAggregationPresentationType;
+import com.dukascopy.dds2.greed.gui.table.ColumnDescriptor;
+import java.io.File;
+import java.util.List;
+import java.util.Set;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+
+// Referenced classes of package com.dukascopy.charts.main.interfaces:
+//            ProgressListener, DDSChartsActionListener
+
+public interface DDSChartsController
+{
+
+    public abstract JPanel getChartPanel(Integer integer);
+
+    public abstract JPanel createNewChartOrGetById(ChartBean chartbean);
+
+    public abstract void removeChart(Integer integer);
+
+    public abstract IChart getIChartBy(Instrument instrument);
+
+    public abstract Set getICharts(Instrument instrument);
+
+    public abstract IChart getIChartBy(Integer integer);
+
+    public abstract void startDrawing(Integer integer, com.dukascopy.api.IChart.Type type);
+
+    public abstract void add(Integer integer, List list);
+
+    public abstract List getMainChartDrawings(Integer integer);
+
+    public abstract void addDrawingToIndicator(int i, int j, int k, IChartObject ichartobject);
+
+    public abstract void reactivate(Integer integer);
+
+    public abstract void remove(Integer integer, IChartObject ichartobject);
+
+    public abstract void remove(Integer integer, List list);
+
+    public abstract void removeAllDrawings(int i);
+
+    public abstract void selectCustomRange(Integer integer, List list);
+
+    public abstract void addIndicator(Integer integer, IndicatorWrapper indicatorwrapper);
+
+    public abstract void addIndicator(Integer integer, Integer integer1, IndicatorWrapper indicatorwrapper);
+
+    public abstract void addIndicators(Integer integer, List list);
+
+    public abstract void editIndicator(Integer integer, int i, IndicatorWrapper indicatorwrapper);
+
+    public abstract void deleteIndicator(Integer integer, IndicatorWrapper indicatorwrapper);
+
+    public abstract void deleteIndicators(Integer integer, List list);
+
+    public abstract void changeLineType(Integer integer, TimePeriodAggregationPresentationType timeperiodaggregationpresentationtype);
+
+    public abstract void changeTickType(Integer integer, TicksPresentationType tickspresentationtype);
+
+    public abstract void changeAggregationPeriod(Integer integer, Period period);
+
+    public abstract void switchBidAskTo(Integer integer, OfferSide offerside);
+
+    public abstract void zoomIn(Integer integer);
+
+    public abstract void zoomOut(Integer integer);
+
+    public abstract void startZoomingToArea(Integer integer);
+
+    public abstract void shiftChartToFront(Integer integer);
+
+    public abstract void shiftChartSilent(Integer integer, int i);
+
+    public abstract void shiftChartSilent(Integer integer, int i, int j, int k, int l, boolean flag);
+
+    public abstract void navigateToDrawing(Integer integer, IChartObject ichartobject);
+
+    public abstract void switchMouseCursor(Integer integer, boolean flag);
+
+    public abstract void switchRangeScrollBarVisibility(Integer integer);
+
+    public abstract void setVerticalChartMovementEnabled(Integer integer, boolean flag);
+
+    public abstract void addProgressListener(int i, ProgressListener progresslistener);
+
+    public abstract void addEnableDisableListener(int i, DisableEnableListener disableenablelistener);
+
+    public abstract void addChartsActionListener(Integer integer, DDSChartsActionListener ddschartsactionlistener);
+
+    public abstract void addChartModeChangeListener(int i, ChartModeChangeListener chartmodechangelistener);
+
+    public abstract void startLoadingData(Integer integer, boolean flag, int i);
+
+    public abstract void saveWorkspaceImageToFile(Integer integer, File file);
+
+    public abstract void saveWorkspaceImageToClipboard(Integer integer);
+
+    public abstract void printWorkspaceImage(Integer integer);
+
+    public abstract List createAddEditIndicatorsDialog(int i);
+
+    public abstract JPopupMenu createPopupMenuForDrawing(int i, IChartObject ichartobject, java.awt.Component component, java.awt.Point point);
+
+    public abstract void refreshChartsContent();
+
+    public abstract void dispose();
+
+    public abstract void registerGuiObserversFor(int i, JComponent ajcomponent[]);
+
+    public abstract Set getChartControllerIdies();
+
+    public abstract void changeInstrument(Integer integer, Instrument instrument);
+
+    public abstract ChartBean synchronizeAndGetChartBean(Integer integer);
+
+    public abstract List getIndicators(Integer integer);
+
+    public abstract List getSubChartDrawings(Integer integer, int i, int j);
+
+    public abstract void saveChartTableDataToFile(Integer integer, File file);
+
+    public abstract void applyQuickTableDataFilter(Integer integer, String s);
+
+    public abstract void changePriceRange(Integer integer, PriceRange pricerange);
+
+    public abstract void changePriceRangePresentationType(Integer integer, PriceRangeAggregationPresentationType pricerangeaggregationpresentationtype);
+
+    public abstract void changeJForexPeriod(Integer integer, JForexPeriod jforexperiod);
+
+    public abstract void changePointAndFigurePresentationType(Integer integer, PointAndFigurePresentationType pointandfigurepresentationtype);
+
+    public abstract void changeTickBarPresentationType(Integer integer, TickBarPresentationType tickbarpresentationtype);
+
+    public abstract void setSettingsStorage(IChartSettingsStorage ichartsettingsstorage);
+
+    public abstract IChartSettingsStorage getSettingsStorage();
+
+    public abstract void dataChanged(Integer integer, ColumnDescriptor columndescriptor, Data data, Object obj, Object obj1);
+}

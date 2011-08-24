@@ -1,0 +1,84 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PresetsModel.java
+
+package com.dukascopy.dds2.greed.agent.strategy.params;
+
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.params:
+//            Preset
+
+public class PresetsModel
+{
+
+    public PresetsModel()
+    {
+        model = new TreeMap();
+        defaultPreset = null;
+    }
+
+    public PresetsModel(Preset defaultPreset, HashMap variableMap)
+    {
+        model = new TreeMap();
+        this.defaultPreset = null;
+        model.put(defaultPreset, variableMap);
+        this.defaultPreset = defaultPreset;
+    }
+
+    public void deletePreset(Preset presetToDelete)
+    {
+        model.remove(presetToDelete);
+    }
+
+    public void addPreset(Preset preset, HashMap variableMap)
+    {
+        model.put(preset, variableMap);
+    }
+
+    public void setDefaultPreset(Preset defaultPreset)
+    {
+        this.defaultPreset = defaultPreset;
+    }
+
+    public Preset getDefaultPreset()
+    {
+        return defaultPreset;
+    }
+
+    public Preset getPreset(String name)
+    {
+        String nameLowered = name.toLowerCase();
+        Set presets = model.keySet();
+        for(Iterator i$ = presets.iterator(); i$.hasNext();)
+        {
+            Preset preset = (Preset)i$.next();
+            if(preset.getName().toLowerCase().equals(nameLowered))
+                return preset;
+        }
+
+        return null;
+    }
+
+    public HashMap getDefaultVariableMap()
+    {
+        if(model == null)
+            return null;
+        else
+            return (HashMap)model.get(defaultPreset);
+    }
+
+    public HashMap getVariableMap(Preset byPreset)
+    {
+        return (HashMap)model.get(byPreset);
+    }
+
+    public Set getAllPresets()
+    {
+        return model.keySet();
+    }
+
+    private SortedMap model;
+    private Preset defaultPreset;
+}

@@ -1,0 +1,39 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ServiceSourceType.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.api;
+
+
+public final class ServiceSourceType extends Enum
+{
+
+    public static ServiceSourceType[] values()
+    {
+        return (ServiceSourceType[])$VALUES.clone();
+    }
+
+    public static ServiceSourceType valueOf(String name)
+    {
+        return (ServiceSourceType)Enum.valueOf(com/dukascopy/dds2/greed/agent/strategy/ide/api/ServiceSourceType, name);
+    }
+
+    private ServiceSourceType(String s, int i)
+    {
+        super(s, i);
+    }
+
+    public static final ServiceSourceType STRATEGY;
+    public static final ServiceSourceType INDICATOR;
+    private static final ServiceSourceType $VALUES[];
+
+    static 
+    {
+        STRATEGY = new ServiceSourceType("STRATEGY", 0);
+        INDICATOR = new ServiceSourceType("INDICATOR", 1);
+        $VALUES = (new ServiceSourceType[] {
+            STRATEGY, INDICATOR
+        });
+    }
+}

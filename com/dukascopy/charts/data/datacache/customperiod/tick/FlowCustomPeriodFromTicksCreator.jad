@@ -1,0 +1,28 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   FlowCustomPeriodFromTicksCreator.java
+
+package com.dukascopy.charts.data.datacache.customperiod.tick;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.CandleData;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.customperiod.tick:
+//            CustomPeriodFromTicksCreator
+
+public class FlowCustomPeriodFromTicksCreator extends CustomPeriodFromTicksCreator
+{
+
+    public FlowCustomPeriodFromTicksCreator(Instrument instrument, OfferSide offerSide, Period desiredPeriod, Filter filter, boolean inverseOrder, Long desiredFirstDataTime, Double firstDataValue, 
+            List weekends)
+    {
+        super(instrument, offerSide, 1, desiredPeriod, filter, inverseOrder, desiredFirstDataTime, firstDataValue, weekends);
+    }
+
+    protected void addCompletedCandle(CandleData candleData)
+    {
+        fireNewCandle(candleData);
+    }
+}

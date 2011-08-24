@@ -1,0 +1,48 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JFXStreamHandlerFactory.java
+
+package com.dukascopy.dds2.greed.agent.protocol;
+
+import java.net.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.protocol:
+//            JFXStreamHandler
+
+public class JFXStreamHandlerFactory
+    implements URLStreamHandlerFactory
+{
+
+    public JFXStreamHandlerFactory()
+    {
+    }
+
+    public static final void registerFactory()
+    {
+        if(!registered)
+            try
+            {
+                URL.setURLStreamHandlerFactory(new JFXStreamHandlerFactory());
+                registered = true;
+            }
+            catch(Error e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+    }
+
+    public URLStreamHandler createURLStreamHandler(String protocol)
+    {
+        if("jfx".equals(protocol))
+            return new JFXStreamHandler(Thread.currentThread().getContextClassLoader());
+        else
+            return null;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/protocol/JFXStreamHandlerFactory);
+    private static boolean registered = false;
+
+}

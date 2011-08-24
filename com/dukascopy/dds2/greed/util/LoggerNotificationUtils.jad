@@ -1,0 +1,95 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoggerNotificationUtils.java
+
+package com.dukascopy.dds2.greed.util;
+
+import org.slf4j.Logger;
+
+// Referenced classes of package com.dukascopy.dds2.greed.util:
+//            INotificationUtils
+
+public class LoggerNotificationUtils
+    implements INotificationUtils
+{
+
+    public LoggerNotificationUtils(Logger logger)
+    {
+        this.logger = logger;
+    }
+
+    public void postErrorMessage(String message)
+    {
+        logger.error(message);
+    }
+
+    public void postErrorMessage(String message, boolean localMessage)
+    {
+        logger.error(message);
+    }
+
+    public void postErrorMessage(String message, Throwable t)
+    {
+        logger.error(message, t);
+    }
+
+    public void postErrorMessage(String message, Throwable t, boolean localMessage)
+    {
+        logger.error(message, t);
+    }
+
+    public void postFatalMessage(String message)
+    {
+        logger.error(message);
+    }
+
+    public void postFatalMessage(String message, boolean localMessage)
+    {
+        logger.error(message);
+    }
+
+    public void postFatalMessage(String message, Throwable t)
+    {
+        logger.error(message, t);
+    }
+
+    public void postFatalMessage(String message, Throwable t, boolean localMessage)
+    {
+        logger.error(message, t);
+    }
+
+    public void postInfoMessage(String s)
+    {
+    }
+
+    public void postInfoMessage(String s, boolean flag)
+    {
+    }
+
+    public void postInfoMessage(String s, Throwable throwable)
+    {
+    }
+
+    public void postInfoMessage(String s, Throwable throwable, boolean flag)
+    {
+    }
+
+    public void postWarningMessage(String s)
+    {
+    }
+
+    public void postWarningMessage(String s, boolean flag)
+    {
+    }
+
+    public void postWarningMessage(String s, Throwable throwable)
+    {
+    }
+
+    public void postWarningMessage(String s, Throwable throwable, boolean flag)
+    {
+    }
+
+    private final Logger logger;
+}

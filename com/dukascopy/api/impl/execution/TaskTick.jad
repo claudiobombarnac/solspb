@@ -1,0 +1,82 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:27
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   TaskTick.java
+
+package com.dukascopy.api.impl.execution;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.execution:
+//            Task
+
+public class TaskTick
+    implements Task
+{
+
+    public TaskTick(JForexTaskManager taskManager, IStrategy strategy, Instrument instrument, ITick tick, IStrategyExceptionHandler exceptionHandler)
+    {
+        this.strategy = null;
+        this.strategy = strategy;
+        this.instrument = instrument;
+        this.tick = tick;
+        this.exceptionHandler = exceptionHandler;
+        addedTime = System.currentTimeMillis();
+        this.taskManager = taskManager;
+    }
+
+    public long getAddedTime()
+    {
+        return addedTime;
+    }
+
+    public Task.Type getType()
+    {
+        return Task.Type.TICK;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public ITick getTick()
+    {
+        return tick;
+    }
+
+    public Object call()
+        throws Exception
+    {
+        if(taskManager.isStrategyStopping())
+            return null;
+        try
+        {
+            strategy.onTick(instrument, tick);
+        }
+        catch(Throwable t)
+        {
+            String msg = StrategyWrapper.representError(strategy, t);
+            NotificationUtilsProvider.getNotificationUtils().postErrorMessage(msg, t, false);
+            LOGGER.error(t.getMessage(), t);
+            exceptionHandler.onException(taskManager.getStrategyId(), com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_TICK, t);
+        }
+        return null;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/execution/TaskTick);
+    private IStrategy strategy;
+    private final Instrument instrument;
+    private final ITick tick;
+    private IStrategyExceptionHandler exceptionHandler;
+    private long addedTime;
+    private JForexTaskManager taskManager;
+
+}

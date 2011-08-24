@@ -1,0 +1,127 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LocalizableListCellRenderer.java
+
+package com.dukascopy.dds2.greed.gui.l10n.components;
+
+import com.dukascopy.dds2.greed.gui.l10n.Localizable;
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import java.awt.Font;
+import javax.swing.DefaultListCellRenderer;
+
+public class LocalizableListCellRenderer extends DefaultListCellRenderer
+    implements Localizable
+{
+
+    public LocalizableListCellRenderer()
+    {
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public LocalizableListCellRenderer(String textKey)
+    {
+        this.textKey = textKey;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public LocalizableListCellRenderer(String textKey, float alligment)
+    {
+        this.textKey = textKey;
+        setAlignmentX(alligment);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public LocalizableListCellRenderer(String textKey, Object params[])
+    {
+        this.textKey = textKey;
+        textParams = params;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public boolean isIgnoreTextSet()
+    {
+        return ignoreTextSet;
+    }
+
+    public void setIgnoreTextSet(boolean ignoreTextSet)
+    {
+        this.ignoreTextSet = ignoreTextSet;
+    }
+
+    public void localize()
+    {
+        if(ignoreTextSet)
+        {
+            String output = null;
+            if(textKey != null && !textKey.trim().equals("") && textKeyParams != null)
+                output = LocalizationManager.getTextWithArgumentKeys(textKey, textKeyParams);
+            else
+            if(textKey != null && !textKey.trim().equals("") && textParams != null)
+                output = LocalizationManager.getTextWithArguments(textKey, textParams);
+            else
+            if(textKey != null && !textKey.trim().equals(""))
+                output = LocalizationManager.getText(textKey);
+            super.setFont(LocalizationManager.getDefaultFont(super.getFont().getSize()));
+            super.setText(output);
+        } else
+        if(textKey != null)
+        {
+            setFont(LocalizationManager.getDefaultFont(getFont().getSize()));
+            setText(textKey);
+        }
+    }
+
+    public String getTextKey()
+    {
+        return textKey;
+    }
+
+    public void setTextKey(String textKey)
+    {
+        this.textKey = textKey;
+    }
+
+    public void setText(String textKey)
+    {
+        if(!ignoreTextSet)
+        {
+            this.textKey = textKey;
+            String output = null;
+            if(textKey != null && !textKey.trim().equals("") && textKeyParams != null)
+                output = LocalizationManager.getTextWithArgumentKeys(textKey, textKeyParams);
+            else
+            if(textKey != null && !textKey.trim().equals("") && textParams != null)
+                output = LocalizationManager.getTextWithArguments(textKey, textParams);
+            else
+            if(textKey != null && !textKey.trim().equals(""))
+                output = LocalizationManager.getText(textKey);
+            super.setText(output);
+        }
+    }
+
+    public Object[] getTextParams()
+    {
+        return textParams;
+    }
+
+    public transient void setTextParams(Object textParams[])
+    {
+        this.textParams = textParams;
+    }
+
+    public Object[] getTextKeyParams()
+    {
+        return textKeyParams;
+    }
+
+    public transient void setTextKeyParams(Object textKeyParams[])
+    {
+        this.textKeyParams = textKeyParams;
+    }
+
+    private String textKey;
+    private Object textParams[];
+    private Object textKeyParams[];
+    private boolean ignoreTextSet;
+}

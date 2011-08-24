@@ -1,0 +1,155 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   UIContext.java
+
+package com.dukascopy.dds2.greed.util;
+
+import java.awt.Toolkit;
+import javax.swing.LookAndFeel;
+import javax.swing.UIManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class UIContext
+{
+    public static final class LookAndFeelType extends Enum
+    {
+
+        public static LookAndFeelType[] values()
+        {
+            return (LookAndFeelType[])$VALUES.clone();
+        }
+
+        public static LookAndFeelType valueOf(String name)
+        {
+            return (LookAndFeelType)Enum.valueOf(com/dukascopy/dds2/greed/util/UIContext$LookAndFeelType, name);
+        }
+
+        public static final LookAndFeelType WINDOWS_XP;
+        public static final LookAndFeelType CLASSIC;
+        public static final LookAndFeelType VISTA;
+        public static final LookAndFeelType WIN7;
+        public static final LookAndFeelType MACOS;
+        public static final LookAndFeelType METAL;
+        public static final LookAndFeelType OTHER;
+        private static final LookAndFeelType $VALUES[];
+
+        static 
+        {
+            WINDOWS_XP = new LookAndFeelType("WINDOWS_XP", 0);
+            CLASSIC = new LookAndFeelType("CLASSIC", 1);
+            VISTA = new LookAndFeelType("VISTA", 2);
+            WIN7 = new LookAndFeelType("WIN7", 3);
+            MACOS = new LookAndFeelType("MACOS", 4);
+            METAL = new LookAndFeelType("METAL", 5);
+            OTHER = new LookAndFeelType("OTHER", 6);
+            $VALUES = (new LookAndFeelType[] {
+                WINDOWS_XP, CLASSIC, VISTA, WIN7, MACOS, METAL, OTHER
+            });
+        }
+
+        private LookAndFeelType(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+    public static final class OsType extends Enum
+    {
+
+        public static OsType[] values()
+        {
+            return (OsType[])$VALUES.clone();
+        }
+
+        public static OsType valueOf(String name)
+        {
+            return (OsType)Enum.valueOf(com/dukascopy/dds2/greed/util/UIContext$OsType, name);
+        }
+
+        public static final OsType WINDOWS;
+        public static final OsType MACOSX;
+        public static final OsType LINUX;
+        public static final OsType OTHER;
+        private static final OsType $VALUES[];
+
+        static 
+        {
+            WINDOWS = new OsType("WINDOWS", 0);
+            MACOSX = new OsType("MACOSX", 1);
+            LINUX = new OsType("LINUX", 2);
+            OTHER = new OsType("OTHER", 3);
+            $VALUES = (new OsType[] {
+                WINDOWS, MACOSX, LINUX, OTHER
+            });
+        }
+
+        private OsType(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    public UIContext()
+    {
+    }
+
+    public static OsType getOperatingSystemType()
+    {
+        OsType result = null;
+        String osName = System.getProperty("os.name");
+        if(osName.toLowerCase().startsWith("windows"))
+            result = OsType.WINDOWS;
+        else
+        if(osName.toLowerCase().startsWith("linux"))
+            result = OsType.LINUX;
+        else
+        if(osName.toLowerCase().startsWith("mac os x"))
+            result = OsType.MACOSX;
+        else
+            result = OsType.OTHER;
+        return result;
+    }
+
+    public static LookAndFeelType getLookAndFeelType()
+    {
+        LookAndFeel laf = UIManager.getLookAndFeel();
+        Toolkit toolkit = Toolkit.getDefaultToolkit();
+        String osName = System.getProperty("os.name");
+        boolean isVista = osName.trim().endsWith("Vista");
+        boolean isWin7 = osName.trim().endsWith("Windows 7");
+        boolean isXP = osName.trim().endsWith("XP");
+        boolean xpThemeActive = Boolean.TRUE.equals(toolkit.getDesktopProperty("win.xpstyle.themeActive"));
+        boolean noxp = System.getProperty("swing.noxp") != null;
+        boolean isClassic = false;
+        boolean isVistaStyle = false;
+        boolean isMetal = false;
+        boolean isXPStyle = false;
+        isClassic = laf.getClass().getName().endsWith("WindowsClassicLookAndFeel") || laf.getClass().getName().endsWith("WindowsLookAndFeel") && (!xpThemeActive || noxp);
+        if(isXP)
+            isXPStyle = laf.getClass().getName().endsWith("WindowsLookAndFeel") && !isClassic && xpThemeActive;
+        else
+        if(isVista || isWin7)
+            isVistaStyle = laf.getClass().getName().endsWith("WindowsLookAndFeel") && !isClassic;
+        isMetal = laf.getClass().getName().endsWith("metal.MetalLookAndFeel");
+        if(isXPStyle)
+            return LookAndFeelType.WINDOWS_XP;
+        if(isMetal)
+            return LookAndFeelType.METAL;
+        if(isClassic)
+            return LookAndFeelType.CLASSIC;
+        if(isVista)
+            return LookAndFeelType.VISTA;
+        if(isWin7)
+            return LookAndFeelType.WIN7;
+        if(osName.toLowerCase().startsWith("mac os x"))
+            return LookAndFeelType.MACOS;
+        else
+            return LookAndFeelType.OTHER;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/util/UIContext);
+
+}

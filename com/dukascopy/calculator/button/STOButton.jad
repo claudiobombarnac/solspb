@@ -1,0 +1,85 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   STOButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.*;
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.function.*;
+import java.awt.event.ActionEvent;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            CalculatorButton
+
+public class STOButton extends CalculatorButton
+{
+
+    public STOButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new STO());
+        setText();
+        setTextSize();
+        setShortcut('S');
+        addActionListener(this);
+        setToolTipKey("sc.calculator.evaluates.current.expression.and.stores.in.memory");
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+label0:
+        {
+            synchronized(mainCalculatorPanel)
+            {
+                if(getMainCalculatorPanel().getValue() instanceof Complex)
+                    break label0;
+                getMainCalculatorPanel().requestFocusInWindow();
+            }
+            return;
+        }
+        Complex value;
+        getMainCalculatorPanel().pushHistory();
+        value = (Complex)(Complex)getMainCalculatorPanel().getValue();
+        if(getMainCalculatorPanel().getMode() == 0)
+            break MISSING_BLOCK_LABEL_84;
+        getMainCalculatorPanel().setMode(getPobject());
+        getMainCalculatorPanel().requestFocusInWindow();
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+        return;
+        OObject o = getMainCalculatorPanel().getValue();
+        if(!getMainCalculatorPanel().getParser().isEmpty())
+        {
+            PObject p = getMainCalculatorPanel().getParser().getLast();
+            if(!(o instanceof Error) && ((p instanceof RFunction) || (p instanceof DFunction) || (p instanceof MFunction) || (p instanceof AFunction)))
+            {
+                Ans ans = new Ans();
+                ans.setValue(o);
+                getMainCalculatorPanel().insert(ans);
+                getMainCalculatorPanel().updateDisplay(true, true);
+            }
+            o = getMainCalculatorPanel().getParser().evaluate(getMainCalculatorPanel().getAngleType());
+        } else
+        {
+            o = value;
+        }
+        getMainCalculatorPanel().setValue(o);
+        if(!(o instanceof Error))
+            getMainCalculatorPanel().setMemory(o);
+        getMainCalculatorPanel().updateDisplay(false, true);
+        if(getMainCalculatorPanel().getShift())
+            getMainCalculatorPanel().setShift(false);
+        getMainCalculatorPanel().newExpression();
+        getMainCalculatorPanel().requestFocusInWindow();
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    private static final long serialVersionUID = 1L;
+}

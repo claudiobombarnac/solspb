@@ -1,0 +1,39 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CandleLiveFeedListenerForRangeBars.java
+
+package com.dukascopy.charts.data.datacache.rangebar;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.TickData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.rangebar:
+//            TickLiveFeedListenerForRangeBars, PriceRangeCreator
+
+public class CandleLiveFeedListenerForRangeBars extends TickLiveFeedListenerForRangeBars
+{
+
+    public CandleLiveFeedListenerForRangeBars(PriceRangeCreator priceRangeCreator, long lastPossibleTime)
+    {
+        super(priceRangeCreator);
+        this.lastPossibleTime = lastPossibleTime;
+    }
+
+    public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+            double close, double low, double high, double vol)
+    {
+        TickData ticks[] = splitCandle(period, time, open, close, low, high, vol);
+        TickData arr$[] = ticks;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            TickData tick = arr$[i$];
+            if(lastPossibleTime >= tick.getTime())
+                newTick(instrument, tick.getTime(), tick.getAsk(), tick.getBid(), tick.getAskVolume(), tick.getBidVolume());
+        }
+
+    }
+
+    private final long lastPossibleTime;
+}

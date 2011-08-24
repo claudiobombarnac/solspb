@@ -1,0 +1,82 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterChartControllerImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.system.tester.ITesterChartController;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.main.interfaces.DDSChartsController;
+
+public class TesterChartControllerImpl
+    implements ITesterChartController
+{
+
+    public TesterChartControllerImpl(DDSChartsController ddsChartsController, int chartPanelId)
+    {
+        this.chartPanelId = -1;
+        this.ddsChartsController = null;
+        this.ddsChartsController = ddsChartsController;
+        this.chartPanelId = chartPanelId;
+    }
+
+    public void addIndicators()
+    {
+        if(ddsChartsController != null && chartPanelId != -1)
+            ddsChartsController.createAddEditIndicatorsDialog(chartPanelId);
+    }
+
+    public void changePeriod(DataType dataType, Period period)
+    {
+        if(ddsChartsController != null && chartPanelId != -1)
+        {
+            JForexPeriod jForexPeriod = new JForexPeriod(dataType, period);
+            ddsChartsController.changeJForexPeriod(Integer.valueOf(chartPanelId), jForexPeriod);
+        }
+    }
+
+    public void activatePriceMarker()
+    {
+        if(ddsChartsController != null && chartPanelId != -1)
+            ddsChartsController.startDrawing(Integer.valueOf(chartPanelId), com.dukascopy.api.IChart.Type.PRICEMARKER);
+    }
+
+    public void activateTimeMarker()
+    {
+        if(ddsChartsController != null && chartPanelId != -1)
+            ddsChartsController.startDrawing(Integer.valueOf(chartPanelId), com.dukascopy.api.IChart.Type.TIMEMARKER);
+    }
+
+    public void setChartAutoShift()
+    {
+        if(ddsChartsController != null && chartPanelId != -1)
+            ddsChartsController.shiftChartToFront(Integer.valueOf(chartPanelId));
+    }
+
+    public void activatePercentLines()
+    {
+        if(ddsChartsController != null && chartPanelId != -1)
+            ddsChartsController.startDrawing(Integer.valueOf(chartPanelId), com.dukascopy.api.IChart.Type.PERCENT);
+    }
+
+    public void activateChannelLines()
+    {
+        if(ddsChartsController != null && chartPanelId != -1)
+            ddsChartsController.startDrawing(Integer.valueOf(chartPanelId), com.dukascopy.api.IChart.Type.CHANNEL);
+    }
+
+    public int getChartPanelId()
+    {
+        return chartPanelId;
+    }
+
+    public void setChartPanelId(int chartPanelId)
+    {
+        this.chartPanelId = chartPanelId;
+    }
+
+    private int chartPanelId;
+    private DDSChartsController ddsChartsController;
+}

@@ -1,0 +1,28 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EditorRegistry.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.api;
+
+import com.dukascopy.dds2.greed.agent.strategy.ide.impl.EditorStatusBar;
+import java.awt.event.ActionListener;
+import java.awt.event.FocusListener;
+import java.io.File;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.ide.api:
+//            ServiceSourceType, Editor
+
+public interface EditorRegistry
+{
+
+    public abstract Editor openEditor(File file, EditorStatusBar editorstatusbar, ActionListener actionlistener, ServiceSourceType servicesourcetype, String s);
+
+    public abstract Editor openEditor(File file, EditorStatusBar editorstatusbar, ActionListener actionlistener, FocusListener focuslistener, ServiceSourceType servicesourcetype, String s);
+
+    public abstract Editor getEditor(File file);
+
+    public abstract void removeReference(File file);
+
+    public abstract void editorRenamed(String s, String s1);
+}

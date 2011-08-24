@@ -1,0 +1,40 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Numeral.java
+
+package com.dukascopy.calculator.function;
+
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            PObject
+
+public class Numeral extends PObject
+{
+
+    public Numeral(char c)
+    {
+        this.c = c;
+        ftooltip = "";
+        fshortcut = c;
+    }
+
+    public char get()
+    {
+        return c;
+    }
+
+    public String name()
+    {
+        return Character.toString(get());
+    }
+
+    public String[] name_array()
+    {
+        String string[] = new String[1];
+        string[0] = Character.toString(c);
+        return string;
+    }
+
+    private final char c;
+}

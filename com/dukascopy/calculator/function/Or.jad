@@ -1,0 +1,93 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Or.java
+
+package com.dukascopy.calculator.function;
+
+import com.dukascopy.calculator.OObject;
+import javax.swing.JOptionPane;
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            BoolFunction, PObject
+
+public class Or extends BoolFunction
+{
+
+    public Or()
+    {
+        ftooltip = "sc.calculator.logical.bitwise.inclusive.or";
+        fshortcut = '|';
+    }
+
+    public double function(double x, double y)
+    {
+        if(Double.isNaN(x) || Double.isNaN(y) || Double.isInfinite(x) || Double.isInfinite(y))
+            throw new RuntimeException("Boolean Error");
+        if(Math.abs(y) > Math.abs(x))
+        {
+            double tmp = x;
+            x = y;
+            y = tmp;
+        }
+        long x_bits = Double.doubleToLongBits(x);
+        boolean x_sign = x_bits >> 63 == 0L;
+        int x_exponent = (int)(x_bits >> 52 & 2047L);
+        long x_significand = x_exponent != 0 ? x_bits & 0xfffffffffffffL | 0x10000000000000L : (x_bits & 0xfffffffffffffL) << 1;
+        long y_bits = Double.doubleToLongBits(y);
+        boolean y_sign = y_bits >> 63 == 0L;
+        int y_exponent = (int)(y_bits >> 52 & 2047L);
+        long y_significand = y_exponent != 0 ? y_bits & 0xfffffffffffffL | 0x10000000000000L : (y_bits & 0xfffffffffffffL) << 1;
+        y_significand >>= x_exponent - y_exponent;
+        x_significand |= y_significand;
+        if(x_exponent == 0)
+        {
+            x_significand >>= 1;
+        } else
+        {
+            if(x_significand == 0L)
+                return 0.0D;
+            do
+            {
+                if((x_significand & 0x10000000000000L) != 0L)
+                    break;
+                x_significand <<= 1;
+                if(--x_exponent != 0)
+                    continue;
+                x_significand >>= 1;
+                break;
+            } while(true);
+            x_significand &= 0xfffffffffffffL;
+        }
+        x_bits = (long)x_exponent << 52;
+        x_bits |= x_significand;
+        double result = Double.longBitsToDouble(x_bits);
+        if((!x_sign) | (!y_sign))
+            result = -result;
+        return result;
+    }
+
+    public OObject function(OObject x, OObject y)
+    {
+        return x.or(y);
+    }
+
+    public String[] name_array()
+    {
+        return fname;
+    }
+
+    public static void main(String args[])
+    {
+        PObject o = new Or();
+        StringBuilder s = new StringBuilder("<html>");
+        s.append(o.name());
+        s.append("</html>");
+        JOptionPane.showMessageDialog(null, s.toString());
+    }
+
+    private static final String fname[] = {
+        " ", "o", "r", " "
+    };
+
+}

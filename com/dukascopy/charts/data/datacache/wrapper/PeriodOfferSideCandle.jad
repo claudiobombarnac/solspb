@@ -1,0 +1,55 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PeriodOfferSideCandle.java
+
+package com.dukascopy.charts.data.datacache.wrapper;
+
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
+import com.dukascopy.charts.data.datacache.CandleData;
+
+public class PeriodOfferSideCandle
+{
+
+    public PeriodOfferSideCandle(Period period, OfferSide offerSide, CandleData candleData)
+    {
+        this.period = period;
+        this.offerSide = offerSide;
+        this.candleData = candleData;
+    }
+
+    public Period getPeriod()
+    {
+        return period;
+    }
+
+    public void setPeriod(Period period)
+    {
+        this.period = period;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    public void setOfferSide(OfferSide offerSide)
+    {
+        this.offerSide = offerSide;
+    }
+
+    public CandleData getCandleData()
+    {
+        return candleData;
+    }
+
+    public void setCandleData(CandleData candleData)
+    {
+        this.candleData = candleData;
+    }
+
+    private Period period;
+    private OfferSide offerSide;
+    private CandleData candleData;
+}

@@ -1,0 +1,351 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   DisplayLabel.java
+
+package com.dukascopy.calculator;
+
+import java.awt.*;
+import java.util.*;
+import javax.swing.JTextPane;
+import javax.swing.UIManager;
+import javax.swing.text.*;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            ScrollableLabel, DisplayNavigator, Base, Notation, 
+//            OObject, StringArray, ReadOnlyDisplayPanel, ReadOnlyCalculatorApplet, 
+//            AngleType, Navigator, LeftOrRight
+
+public class DisplayLabel extends ScrollableLabel
+{
+    private class ScrollData
+    {
+
+        public void update()
+        {
+            distances = new Vector();
+            if(dots.isEmpty())
+                return;
+            ListIterator i = dots.listIterator();
+            Rectangle r = null;
+            try
+            {
+                r = textPane.modelToView(((Integer)i.next()).intValue());
+            }
+            catch(BadLocationException e)
+            {
+                return;
+            }
+            if(r == null)
+                return;
+            int q;
+            for(int p = r.x; i.hasNext(); p = q)
+            {
+                try
+                {
+                    r = textPane.modelToView(((Integer)i.next()).intValue());
+                }
+                catch(BadLocationException e)
+                {
+                    return;
+                }
+                if(r == null)
+                    return;
+                q = r.x;
+                distances.add(Integer.valueOf(q - p));
+            }
+
+        }
+
+        final LeftOrRight getScrollDirections()
+        {
+            if(dots.isEmpty() || distances.size() != dots.size() - 1)
+                return LeftOrRight.NEITHER;
+            boolean left = false;
+            boolean right = false;
+            if(atRight)
+            {
+                right = ((Integer)dots.lastElement()).intValue() > displayLabel.dotPosition;
+                double distance = 0.0D;
+                ListIterator i = dots.listIterator();
+                for(ListIterator j = distances.listIterator(); j.hasNext() && ((Integer)i.next()).intValue() < displayLabel.dotPosition;)
+                    distance += ((Integer)j.next()).intValue();
+
+                left = distance > (double)displayLabel.getWidth();
+            } else
+            {
+                left = ((Integer)dots.firstElement()).intValue() < displayLabel.dotPosition;
+                double distance = 0.0D;
+                ListIterator i = dots.listIterator(dots.size());
+                for(ListIterator j = distances.listIterator(distances.size()); j.hasPrevious() && ((Integer)i.previous()).intValue() > displayLabel.dotPosition;)
+                    distance += ((Integer)j.previous()).intValue();
+
+                right = distance > (double)displayLabel.getWidth();
+            }
+            if(left && right)
+                return LeftOrRight.BOTH;
+            if(left)
+                return LeftOrRight.LEFT;
+            if(right)
+                return LeftOrRight.RIGHT;
+            else
+                return LeftOrRight.NEITHER;
+        }
+
+        public void left()
+        {
+            int width = displayLabel.getWidth();
+            if(atRight)
+            {
+                int distance = 0;
+                ListIterator i = dots.listIterator();
+                ListIterator j;
+                for(j = distances.listIterator(); j.hasNext() && ((Integer)i.next()).intValue() < displayLabel.dotPosition;)
+                    distance += ((Integer)j.next()).intValue();
+
+                if(width >= distance)
+                    return;
+                i = dots.listIterator();
+                j = distances.listIterator();
+                int position = ((Integer)i.next()).intValue();
+                do
+                {
+                    if(!j.hasNext())
+                        break;
+                    int d = ((Integer)j.next()).intValue();
+                    if(distance - d < width)
+                        break;
+                    distance -= d;
+                    position = ((Integer)i.next()).intValue();
+                } while(true);
+                displayLabel.dotPosition = position;
+                atRight = false;
+            } else
+            {
+                ListIterator i;
+                for(i = dots.listIterator(); i.hasNext() && ((Integer)i.next()).intValue() < displayLabel.dotPosition;);
+                i.previous();
+                if(!i.hasPrevious())
+                    return;
+                displayLabel.dotPosition = ((Integer)i.previous()).intValue();
+            }
+            displayLabel.textPane.getCaret().setDot(displayLabel.dotPosition);
+        }
+
+        public void right()
+        {
+            int width = displayLabel.getWidth();
+            if(!atRight)
+            {
+                int distance = 0;
+                ListIterator i = dots.listIterator(dots.size());
+                ListIterator j;
+                for(j = distances.listIterator(distances.size()); j.hasPrevious() && ((Integer)i.previous()).intValue() > displayLabel.dotPosition;)
+                    distance += ((Integer)j.previous()).intValue();
+
+                if(width >= distance)
+                    return;
+                i = dots.listIterator(dots.size());
+                j = distances.listIterator(distances.size());
+                int position = ((Integer)i.previous()).intValue();
+                do
+                {
+                    if(!j.hasPrevious())
+                        break;
+                    int d = ((Integer)j.previous()).intValue();
+                    if(distance - d < width)
+                        break;
+                    distance -= d;
+                    position = ((Integer)i.previous()).intValue();
+                } while(true);
+                displayLabel.dotPosition = position;
+                atRight = true;
+            } else
+            {
+                ListIterator i;
+                for(i = dots.listIterator(dots.size()); i.hasPrevious() && ((Integer)i.previous()).intValue() > displayLabel.dotPosition;);
+                i.next();
+                if(!i.hasNext())
+                    return;
+                displayLabel.dotPosition = ((Integer)i.next()).intValue();
+            }
+            displayLabel.textPane.getCaret().setDot(displayLabel.dotPosition);
+        }
+
+        private DisplayLabel displayLabel;
+        private final Vector dots;
+        private Vector distances;
+        boolean atRight;
+        final DisplayLabel this$0;
+
+        public ScrollData(DisplayLabel displayLabel)
+        {
+            this$0 = DisplayLabel.this;
+            super();
+            dots = displayLabel.navigator.dots();
+            this.displayLabel = displayLabel;
+            distances = new Vector();
+            atRight = true;
+        }
+    }
+
+    private class DisplayCaret extends DefaultCaret
+    {
+
+        public void paint(Graphics graphics)
+        {
+            synchronized(this)
+            {
+                super.paint(graphics);
+                if(updateFlag)
+                    scrollData.update();
+                updateFlag = false;
+                notify();
+            }
+        }
+
+        private ScrollData scrollData;
+        public boolean updateFlag;
+        private static final long serialVersionUID = 1L;
+        final DisplayLabel this$0;
+
+        public DisplayCaret(ScrollData scrollData)
+        {
+            this$0 = DisplayLabel.this;
+            super();
+            this.scrollData = scrollData;
+            updateFlag = false;
+        }
+    }
+
+
+    public DisplayLabel(ReadOnlyDisplayPanel panel)
+    {
+        super(panel, new DisplayNavigator());
+        scrollData = new ScrollData(this);
+        displayCaret = new DisplayCaret(scrollData);
+        setNewExpression();
+        textPane.setCaret(displayCaret);
+        clearDisplay = false;
+    }
+
+    public void setNewExpression()
+    {
+        int m = getDigits();
+        int precision = 20;
+        Base b = getBase();
+        Notation n = panel.getApplet().getNotation();
+        double factor = 1.0D;
+        if(panel.getApplet().getAngleType() == AngleType.DEGREES)
+            factor = 1.0D;
+        OObject o = panel.getApplet().getValue();
+        if(o != null)
+            setExpression(o, m, precision, b, n, factor);
+        synchronized(displayCaret)
+        {
+            displayCaret.updateFlag = true;
+        }
+    }
+
+    public void setCaretVisible(boolean b)
+    {
+        caretVisible = false;
+        updateCaretVisibility();
+    }
+
+    public void update(boolean on)
+    {
+        if(on)
+        {
+            if(panel.getApplet().getMode() == 0)
+            {
+                synchronized(displayCaret)
+                {
+                    if(clearDisplay)
+                        setNewExpression();
+                    textPane.setText(expression);
+                    textPane.getCaret().setDot(dotPosition);
+                }
+            } else
+            {
+                clear();
+                textPane.setText(expression);
+            }
+        } else
+        {
+            clear();
+            textPane.setText(expression);
+        }
+    }
+
+    public synchronized void setExpression(OObject o, int m, int precision, Base b, Notation n, double factor)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<html><p style=\"font-size:");
+        sb.append(Float.toString(panel.getApplet().displayTextSize()));
+        sb.append("pt;font-family:");
+        sb.append(UIManager.getFont("Label.font").getName());
+        sb.append("\">");
+        sb.append("<sub>&nbsp;</sub>&nbsp;<sup>&nbsp;</sup>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;");
+        navigator.dots().clear();
+        int i = 53;
+        navigator.dots().add(Integer.valueOf(i));
+        StringArray stringArray = o.toHTMLStringVector(m, precision, b, n, factor);
+        stringArray.removeDoubleSuperscripts();
+        for(Iterator i$ = stringArray.iterator(); i$.hasNext(); navigator.dots().add(Integer.valueOf(i)))
+        {
+            Vector v = (Vector)i$.next();
+            String s;
+            for(Iterator i$ = v.iterator(); i$.hasNext(); sb.append(s))
+                s = (String)i$.next();
+
+            i += v.size();
+        }
+
+        sb.append("</p></html>");
+        expression = sb.toString();
+        dotPosition = i;
+    }
+
+    public synchronized void clear()
+    {
+        expression = "<sub>&nbsp;</sub>&nbsp;<sup>&nbsp;</sup>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+        dotPosition = 54;
+        clearDisplay = true;
+    }
+
+    public Base getBase()
+    {
+        return panel.getApplet().getBase();
+    }
+
+    public int getDigits()
+    {
+        return 20;
+    }
+
+    public void left()
+    {
+        scrollData.left();
+    }
+
+    public void right()
+    {
+        scrollData.right();
+    }
+
+    final LeftOrRight getScrollDirections()
+    {
+        return scrollData.getScrollDirections();
+    }
+
+    private DisplayCaret displayCaret;
+    private ScrollData scrollData;
+    private boolean clearDisplay;
+    public static final long BIAS = 1023L;
+    public static final long E_MAX = 1023L;
+    public static final long E_MIN = -1022L;
+    private static final int DIGITS = 20;
+    private static final String start = "<sub>&nbsp;</sub>&nbsp;<sup>&nbsp;</sup>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;";
+    private static final long serialVersionUID = 1L;
+}

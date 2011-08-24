@@ -1,0 +1,142 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ScrollableLabel.java
+
+package com.dukascopy.calculator;
+
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.PrintStream;
+import java.util.ListIterator;
+import java.util.Vector;
+import javax.swing.*;
+import javax.swing.text.Caret;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            WhitePanel, Navigator, ReadOnlyDisplayPanel, DisplayPanel, 
+//            MainCalculatorPanel
+
+public abstract class ScrollableLabel extends JViewport
+{
+
+    public ScrollableLabel(ReadOnlyDisplayPanel panel, Navigator navigator)
+    {
+        setBackground(Color.white);
+        jPanel = new WhitePanel();
+        textPane = new JTextPane();
+        textPane.setContentType("text/html");
+        textPane.setEditable(false);
+        this.navigator = navigator;
+        textPane.setNavigationFilter(navigator);
+        jPanel.add(textPane);
+        setView(jPanel);
+        expression = "";
+        dotPosition = 0;
+        newExpression = true;
+        this.panel = panel;
+        update(false);
+        backward = textPane.getActionMap().get("caret-backward");
+        forward = textPane.getActionMap().get("caret-forward");
+        textPane.addMouseListener(new MouseAdapter() {
+
+            public void mouseClicked(MouseEvent e)
+            {
+                ((MainCalculatorPanel)((DisplayPanel)panel).getApplet()).requestFocus();
+            }
+
+            final ScrollableLabel this$0;
+
+            
+            {
+                this$0 = ScrollableLabel.this;
+                super();
+            }
+        });
+    }
+
+    public abstract void update(boolean flag);
+
+    public void left()
+    {
+        int pos = textPane.getCaret().getDot();
+        ListIterator i = navigator.dots().listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            int p = ((Integer)i.next()).intValue();
+            if(p < pos)
+                continue;
+            i.previous();
+            break;
+        } while(true);
+        dotPosition = i.hasPrevious() ? ((Integer)i.previous()).intValue() : 0;
+    }
+
+    public void right()
+    {
+        int pos = textPane.getCaret().getDot();
+        ListIterator i = navigator.dots().listIterator(navigator.dots().size());
+        do
+        {
+            if(!i.hasPrevious())
+                break;
+            int p = ((Integer)i.previous()).intValue();
+            if(p > pos)
+                continue;
+            i.next();
+            break;
+        } while(true);
+        dotPosition = (i.hasNext() ? (Integer)i.next() : (Integer)navigator.dots().lastElement()).intValue();
+    }
+
+    protected int getDotPosition()
+    {
+        if(navigator == null)
+            System.out.println("ScrollableLabel.getDotPosition(): navigator == null");
+        int p = navigator.dots().indexOf(Integer.valueOf(textPane.getCaret().getDot()));
+        return p != -1 ? p : 0;
+    }
+
+    public void newExpression()
+    {
+        newExpression = true;
+        setCaretVisible(false);
+    }
+
+    public void updateCaretVisibility()
+    {
+        if(caretVisible && panel.hasCaret(this))
+            textPane.getCaret().setVisible(true);
+        else
+            textPane.getCaret().setVisible(false);
+        textPane.getCaret().setDot(dotPosition);
+    }
+
+    public void setCaretVisible(boolean b)
+    {
+        caretVisible = b;
+        updateCaretVisibility();
+    }
+
+    public void paintComponent(Graphics g)
+    {
+        Graphics2D g2 = (Graphics2D)g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        super.paintComponent(g);
+    }
+
+    protected boolean caretVisible;
+    protected Navigator navigator;
+    protected String expression;
+    protected int dotPosition;
+    protected JPanel jPanel;
+    protected JTextPane textPane;
+    protected ReadOnlyDisplayPanel panel;
+    protected boolean newExpression;
+    protected Action backward;
+    protected Action forward;
+    private static final long serialVersionUID = 1L;
+}

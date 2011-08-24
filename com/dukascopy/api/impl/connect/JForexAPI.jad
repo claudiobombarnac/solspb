@@ -1,0 +1,582 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   JForexAPI.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.transport.common.model.type.*;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import com.dukascopy.transport.common.msg.group.OrderMessage;
+import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
+import java.math.BigDecimal;
+import java.util.*;
+
+public class JForexAPI
+{
+
+    public JForexAPI()
+    {
+    }
+
+    public static OrderMessage cancelOrder(String strategyId, String externalSysId, String groupId, String orderId, String externalIP, String internalIP, String sessionID)
+    {
+        if(groupId == null || orderId == null)
+        {
+            throw new NullPointerException();
+        } else
+        {
+            OrderMessage order = new OrderMessage();
+            order.setOrderId(orderId);
+            order.setOrderState(OrderState.CANCELLED);
+            order.setOrderGroupId(groupId);
+            order.setParentOrderId(orderId);
+            order.setStrategySysId(strategyId);
+            order.setExternalSysId(externalSysId);
+            order.setExternalIp(externalIP);
+            order.setInternalIp(internalIP);
+            order.setSessionId(sessionID);
+            return order;
+        }
+    }
+
+    public static OrderMessage cancelOrder(String strategyId, String externalSysId, String groupId, String orderId, String parentOrderId, String externalIP, String internalIP, String sessionID)
+    {
+        if(groupId == null || orderId == null && parentOrderId == null)
+        {
+            throw new NullPointerException();
+        } else
+        {
+            OrderMessage order = new OrderMessage();
+            order.setOrderId(orderId);
+            order.setOrderState(OrderState.CANCELLED);
+            order.setOrderGroupId(groupId);
+            order.setParentOrderId(parentOrderId);
+            order.setStrategySysId(strategyId);
+            order.setExternalSysId(externalSysId);
+            order.setExternalIp(externalIP);
+            order.setInternalIp(internalIP);
+            order.setSessionId(sessionID);
+            return order;
+        }
+    }
+
+    public static OrderMessage modifyPrice(String strategyId, String externalSysId, Instrument instrument, String groupId, String orderId, double price, String externalIP, 
+            String internalIP, String sessionID)
+    {
+        OrderMessage order = new OrderMessage();
+        order.setStrategySysId(strategyId);
+        order.setExternalSysId(externalSysId);
+        order.setPriceStop((new StringBuilder()).append(price).append("").toString());
+        order.setOrderGroupId(groupId);
+        order.setOrderId(orderId);
+        order.setOrderState(OrderState.PENDING);
+        order.setInstrument(instrument.toString());
+        order.setExternalIp(externalIP);
+        order.setInternalIp(internalIP);
+        order.setSessionId(sessionID);
+        return order;
+    }
+
+    public static OrderMessage modifyStopLoss(String strategyId, String externalSysId, String groupId, String orderId, boolean isParentOrderLong, double price, OfferSide side, 
+            double trailingPriceAbsolute, String externalIP, String internalIP, String sessionID)
+    {
+        OrderMessage order = new OrderMessage();
+        order.setStrategySysId(strategyId);
+        order.setExternalSysId(externalSysId);
+        order.setPriceStop((new StringBuilder()).append(price).append("").toString());
+        order.setOrderGroupId(groupId);
+        order.setOrderId(orderId);
+        order.setOrderState(OrderState.PENDING);
+        order.setPriceLimit(Double.toString(trailingPriceAbsolute));
+        StopDirection stopDirection;
+        if(isParentOrderLong)
+        {
+            if(side == null || side == OfferSide.BID)
+                stopDirection = StopDirection.BID_LESS;
+            else
+                stopDirection = StopDirection.ASK_LESS;
+        } else
+        if(side == null || side == OfferSide.ASK)
+            stopDirection = StopDirection.ASK_GREATER;
+        else
+            stopDirection = StopDirection.BID_GREATER;
+        order.setStopDirection(stopDirection);
+        order.setExternalIp(externalIP);
+        order.setInternalIp(internalIP);
+        order.setSessionId(sessionID);
+        return order;
+    }
+
+    public static OrderGroupMessage modifyOrderGroup(OrderGroupMessage parentMsg, double price, double stoploss, double takeprofit, long expiration, boolean isParentOrderlong, String externalIP, String internalIP, String sessionID)
+        throws CloneNotSupportedException
+    {
+        String strategyId = parentMsg.getOpeningOrder().getStrategyId();
+        String openingOrderId = parentMsg.getOpeningOrder().getOrderId();
+        List orders = new ArrayList();
+        OrderGroupMessage orderGroup = (OrderGroupMessage)parentMsg.clone();
+        OrderMessage order = (OrderMessage)parentMsg.getOpeningOrder().clone();
+        order.setExternalIp(externalIP);
+        order.setInternalIp(internalIP);
+        order.setSessionId(sessionID);
+        if(price > 0.0D)
+        {
+            order.setPriceStop((new StringBuilder()).append(price).append("").toString());
+            orders.add(order);
+        }
+        if(stoploss > 0.0D)
+        {
+            OrderMessage slOrder = null;
+            if(parentMsg.getStopLossOrder() != null)
+            {
+                slOrder = (OrderMessage)parentMsg.getStopLossOrder().clone();
+                slOrder.put("priceStop", (new StringBuilder()).append(price).append("").toString());
+                slOrder.put("amount", order.getAmount().getValue().divide(BigDecimal.valueOf(0xf4240L), 6, 6).toPlainString());
+            } else
+            {
+                slOrder = createStopLoss(strategyId, orderGroup.getExternalSysId(), orderGroup.getOrderGroupId(), openingOrderId, Instrument.fromString(orderGroup.getInstrument()), stoploss, order.getAmount().getValue().doubleValue() / 1000000D, isParentOrderlong, null, externalIP, internalIP, sessionID);
+            }
+            orders.add(slOrder);
+        }
+        if(takeprofit > 0.0D)
+        {
+            OrderMessage tpOrder = null;
+            if(parentMsg.getStopLossOrder() != null)
+            {
+                tpOrder = parentMsg.getStopLossOrder();
+                tpOrder.put("priceStop", (new StringBuilder()).append(price).append("").toString());
+                tpOrder.put("amount", order.getAmount().getValue().divide(BigDecimal.valueOf(0xf4240L), 6, 6).toPlainString());
+            } else
+            {
+                tpOrder = createTakeProfit(strategyId, orderGroup.getExternalSysId(), orderGroup.getOrderGroupId(), openingOrderId, Instrument.fromString(orderGroup.getInstrument()), takeprofit, order.getAmount().getValue().doubleValue() / 1000000D, isParentOrderlong, externalIP, internalIP, sessionID);
+            }
+            orders.add(tpOrder);
+        }
+        orderGroup.setOrders(orders);
+        return orderGroup;
+    }
+
+    public static OrderMessage modifyBidOfferPrice(Instrument instrument, String groupId, String orderId, double price, String externalIP, String internalIP, String sessionID)
+    {
+        OrderMessage order = new OrderMessage();
+        order.put("priceClient", BigDecimal.valueOf(price).toPlainString());
+        order.setOrderGroupId(groupId);
+        order.setOrderId(orderId);
+        order.setPlaceOffer(Boolean.valueOf(true));
+        order.setOrderState(OrderState.EXECUTING);
+        order.setInstrument(instrument.toString());
+        order.setExternalIp(externalIP);
+        order.setInternalIp(internalIP);
+        order.setSessionId(sessionID);
+        return order;
+    }
+
+    public static OrderMessage modifyAmount(Instrument instrument, String groupId, String orderId, double amount, String externalIP, String internalIP, String sessionID)
+    {
+        OrderMessage order = new OrderMessage();
+        order.put("amount", BigDecimal.valueOf(amount).toPlainString());
+        order.setOrderGroupId(groupId);
+        order.setOrderId(orderId);
+        order.setOrderState(OrderState.PENDING);
+        order.setInstrument(instrument.toString());
+        order.setExternalIp(externalIP);
+        order.setInternalIp(internalIP);
+        order.setSessionId(sessionID);
+        return order;
+    }
+
+    public static OrderMessage addTakeProfit(String strategyId, String externalSysId, String groupId, String openingOrderId, Instrument instrument, double price, double amount, boolean isParentOrderLong, String externalIP, String internalIP, String sessionID)
+    {
+        OrderMessage order = createTakeProfit(strategyId, externalSysId, groupId, openingOrderId, instrument, price, amount, isParentOrderLong, externalIP, internalIP, sessionID);
+        return order;
+    }
+
+    public static OrderMessage addStopLoss(String strategyId, String externalSysId, String groupId, String openingOrderId, Instrument instrument, double price, double amount, double trailingPriceAbsolute, boolean isParentOrderLong, OfferSide side, String externalIP, String internalIP, 
+            String sessionID)
+    {
+        OrderMessage order = createStopLoss(strategyId, externalSysId, groupId, openingOrderId, instrument, price, amount, isParentOrderLong, side, externalIP, internalIP, sessionID);
+        if(trailingPriceAbsolute > 0.0D)
+            order.setPriceLimit((new StringBuilder()).append(trailingPriceAbsolute).append("").toString());
+        return order;
+    }
+
+    public static OrderMessage modifyGTT(String groupId, String orderId, long goodTilltime, String externalIP, String internalIP, String sessionID)
+    {
+        OrderMessage order = new OrderMessage();
+        order.setOrderGroupId(groupId);
+        order.setOrderId(orderId);
+        order.setOrderState(OrderState.EXECUTING);
+        if(-1L != goodTilltime)
+            order.setExecTimeoutMillis(Long.valueOf(goodTilltime));
+        else
+            order.setExecTimeoutMillis(Long.valueOf(System.currentTimeMillis() + 0x2de41353000L));
+        order.setExternalIp(externalIP);
+        order.setInternalIp(internalIP);
+        order.setSessionId(sessionID);
+        return order;
+    }
+
+    public static OrderMessage closePosition(com.dukascopy.api.IEngine.OrderCommand openOrderCommand, Instrument instrument, String orderGroupId, String strategyKey, String label, double amount, double price, double slippage, String externalIP, String internalIP, String sessionID)
+    {
+        return generatePositionClosingOrder(openOrderCommand, instrument, orderGroupId, strategyKey, label, amount, price, slippage, externalIP, internalIP, sessionID);
+    }
+
+    public static OrderMessage closePosition(OrderMessage order, double amount, double price, double slippage, String externalIP, 
+            String internalIP, String sessionID)
+        throws CloneNotSupportedException
+    {
+        return generatePositionClosingOrder(order, amount, price, slippage, externalIP, internalIP, sessionID);
+    }
+
+    public static OrderGroupMessage massClose(List closingOrders)
+    {
+        OrderGroupMessage massCloseGroup = new OrderGroupMessage();
+        massCloseGroup.setOrders(closingOrders);
+        return massCloseGroup;
+    }
+
+    public static OrderMessage generatePositionClosingOrder(com.dukascopy.api.IEngine.OrderCommand openOrderCommand, Instrument instrument, String orderGroupId, String strategyKey, String label, double amount, double price, double slippage, String externalIP, String internalIP, String sessionID)
+    {
+        OrderSide closeSide = openOrderCommand.isLong() ? OrderSide.SELL : OrderSide.BUY;
+        OrderMessage result = new OrderMessage();
+        result.put("amount", BigDecimal.valueOf(amount).toPlainString());
+        result.setInstrument(instrument.toString());
+        result.setOrderDirection(OrderDirection.CLOSE);
+        result.setOrderGroupId(orderGroupId);
+        result.setOrderState(OrderState.CREATED);
+        result.setSide(closeSide);
+        result.setExternalSysId(label);
+        result.setStrategySysId(strategyKey);
+        if(price > 0.0D)
+            result.put("priceClient", BigDecimal.valueOf(price).toPlainString());
+        else
+            result.setPriceClient(null);
+        if(slippage >= 0.0D)
+            result.put("trailingLimit", (new StringBuilder()).append(slippage).append("").toString());
+        else
+            result.put("trailingLimit", null);
+        result.setExternalIp(externalIP);
+        result.setInternalIp(internalIP);
+        result.setSessionId(sessionID);
+        return result;
+    }
+
+    public static OrderMessage generatePositionClosingOrder(OrderMessage order, double amount, double price, double slippage, String externalIP, 
+            String internalIP, String sessionID)
+        throws CloneNotSupportedException
+    {
+        OrderSide closeSide = order.getSide() != OrderSide.BUY ? OrderSide.BUY : OrderSide.SELL;
+        order.getType();
+        OrderMessage result = (OrderMessage)order.clone();
+        if(amount > 0.0D)
+            result.put("amount", BigDecimal.valueOf(amount).toPlainString());
+        else
+            result.put("amount", order.getAmount());
+        result.setInstrument(order.getInstrument());
+        result.setOrderDirection(OrderDirection.CLOSE);
+        result.setOrderGroupId(order.getOrderGroupId());
+        result.setOrderState(OrderState.CREATED);
+        result.setSide(closeSide);
+        result.setExternalSysId(order.getExternalSysId());
+        if(price > 0.0D)
+            result.put("priceClient", (new StringBuilder()).append(price).append("").toString());
+        else
+            result.setPriceClient((Money)null);
+        if(slippage >= 0.0D)
+            result.put("trailingLimit", (new StringBuilder()).append(slippage).append("").toString());
+        else
+            result.put("trailingLimit", null);
+        result.setExternalIp(externalIP);
+        result.setInternalIp(internalIP);
+        result.setSessionId(sessionID);
+        return result;
+    }
+
+    public static MergePositionsMessage merge(String strategyId, String externalSysId, Set mergedGroupsIDs)
+    {
+        StringBuilder delimSeparatedPosIdList = new StringBuilder();
+        String orderGroupId;
+        for(Iterator i$ = mergedGroupsIDs.iterator(); i$.hasNext(); delimSeparatedPosIdList.append(orderGroupId))
+        {
+            orderGroupId = (String)i$.next();
+            if(0 != delimSeparatedPosIdList.length())
+                delimSeparatedPosIdList.append(";");
+        }
+
+        MergePositionsMessage mergeRequest = new MergePositionsMessage(delimSeparatedPosIdList.toString());
+        if(externalSysId != null)
+            mergeRequest.setExternalSysId(externalSysId);
+        else
+            mergeRequest.setExternalSysId(generateLabel());
+        if(strategyId != null)
+            mergeRequest.setStrategySysId(strategyId);
+        return mergeRequest;
+    }
+
+    public static String generateLabel()
+    {
+        String label = "JF";
+        Random random = new Random();
+        for(; label.length() < 10; label = (new StringBuilder()).append(label).append(Integer.toString(random.nextInt(0x5f5e100), 32)).toString());
+        label = label.substring(0, 9);
+        label = label.toLowerCase();
+        return label;
+    }
+
+    public static OrderGroupMessage submitOrder(String strategyId, String externalSysId, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
+            double slippage, double stopLossPrice, double takeProfitPrice, String comment, 
+            String externalIP, String internalIP, String sessionID)
+    {
+        OrderGroupMessage orderGroup = createGroup(externalSysId, instrument, null);
+        OrderMessage openingOrder = createOpeningOrder(externalSysId, strategyId, instrument, orderCommand, amount, price, slippage, comment, externalIP, internalIP, sessionID);
+        StopDirection stopDirection = getStopDirection(orderCommand);
+        if(stopDirection != null)
+        {
+            openingOrder.put("priceStop", (new StringBuilder()).append(price).append("").toString());
+            openingOrder.setStopDirection(stopDirection);
+        }
+        List orders = new ArrayList();
+        orders.add(openingOrder);
+        if(stopLossPrice > 0.0D)
+        {
+            OrderMessage slOrder = createStopLoss(strategyId, externalSysId, null, null, instrument, stopLossPrice, amount, orderCommand.isLong(), null, externalIP, internalIP, sessionID);
+            orders.add(slOrder);
+        }
+        if(takeProfitPrice > 0.0D)
+        {
+            OrderMessage tpOrder = createTakeProfit(strategyId, externalSysId, null, null, instrument, takeProfitPrice, amount, orderCommand.isLong(), externalIP, internalIP, sessionID);
+            orders.add(tpOrder);
+        }
+        orderGroup.setOrders(orders);
+        return orderGroup;
+    }
+
+    public static OrderGroupMessage placeBidOffer(String strategyId, String externalSysId, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
+            double stopLossPrice, double takeProfitPrice, long goodTillTime, String comment, 
+            String externalIP, String internalIP, String sessionID)
+    {
+        OrderGroupMessage orderGroup = createGroup(externalSysId, instrument, null);
+        OrderMessage openingOrder = createOpeningOrder(externalSysId, strategyId, instrument, orderCommand, amount, price, -1D, comment, externalIP, internalIP, sessionID);
+        openingOrder.setPlaceOffer(Boolean.valueOf(true));
+        if(goodTillTime > 0L)
+            openingOrder.setExecTimeoutMillis(Long.valueOf(goodTillTime));
+        List orders = new ArrayList();
+        orders.add(openingOrder);
+        if(stopLossPrice > 0.0D)
+        {
+            OrderMessage slOrder = createStopLoss(strategyId, externalSysId, null, null, instrument, stopLossPrice, amount, orderCommand.isLong(), null, externalIP, internalIP, sessionID);
+            orders.add(slOrder);
+        }
+        if(takeProfitPrice > 0.0D)
+        {
+            OrderMessage tpOrder = createTakeProfit(strategyId, externalSysId, null, null, instrument, takeProfitPrice, amount, orderCommand.isLong(), externalIP, internalIP, sessionID);
+            orders.add(tpOrder);
+        }
+        orderGroup.setOrders(orders);
+        return orderGroup;
+    }
+
+    private static OrderMessage createStopLoss(String strategyId, String externalSysId, String groupId, String openingOrderId, Instrument instrument, double price, double amount, boolean isParentOrderlong, OfferSide stopLossSide, String externalIP, String internalIP, String sessionID)
+    {
+        StopDirection stopDirection;
+        if(isParentOrderlong)
+        {
+            if(stopLossSide == null || stopLossSide == OfferSide.BID)
+                stopDirection = StopDirection.BID_LESS;
+            else
+                stopDirection = StopDirection.ASK_LESS;
+        } else
+        if(stopLossSide == null || stopLossSide == OfferSide.ASK)
+            stopDirection = StopDirection.ASK_GREATER;
+        else
+            stopDirection = StopDirection.BID_GREATER;
+        OrderSide slSide = isParentOrderlong ? OrderSide.SELL : OrderSide.BUY;
+        OrderMessage closingOrder = createSLTPBase(strategyId, externalSysId, groupId, openingOrderId, instrument, price, amount, slSide, stopDirection, externalIP, internalIP, sessionID);
+        return closingOrder;
+    }
+
+    private static OrderMessage createTakeProfit(String strategyId, String externalSysId, String groupId, String openingOrderId, Instrument instrument, double price, double amount, boolean isParentOrderlong, String externalIP, String internalIP, String sessionID)
+    {
+        StopDirection stopDirection = null;
+        if(isParentOrderlong)
+            stopDirection = StopDirection.BID_GREATER;
+        else
+            stopDirection = StopDirection.ASK_LESS;
+        OrderSide tpSide = isParentOrderlong ? OrderSide.SELL : OrderSide.BUY;
+        OrderMessage closingOrder = createSLTPBase(strategyId, externalSysId, groupId, openingOrderId, instrument, price, amount, tpSide, stopDirection, externalIP, internalIP, sessionID);
+        closingOrder.put("trailingLimit", "0");
+        return closingOrder;
+    }
+
+    private static OrderMessage createSLTPBase(String strategyId, String externalSysId, String groupId, String openingOrderId, Instrument instrument, double price, double amount, OrderSide orderSide, StopDirection stopDirection, String externalIP, String internalIP, String sessionID)
+    {
+        OrderMessage closingOrder = new OrderMessage();
+        closingOrder.setStrategySysId(strategyId);
+        closingOrder.setExternalSysId(externalSysId);
+        if(groupId != null)
+            closingOrder.setOrderGroupId(groupId);
+        if(openingOrderId != null)
+            closingOrder.setIfdParentOrderId(openingOrderId);
+        closingOrder.setOrderState(OrderState.CREATED);
+        closingOrder.setInstrument(instrument.toString());
+        closingOrder.setOrderDirection(OrderDirection.CLOSE);
+        closingOrder.setSide(orderSide);
+        closingOrder.put("priceStop", (new StringBuilder()).append(price).append("").toString());
+        closingOrder.put("amount", BigDecimal.valueOf(amount).toPlainString());
+        closingOrder.setStopDirection(stopDirection);
+        closingOrder.setExternalIp(externalIP);
+        closingOrder.setInternalIp(internalIP);
+        closingOrder.setSessionId(sessionID);
+        return closingOrder;
+    }
+
+    public static StopDirection getStopDirection(com.dukascopy.api.IEngine.OrderCommand orderCommand)
+    {
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$api$IEngine$OrderCommand = new int[com.dukascopy.api.IEngine.OrderCommand.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYLIMIT_BYBID.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYSTOP.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.BUYSTOP_BYBID.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT.ordinal()] = 5;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLLIMIT_BYASK.ordinal()] = 6;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLSTOP.ordinal()] = 7;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$IEngine$OrderCommand[com.dukascopy.api.IEngine.OrderCommand.SELLSTOP_BYASK.ordinal()] = 8;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls1..SwitchMap.com.dukascopy.api.IEngine.OrderCommand[orderCommand.ordinal()])
+        {
+        case 1: // '\001'
+            return StopDirection.ASK_LESS;
+
+        case 2: // '\002'
+            return StopDirection.BID_LESS;
+
+        case 3: // '\003'
+            return StopDirection.ASK_GREATER;
+
+        case 4: // '\004'
+            return StopDirection.BID_GREATER;
+
+        case 5: // '\005'
+            return StopDirection.BID_GREATER;
+
+        case 6: // '\006'
+            return StopDirection.ASK_GREATER;
+
+        case 7: // '\007'
+            return StopDirection.BID_LESS;
+
+        case 8: // '\b'
+            return StopDirection.ASK_LESS;
+        }
+        return null;
+    }
+
+    private static OrderGroupMessage createGroup(String externalSysId, Instrument instrument, String groupId)
+    {
+        OrderGroupMessage orderGroup = new OrderGroupMessage();
+        orderGroup.setTimestamp(new Date());
+        orderGroup.setInstrument(instrument.toString());
+        if(externalSysId != null)
+            orderGroup.setExternalSysId(externalSysId);
+        if(groupId != null)
+            orderGroup.setOrderGroupId(groupId);
+        return orderGroup;
+    }
+
+    private static OrderMessage createOpeningOrder(String externalSysId, String strategyId, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
+            double slippage, String comment, String externalIP, String internalIP, String sessionID)
+    {
+        OrderMessage openingOrder = new OrderMessage();
+        openingOrder.setExternalSysId(externalSysId);
+        openingOrder.setStrategySysId(strategyId);
+        openingOrder.setTag(comment);
+        openingOrder.setOrderState(OrderState.CREATED);
+        openingOrder.setOrderDirection(OrderDirection.OPEN);
+        openingOrder.put("amount", BigDecimal.valueOf(amount).toPlainString());
+        if(orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID || orderCommand == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+        {
+            openingOrder.setPriceClient(new Money(BigDecimal.valueOf(price), instrument.getPrimaryCurrency()));
+        } else
+        {
+            double priceClient;
+            if(orderCommand.isLong())
+                priceClient = FeedDataProvider.getDefaultInstance().getLastAsk(instrument);
+            else
+                priceClient = FeedDataProvider.getDefaultInstance().getLastBid(instrument);
+            if(!Double.isNaN(priceClient))
+                openingOrder.setPriceClient(new Money(BigDecimal.valueOf(priceClient), instrument.getPrimaryCurrency()));
+            if((orderCommand == com.dukascopy.api.IEngine.OrderCommand.BUY || orderCommand == com.dukascopy.api.IEngine.OrderCommand.SELL) && price > 0.0D)
+            {
+                if(Double.isNaN(priceClient))
+                    throw new IllegalStateException("Instrument not tradable");
+                BigDecimal priceClientBD = BigDecimal.valueOf(priceClient);
+                BigDecimal worstPrice = BigDecimal.valueOf(price);
+                if(!Double.isNaN(slippage) && slippage >= 0.0D)
+                    if(orderCommand.isLong())
+                        worstPrice = worstPrice.add(BigDecimal.valueOf(slippage));
+                    else
+                        worstPrice = worstPrice.subtract(BigDecimal.valueOf(slippage));
+                if(orderCommand.isLong() && worstPrice.compareTo(priceClientBD) > 0)
+                    slippage = worstPrice.subtract(priceClientBD).doubleValue();
+                else
+                if(!orderCommand.isLong() && worstPrice.compareTo(priceClientBD) < 0)
+                    slippage = priceClientBD.subtract(worstPrice).doubleValue();
+                else
+                    openingOrder.setPriceClient(new Money(BigDecimal.valueOf(price), instrument.getPrimaryCurrency()));
+            }
+            if(!Double.isNaN(slippage) && slippage >= 0.0D)
+                openingOrder.put("trailingLimit", (new StringBuilder()).append(slippage).append("").toString());
+            else
+                openingOrder.put("trailingLimit", null);
+        }
+        openingOrder.setSide(orderCommand.isLong() ? OrderSide.BUY : OrderSide.SELL);
+        openingOrder.setInstrument(instrument.toString());
+        openingOrder.setExternalIp(externalIP);
+        openingOrder.setInternalIp(internalIP);
+        openingOrder.setSessionId(sessionID);
+        return openingOrder;
+    }
+}

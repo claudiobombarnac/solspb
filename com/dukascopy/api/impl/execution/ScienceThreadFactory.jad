@@ -1,0 +1,64 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ScienceThreadFactory.java
+
+package com.dukascopy.api.impl.execution;
+
+import java.util.concurrent.ThreadFactory;
+
+public class ScienceThreadFactory
+    implements ThreadFactory
+{
+    public static class ScienceThread extends Thread
+    {
+
+        public ClassLoader getContextClassLoader()
+        {
+            return classLoader;
+        }
+
+        private ClassLoader classLoader;
+
+        public ScienceThread(ClassLoader classLoader, Runnable runnable)
+        {
+            super(runnable);
+            this.classLoader = null;
+            this.classLoader = classLoader;
+        }
+    }
+
+
+    public ScienceThreadFactory(ClassLoader classLoader, String scriptName)
+    {
+        this.classLoader = null;
+        this.scriptName = null;
+        tid = 0L;
+        scienceThread = null;
+        this.classLoader = classLoader;
+        this.scriptName = scriptName;
+    }
+
+    public ScienceThread getThread()
+    {
+        return scienceThread;
+    }
+
+    public long getThreadId()
+    {
+        return tid;
+    }
+
+    public Thread newThread(Runnable r)
+    {
+        scienceThread = new ScienceThread(classLoader, r);
+        tid = scienceThread.getId();
+        scienceThread.setName((new StringBuilder()).append("Strategy ").append(scriptName).toString());
+        return scienceThread;
+    }
+
+    private ClassLoader classLoader;
+    private String scriptName;
+    private long tid;
+    private ScienceThread scienceThread;
+}

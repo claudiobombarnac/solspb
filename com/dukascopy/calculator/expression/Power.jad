@@ -1,0 +1,167 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Power.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.Base;
+import com.dukascopy.calculator.Error;
+import com.dukascopy.calculator.Notation;
+import com.dukascopy.calculator.OObject;
+import com.dukascopy.calculator.StringArray;
+import com.dukascopy.calculator.complex.Complex;
+import java.util.Vector;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            Dyadic, Product, Expression
+
+public class Power extends Dyadic
+{
+
+    public Power(OObject expression1, OObject expression2)
+    {
+        super(new com.dukascopy.calculator.function.Power(), expression1, expression2);
+    }
+
+    public Product negate()
+    {
+        Product p = new Product(this, false);
+        return p.negate();
+    }
+
+    public StringArray toHTMLSubString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray s = new StringArray();
+        s.addAll(expression1.toHTMLParenString(maxChars, precision, base, notation, polarFactor));
+        StringArray t = expression2.toHTMLSubString(maxChars, precision, base, notation, polarFactor);
+        int l = ((Vector)t.lastElement()).size();
+        if(l > 0)
+        {
+            String sup = "<sup>";
+            ((Vector)t.firstElement()).set(0, sup.concat((String)((Vector)t.firstElement()).firstElement()));
+            ((Vector)t.lastElement()).set(l - 1, ((String)((Vector)t.lastElement()).lastElement()).concat("</sup>"));
+        }
+        s.addAll(t);
+        return s;
+    }
+
+    public OObject auto_simplify()
+    {
+        expression1 = expression1.auto_simplify();
+        expression2 = expression2.auto_simplify();
+        if((expression1 instanceof Error) || (expression2 instanceof Error))
+            return new Error("Power error");
+        if(expression1 instanceof Complex)
+        {
+            Complex v = (Complex)expression1;
+            if(expression2 instanceof Complex)
+            {
+                Complex w = (Complex)expression2;
+                return v.pow(w);
+            }
+            Long l = v.isInteger();
+            if(l != null)
+            {
+                long i = l.longValue();
+                if(i == 0L)
+                    return new Error("Power error");
+                if(i == 1L)
+                    return new Complex(1.0D);
+            }
+        }
+        if(expression2 instanceof Complex)
+        {
+            Complex w = (Complex)expression2;
+            Long m = w.isInteger();
+            if(m != null)
+            {
+                long n = m.longValue();
+                if(n == 0L)
+                    return new Complex(1.0D);
+                if(n == 1L)
+                    return expression1;
+                if(expression1 instanceof Power)
+                {
+                    Power q = (Power)expression1;
+                    OObject o = null;
+                    if(q.expression2 instanceof Expression)
+                    {
+                        Product p = new Product((Expression)(Expression)q.expression2, false);
+                        o = p.multiply(new Complex(n));
+                    } else
+                    if(q.expression2 instanceof Complex)
+                        o = q.expression2.multiply(new Complex(n));
+                    else
+                        return new Error("Power error");
+                    return new Power(q.expression1, o);
+                }
+                if(expression1 instanceof Product)
+                {
+                    Product p = (Product)expression1;
+                    return p.integer_power(n).auto_simplify();
+                }
+            }
+        }
+        return this;
+    }
+
+    public int compareTo(Power power)
+    {
+        if(expression1 instanceof Error)
+            return !(power.expression1 instanceof Error) ? -1 : 0;
+        if(power.expression1 instanceof Error)
+            return 1;
+        if(expression1 instanceof Expression)
+            if(power.expression1 instanceof Expression)
+            {
+                int compare = ((Expression)expression1).compareTo((Expression)power.expression1);
+                if(compare == 0)
+                {
+                    if(expression2 instanceof Error)
+                        return !(power.expression2 instanceof Error) ? -1 : 0;
+                    if(power.expression2 instanceof Error)
+                        return 1;
+                    if(expression2 instanceof Expression)
+                    {
+                        if(power.expression2 instanceof Expression)
+                            compare = ((Expression)expression2).compareTo((Expression)power.expression2);
+                        else
+                            compare = -1;
+                    } else
+                    if(power.expression2 instanceof Expression)
+                        compare = 1;
+                    else
+                        compare = -((Complex)expression2).compareTo((Complex)power.expression2);
+                }
+                return compare;
+            } else
+            {
+                return -1;
+            }
+        if(power.expression1 instanceof Expression)
+            return 1;
+        else
+            return ((Complex)expression1).compareTo((Complex)power.expression1);
+    }
+
+    OObject base()
+    {
+        return expression1;
+    }
+
+    OObject exponent()
+    {
+        return expression2;
+    }
+
+    public volatile Expression negate()
+    {
+        return negate();
+    }
+
+    public volatile OObject negate()
+    {
+        return negate();
+    }
+}

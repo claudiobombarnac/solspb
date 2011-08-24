@@ -1,0 +1,21 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PointAndFigureDataSequence.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation.pf;
+
+import com.dukascopy.api.Period;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.AbstractPriceAggregationDataSequence;
+import java.util.Map;
+
+public class PointAndFigureDataSequence extends AbstractPriceAggregationDataSequence
+{
+
+    public PointAndFigureDataSequence(Period period, long from, long to, int extraBefore, int extraAfter, 
+            PointAndFigureData data[], long gaps[][], Map formulaOutputs, Map indicators, boolean latestDataVisible, boolean includesLatestData)
+    {
+        super(period, from, to, extraBefore, extraAfter, data, gaps, formulaOutputs, indicators, latestDataVisible, includesLatestData);
+    }
+}

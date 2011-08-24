@@ -1,0 +1,111 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:27
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   TaskOrderNotify.java
+
+package com.dukascopy.api.impl.execution;
+
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.impl.connect.*;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import com.dukascopy.transport.common.msg.response.NotificationMessage;
+import java.util.Iterator;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.execution:
+//            Task
+
+public class TaskOrderNotify
+    implements Task
+{
+
+    public TaskOrderNotify(JForexTaskManager taskManager, IStrategy strategy, NotificationMessage notificationMessage)
+    {
+        this.strategy = strategy;
+        this.notificationMessage = notificationMessage;
+        this.taskManager = taskManager;
+    }
+
+    public Task.Type getType()
+    {
+        return Task.Type.MESSAGE;
+    }
+
+    public Object call()
+        throws Exception
+    {
+        if(taskManager.isStrategyStopping())
+            return null;
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Starting processing of notify message [").append(notificationMessage).append("]").toString());
+        try
+        {
+            OrdersInternalCollection ordersInternalCollection = taskManager.getOrdersInternalCollection();
+            PlatformOrderImpl platformOrderImpl = null;
+            if(taskManager.isGlobal())
+            {
+                String orderId = notificationMessage.getOrderId();
+                if(orderId != null)
+                    platformOrderImpl = ordersInternalCollection.getOrderByOpeningOrderId(orderId);
+            } else
+            if(platformOrderImpl == null)
+            {
+                String positionId = notificationMessage.getPositionId();
+                if(positionId != null)
+                    platformOrderImpl = ordersInternalCollection.getOrderById(positionId);
+            }
+            if(platformOrderImpl == null)
+            {
+                String label = notificationMessage.getExternalSysId();
+                platformOrderImpl = ordersInternalCollection.getOrderByLabel(label);
+            }
+            if(platformOrderImpl != null)
+            {
+                com.dukascopy.api.IMessage platformMessageImpl = platformOrderImpl.update(notificationMessage);
+                if(platformMessageImpl != null)
+                    strategy.onMessage(platformMessageImpl);
+            } else
+            {
+                String text = notificationMessage.getText();
+                if(text != null && text.indexOf("Failed to merge positions") != -1)
+                {
+                    Iterator i$ = ordersInternalCollection.getAllMergeTargets().iterator();
+                    do
+                    {
+                        if(!i$.hasNext())
+                            break;
+                        PlatformOrderImpl impl = (PlatformOrderImpl)i$.next();
+                        notificationMessage.setExternalSysId(impl.getLabel());
+                        com.dukascopy.api.IMessage platformMessageImpl = impl.update(notificationMessage);
+                        if(platformMessageImpl != null)
+                            strategy.onMessage(platformMessageImpl);
+                    } while(true);
+                }
+            }
+        }
+        catch(Throwable t)
+        {
+            String msg = StrategyWrapper.representError(strategy, t);
+            NotificationUtilsProvider.getNotificationUtils().postErrorMessage(msg, t, false);
+            LOGGER.error(t.getMessage(), t);
+            taskManager.getExceptionHandler().onException(taskManager.getStrategyId(), com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_MESSAGE, t);
+        }
+        return null;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("TaskOrderNotify [").append(notificationMessage).append("]").toString();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/execution/TaskOrderNotify);
+    private JForexTaskManager taskManager;
+    private IStrategy strategy;
+    private NotificationMessage notificationMessage;
+
+}

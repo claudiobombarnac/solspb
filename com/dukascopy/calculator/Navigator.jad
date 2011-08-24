@@ -1,0 +1,98 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   Navigator.java
+
+package com.dukascopy.calculator;
+
+import java.util.*;
+import javax.swing.text.*;
+
+abstract class Navigator extends NavigationFilter
+{
+
+    public Navigator()
+    {
+        dots = new Vector();
+        dots.add(Integer.valueOf(1));
+    }
+
+    public void moveDot(javax.swing.text.NavigationFilter.FilterBypass fb, int dot, javax.swing.text.Position.Bias bias)
+    {
+        setDot(fb, dot, bias);
+    }
+
+    public void setDot(javax.swing.text.NavigationFilter.FilterBypass fb, int dot, javax.swing.text.Position.Bias bias)
+    {
+        if(dots.size() == 1 && ((Integer)dots.firstElement()).intValue() == 1 && (dot > 34 || dot == 1))
+        {
+            fb.setDot(dot, bias);
+            return;
+        }
+        int l = 0;
+        ListIterator i = dots.listIterator(dots.size());
+        do
+        {
+            if(!i.hasPrevious())
+                break;
+            l = ((Integer)i.previous()).intValue();
+        } while(l > dot);
+        int u = 0;
+        Iterator i$ = dots.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Integer i = (Integer)i$.next();
+            u = i.intValue();
+        } while(u < dot);
+        dot = dot - l <= u - dot ? l : u;
+        fb.setDot(dot, bias);
+    }
+
+    public int getNextVisualPositionFrom(JTextComponent text, int pos, javax.swing.text.Position.Bias bias, int direction, javax.swing.text.Position.Bias biasRet[])
+        throws BadLocationException
+    {
+        int p;
+label0:
+        {
+            p = super.getNextVisualPositionFrom(text, pos, bias, direction, biasRet);
+            if(p < 1)
+                return 1;
+            if(p > ((Integer)dots.lastElement()).intValue())
+                return ((Integer)dots.lastElement()).intValue();
+            if(direction == 7)
+            {
+                ListIterator i = dots.listIterator(dots.size());
+                int q;
+                do
+                {
+                    if(!i.hasPrevious())
+                        break label0;
+                    q = ((Integer)i.previous()).intValue();
+                } while(q > p);
+                return q;
+            }
+            if(direction != 3)
+                break label0;
+            Iterator i$ = dots.iterator();
+            Integer q;
+            do
+            {
+                if(!i$.hasNext())
+                    break label0;
+                q = (Integer)i$.next();
+            } while(q.intValue() < p);
+            return q.intValue();
+        }
+        return p;
+    }
+
+    public Vector dots()
+    {
+        return dots;
+    }
+
+    protected Vector dots;
+    protected final int MAX = 34;
+}

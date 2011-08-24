@@ -1,0 +1,191 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategiesControl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import java.io.File;
+import java.security.*;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            StrategyProcessor, ISystemListenerExtended
+
+public class StrategiesControl
+    implements IStrategies
+{
+    private class ListenerWrapper
+        implements IStrategyListener
+    {
+
+        public void onStart(long strategyId)
+        {
+            startedStrategies.add(Long.valueOf(strategyId));
+            listener.onStart(strategyId);
+        }
+
+        public void onStop(long strategyId)
+        {
+            startedStrategies.remove(Long.valueOf(strategyId));
+            listener.onStop(strategyId);
+        }
+
+        private IStrategyListener listener;
+        final StrategiesControl this$0;
+
+        private ListenerWrapper(IStrategyListener listener)
+        {
+            this$0 = StrategiesControl.this;
+            super();
+            this.listener = listener;
+        }
+
+    }
+
+
+    public StrategiesControl(ISystemListenerExtended systemListener, StrategyProcessor strategyProcessor)
+    {
+        startedStrategies = new HashSet();
+        this.systemListener = systemListener;
+        this.strategyProcessor = strategyProcessor;
+    }
+
+    public long startStrategy(final File jfxFile, final IStrategyListener listener, final Map configurables, final boolean fullAccess)
+        throws JFException
+    {
+        if(!strategyProcessor.isFullAccessGranted())
+            throw new JFException("Starting strategy from the separate file requires full access. See @RequiresFullAccess annotation");
+        Long strategyId;
+        try
+        {
+            strategyId = (Long)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Long run()
+                    throws Exception
+                {
+                    return Long.valueOf(systemListener.startStrategy(jfxFile, new ListenerWrapper(listener), configurables, fullAccess));
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final File val$jfxFile;
+                final IStrategyListener val$listener;
+                final Map val$configurables;
+                final boolean val$fullAccess;
+                final StrategiesControl this$0;
+
+            
+            {
+                this$0 = StrategiesControl.this;
+                jfxFile = file;
+                listener = istrategylistener;
+                configurables = map;
+                fullAccess = flag;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            throw (JFException)e.getException();
+        }
+        startedStrategies.add(strategyId);
+        return strategyId.longValue();
+    }
+
+    public long startStrategy(final IStrategy strategy, final IStrategyListener listener, final boolean fullAccess)
+        throws JFException
+    {
+        if(fullAccess && !strategyProcessor.isFullAccessGranted())
+            throw new JFException("Strategy doesn't have full access permission to start another strategy with full access permission granted");
+        Long strategyId;
+        try
+        {
+            strategyId = (Long)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Long run()
+                    throws Exception
+                {
+                    return Long.valueOf(systemListener.startStrategy(strategy, new ListenerWrapper(listener), fullAccess));
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final IStrategy val$strategy;
+                final IStrategyListener val$listener;
+                final boolean val$fullAccess;
+                final StrategiesControl this$0;
+
+            
+            {
+                this$0 = StrategiesControl.this;
+                strategy = istrategy;
+                listener = istrategylistener;
+                fullAccess = flag;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            throw (JFException)e.getException();
+        }
+        startedStrategies.add(strategyId);
+        return strategyId.longValue();
+    }
+
+    public void stopStrategy(final long strategyId)
+        throws JFException
+    {
+        if(startedStrategies.contains(Long.valueOf(strategyId)) || strategyProcessor.isFullAccessGranted())
+            try
+            {
+                AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                    public Object run()
+                        throws Exception
+                    {
+                        systemListener.stopStrategy(strategyId);
+                        return null;
+                    }
+
+                    final long val$strategyId;
+                    final StrategiesControl this$0;
+
+            
+            {
+                this$0 = StrategiesControl.this;
+                strategyId = l;
+                super();
+            }
+                });
+            }
+            catch(PrivilegedActionException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+                throw (JFException)e.getException();
+            }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/StrategiesControl);
+    private ISystemListenerExtended systemListener;
+    private Set startedStrategies;
+    private StrategyProcessor strategyProcessor;
+
+
+
+}

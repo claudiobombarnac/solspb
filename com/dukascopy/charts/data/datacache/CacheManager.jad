@@ -1,0 +1,1950 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CacheManager.java
+
+package com.dukascopy.charts.data.datacache;
+
+import SevenZip.Compression.LZMA.Encoder;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.Unit;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.gui.l10n.components.JLocalizableButton;
+import com.dukascopy.dds2.greed.gui.l10n.components.JLocalizableDialog;
+import com.dukascopy.dds2.greed.gui.l10n.components.JLocalizableLabel;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.security.AccessControlException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            DataCacheException, TickData, CandleData, Data, 
+//            LiveFeedListener, LoadingProgressListener, DataCacheUtils
+
+public class CacheManager
+{
+    protected static class FileCacheItem
+    {
+
+        public boolean taken[];
+        public RandomAccessFile fileHandles[];
+
+        protected FileCacheItem()
+        {
+            taken = new boolean[4];
+            fileHandles = new RandomAccessFile[4];
+        }
+    }
+
+    public static final class Compression extends Enum
+    {
+
+        public static Compression[] values()
+        {
+            return (Compression[])$VALUES.clone();
+        }
+
+        public static Compression valueOf(String name)
+        {
+            return (Compression)Enum.valueOf(com/dukascopy/charts/data/datacache/CacheManager$Compression, name);
+        }
+
+        public static final Compression NONE;
+        public static final Compression GZIP;
+        public static final Compression ZIP;
+        public static final Compression ZIP7;
+        private static final Compression $VALUES[];
+
+        static 
+        {
+            NONE = new Compression("NONE", 0);
+            GZIP = new Compression("GZIP", 1);
+            ZIP = new Compression("ZIP", 2);
+            ZIP7 = new Compression("ZIP7", 3);
+            $VALUES = (new Compression[] {
+                NONE, GZIP, ZIP, ZIP7
+            });
+        }
+
+        private Compression(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    public CacheManager(boolean purgeOnWrongVersion)
+        throws DataCacheException
+    {
+        File cacheDir;
+        File versionFile;
+        fileLocks = new LinkedHashMap(140, 0.75F, true);
+        fileExistanceCache = new LinkedHashMap(500, 0.75F, true) {
+
+            protected boolean removeEldestEntry(java.util.Map.Entry eldest)
+            {
+                return size() > 500;
+            }
+
+            final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                super(x0, x1, x2);
+            }
+        };
+        fileHandlesCache = new LinkedHashMap(100, 0.75F, true);
+        cacheDir = new File(FilePathManager.getInstance().getCacheDirectory());
+        versionFile = new File(cacheDir, "version.txt");
+        if(!versionFile.exists())
+            break MISSING_BLOCK_LABEL_302;
+        FileReader reader = new FileReader(versionFile);
+        String versionStr;
+        char buff[] = new char[256];
+        int i;
+        int readBytes;
+        for(readBytes = 0; (i = reader.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+        versionStr = new String(buff, 0, readBytes);
+        reader.close();
+        break MISSING_BLOCK_LABEL_179;
+        Exception exception;
+        exception;
+        reader.close();
+        throw exception;
+        if(!versionStr.equals(Integer.toString(5)))
+        {
+            int parsedVersion = 0;
+            try
+            {
+                parsedVersion = Integer.parseInt(versionStr);
+            }
+            catch(NumberFormatException e) { }
+            if(purgeOnWrongVersion)
+            {
+                boolean converted = true;
+                if(parsedVersion == 4)
+                    converted = convertFromVersion4To5(cacheDir);
+                else
+                    deleteCache(cacheDir);
+                if(converted)
+                    version = 5;
+                else
+                    version = 4;
+            } else
+            if(parsedVersion == 4)
+            {
+                version = 4;
+            } else
+            {
+                deleteCache(cacheDir);
+                version = 5;
+            }
+        } else
+        {
+            version = 5;
+        }
+        break MISSING_BLOCK_LABEL_312;
+        IOException e;
+        e;
+        throw new DataCacheException("Cannot read version file of cache");
+        deleteCache(cacheDir);
+        version = 5;
+        if(!cacheDir.exists() && !cacheDir.mkdirs() && !cacheDir.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot create cache directory [").append(cacheDir).append("]. File.exists() - [").append(cacheDir.exists()).append("] File.mkdirs() - [").append(cacheDir.mkdirs()).append("]").toString());
+        if(versionFile.exists())
+            break MISSING_BLOCK_LABEL_448;
+        FileWriter writer = new FileWriter(versionFile);
+        writer.write(Integer.toString(5));
+        writer.close();
+        break MISSING_BLOCK_LABEL_448;
+        Exception exception1;
+        exception1;
+        writer.close();
+        throw exception1;
+        writer;
+        throw new DataCacheException("Cannot write version file in cache");
+    }
+
+    private boolean convertFromVersion4To5(final File cacheDir)
+        throws DataCacheException
+    {
+        final String fileProcessed[] = {
+            ""
+        };
+        final int counts[] = new int[2];
+        final boolean canceled[] = {
+            false
+        };
+        final boolean converted[] = {
+            false
+        };
+        Thread conversionThread = new Thread(new Runnable() {
+
+            public void run()
+            {
+                try
+                {
+                    synchronized(fileHandlesCache)
+                    {
+                        for(Iterator iterator = fileHandlesCache.entrySet().iterator(); iterator.hasNext(); iterator.remove())
+                        {
+                            java.util.Map.Entry entry = (java.util.Map.Entry)iterator.next();
+                            FileCacheItem cacheItem = (FileCacheItem)entry.getValue();
+                            RandomAccessFile arr$[] = cacheItem.fileHandles;
+                            int len$ = arr$.length;
+                            for(int i$ = 0; i$ < len$; i$++)
+                            {
+                                RandomAccessFile fileHandle = arr$[i$];
+                                int i = 6;
+                                if(fileHandle == null)
+                                    continue;
+                                try
+                                {
+                                    fileHandle.close();
+                                }
+                                catch(IOException e)
+                                {
+                                    CacheManager.LOGGER.error(e.getMessage(), e);
+                                }
+                            }
+
+                        }
+
+                    }
+                    if(cacheDir.exists())
+                    {
+                        File files[] = cacheDir.listFiles();
+                        File arr$[] = files;
+                        int len$ = arr$.length;
+                        for(int i$ = 0; i$ < len$; i$++)
+                        {
+                            File file = arr$[i$];
+                            if(file.isDirectory())
+                            {
+                                if(isInstrumentDir(file))
+                                {
+                                    Instrument instrument = Instrument.valueOf(file.getName().toUpperCase());
+                                    countFilesRecursive(file, instrument, fileProcessed, counts, canceled);
+                                }
+                                continue;
+                            }
+                            if(isVersionOrLockFile(file))
+                                counts[1]++;
+                        }
+
+                    }
+                    if(cacheDir.exists())
+                    {
+                        File files[] = cacheDir.listFiles();
+                        File arr$[] = files;
+                        int len$ = arr$.length;
+                        for(int i$ = 0; i$ < len$; i$++)
+                        {
+                            File file = arr$[i$];
+                            if(file.isDirectory() && isInstrumentDir(file))
+                            {
+                                Instrument instrument = Instrument.valueOf(file.getName().toUpperCase());
+                                convertCacheRecursive(file, instrument, fileProcessed, counts, canceled);
+                            }
+                        }
+
+                        if(!canceled[0])
+                        {
+                            converted[0] = true;
+                            arr$ = files;
+                            len$ = arr$.length;
+                            for(int i$ = 0; i$ < len$; i$++)
+                            {
+                                File file = arr$[i$];
+                                if(file.isDirectory() || !isVersionOrLockFile(file))
+                                    continue;
+                                counts[0]++;
+                                if(!file.delete())
+                                    throw new DataCacheException((new StringBuilder()).append("Cannot delete cache files [").append(file.toString()).append("]").toString());
+                            }
+
+                            canceled[0] = false;
+                        }
+                    }
+                    if(!canceled[0])
+                        converted[0] = true;
+                    fileProcessed[0] = null;
+                }
+                catch(DataCacheException e)
+                {
+                    CacheManager.LOGGER.error(e.getMessage(), e);
+                    fileProcessed[0] = null;
+                }
+            }
+
+            final File val$cacheDir;
+            final String val$fileProcessed[];
+            final int val$counts[];
+            final boolean val$canceled[];
+            final boolean val$converted[];
+            final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                cacheDir = file;
+                fileProcessed = as;
+                counts = ai;
+                canceled = aflag;
+                converted = aflag1;
+                super();
+            }
+        });
+        if(SwingUtilities.isEventDispatchThread())
+        {
+            JDialog convertDialog = new _cls3(canceled, fileProcessed, counts);
+            conversionThread.start();
+            convertDialog.setVisible(true);
+            try
+            {
+                conversionThread.join();
+            }
+            catch(InterruptedException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+                throw new DataCacheException("Cache data conversion was interrupted");
+            }
+        } else
+        {
+            conversionThread.start();
+            try
+            {
+                conversionThread.join();
+            }
+            catch(InterruptedException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+                throw new DataCacheException("Cache data conversion was interrupted");
+            }
+        }
+        return converted[0];
+    }
+
+    private void convertCacheRecursive(File dirToConvert, Instrument instrument, String fileProcessed[], int counts[], boolean canceled[])
+        throws DataCacheException
+    {
+        if(dirToConvert.exists())
+        {
+            File files[] = dirToConvert.listFiles();
+            File arr$[] = files;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File file = arr$[i$];
+                if(file.isDirectory())
+                {
+                    if(file.getName().startsWith("intraperiod"))
+                        deleteCacheRecursive(file);
+                    else
+                        convertCacheRecursive(file, instrument, fileProcessed, counts, canceled);
+                    continue;
+                }
+                if(!canceled[0] && file.getName().endsWith("bin"))
+                {
+                    fileProcessed[0] = file.getPath();
+                    counts[0]++;
+                    convertFile(file, instrument);
+                }
+            }
+
+        }
+    }
+
+    private void countFilesRecursive(File dirToConvert, Instrument instrument, String fileProcessed[], int counts[], boolean canceled[])
+        throws DataCacheException
+    {
+        if(dirToConvert.exists())
+        {
+            File files[] = dirToConvert.listFiles();
+            File arr$[] = files;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File file = arr$[i$];
+                if(file.isDirectory())
+                {
+                    if(!file.getName().startsWith("intraperiod"))
+                        countFilesRecursive(file, instrument, fileProcessed, counts, canceled);
+                    continue;
+                }
+                if(!canceled[0] && file.getName().endsWith("bin"))
+                    counts[1]++;
+            }
+
+        }
+    }
+
+    private void convertFile(File file, Instrument instrument)
+        throws DataCacheException
+    {
+        File newFile;
+        boolean isTicks;
+        java.util.List dataList;
+        String fileName = file.getName();
+        newFile = new File(file.getParent(), (new StringBuilder()).append(fileName.substring(0, fileName.length() - 3)).append("bi5").toString());
+        isTicks = tickFilePattern.matcher(fileName).matches();
+        dataList = new ArrayList();
+        RandomAccessFile fileHandle = new RandomAccessFile(file, "r");
+        int dataLength = isTicks ? TickData.getLength(4) : CandleData.getLength(4);
+        byte buff[] = new byte[(8192 / dataLength) * dataLength];
+        int i;
+        do
+        {
+            int readBytes;
+            for(readBytes = 0; (i = fileHandle.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+            for(int j = 0; j < readBytes; j += dataLength)
+            {
+                if(j + dataLength > readBytes)
+                    continue;
+                if(isTicks)
+                {
+                    TickData tickData = new TickData();
+                    tickData.fromBytes(4, 0L, 0.0D, buff, j);
+                    dataList.add(tickData);
+                } else
+                {
+                    CandleData candleData = new CandleData();
+                    candleData.fromBytes(4, 0L, 0.0D, buff, j);
+                    dataList.add(candleData);
+                }
+            }
+
+        } while(i > -1);
+        fileHandle.close();
+        break MISSING_BLOCK_LABEL_325;
+        Exception exception;
+        exception;
+        fileHandle.close();
+        throw exception;
+        IOException e;
+        e;
+        if(!file.delete())
+            throw new DataCacheException((new StringBuilder()).append("Cannot delete cache files [").append(file.toString()).append("]").toString());
+        if(newFile.exists())
+            break MISSING_BLOCK_LABEL_923;
+        File tempFile;
+        RandomAccessFile tempFileHandle;
+        File tempDir = DataCacheUtils.getChunkTempDirectory();
+        if(!tempDir.exists() && !tempDir.mkdirs() && !tempDir.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot create cache temp directory [").append(tempDir).append("]. File.exists() - [").append(tempDir.exists()).append("] File.mkdirs() - [").append(tempDir.mkdirs()).append("]").toString());
+        tempFile = File.createTempFile("JForex_cache_", ".bin", tempDir);
+        tempFileHandle = new RandomAccessFile(tempFile, "rw");
+        if(dataList.size() > 0)
+        {
+            tempFileHandle.setLength(0L);
+            tempFileHandle.seek(0L);
+            Data firstData = (Data)dataList.get(0);
+            long firstChunkCandle = firstData.getTime();
+            int bytesCount = firstData.getBytesCount(5);
+            byte buffer[] = new byte[bytesCount * 10];
+            int count = 0;
+            for(Iterator i$ = dataList.iterator(); i$.hasNext();)
+            {
+                Data dataBlock = (Data)i$.next();
+                dataBlock.toBytes(5, firstChunkCandle, instrument.getPipValue(), buffer, count * bytesCount);
+                if(assertionsEnabled())
+                    if(firstData instanceof TickData)
+                    {
+                        TickData checkData = new TickData();
+                        checkData.fromBytes(5, firstChunkCandle, instrument.getPipValue(), buffer, count * bytesCount);
+                        if(!checkData.equals(dataBlock))
+                            throw new DataCacheException((new StringBuilder()).append("Data for chunk file [").append(tempFile.getPath()).append("] was saved incorrectly. Original item [").append(dataBlock).append("], saved and read item [").append(checkData).append("]").toString());
+                    } else
+                    {
+                        CandleData dataBlockCandle = (CandleData)dataBlock;
+                        dataBlockCandle.vol = StratUtils.round((float)dataBlockCandle.vol, 2);
+                        CandleData checkData = new CandleData();
+                        checkData.fromBytes(5, firstChunkCandle, instrument.getPipValue(), buffer, count * bytesCount);
+                        if(!checkData.equals(dataBlock))
+                            throw new DataCacheException((new StringBuilder()).append("Data for chunk file [").append(tempFile.getPath()).append("] was saved incorrectly. Original item [").append(dataBlock).append("], saved and read item [").append(checkData).append("]").toString());
+                    }
+                if(count == 9)
+                {
+                    tempFileHandle.write(buffer);
+                    count = 0;
+                } else
+                {
+                    count++;
+                }
+            }
+
+            if(count > 0)
+                tempFileHandle.write(buffer, 0, count * bytesCount);
+        }
+        tempFileHandle.close();
+        break MISSING_BLOCK_LABEL_848;
+        Exception exception1;
+        exception1;
+        tempFileHandle.close();
+        throw exception1;
+        if(!tempFile.renameTo(newFile) && !newFile.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot rename temporary file [").append(tempFile).append("] to data cache file [").append(file).append("]").toString());
+        break MISSING_BLOCK_LABEL_923;
+        tempDir;
+        throw new DataCacheException(tempDir);
+        for(int i = 5; !file.delete() && file.exists() && i > 0; i--)
+        {
+            try
+            {
+                Thread.sleep(10L);
+            }
+            catch(InterruptedException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            LOGGER.warn((new StringBuilder()).append("Cannot delete cache files [").append(file.toString()).append("]").toString());
+        }
+
+        if(!file.delete() && file.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot delete cache files [").append(file.toString()).append("]").toString());
+        else
+            return;
+    }
+
+    public void recreateCache()
+        throws DataCacheException
+    {
+        File versionFile;
+        File cacheDir = new File(FilePathManager.getInstance().getCacheDirectory());
+        deleteCache(cacheDir);
+        if(!cacheDir.exists() && !cacheDir.mkdirs() && !cacheDir.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot create cache directory [").append(cacheDir).append("]. File.exists() - [").append(cacheDir.exists()).append("] File.mkdirs() - [").append(cacheDir.mkdirs()).append("]").toString());
+        versionFile = new File(cacheDir, "version.txt");
+        if(versionFile.exists())
+            break MISSING_BLOCK_LABEL_161;
+        FileWriter writer = new FileWriter(versionFile);
+        writer.write(Integer.toString(5));
+        writer.close();
+        break MISSING_BLOCK_LABEL_161;
+        Exception exception;
+        exception;
+        writer.close();
+        throw exception;
+        IOException e;
+        e;
+        throw new DataCacheException("Cannot write version file in cache");
+    }
+
+    protected void deleteCache(File dirToDelete)
+        throws DataCacheException
+    {
+        synchronized(fileHandlesCache)
+        {
+            for(Iterator iterator = fileHandlesCache.entrySet().iterator(); iterator.hasNext(); iterator.remove())
+            {
+                java.util.Map.Entry entry = (java.util.Map.Entry)iterator.next();
+                FileCacheItem cacheItem = (FileCacheItem)entry.getValue();
+                RandomAccessFile arr$[] = cacheItem.fileHandles;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    RandomAccessFile fileHandle = arr$[i$];
+                    if(fileHandle == null)
+                        continue;
+                    try
+                    {
+                        fileHandle.close();
+                    }
+                    catch(IOException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                }
+
+            }
+
+        }
+        if(dirToDelete.exists())
+        {
+            File files[] = dirToDelete.listFiles();
+            File arr$[] = files;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File file = arr$[i$];
+                if(file.isDirectory())
+                {
+                    if(isInstrumentDir(file))
+                        deleteCacheRecursive(file);
+                    continue;
+                }
+                if(isVersionOrLockFile(file) && !file.delete())
+                    throw new DataCacheException((new StringBuilder()).append("Cannot delete cache files [").append(file.toString()).append("]").toString());
+            }
+
+        }
+    }
+
+    protected static void deleteCacheRecursive(File dirToDelete)
+        throws DataCacheException
+    {
+        if(dirToDelete.exists())
+        {
+            File files[] = dirToDelete.listFiles();
+            File arr$[] = files;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File file = arr$[i$];
+                if(file.isDirectory())
+                {
+                    deleteCacheRecursive(file);
+                    continue;
+                }
+                for(int i = 5; !file.delete() && file.exists() && i > 0; i--)
+                {
+                    try
+                    {
+                        Thread.sleep(10L);
+                    }
+                    catch(InterruptedException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                    LOGGER.warn((new StringBuilder()).append("Cannot delete cache files [").append(file.toString()).append("]").toString());
+                }
+
+                if(!file.delete() && file.exists())
+                    throw new DataCacheException((new StringBuilder()).append("Cannot delete cache files [").append(file.toString()).append("]").toString());
+            }
+
+            for(int i = 5; !dirToDelete.delete() && dirToDelete.exists() && i > 0; i--)
+            {
+                try
+                {
+                    Thread.sleep(10L);
+                }
+                catch(InterruptedException e)
+                {
+                    LOGGER.error(e.getMessage(), e);
+                }
+                LOGGER.warn((new StringBuilder()).append("Cannot delete cache files [").append(dirToDelete.toString()).append("]").toString());
+            }
+
+            if(!dirToDelete.delete() && dirToDelete.exists())
+                throw new DataCacheException((new StringBuilder()).append("Cannot delete cache files [").append(dirToDelete.toString()).append("]").toString());
+        }
+    }
+
+    public void deleteInstrumentCache(Instrument instrument, boolean deleteFolderToo)
+        throws DataCacheException
+    {
+        File cacheDir = new File(FilePathManager.getInstance().getCacheDirectory());
+        if(cacheDir.exists())
+        {
+            File files[] = cacheDir.listFiles();
+            File arr$[] = files;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File file = arr$[i$];
+                if(!file.isDirectory() || !file.getName().equalsIgnoreCase(instrument.name()))
+                    continue;
+                deleteCache(file);
+                if(deleteFolderToo && !file.delete())
+                    throw new DataCacheException("Cannot delete cache files");
+            }
+
+        }
+    }
+
+    private boolean isInstrumentDir(File file)
+    {
+        if(file.exists() && file.isDirectory())
+        {
+            String name = file.getName();
+            Instrument arr$[] = Instrument.values();
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Instrument value = arr$[i$];
+                if(value.name().equalsIgnoreCase(name))
+                    return true;
+            }
+
+        }
+        return false;
+    }
+
+    private boolean isVersionOrLockFile(File file)
+    {
+        if(file.exists() && file.isFile())
+        {
+            String fileName = file.getName();
+            if(fileName.equalsIgnoreCase("version.txt"))
+                return true;
+            Matcher lockFilesMatcher = lockFilesPattern.matcher(fileName);
+            if(lockFilesMatcher.matches())
+                return true;
+            Matcher tempFilesMatcher = tempFilesPattern.matcher(fileName);
+            if(tempFilesMatcher.matches())
+                return true;
+        }
+        return false;
+    }
+
+    protected RandomAccessFile getChunkFileHandle(File file, boolean cache)
+        throws IOException
+    {
+        if(!cache) goto _L2; else goto _L1
+_L1:
+        int waitCount = 50;
+_L9:
+        if(waitCount <= 0)
+            break; /* Loop/switch isn't completed */
+        Map map = fileHandlesCache;
+        JVM INSTR monitorenter ;
+        int fileHandlesCacheSize;
+        FileCacheItem cacheItem;
+        int i;
+        fileHandlesCacheSize = fileHandlesCache.size();
+        cacheItem = (FileCacheItem)fileHandlesCache.get(file);
+        if(cacheItem == null)
+        {
+            cacheItem = new FileCacheItem();
+            fileHandlesCache.put(file, cacheItem);
+        }
+        i = 0;
+_L7:
+        if(i >= cacheItem.taken.length)
+            break MISSING_BLOCK_LABEL_576;
+        if(cacheItem.taken[i]) goto _L4; else goto _L3
+_L3:
+        if(cacheItem.fileHandles[i] == null)
+        {
+            for(int k = 0; k < 3; k++)
+            {
+                try
+                {
+                    cacheItem.fileHandles[i] = new RandomAccessFile(file, "r");
+                    break;
+                }
+                catch(AccessControlException e)
+                {
+                    if(k == 2)
+                        throw e;
+                }
+                try
+                {
+                    Thread.sleep(10L);
+                }
+                catch(InterruptedException e1) { }
+            }
+
+        }
+        cacheItem.taken[i] = true;
+        if(fileHandlesCache.size() <= 70) goto _L6; else goto _L5
+_L5:
+        int toDelete = fileHandlesCache.size() - 70;
+        Iterator iterator = fileHandlesCache.entrySet().iterator();
+        do
+        {
+            if(!iterator.hasNext() || toDelete <= 0)
+                break;
+            FileCacheItem item = (FileCacheItem)((java.util.Map.Entry)iterator.next()).getValue();
+            boolean release = true;
+            for(int j = 0; j < item.taken.length; j++)
+                if(item.taken[j])
+                    release = false;
+
+            if(release)
+            {
+                LOGGER.trace("Deleting eldest fileHandlesCache entry");
+                for(int j = 0; j < item.fileHandles.length; j++)
+                {
+                    if(item.fileHandles[j] == null)
+                        continue;
+                    try
+                    {
+                        item.fileHandles[j].close();
+                        item.fileHandles[j] = null;
+                    }
+                    catch(IOException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                }
+
+                iterator.remove();
+                toDelete--;
+            }
+        } while(true);
+        if(toDelete > 0 && fileHandlesCacheSize != fileHandlesCache.size())
+        {
+            int handlesCount = 0;
+            for(Iterator i$ = fileHandlesCache.values().iterator(); i$.hasNext();)
+            {
+                FileCacheItem item = (FileCacheItem)i$.next();
+                RandomAccessFile arr$[] = item.fileHandles;
+                int len$ = arr$.length;
+                int i$ = 0;
+                while(i$ < len$) 
+                {
+                    RandomAccessFile fileHandle = arr$[i$];
+                    if(fileHandle != null)
+                        handlesCount++;
+                    i$++;
+                }
+            }
+
+            LOGGER.debug((new StringBuilder()).append("File cache overload... [").append(fileHandlesCache.size()).append("] cache items, [").append(handlesCount).append("] open handles").toString());
+        }
+        return cacheItem.fileHandles[i];
+_L6:
+        cacheItem.fileHandles[i];
+        map;
+        JVM INSTR monitorexit ;
+        return;
+_L4:
+        i++;
+          goto _L7
+        try
+        {
+            Thread.sleep(10L);
+            waitCount--;
+        }
+        catch(InterruptedException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        map;
+        JVM INSTR monitorexit ;
+        if(true) goto _L9; else goto _L8
+        Exception exception;
+        exception;
+        throw exception;
+_L8:
+        int k = 0;
+_L11:
+        if(k >= 3)
+            break; /* Loop/switch isn't completed */
+        return new RandomAccessFile(file, "r");
+        AccessControlException e;
+        e;
+        if(k == 2)
+            throw e;
+        try
+        {
+            Thread.sleep(10L);
+        }
+        catch(InterruptedException e1) { }
+        k++;
+        if(true) goto _L11; else goto _L10
+_L2:
+        int k = 0;
+_L13:
+        if(k >= 3) goto _L10; else goto _L12
+_L12:
+        return new RandomAccessFile(file, "r");
+        AccessControlException e;
+        e;
+        if(k == 2)
+            throw e;
+        try
+        {
+            Thread.sleep(10L);
+        }
+        catch(InterruptedException e1) { }
+        k++;
+          goto _L13
+_L10:
+        throw new IOException("Cannot open file");
+    }
+
+    protected void returnChunkFileHandle(File file, RandomAccessFile fileHandle)
+        throws IOException
+    {
+        Map map = fileHandlesCache;
+        JVM INSTR monitorenter ;
+        FileCacheItem cacheItem;
+        int i;
+        cacheItem = (FileCacheItem)fileHandlesCache.get(file);
+        if(cacheItem == null)
+            break MISSING_BLOCK_LABEL_71;
+        i = 0;
+_L2:
+        if(i >= cacheItem.taken.length)
+            break MISSING_BLOCK_LABEL_71;
+        if(cacheItem.fileHandles[i] != fileHandle)
+            break MISSING_BLOCK_LABEL_65;
+        cacheItem.taken[i] = false;
+        return;
+        i++;
+        if(true) goto _L2; else goto _L1
+_L1:
+        fileHandle.close();
+        break MISSING_BLOCK_LABEL_87;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    protected void closeHandles()
+    {
+        Map map = fileHandlesCache;
+        JVM INSTR monitorenter ;
+        Iterator iterator = fileHandlesCache.entrySet().iterator();
+_L2:
+        java.util.Map.Entry entry;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(!iterator.hasNext())
+            break; /* Loop/switch isn't completed */
+        entry = (java.util.Map.Entry)iterator.next();
+        File file = (File)entry.getKey();
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        FileCacheItem cacheItem = (FileCacheItem)entry.getValue();
+        RandomAccessFile arr$[] = cacheItem.fileHandles;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            RandomAccessFile fileHandle = arr$[i$];
+            if(fileHandle == null)
+                continue;
+            try
+            {
+                fileHandle.close();
+            }
+            catch(IOException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+
+        Exception exception;
+        wLock.unlock();
+        iterator.remove();
+        continue; /* Loop/switch isn't completed */
+        exception;
+        wLock.unlock();
+        throw exception;
+        if(true) goto _L2; else goto _L1
+_L1:
+        break MISSING_BLOCK_LABEL_187;
+        Exception exception1;
+        exception1;
+        throw exception1;
+    }
+
+    protected boolean chunkFileExists(File file)
+    {
+        Boolean exists;
+        synchronized(fileExistanceCache)
+        {
+            exists = (Boolean)fileExistanceCache.get(file);
+        }
+        if(exists == null)
+        {
+            for(int i = 0; i < 3; i++)
+            {
+                try
+                {
+                    exists = Boolean.valueOf(file.exists());
+                    break;
+                }
+                catch(AccessControlException e)
+                {
+                    if(i == 2)
+                        throw e;
+                }
+                try
+                {
+                    Thread.sleep(10L);
+                }
+                catch(InterruptedException e1) { }
+            }
+
+            if(exists.booleanValue())
+            {
+                synchronized(fileExistanceCache)
+                {
+                    fileExistanceCache.put(file, exists);
+                }
+                return true;
+            } else
+            {
+                return false;
+            }
+        } else
+        {
+            return true;
+        }
+    }
+
+    public boolean isDataChunkExists(Instrument instrument, Period period, OfferSide side, long from)
+        throws DataCacheException
+    {
+        from = DataCacheUtils.getChunkStart(period, from);
+        File file = DataCacheUtils.getChunkFile(instrument, period, side, from, version);
+        return chunkFileExists(file);
+    }
+
+    public void deleteDataChunk(Instrument instrument, Period period, OfferSide side, long from)
+        throws DataCacheException
+    {
+        from = DataCacheUtils.getChunkStart(period, from);
+        File file = DataCacheUtils.getChunkFile(instrument, period, side, from, version);
+        deleteDataChunk(file);
+    }
+
+    public void deleteDataChunk(File file)
+        throws DataCacheException
+    {
+        synchronized(fileHandlesCache)
+        {
+            FileCacheItem cacheItem = (FileCacheItem)fileHandlesCache.remove(file);
+            if(cacheItem != null)
+            {
+                RandomAccessFile arr$[] = cacheItem.fileHandles;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    RandomAccessFile fileHandle = arr$[i$];
+                    if(fileHandle == null)
+                        continue;
+                    try
+                    {
+                        fileHandle.close();
+                    }
+                    catch(IOException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                }
+
+            }
+        }
+        if(file.exists() && !file.delete())
+            throw new DataCacheException((new StringBuilder()).append("Cannot delete cache file [").append(file.getPath()).append("]").toString());
+        else
+            return;
+    }
+
+    public boolean isAnyDataChunkExistsAfter(Instrument instrument, Period period, OfferSide side, long from)
+        throws DataCacheException
+    {
+        from = DataCacheUtils.getChunkStart(period, from);
+        final Unit chunkUnit = DataCacheUtils.getChunkLength(period);
+        if(LOGGER.isDebugEnabled())
+        {
+            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Checking if any data chunk exists after, instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], from [").append(format.format(new Date(from))).append("]").toString());
+        }
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+        cal.setTimeInMillis(from);
+        final int month = cal.get(2);
+        final int day = cal.get(5);
+        final int year = cal.get(1);
+        final int hour = cal.get(11);
+        StringBuilder fileName = new StringBuilder(getCacheDirectory());
+        fileName.append(instrument.name()).append(File.separatorChar);
+        File instrumentFile = new File(fileName.toString());
+        if(instrumentFile.exists())
+        {
+            File yearFiles[] = instrumentFile.listFiles(new FileFilter() {
+
+                public boolean accept(File pathname)
+                {
+                    if(!pathname.isDirectory())
+                        break MISSING_BLOCK_LABEL_29;
+                    int dirYear = Integer.parseInt(pathname.getName());
+                    if(dirYear >= year)
+                        return true;
+                    break MISSING_BLOCK_LABEL_29;
+                    NumberFormatException e;
+                    e;
+                    return false;
+                }
+
+                final int val$year;
+                final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                year = i;
+                super();
+            }
+            });
+            File arr$[] = yearFiles;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File yearFile = arr$[i$];
+                File yearCandleFiles[] = yearFile.listFiles(new FileFilter() {
+
+                    public boolean accept(File pathname)
+                    {
+                        if(pathname.isFile())
+                        {
+                            Matcher yearFilesMatcher = CacheManager.yearCandleFilesPattern.matcher(pathname.getName());
+                            return yearFilesMatcher.matches();
+                        } else
+                        {
+                            return false;
+                        }
+                    }
+
+                    final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                super();
+            }
+                });
+                if(yearCandleFiles.length > 0)
+                    return true;
+                final int dirYear = Integer.parseInt(yearFile.getName());
+                File monthFiles[] = yearFile.listFiles(new FileFilter() {
+
+                    public boolean accept(File pathname)
+                    {
+                        if(!pathname.isDirectory())
+                            break MISSING_BLOCK_LABEL_65;
+                        int dirMonth = Integer.parseInt(pathname.getName());
+                        if(dirYear > year || dirMonth > month || dirMonth == month && chunkUnit.getInterval() < Unit.Month.getInterval())
+                            return true;
+                        break MISSING_BLOCK_LABEL_65;
+                        NumberFormatException e;
+                        e;
+                        return false;
+                    }
+
+                    final int val$dirYear;
+                    final int val$year;
+                    final int val$month;
+                    final Unit val$chunkUnit;
+                    final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                dirYear = i;
+                year = j;
+                month = k;
+                chunkUnit = unit;
+                super();
+            }
+                });
+                File arr$[] = monthFiles;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    File monthFile = arr$[i$];
+                    File monthCandleFiles[] = monthFile.listFiles(new FileFilter() {
+
+                        public boolean accept(File pathname)
+                        {
+                            if(pathname.isFile())
+                            {
+                                Matcher monthFilesMatcher = CacheManager.monthCandleFilesPattern.matcher(pathname.getName());
+                                return monthFilesMatcher.matches();
+                            } else
+                            {
+                                return false;
+                            }
+                        }
+
+                        final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                super();
+            }
+                    });
+                    if(monthCandleFiles.length > 0)
+                        return true;
+                    final int dirMonth = Integer.parseInt(monthFile.getName());
+                    File dayFiles[] = monthFile.listFiles(new FileFilter() {
+
+                        public boolean accept(File pathname)
+                        {
+                            if(!pathname.isDirectory())
+                                break MISSING_BLOCK_LABEL_76;
+                            int dirDay = Integer.parseInt(pathname.getName());
+                            if(dirYear > year || dirMonth > month || dirDay > day || dirDay == day && chunkUnit.getInterval() < Unit.Day.getInterval())
+                                return true;
+                            break MISSING_BLOCK_LABEL_76;
+                            NumberFormatException e;
+                            e;
+                            return false;
+                        }
+
+                        final int val$dirYear;
+                        final int val$year;
+                        final int val$dirMonth;
+                        final int val$month;
+                        final int val$day;
+                        final Unit val$chunkUnit;
+                        final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                dirYear = i;
+                year = j;
+                dirMonth = k;
+                month = l;
+                day = i1;
+                chunkUnit = unit;
+                super();
+            }
+                    });
+                    File arr$[] = dayFiles;
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        File dayFile = arr$[i$];
+                        File dayCandleFiles[] = dayFile.listFiles(new FileFilter() {
+
+                            public boolean accept(File pathname)
+                            {
+                                if(pathname.isFile())
+                                {
+                                    Matcher dayFilesMatcher = CacheManager.dayCandleFilesPattern.matcher(pathname.getName());
+                                    return dayFilesMatcher.matches();
+                                } else
+                                {
+                                    return false;
+                                }
+                            }
+
+                            final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                super();
+            }
+                        });
+                        if(dayCandleFiles.length > 0)
+                            return true;
+                        final int dirDay = Integer.parseInt(dayFile.getName());
+                        File tickFiles[] = dayFile.listFiles(new FileFilter() {
+
+                            public boolean accept(File pathname)
+                            {
+                                if(!pathname.isFile())
+                                    break MISSING_BLOCK_LABEL_111;
+                                int fileHour;
+                                String tickFileName = pathname.getName();
+                                Matcher tickFileMatcher = CacheManager.tickFilePattern.matcher(tickFileName);
+                                if(!tickFileMatcher.matches())
+                                    break MISSING_BLOCK_LABEL_111;
+                                fileHour = Integer.parseInt(tickFileMatcher.group(1));
+                                if(dirYear > year || dirMonth > month || dirDay > day || fileHour > hour || fileHour == hour && chunkUnit.getInterval() < Unit.Hour.getInterval())
+                                    return true;
+                                break MISSING_BLOCK_LABEL_111;
+                                NumberFormatException e;
+                                e;
+                                return false;
+                            }
+
+                            final int val$dirYear;
+                            final int val$year;
+                            final int val$dirMonth;
+                            final int val$month;
+                            final int val$dirDay;
+                            final int val$day;
+                            final int val$hour;
+                            final Unit val$chunkUnit;
+                            final CacheManager this$0;
+
+            
+            {
+                this$0 = CacheManager.this;
+                dirYear = i;
+                year = j;
+                dirMonth = k;
+                month = l;
+                dirDay = i1;
+                day = j1;
+                hour = k1;
+                chunkUnit = unit;
+                super();
+            }
+                        });
+                        if(tickFiles.length > 0)
+                            return true;
+                    }
+
+                }
+
+            }
+
+        }
+        return false;
+    }
+
+    public void saveChunkInCache(Instrument instrument, Period period, OfferSide side, long from, Data data[])
+        throws DataCacheException
+    {
+        saveChunkInCache(instrument, period, side, from, data, version);
+    }
+
+    public void saveChunkInCache(Instrument instrument, Period period, OfferSide side, long from, Data data[], int version)
+        throws DataCacheException
+    {
+        from = DataCacheUtils.getChunkStart(period, from);
+        long firstChunkCandle = period != Period.TICK ? DataCacheUtils.getFirstCandleInChunk(period, from) : from;
+        if(LOGGER.isDebugEnabled())
+        {
+            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Saving chunk in cache, instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], from [").append(format.format(new Date(from))).append("], data size [").append(data.length).append("]").toString());
+        }
+        if(period != Period.TICK && data.length != 0 && data.length != DataCacheUtils.getCandleCountInChunk(period, from))
+        {
+            throw new DataCacheException("Wrong chunk data");
+        } else
+        {
+            File file = getChunkFile(instrument, period, side, from, version);
+            saveChunkInCache(instrument, period, file, firstChunkCandle, data, version, Compression.NONE);
+            return;
+        }
+    }
+
+    protected void saveChunkInCache(Instrument instrument, Period period, File file, long firstChunkCandle, Data data[], int version, 
+            Compression compression)
+        throws DataCacheException
+    {
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        IOException e;
+        File fileDir = file.getParentFile();
+        if(!fileDir.exists() && !fileDir.mkdirs() && !fileDir.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot create cache directory [").append(fileDir).append("]. File.exists() - [").append(fileDir.exists()).append("] File.mkdirs() - [").append(fileDir.mkdirs()).append("]").toString());
+        if(chunkFileExists(file))
+            return;
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        try
+        {
+            while(!wLock.tryLock(500L, TimeUnit.MILLISECONDS)) 
+                if(chunkFileExists(file))
+                    return;
+        }
+        // Misplaced declaration of an exception variable
+        catch(IOException e)
+        {
+            return;
+        }
+        if(chunkFileExists(file))
+        {
+            wLock.unlock();
+            return;
+        }
+        File tempDir;
+        File tempFile;
+        RandomAccessFile tempFileHandle;
+        tempDir = DataCacheUtils.getChunkTempDirectory();
+        if(!tempDir.exists() && !tempDir.mkdirs() && !tempDir.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot create cache temp directory [").append(tempDir).append("]. File.exists() - [").append(tempDir.exists()).append("] File.mkdirs() - [").append(tempDir.mkdirs()).append("]").toString());
+        tempFile = File.createTempFile("JForex_cache_", ".bin", tempDir);
+        tempFileHandle = new RandomAccessFile(tempFile, "rw");
+        if(data.length > 0)
+        {
+            tempFileHandle.setLength(0L);
+            tempFileHandle.seek(0L);
+            int bytesCount = data[0].getBytesCount(version);
+            byte buffer[] = new byte[bytesCount * 10];
+            int count = 0;
+            long expectedCandleTime = period != Period.TICK ? firstChunkCandle : 0x8000000000000000L;
+            Data arr$[] = data;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Data dataBlock = arr$[i$];
+                if(expectedCandleTime != 0x8000000000000000L)
+                {
+                    if(dataBlock.time != expectedCandleTime)
+                    {
+                        tempFileHandle.close();
+                        if(tempFile.delete());
+                        DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                        throw new DataCacheException((new StringBuilder()).append("Data for chunk file [").append(file.getPath()).append("] corrupted, expectedCandleTime [").append(format.format(new Date(expectedCandleTime))).append("], candle time [").append(format.format(new Date(dataBlock.time))).append("]").toString());
+                    }
+                    expectedCandleTime = DataCacheUtils.getNextCandleStart(period, expectedCandleTime);
+                }
+                dataBlock.toBytes(version, firstChunkCandle, instrument.getPipValue(), buffer, count * bytesCount);
+                if(count == 9)
+                {
+                    tempFileHandle.write(buffer);
+                    count = 0;
+                } else
+                {
+                    count++;
+                }
+            }
+
+            if(count > 0)
+                tempFileHandle.write(buffer, 0, count * bytesCount);
+        }
+        tempFileHandle.close();
+        break MISSING_BLOCK_LABEL_580;
+        Exception exception;
+        exception;
+        tempFileHandle.close();
+        throw exception;
+        if(data.length <= 0)
+            break MISSING_BLOCK_LABEL_1341;
+        if(compression == null)
+            compression = Compression.NONE;
+        static class _cls11
+        {
+
+            static final int $SwitchMap$com$dukascopy$charts$data$datacache$CacheManager$Compression[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$charts$data$datacache$CacheManager$Compression = new int[Compression.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$charts$data$datacache$CacheManager$Compression[Compression.NONE.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$charts$data$datacache$CacheManager$Compression[Compression.GZIP.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$charts$data$datacache$CacheManager$Compression[Compression.ZIP.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$charts$data$datacache$CacheManager$Compression[Compression.ZIP7.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        _cls11..SwitchMap.com.dukascopy.charts.data.datacache.CacheManager.Compression[compression.ordinal()];
+        JVM INSTR tableswitch 1 4: default 1341
+    //                   1 636
+    //                   2 639
+    //                   3 857
+    //                   4 1108;
+           goto _L1 _L1 _L2 _L3 _L4
+_L1:
+        break MISSING_BLOCK_LABEL_1341;
+_L2:
+        File gzipTempFile;
+        FileOutputStream fos;
+        BufferedOutputStream bos;
+        GZIPOutputStream gos;
+        gzipTempFile = File.createTempFile("JForex_cache_", ".gzip", tempDir);
+        fos = new FileOutputStream(gzipTempFile);
+        bos = new BufferedOutputStream(fos);
+        gos = new GZIPOutputStream(bos);
+        FileInputStream fis;
+        BufferedInputStream bis;
+        fis = new FileInputStream(tempFile);
+        bis = new BufferedInputStream(fis);
+        byte buff[] = new byte[512];
+        int i;
+        while((i = bis.read(buff)) != -1) 
+            gos.write(buff, 0, i);
+        bis.close();
+        fis.close();
+          goto _L5
+        Exception exception1;
+        exception1;
+        bis.close();
+        fis.close();
+        throw exception1;
+        exception2;
+        gos.close();
+        bos.close();
+        fos.close();
+        throw exception2;
+_L5:
+        gos.close();
+        bos.close();
+        Exception exception2;
+        fos.close();
+        if(!tempFile.delete())
+            throw new DataCacheException((new StringBuilder()).append("Cannot delete temporary data cache file [").append(tempFile.getPath()).append("]").toString());
+        tempFile = gzipTempFile;
+        break MISSING_BLOCK_LABEL_1341;
+_L3:
+        File zipTempFile;
+        ZipOutputStream zos;
+        zipTempFile = File.createTempFile("JForex_cache_", ".zip", tempDir);
+        fos = new FileOutputStream(zipTempFile);
+        bos = new BufferedOutputStream(fos);
+        zos = new ZipOutputStream(bos);
+        FileInputStream fis;
+        BufferedInputStream bis;
+        zos.setLevel(9);
+        ZipEntry zipEntry = new ZipEntry(file.getName());
+        zos.putNextEntry(zipEntry);
+        fis = new FileInputStream(tempFile);
+        bis = new BufferedInputStream(fis);
+        byte buff[] = new byte[512];
+        int i;
+        while((i = bis.read(buff)) != -1) 
+            zos.write(buff, 0, i);
+          goto _L6
+        exception3;
+        bis.close();
+        fis.close();
+        throw exception3;
+_L6:
+        bis.close();
+        Exception exception3;
+        fis.close();
+        zos.closeEntry();
+          goto _L7
+        exception4;
+        zos.close();
+        bos.close();
+        fos.close();
+        throw exception4;
+_L7:
+        zos.close();
+        bos.close();
+        Exception exception4;
+        fos.close();
+        if(!tempFile.delete())
+            throw new DataCacheException((new StringBuilder()).append("Cannot delete temporary data cache file [").append(tempFile.getPath()).append("]").toString());
+        tempFile = zipTempFile;
+        break MISSING_BLOCK_LABEL_1341;
+_L4:
+        Encoder encoder;
+        FileOutputStream fos;
+        BufferedOutputStream bos;
+        zipTempFile = File.createTempFile("JForex_cache_", ".7z", tempDir);
+        encoder = new Encoder();
+        fos = new FileOutputStream(zipTempFile);
+        bos = new BufferedOutputStream(fos);
+        zipEntry = new FileInputStream(tempFile);
+        fis = new BufferedInputStream(zipEntry);
+        encoder.WriteCoderProperties(bos);
+        for(int i = 0; i < 8; i++)
+            bos.write((int)(tempFile.length() >>> 8 * i) & 0xff);
+
+        encoder.Code(fis, bos, -1L, -1L, null);
+        fis.close();
+        zipEntry.close();
+          goto _L8
+        Exception exception5;
+        exception5;
+        fis.close();
+        zipEntry.close();
+        throw exception5;
+        exception6;
+        bos.close();
+        fos.close();
+        throw exception6;
+_L8:
+        bos.close();
+        Exception exception6;
+        fos.close();
+        if(!tempFile.delete())
+            throw new DataCacheException((new StringBuilder()).append("Cannot delete temporary data cache file [").append(tempFile.getPath()).append("]").toString());
+        tempFile = zipTempFile;
+        if(!tempFile.renameTo(file) && !file.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot rename temporary file [").append(tempFile).append("] to data cache file [").append(file).append("]").toString());
+          goto _L9
+        tempDir;
+        throw new DataCacheException(tempDir);
+        exception7;
+        wLock.unlock();
+        throw exception7;
+_L9:
+        Exception exception7;
+        wLock.unlock();
+        return;
+    }
+
+    protected ReentrantReadWriteLock getLock(File file)
+    {
+        ReentrantReadWriteLock lock;
+        synchronized(fileLocks)
+        {
+            lock = (ReentrantReadWriteLock)fileLocks.get(file);
+            if(lock == null)
+            {
+                lock = new ReentrantReadWriteLock();
+                fileLocks.put(file, lock);
+            }
+        }
+        return lock;
+    }
+
+    protected String getCacheDirectory()
+    {
+        return FilePathManager.getInstance().getCacheDirectory();
+    }
+
+    protected File getChunkFile(Instrument instrument, Period period, OfferSide side, long from)
+        throws DataCacheException
+    {
+        return getChunkFile(instrument, period, side, from, version);
+    }
+
+    protected static File getChunkFile(Instrument instrument, Period period, OfferSide side, long from, int version)
+        throws DataCacheException
+    {
+        return DataCacheUtils.getChunkFile(instrument, period, side, from, version);
+    }
+
+    protected void readTicksFromChunkFile(Instrument instrument, File file, long fileStartTime, long from, long to, LiveFeedListener listener, boolean blocking, double feedCommission)
+        throws DataCacheException
+    {
+        ReentrantReadWriteLock rwLock;
+        java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock rLock;
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Reading ticks from chunk file [").append(file.getPath()).append("]").toString());
+        rwLock = getLock(file);
+        rLock = rwLock.readLock();
+        rLock.lock();
+        RandomAccessFile fileHandle = getChunkFileHandle(file, !blocking);
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        try
+        {
+            readTicksFromFile(instrument, file, fileStartTime, from, to, listener, fileHandle, feedCommission);
+        }
+        catch(DataCacheException e)
+        {
+            rLock.unlock();
+            wLock = rwLock.writeLock();
+            wLock.lock();
+            synchronized(fileHandlesCache)
+            {
+                FileCacheItem cacheItem = (FileCacheItem)fileHandlesCache.remove(file);
+                if(cacheItem != null)
+                {
+                    RandomAccessFile arr$[] = cacheItem.fileHandles;
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        RandomAccessFile cachedFileHandle = arr$[i$];
+                        if(cachedFileHandle == null)
+                            continue;
+                        try
+                        {
+                            cachedFileHandle.close();
+                        }
+                        catch(IOException ex)
+                        {
+                            LOGGER.error(ex.getMessage(), ex);
+                        }
+                    }
+
+                }
+            }
+            fileHandle.close();
+            if(!file.delete())
+                LOGGER.error((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+            else
+                synchronized(fileExistanceCache)
+                {
+                    fileExistanceCache.remove(file);
+                }
+            throw e;
+        }
+        returnChunkFileHandle(file, fileHandle);
+        break MISSING_BLOCK_LABEL_368;
+        Exception exception2;
+        exception2;
+        returnChunkFileHandle(file, fileHandle);
+        throw exception2;
+        IOException e;
+        e;
+        throw new DataCacheException(e);
+        rLock.unlock();
+        break MISSING_BLOCK_LABEL_386;
+        Exception exception3;
+        exception3;
+        rLock.unlock();
+        throw exception3;
+    }
+
+    protected void readTicksFromFile(Instrument instrument, File file, long fileStartTime, long from, long to, LiveFeedListener listener, RandomAccessFile fileHandle, double feedCommission)
+        throws DataCacheException, IOException
+    {
+        long startPosition = 0L;
+        if(from > fileStartTime)
+            startPosition = findStartPositionInTicksFile(fileStartTime, fileHandle, from);
+        fileHandle.seek(startPosition);
+        int tickDataLength = TickData.getLength(version);
+        byte buff[] = new byte[(8192 / tickDataLength) * tickDataLength];
+        long previousTime = from;
+        int i;
+        do
+        {
+            int readBytes;
+            for(readBytes = 0; (i = fileHandle.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+            TickData tickData = new TickData();
+            for(int j = 0; j < readBytes; j += tickDataLength)
+            {
+                if(j + tickDataLength > readBytes)
+                    continue;
+                tickData.fromBytes(version, fileStartTime, instrument.getPipValue(), buff, j);
+                if(tickData.time == 0x8000000000000000L)
+                    continue;
+                if(tickData.time < previousTime)
+                {
+                    DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    throw new DataCacheException((new StringBuilder()).append("Wrong data from file [").append(file.getPath()).append("], read tick with time [").append(format.format(new Date(tickData.time))).append("], previous tick time [").append(format.format(new Date(previousTime))).append("]").toString());
+                }
+                if(tickData.time <= to)
+                {
+                    if(feedCommission == 0.0D)
+                        listener.newTick(instrument, tickData.time, tickData.ask, tickData.bid, tickData.askVol, tickData.bidVol);
+                    else
+                        listener.newTick(instrument, tickData.time, DataCacheUtils.getPriceWithCommission(instrument, OfferSide.ASK, tickData.ask, feedCommission), DataCacheUtils.getPriceWithCommission(instrument, OfferSide.BID, tickData.bid, feedCommission), tickData.askVol, tickData.bidVol);
+                    previousTime = tickData.time;
+                } else
+                {
+                    return;
+                }
+            }
+
+        } while(i > -1);
+    }
+
+    protected boolean readTicksFromEndFromFile(Instrument instrument, File file, long fileStartTime, long from, long to, LiveFeedListener listener, LoadingProgressListener loadingProgress, RandomAccessFile fileHandle)
+        throws DataCacheException, IOException
+    {
+        long startPosition = 0L;
+        if(to > fileStartTime)
+            startPosition = findStartPositionInTicksFile(fileStartTime, fileHandle, to);
+        int tickDataLength = TickData.getLength(version);
+        if(startPosition + (long)tickDataLength > fileHandle.length())
+            return false;
+        fileHandle.seek(0L);
+        byte buff[] = new byte[(int)startPosition + tickDataLength];
+        long previousTime = to;
+        int i;
+        int readBytes;
+        for(readBytes = 0; (i = fileHandle.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+        TickData tickData = new TickData();
+        readBytes -= readBytes % tickDataLength;
+        for(int j = readBytes - tickDataLength; j >= 0; j -= tickDataLength)
+        {
+            tickData.fromBytes(version, fileStartTime, instrument.getPipValue(), buff, j);
+            if(tickData.time == 0x8000000000000000L)
+                return true;
+            if(tickData.time > to)
+                continue;
+            if(tickData.time > previousTime)
+            {
+                DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                throw new DataCacheException((new StringBuilder()).append("Wrong data from file [").append(file.getPath()).append("], read tick with time [").append(format.format(new Date(tickData.time))).append("], previous tick time [").append(format.format(new Date(previousTime))).append("] while reading from end of the file").toString());
+            }
+            if(tickData.time >= from && (loadingProgress == null || !loadingProgress.stopJob()))
+            {
+                listener.newTick(instrument, tickData.time, tickData.ask, tickData.bid, tickData.askVol, tickData.bidVol);
+                previousTime = tickData.time;
+            } else
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    protected boolean readCandlesFromEndFromFile(File file, RandomAccessFile fileHandle, Instrument instrument, Period period, OfferSide side, long fileStartTime, 
+            long from, long to, LiveFeedListener listener, LoadingProgressListener loadingProgress)
+        throws IOException, DataCacheException
+    {
+        File fileDir = file.getParentFile();
+        if(!fileDir.exists() && !fileDir.mkdirs() && !fileDir.exists())
+            throw new DataCacheException((new StringBuilder()).append("Cannot create cache directory [").append(fileDir).append("]. File.exists() - [").append(fileDir.exists()).append("] File.mkdirs() - [").append(fileDir.mkdirs()).append("]").toString());
+        int startPosition = 0;
+        long candleTime = DataCacheUtils.getFirstCandleInChunkFast(period, fileStartTime);
+        long firstChunkCandle = candleTime;
+        int candleDataLength = CandleData.getLength(version);
+        if(to > candleTime)
+        {
+            startPosition = DataCacheUtils.getCandlesCountBetween(period, candleTime, DataCacheUtils.getPreviousCandleStart(period, to)) * candleDataLength;
+            candleTime = to;
+        }
+        if((long)(startPosition + candleDataLength) > fileHandle.length())
+            return false;
+        byte buff[] = new byte[candleDataLength];
+        for(; startPosition >= 0; startPosition -= candleDataLength)
+        {
+            fileHandle.seek(startPosition);
+            int i;
+            int readBytes;
+            for(readBytes = 0; (i = fileHandle.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+            if(readBytes < candleDataLength)
+                return false;
+            CandleData candleData = new CandleData();
+            candleData.fromBytes(version, firstChunkCandle, instrument.getPipValue(), buff, 0);
+            if(candleData.time != candleTime)
+            {
+                DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                String errorMessage = (new StringBuilder()).append("Data cache file corrupted, candle time [").append(format.format(new Date(candleData.time))).append("],").append("expected candle time [").append(format.format(new Date(candleTime))).append("], file [").append(file.getPath()).append("], position in file [").append(startPosition).append("]").toString();
+                throw new DataCacheException(errorMessage);
+            }
+            if(candleData.time >= from && (loadingProgress == null || !loadingProgress.stopJob()))
+                listener.newCandle(instrument, period, side, candleTime, candleData.open, candleData.close, candleData.low, candleData.high, candleData.vol);
+            else
+                return false;
+            candleTime = DataCacheUtils.getPreviousCandleStart(period, candleTime);
+        }
+
+        return true;
+    }
+
+    protected long findStartPositionInTicksFile(long fileStartTime, RandomAccessFile fileHandle, long time)
+        throws DataCacheException, IOException
+    {
+        int timeSize = version > 4 ? 4 : 8;
+        byte longBuff[] = new byte[timeSize];
+        int tickDataLength = TickData.getLength(version);
+        long size = (fileHandle.length() - fileHandle.length() % (long)tickDataLength) / (long)tickDataLength;
+        if(size == 0L)
+            return size * (long)tickDataLength;
+        int j;
+        long elemTime;
+        if(size == 1L)
+        {
+            fileHandle.seek(0L);
+            int i;
+            for(j = 0; (i = fileHandle.read(longBuff, j, longBuff.length - j)) > -1 && j < longBuff.length; j += i);
+            if(j != timeSize)
+                throw new DataCacheException("Data cache file corrupted");
+            if(version <= 4)
+                elemTime = Data.getLong(longBuff, 0);
+            else
+                elemTime = fileStartTime + (long)Data.getInt(longBuff, 0);
+            if(elemTime == 0x8000000000000000L)
+                return size * (long)tickDataLength;
+            if(elemTime >= time)
+                return 0L;
+            else
+                return size * (long)tickDataLength;
+        }
+        fileHandle.seek(0L);
+        int i;
+        for(j = 0; (i = fileHandle.read(longBuff, j, longBuff.length - j)) > -1 && j < longBuff.length; j += i);
+        if(j != timeSize)
+            throw new DataCacheException("Data cache file corrupted");
+        if(version <= 4)
+            elemTime = Data.getLong(longBuff, 0);
+        else
+            elemTime = fileStartTime + (long)Data.getInt(longBuff, 0);
+        int low = elemTime != 0x8000000000000000L ? 0 : 1;
+        for(int high = (int)(size - 1L); low <= high;)
+        {
+            int mid = low + high >>> 1;
+            fileHandle.seek(mid * tickDataLength);
+            int i;
+            for(j = 0; (i = fileHandle.read(longBuff, j, longBuff.length - j)) > -1 && j < longBuff.length; j += i);
+            if(j != timeSize)
+                throw new DataCacheException("Data cache file corrupted");
+            long midVal;
+            if(version <= 4)
+                midVal = Data.getLong(longBuff, 0);
+            else
+                midVal = fileStartTime + (long)Data.getInt(longBuff, 0);
+            if(midVal < time)
+                low = mid + 1;
+            else
+            if(midVal > time)
+                high = mid - 1;
+            else
+                return (long)(mid * tickDataLength);
+        }
+
+        return (long)(low * tickDataLength);
+    }
+
+    protected boolean assertionsEnabled()
+    {
+        boolean b = false;
+        if(!$assertionsDisabled && !(b = true))
+            throw new AssertionError();
+        else
+            return b;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/CacheManager);
+    protected static final int EOF_INDEX = -1;
+    protected static final long FIRST_TICK_MARKER = 0x8000000000000000L;
+    private static final Pattern tickFilePattern = Pattern.compile("(\\d\\d)h_ticks\\.bi.");
+    private static final Pattern yearCandleFilesPattern = Pattern.compile("(BID|ASK)_candles_(month|week|day|hour)_\\d+\\.bi.");
+    private static final Pattern monthCandleFilesPattern = Pattern.compile("(BID|ASK)_candles_(hour|min)_\\d+\\.bi.");
+    private static final Pattern dayCandleFilesPattern = Pattern.compile("(BID|ASK)_candles_(min|sec)_\\d+\\.bi.");
+    private static final Pattern lockFilesPattern = Pattern.compile("lock\\d+\\.lck");
+    private static final Pattern tempFilesPattern = Pattern.compile("JForex_cache_.+\\.bi.");
+    protected final Map fileLocks;
+    protected final Map fileExistanceCache;
+    protected final Map fileHandlesCache;
+    protected int version;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/datacache/CacheManager.desiredAssertionStatus();
+
+
+
+
+
+
+
+
+
+
+}

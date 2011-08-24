@@ -1,0 +1,132 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PriceAmountTextField.java
+
+package com.dukascopy.dds2.greed.gui.component;
+
+import java.awt.Toolkit;
+import java.math.BigDecimal;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.swing.JFormattedTextField;
+import javax.swing.text.*;
+
+public class PriceAmountTextField extends JFormattedTextField
+{
+    private class PriceAmountDocument extends PlainDocument
+    {
+
+        public void insertString(int index, String string, AttributeSet attributeSet)
+            throws BadLocationException
+        {
+            String text = originator.getText();
+            String temp = (new StringBuilder()).append(text.substring(0, index)).append(string).append(text.substring(index)).toString();
+            Matcher matcher = pattern.matcher(temp);
+            if(matcher.matches() && temp.length() <= length)
+            {
+                if(text.startsWith("."))
+                {
+                    super.insertString(0, "0", attributeSet);
+                    super.insertString(index + 1, string, attributeSet);
+                } else
+                {
+                    super.insertString(index, string, attributeSet);
+                }
+            } else
+            {
+                Toolkit.getDefaultToolkit().beep();
+                return;
+            }
+        }
+
+        protected void setPattern(Pattern pattern)
+        {
+            this.pattern = pattern;
+        }
+
+        protected void setLength(int length)
+        {
+            this.length = length;
+        }
+
+        private Pattern pattern;
+        private PriceAmountTextField originator;
+        private int length;
+        final PriceAmountTextField this$0;
+
+        public PriceAmountDocument(PriceAmountTextField originator)
+        {
+            this$0 = PriceAmountTextField.this;
+            super();
+            length = 0x7fffffff;
+            this.originator = originator;
+        }
+    }
+
+
+    public PriceAmountTextField(int length)
+    {
+        precision = -1;
+        setName("ID_JTXT_PRICEFIELD");
+        build(length, 0);
+    }
+
+    public PriceAmountTextField(int length, int precision)
+    {
+        this.precision = -1;
+        setName("ID_JTXT_PRICEFIELD");
+        build(length, precision);
+    }
+
+    private void build(int length, int aPrecision)
+    {
+        this.length = length;
+        setPrecision(aPrecision);
+    }
+
+    public void setPrecision(int aPrecision)
+    {
+        if(precision != aPrecision)
+        {
+            precision = aPrecision;
+            String pattern;
+            if(0 == precision)
+            {
+                pattern = "\\d+(\\x2e\\d*)?";
+                ((PriceAmountDocument)getDocument()).setLength(length);
+            } else
+            {
+                pattern = (new StringBuilder()).append("(\\d{1,").append(length).append("})?(\\x2e\\d{0,").append(precision).append("})?").toString();
+            }
+            ((PriceAmountDocument)getDocument()).setPattern(Pattern.compile(pattern));
+        }
+    }
+
+    public void clear()
+    {
+        super.setText(null);
+    }
+
+    public void setText(String text)
+    {
+        try
+        {
+            new BigDecimal(text);
+        }
+        catch(Exception e)
+        {
+            return;
+        }
+        super.setText(text.substring(0, Math.min(length + (0 != precision ? precision + 1 : 0), text.length())));
+    }
+
+    protected Document createDefaultModel()
+    {
+        return new PriceAmountDocument(this);
+    }
+
+    private int length;
+    private int precision;
+    public static final String ID_JTXT_PRICEFIELD = "ID_JTXT_PRICEFIELD";
+}

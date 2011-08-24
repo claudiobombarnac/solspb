@@ -1,0 +1,140 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Data.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.impl.TimedData;
+
+public abstract class Data
+    implements TimedData, Cloneable
+{
+
+    public Data()
+    {
+    }
+
+    public Data(long time)
+    {
+        this.time = time;
+    }
+
+    public abstract void toBytes(int i, long l, double d, byte abyte0[], int j);
+
+    public abstract int getBytesCount(int i);
+
+    protected static final int putLong(byte b[], int off, long val)
+    {
+        b[off + 7] = (byte)(int)(val >>> 0);
+        b[off + 6] = (byte)(int)(val >>> 8);
+        b[off + 5] = (byte)(int)(val >>> 16);
+        b[off + 4] = (byte)(int)(val >>> 24);
+        b[off + 3] = (byte)(int)(val >>> 32);
+        b[off + 2] = (byte)(int)(val >>> 40);
+        b[off + 1] = (byte)(int)(val >>> 48);
+        b[off + 0] = (byte)(int)(val >>> 56);
+        return off + 8;
+    }
+
+    protected static final int putInt(byte b[], int off, int val)
+    {
+        b[off + 3] = (byte)(val >>> 0);
+        b[off + 2] = (byte)(val >>> 8);
+        b[off + 1] = (byte)(val >>> 16);
+        b[off + 0] = (byte)(val >>> 24);
+        return off + 4;
+    }
+
+    protected static final int putDouble(byte b[], int off, double val)
+    {
+        long j = Double.doubleToLongBits(val);
+        b[off + 7] = (byte)(int)(j >>> 0);
+        b[off + 6] = (byte)(int)(j >>> 8);
+        b[off + 5] = (byte)(int)(j >>> 16);
+        b[off + 4] = (byte)(int)(j >>> 24);
+        b[off + 3] = (byte)(int)(j >>> 32);
+        b[off + 2] = (byte)(int)(j >>> 40);
+        b[off + 1] = (byte)(int)(j >>> 48);
+        b[off + 0] = (byte)(int)(j >>> 56);
+        return off + 8;
+    }
+
+    protected static final int putFloat(byte b[], int off, float val)
+    {
+        int i = Float.floatToIntBits(val);
+        b[off + 3] = (byte)(i >>> 0);
+        b[off + 2] = (byte)(i >>> 8);
+        b[off + 1] = (byte)(i >>> 16);
+        b[off + 0] = (byte)(i >>> 24);
+        return off + 4;
+    }
+
+    protected static final long getLong(byte b[], int off)
+    {
+        return (((long)b[off + 7] & 255L) << 0) + (((long)b[off + 6] & 255L) << 8) + (((long)b[off + 5] & 255L) << 16) + (((long)b[off + 4] & 255L) << 24) + (((long)b[off + 3] & 255L) << 32) + (((long)b[off + 2] & 255L) << 40) + (((long)b[off + 1] & 255L) << 48) + ((long)b[off + 0] << 56);
+    }
+
+    protected static final int getInt(byte b[], int off)
+    {
+        return ((b[off + 3] & 0xff) << 0) + ((b[off + 2] & 0xff) << 8) + ((b[off + 1] & 0xff) << 16) + (b[off + 0] << 24);
+    }
+
+    protected static final double getDouble(byte b[], int off)
+    {
+        long j = (((long)b[off + 7] & 255L) << 0) + (((long)b[off + 6] & 255L) << 8) + (((long)b[off + 5] & 255L) << 16) + (((long)b[off + 4] & 255L) << 24) + (((long)b[off + 3] & 255L) << 32) + (((long)b[off + 2] & 255L) << 40) + (((long)b[off + 1] & 255L) << 48) + ((long)b[off + 0] << 56);
+        return Double.longBitsToDouble(j);
+    }
+
+    protected static final float getFloat(byte b[], int off)
+    {
+        int i = ((b[off + 3] & 0xff) << 0) + ((b[off + 2] & 0xff) << 8) + ((b[off + 1] & 0xff) << 16) + (b[off + 0] << 24);
+        return Float.intBitsToFloat(i);
+    }
+
+    public Data clone()
+    {
+        return (Data)super.clone();
+        CloneNotSupportedException e;
+        e;
+        return null;
+    }
+
+    public int hashCode()
+    {
+        int prime = 31;
+        int result = 1;
+        result = 31 * result + (int)(time ^ time >>> 32);
+        return result;
+    }
+
+    public boolean equals(Object obj)
+    {
+        if(this == obj)
+            return true;
+        if(obj == null)
+            return false;
+        if(getClass() != obj.getClass())
+            return false;
+        Data other = (Data)obj;
+        return time == other.time;
+    }
+
+    public long getTime()
+    {
+        return time;
+    }
+
+    public void setTime(long time)
+    {
+        this.time = time;
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    public long time;
+}

@@ -1,0 +1,432 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   FindReplaceDialog.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.impl;
+
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+import javax.swing.border.*;
+import javax.swing.text.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class FindReplaceDialog extends JDialog
+    implements ActionListener
+{
+
+    public FindReplaceDialog(Frame owner)
+    {
+        super(owner);
+        setDefaultCloseOperation(1);
+        setResizable(false);
+        setAlwaysOnTop(true);
+        createFindPanel();
+        createReplacePanel();
+        createOptionsPanel();
+        createCommandPanel();
+        layoutAllThePanels();
+        getRootPane().setDefaultButton(findNextButton);
+        FocusAdapter resetDefaultButton = new FocusAdapter() {
+
+            public void focusLost(FocusEvent e)
+            {
+                getRootPane().setDefaultButton(findNextButton);
+            }
+
+            final FindReplaceDialog this$0;
+
+            
+            {
+                this$0 = FindReplaceDialog.this;
+                super();
+            }
+        };
+        findData.addKeyListener(new KeyAdapter() {
+
+            public void keyReleased(KeyEvent e)
+            {
+                if(e.getKeyCode() != 10)
+                {
+                    boolean state = findData.getDocument().getLength() > 0;
+                    findNextButton.setEnabled(state);
+                    replaceButton.setEnabled(state);
+                    replaceAllButton.setEnabled(state);
+                    resetSearchVariables();
+                }
+            }
+
+            final FindReplaceDialog this$0;
+
+            
+            {
+                this$0 = FindReplaceDialog.this;
+                super();
+            }
+        });
+        KeyStroke escapeKeyStroke = KeyStroke.getKeyStroke(27, 0, false);
+        javax.swing.Action escapeAction = new AbstractAction() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                processClose();
+            }
+
+            final FindReplaceDialog this$0;
+
+            
+            {
+                this$0 = FindReplaceDialog.this;
+                super();
+            }
+        };
+        getRootPane().getInputMap(2).put(escapeKeyStroke, "ESCAPE");
+        getRootPane().getActionMap().put("ESCAPE", escapeAction);
+    }
+
+    void layoutAllThePanels()
+    {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, 1));
+        panel.setBorder(EMPTY_BORDER);
+        panel.add(findPanel);
+        panel.add(replacePanel);
+        panel.add(optionPanel);
+        panel.add(commandPanel);
+        setContentPane(panel);
+    }
+
+    void createCommandPanel()
+    {
+        commandPanel = new JPanel();
+        findNextButton = createButton(commandPanel, "Find Next", 'F');
+        replaceButton = createButton(commandPanel, "Replace", 'R');
+        replaceAllButton = createButton(commandPanel, "Replace All", 'a');
+        closeButton = createButton(commandPanel, "Close", ' ');
+        closeButton.setEnabled(true);
+    }
+
+    void createOptionsPanel()
+    {
+        JPanel matchPanel = new JPanel();
+        matchPanel.setLayout(new GridLayout(2, 1));
+        matchCase = new JCheckBox("Match case");
+        matchCase.setMnemonic('C');
+        matchWord = new JCheckBox("Match word");
+        matchWord.setMnemonic('W');
+        matchPanel.add(matchCase);
+        matchPanel.add(matchWord);
+        JPanel searchPanel = new JPanel();
+        searchPanel.setLayout(new GridLayout(2, 1));
+        searchDown = new JRadioButton("Search Down");
+        searchDown.setMnemonic('D');
+        searchDown.setSelected(true);
+        searchUp = new JRadioButton("Search Up");
+        searchUp.setMnemonic('U');
+        searchPanel.add(searchDown);
+        searchPanel.add(searchUp);
+        ButtonGroup searchGroup = new ButtonGroup();
+        searchGroup.add(searchDown);
+        searchGroup.add(searchUp);
+        optionPanel = new JPanel();
+        optionPanel.setLayout(new GridLayout(1, 2));
+        optionPanel.setBorder(new TitledBorder("Options"));
+        optionPanel.add(matchPanel);
+        optionPanel.add(searchPanel);
+    }
+
+    void createReplacePanel()
+    {
+        replaceData = new JTextField(20);
+        replaceData.setMaximumSize(findData.getPreferredSize());
+        replaceLabel = new JLabel("Replace with:");
+        replaceLabel.setDisplayedMnemonic('P');
+        replaceLabel.setLabelFor(replaceData);
+        replacePanel = new JPanel();
+        replacePanel.setBorder(EMPTY_BORDER);
+        replacePanel.setLayout(new BoxLayout(replacePanel, 0));
+        replacePanel.add(replaceLabel);
+        replacePanel.add(Box.createHorizontalGlue());
+        replacePanel.add(Box.createHorizontalStrut(10));
+        replacePanel.add(replaceData);
+    }
+
+    void createFindPanel()
+    {
+        findData = new JTextField(20);
+        findData.setMaximumSize(findData.getPreferredSize());
+        findLabel = new JLabel("Find what:");
+        findLabel.setDisplayedMnemonic('N');
+        findLabel.setLabelFor(findData);
+        findPanel = new JPanel();
+        findPanel.setBorder(EMPTY_BORDER);
+        findPanel.setLayout(new BoxLayout(findPanel, 0));
+        findPanel.add(findLabel);
+        findPanel.add(Box.createHorizontalGlue());
+        findPanel.add(Box.createHorizontalStrut(10));
+        findPanel.add(findData);
+    }
+
+    public static FindReplaceDialog getSharedInstance(Frame owner)
+    {
+        if(sharedFindReplace == null)
+        {
+            sharedFindReplace = new FindReplaceDialog(owner);
+            sharedFindReplace.setLocationRelativeTo(owner);
+        }
+        return sharedFindReplace;
+    }
+
+    public void showFind(JTextComponent textComponent)
+    {
+        setTitle("Find");
+        setTextComponent(textComponent);
+        showReplaceComponents(false);
+        pack();
+        setLocationRelativeTo(getOwner());
+        if(textComponent.getSelectedText() != null)
+            findData.setText(textComponent.getSelectedText());
+        findData.selectAll();
+        setVisible(true);
+        findData.requestFocus();
+        resetSearchVariables();
+    }
+
+    public void doFindNext(JTextComponent textComponent)
+    {
+        if(findData.getText().length() == 0)
+        {
+            showFind(textComponent);
+        } else
+        {
+            setTextComponent(textComponent);
+            processFindNext();
+        }
+    }
+
+    public void showReplace(JTextComponent textComponent)
+    {
+        setTitle("Find and Replace");
+        setTextComponent(textComponent);
+        showReplaceComponents(true);
+        pack();
+        setLocationRelativeTo(getOwner());
+        if(textComponent.getSelectedText() != null)
+            findData.setText(textComponent.getSelectedText());
+        findData.selectAll();
+        setVisible(true);
+        findData.requestFocus();
+        resetSearchVariables();
+    }
+
+    private void showReplaceComponents(boolean value)
+    {
+        replacePanel.setVisible(value);
+        replaceButton.setVisible(value);
+        replaceAllButton.setVisible(value);
+    }
+
+    public void actionPerformed(ActionEvent e)
+    {
+        Object o = e.getSource();
+        if(o == findNextButton)
+            processFindNext();
+        if(o == replaceButton)
+            processReplace();
+        if(o == replaceAllButton)
+            processReplaceAll();
+        if(o == closeButton)
+            processClose();
+    }
+
+    private JButton createButton(JPanel panel, String label, char mnemonic)
+    {
+        JButton button = new JButton(label);
+        button.setMnemonic(mnemonic);
+        button.setEnabled(false);
+        button.addActionListener(this);
+        panel.add(button);
+        return button;
+    }
+
+    private boolean processFindNext()
+    {
+        String needle = findData.getText();
+        String haystack = textComponent.getText();
+        int offset = textComponent.getSelectionStart();
+        String selectedText = textComponent.getSelectedText();
+        textComponent.setSelectionEnd(offset);
+        if(!matchCase.isSelected())
+        {
+            haystack = haystack.toLowerCase();
+            needle = needle.toLowerCase();
+        }
+        if(needle.equalsIgnoreCase(selectedText))
+            if(searchDown())
+                offset++;
+            else
+                offset--;
+        int result = searchFor(needle, haystack, offset);
+        if(result == -1)
+        {
+            JOptionPane.showMessageDialog(this, "Finished searching the document.", "Find", 1);
+            resetSearchVariables();
+            return false;
+        } else
+        {
+            textComponent.setSelectionStart(result);
+            textComponent.setSelectionEnd(result + needle.length());
+            return true;
+        }
+    }
+
+    private boolean searchDown()
+    {
+        return searchDown.isSelected();
+    }
+
+    private int searchFor(String needle, String haystack, int offset)
+    {
+        int result;
+        int wrapSearchOffset;
+        if(searchDown())
+        {
+            wrapSearchOffset = 0;
+            result = haystack.indexOf(needle, offset);
+        } else
+        {
+            wrapSearchOffset = haystack.length();
+            result = haystack.lastIndexOf(needle, offset);
+        }
+        if(result == -1)
+            if(searchWrap)
+            {
+                return result;
+            } else
+            {
+                searchWrap = true;
+                return searchFor(needle, haystack, wrapSearchOffset);
+            }
+        int wrapResult;
+        if(searchDown())
+            wrapResult = result - searchStartPosition.getOffset();
+        else
+            wrapResult = searchStartPosition.getOffset() - result - 1;
+        if(searchWrap && wrapResult >= 0)
+            return -1;
+        if(matchWord.isSelected() && !isWord(haystack, result, needle.length()))
+        {
+            if(searchDown())
+                return searchFor(needle, haystack, result + 1);
+            else
+                return searchFor(needle, haystack, result - 1);
+        } else
+        {
+            return result;
+        }
+    }
+
+    private boolean isWord(String haystack, int offset, int length)
+    {
+        int leftSide = offset - 1;
+        int rightSide = offset + length;
+        return isDelimiter(haystack, leftSide) && isDelimiter(haystack, rightSide);
+    }
+
+    private boolean isDelimiter(String haystack, int offset)
+    {
+        if(offset < 0 || offset > haystack.length())
+            return true;
+        else
+            return !Character.isLetterOrDigit(haystack.charAt(offset));
+    }
+
+    private boolean processReplace()
+    {
+        String needle = findData.getText();
+        String replaceText = replaceData.getText();
+        String selectedText = textComponent.getSelectedText();
+        if(matchCase.isSelected() && needle.equals(selectedText))
+            textComponent.replaceSelection(replaceText);
+        if(!matchCase.isSelected() && needle.equalsIgnoreCase(selectedText))
+            textComponent.replaceSelection(replaceText);
+        return processFindNext();
+    }
+
+    private void processReplaceAll()
+    {
+        JViewport viewport = null;
+        Point point = null;
+        resetSearchVariables();
+        Container c = textComponent.getParent();
+        if(c instanceof JViewport)
+        {
+            viewport = (JViewport)c;
+            point = viewport.getViewPosition();
+        }
+        while(processReplace()) ;
+        if(c instanceof JViewport)
+            viewport.setViewPosition(point);
+    }
+
+    private void processClose()
+    {
+        setVisible(false);
+    }
+
+    private void setTextComponent(JTextComponent textComponent)
+    {
+        if(this.textComponent != textComponent)
+        {
+            this.textComponent = textComponent;
+            resetSearchVariables();
+        }
+    }
+
+    private void resetSearchVariables()
+    {
+        try
+        {
+            searchWrap = false;
+            searchStartPosition = textComponent.getDocument().createPosition(textComponent.getSelectionStart());
+        }
+        catch(BadLocationException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/ide/impl/FindReplaceDialog);
+    private static final int TEXT_FIELD_SIZE = 20;
+    private static final int COMPONENT_GAP = 10;
+    private static final Border EMPTY_BORDER = new EmptyBorder(5, 5, 5, 5);
+    private static FindReplaceDialog sharedFindReplace;
+    private JLabel findLabel;
+    private JLabel replaceLabel;
+    private JTextField findData;
+    private JTextField replaceData;
+    private JCheckBox matchCase;
+    private JCheckBox matchWord;
+    private JRadioButton searchUp;
+    private JRadioButton searchDown;
+    private JButton findNextButton;
+    private JButton closeButton;
+    private JButton replaceButton;
+    private JButton replaceAllButton;
+    private JPanel findPanel;
+    private JPanel replacePanel;
+    private JPanel optionPanel;
+    private JPanel commandPanel;
+    private JTextComponent textComponent;
+    private Position searchStartPosition;
+    private boolean searchWrap;
+
+
+
+
+
+
+
+}

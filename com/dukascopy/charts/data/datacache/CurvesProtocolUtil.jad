@@ -1,0 +1,174 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CurvesProtocolUtil.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.Period;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.transport.util.Base64;
+import java.io.*;
+import java.util.List;
+import java.util.StringTokenizer;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            CandleData, IntraPeriodCandleData, TickData, DataCacheException, 
+//            Data
+
+public class CurvesProtocolUtil
+{
+
+    private CurvesProtocolUtil()
+    {
+    }
+
+    public static void parseCandles(String compressedCandles, boolean forIntraPeriod, List data)
+        throws IOException
+    {
+        if(compressedCandles == null)
+            return;
+        String allData = new String(decompress(compressedCandles));
+        for(StringTokenizer tokenizer = new StringTokenizer(allData, ";"); tokenizer.hasMoreTokens();)
+        {
+            String token = tokenizer.nextToken();
+            if(forIntraPeriod)
+                data.add(parseIntraPeriodCandle(token));
+            else
+                data.add(parseCandle(token));
+        }
+
+    }
+
+    public static CandleData parseCandle(String candleStr)
+    {
+        StringTokenizer tokenizer = new StringTokenizer(candleStr, ",");
+        CandleData candleData = new CandleData();
+        candleData.time = Long.valueOf(tokenizer.nextToken()).longValue() * ONE_SEC;
+        candleData.vol = Long.valueOf(tokenizer.nextToken()).longValue();
+        candleData.low = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        candleData.high = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        candleData.open = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        candleData.close = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        return candleData;
+    }
+
+    public static CandleData parseIntraPeriodCandle(String candleStr)
+    {
+        StringTokenizer tokenizer = new StringTokenizer(candleStr, ",");
+        IntraPeriodCandleData candleData = new IntraPeriodCandleData();
+        candleData.time = Long.valueOf(tokenizer.nextToken()).longValue() * ONE_SEC;
+        candleData.vol = Long.valueOf(tokenizer.nextToken()).longValue();
+        candleData.low = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        candleData.high = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        candleData.open = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        candleData.close = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        return candleData;
+    }
+
+    public static TickData parseTick(String tickStr)
+    {
+        StringTokenizer tokenizer = new StringTokenizer(tickStr, ",");
+        TickData tick = new TickData();
+        tick.time = Long.valueOf(tokenizer.nextToken()).longValue();
+        tokenizer.nextToken();
+        tick.ask = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        tick.bid = Double.valueOf(tokenizer.nextToken()).doubleValue();
+        tick.askVol = Long.valueOf(tokenizer.nextToken()).longValue();
+        tick.bidVol = Long.valueOf(tokenizer.nextToken()).longValue();
+        tick.askVol = StratUtils.roundHalfEven(tick.askVol / 1000000D, 2);
+        tick.bidVol = StratUtils.roundHalfEven(tick.bidVol / 1000000D, 2);
+        return tick;
+    }
+
+    public static void parseTicks(String compressedTicks, List data)
+        throws IOException
+    {
+        if(compressedTicks == null)
+            return;
+        String allData = new String(decompress(compressedTicks));
+        String token;
+        for(StringTokenizer strTokenizer = new StringTokenizer(allData, ";"); strTokenizer.hasMoreTokens(); data.add(parseTick(token)))
+            token = strTokenizer.nextToken();
+
+    }
+
+    public static Data[] bytesToChunkData(byte data[], Period period, int version, long firstChunkCandle, double pipValue)
+        throws DataCacheException
+    {
+        int bytesCount;
+        Data dataArray[];
+        int offset;
+        if(period == Period.TICK)
+        {
+            bytesCount = TickData.getLength(version);
+            if(data.length % bytesCount != 0)
+                throw new DataCacheException((new StringBuilder()).append("Downloaded data file corrupted, unexpected file size ticks [").append(data.length).append("]").toString());
+            dataArray = new Data[data.length / bytesCount];
+            offset = 0;
+            for(int i = 0; offset < data.length; i++)
+            {
+                TickData tickData = new TickData();
+                tickData.fromBytes(version, firstChunkCandle, pipValue, data, offset);
+                dataArray[i] = tickData;
+                offset += bytesCount;
+            }
+
+            return dataArray;
+        }
+        bytesCount = CandleData.getLength(version);
+        if(data.length % bytesCount != 0)
+            throw new DataCacheException((new StringBuilder()).append("Downloaded data file corrupted, unexpected file size candles [").append(data.length).append("]").toString());
+        dataArray = new Data[data.length / bytesCount];
+        offset = 0;
+        for(int i = 0; offset < data.length; i++)
+        {
+            CandleData candleData = new CandleData();
+            candleData.fromBytes(version, firstChunkCandle, pipValue, data, offset);
+            dataArray[i] = candleData;
+            offset += bytesCount;
+        }
+
+        return dataArray;
+    }
+
+    private static byte[] decompress(String compressedData)
+        throws IOException
+    {
+        ZipInputStream zip;
+        byte bytes[] = Base64.decode(compressedData);
+        zip = new ZipInputStream(new ByteArrayInputStream(bytes));
+        byte abyte0[];
+        ZipEntry zipEntry = zip.getNextEntry();
+        int size = (int)zipEntry.getSize();
+        ByteArrayOutputStream output;
+        if(size == -1)
+            output = new ByteArrayOutputStream();
+        else
+            output = new ByteArrayOutputStream(size);
+        byte buffer[] = new byte[512];
+        int i;
+        while((i = zip.read(buffer)) > -1) 
+            output.write(buffer, 0, i);
+        abyte0 = output.toByteArray();
+        zip.close();
+        return abyte0;
+        Exception exception;
+        exception;
+        zip.close();
+        throw exception;
+    }
+
+    private static final String DATA_DELIMETER = ",";
+    private static final String COMPRESSED_DATA_DELIMETER = ";";
+    private static final long ONE_MILLION = 0xf4240L;
+    private static final long ONE_SEC;
+
+    static 
+    {
+        ONE_SEC = TimeUnit.SECONDS.toMillis(1L);
+    }
+}

@@ -1,0 +1,105 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractPriceAggregationData.java
+
+package com.dukascopy.charts.data.datacache.priceaggregation;
+
+import com.dukascopy.api.feed.IPriceAggregationBar;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.Data;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+
+public abstract class AbstractPriceAggregationData extends CandleData
+    implements IPriceAggregationBar
+{
+
+    public AbstractPriceAggregationData()
+    {
+    }
+
+    public AbstractPriceAggregationData(long time, long endTime, double open, double close, double low, double high, double vol, 
+            long formedElementsCount)
+    {
+        super(time, open, close, low, high, vol);
+        this.endTime = endTime;
+        this.formedElementsCount = formedElementsCount;
+    }
+
+    public long getEndTime()
+    {
+        return endTime;
+    }
+
+    public void setEndTime(long endTime)
+    {
+        this.endTime = endTime;
+    }
+
+    public String toString()
+    {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        StringBuilder stamp = new StringBuilder();
+        stamp.append(" StartTime: ").append(format.format(new Long(getTime()))).append(" EndTime: ").append(format.format(new Long(getEndTime()))).append(" O: ").append(open).append(" C: ").append(close).append(" H: ").append(high).append(" L: ").append(low).append(" V: ").append(vol).append(" FEC: ").append(formedElementsCount);
+        return stamp.toString();
+    }
+
+    public long getFormedElementsCount()
+    {
+        return formedElementsCount;
+    }
+
+    public void setFormedElementsCount(long formedElementsCount)
+    {
+        this.formedElementsCount = formedElementsCount;
+    }
+
+    public AbstractPriceAggregationData clone()
+    {
+        return (AbstractPriceAggregationData)super.clone();
+    }
+
+    public int hashCode()
+    {
+        int prime = 31;
+        int result = super.hashCode();
+        result = 31 * result + (int)(endTime ^ endTime >>> 32);
+        result = 31 * result + (int)(formedElementsCount ^ formedElementsCount >>> 32);
+        return result;
+    }
+
+    public boolean equals(Object obj)
+    {
+        if(this == obj)
+            return true;
+        if(!super.equals(obj))
+            return false;
+        if(getClass() != obj.getClass())
+            return false;
+        AbstractPriceAggregationData other = (AbstractPriceAggregationData)obj;
+        if(endTime != other.endTime)
+            return false;
+        return formedElementsCount == other.formedElementsCount;
+    }
+
+    public volatile CandleData clone()
+    {
+        return clone();
+    }
+
+    public volatile Data clone()
+    {
+        return clone();
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    public long endTime;
+    public long formedElementsCount;
+}

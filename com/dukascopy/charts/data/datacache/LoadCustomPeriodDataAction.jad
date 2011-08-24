@@ -1,0 +1,177 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadCustomPeriodDataAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.customperiod.candle.CustomPeriodCandleLiveFeedListener;
+import com.dukascopy.charts.data.datacache.customperiod.candle.CustomPeriodCandleLoadingProgressListener;
+import com.dukascopy.charts.data.datacache.customperiod.candle.CustomPeriodFromCandlesCreator;
+import com.dukascopy.charts.data.datacache.customperiod.tick.LoadCandlesFromTicksAction;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, LoadDataAction, FeedDataProvider, LiveFeedListener, 
+//            LoadingProgressListener, DataCacheException, DataCacheUtils, CurvesDataLoader
+
+public class LoadCustomPeriodDataAction extends LoadProgressingAction
+    implements Runnable
+{
+
+    public LoadCustomPeriodDataAction(FeedDataProvider feedDataProvider, Instrument instrument, Period period, OfferSide offerSide, long from, long to, LiveFeedListener originalLiveFeedListener, LoadingProgressListener originalLoadingProgress, StackTraceElement stackTrace[], boolean blocking, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        this.instrument = instrument;
+        desiredPeriod = period;
+        this.offerSide = offerSide;
+        dataSequenceStartTime = from;
+        dataSequenceEndTime = to;
+        this.originalLiveFeedListener = originalLiveFeedListener;
+        this.stackTrace = stackTrace;
+        this.blocking = blocking;
+        this.feedDataProvider = feedDataProvider;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        this.loadFromChunkStart = loadFromChunkStart;
+        this.originalLoadingProgress = originalLoadingProgress;
+        if(Period.isPeriodBasic(desiredPeriod) != null)
+            throw new IllegalArgumentException((new StringBuilder()).append("Passed period '").append(desiredPeriod).append("' is basic period, ").append(getClass().getSimpleName()).append(" can work only with NOT basic periods").toString());
+        if(!Period.isPeriodCompliant(desiredPeriod))
+            throw new IllegalArgumentException((new StringBuilder()).append("Passed period '").append(desiredPeriod).append("' is not compliant").toString());
+        if(dataSequenceStartTime != DataCacheUtils.getCandleStartFast(desiredPeriod, dataSequenceStartTime))
+            throw new IllegalArgumentException("Data sequence start time is not candle start time");
+        if(dataSequenceEndTime != DataCacheUtils.getCandleStartFast(desiredPeriod, dataSequenceEndTime))
+        {
+            throw new IllegalArgumentException("Data sequence end time is not candle start time");
+        } else
+        {
+            basicPeriod = Period.getBasicPeriodForCustom(desiredPeriod);
+            loadDataAction = createLoadDataActionForBasicPeriod();
+            return;
+        }
+    }
+
+    public void run()
+    {
+        getLoadDataAction().run();
+    }
+
+    private Runnable createLoadDataActionForBasicPeriod()
+        throws DataCacheException
+    {
+        Runnable loadDataAction = null;
+        if(Period.TICK == basicPeriod)
+        {
+            LoadCandlesFromTicksAction loadCandlesFromTicksAction = new LoadCandlesFromTicksAction(getFeedDataProvider(), getInstrument(), getOfferSide(), Filter.NO_FILTER, getDesiredPeriod(), getIntraperiodExistsPolicy(), getOriginalLoadingProgress(), getOriginalLiveFeedListener(), getDataSequenceStartTime(), getDataSequenceEndTime());
+            return loadCandlesFromTicksAction;
+        } else
+        {
+            CustomPeriodFromCandlesCreator customPeriodFromCandlesCreator = new CustomPeriodFromCandlesCreator(getInstrument(), getDesiredPeriod(), getBasicPeriod(), getOfferSide());
+            customPeriodFromCandlesCreator.addListener(getOriginalLiveFeedListener());
+            CustomPeriodCandleLiveFeedListener customPeriodCandleLiveFeedListener = new CustomPeriodCandleLiveFeedListener(getInstrument(), getOfferSide(), customPeriodFromCandlesCreator, getOriginalLiveFeedListener(), getFeedDataProvider(), getDataSequenceStartTime(), getDataSequenceEndTime(), -1L);
+            CustomPeriodCandleLoadingProgressListener customPeriodLoadingProgressListener = new CustomPeriodCandleLoadingProgressListener(getOriginalLoadingProgress(), customPeriodCandleLiveFeedListener);
+            loadDataAction = new LoadDataAction(getFeedDataProvider(), getInstrument(), getBasicPeriod(), getOfferSide(), getDataSequenceStartTime(), getDataSequenceEndTimeForBasicPeriod(), customPeriodCandleLiveFeedListener, customPeriodLoadingProgressListener, getStackTrace(), getBlocking(), getIntraperiodExistsPolicy(), getLoadFromChunkStart());
+            return loadDataAction;
+        }
+    }
+
+    private long getDataSequenceEndTimeForBasicPeriod()
+    {
+        return DataCacheUtils.getTimeForNCandlesForwardFast(getBasicPeriod(), getDataSequenceEndTime(), (int)(getDesiredPeriod().getInterval() / getBasicPeriod().getInterval()));
+    }
+
+    private Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    private OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    private Period getDesiredPeriod()
+    {
+        return desiredPeriod;
+    }
+
+    private long getDataSequenceStartTime()
+    {
+        return dataSequenceStartTime;
+    }
+
+    private long getDataSequenceEndTime()
+    {
+        return dataSequenceEndTime;
+    }
+
+    private FeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    private CurvesDataLoader.IntraperiodExistsPolicy getIntraperiodExistsPolicy()
+    {
+        return intraperiodExistsPolicy;
+    }
+
+    private boolean getLoadFromChunkStart()
+    {
+        return loadFromChunkStart;
+    }
+
+    private LiveFeedListener getOriginalLiveFeedListener()
+    {
+        return originalLiveFeedListener;
+    }
+
+    private StackTraceElement[] getStackTrace()
+    {
+        return stackTrace;
+    }
+
+    private boolean getBlocking()
+    {
+        return blocking;
+    }
+
+    private Period getBasicPeriod()
+    {
+        return basicPeriod;
+    }
+
+    private Runnable getLoadDataAction()
+    {
+        return loadDataAction;
+    }
+
+    protected LoadingProgressListener getOriginalLoadingProgress()
+    {
+        return originalLoadingProgress;
+    }
+
+    protected static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss:SSS") {
+
+            
+            {
+                setTimeZone(TimeZone.getTimeZone("GMT 0"));
+            }
+    };
+    private final Instrument instrument;
+    private final OfferSide offerSide;
+    private final Period desiredPeriod;
+    private final long dataSequenceStartTime;
+    private final long dataSequenceEndTime;
+    private final FeedDataProvider feedDataProvider;
+    private final CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    private final boolean loadFromChunkStart;
+    private final LiveFeedListener originalLiveFeedListener;
+    private final StackTraceElement stackTrace[];
+    private final boolean blocking;
+    private final LoadingProgressListener originalLoadingProgress;
+    private final Period basicPeriod;
+    private final Runnable loadDataAction;
+
+}

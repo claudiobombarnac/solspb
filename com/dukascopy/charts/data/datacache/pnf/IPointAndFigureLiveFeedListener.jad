@@ -1,0 +1,20 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IPointAndFigureLiveFeedListener.java
+
+package com.dukascopy.charts.data.datacache.pnf;
+
+import com.dukascopy.charts.data.datacache.priceaggregation.IPriceAggregationLiveFeedListener;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.pnf:
+//            PointAndFigureData
+
+public interface IPointAndFigureLiveFeedListener
+    extends IPriceAggregationLiveFeedListener
+{
+
+    public abstract void newPriceData(PointAndFigureData pointandfiguredata);
+
+    public abstract void newPriceDatas(PointAndFigureData apointandfiguredata[], int i, int j);
+}

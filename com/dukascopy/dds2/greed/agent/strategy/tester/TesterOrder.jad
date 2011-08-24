@@ -1,0 +1,712 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterOrder.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.execution.ScienceWaitForUpdate;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.*;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            TesterCustodian, TesterAccount
+
+public class TesterOrder
+    implements IOrder, ScienceWaitForUpdate
+{
+
+    public TesterOrder(TesterCustodian engine, String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount)
+    {
+        wasMerged = false;
+        profitLossInAccountCCY = 0.0D;
+        profitLossInPips = 0.0D;
+        commissionInUSD = 0.0D;
+        updated = true;
+        custodian = engine;
+        state = com.dukascopy.api.IOrder.State.CREATED;
+        slippage = 5D * instrument.getPipValue();
+        this.label = label;
+        this.instrument = instrument;
+        this.orderCommand = orderCommand;
+        requestedAmount = amount;
+    }
+
+    public TesterOrder(TesterCustodian engine, String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double clientPrice)
+    {
+        this(engine, label, instrument, orderCommand, amount);
+        this.clientPrice = clientPrice;
+    }
+
+    public TesterOrder(TesterCustodian engine, String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double clientPrice, double slippage)
+        throws JFException
+    {
+        this(engine, label, instrument, orderCommand, amount, clientPrice);
+        if((!Double.isNaN(slippage) || !orderCommand.isConditional()) && (slippage < 0.0D || Double.isNaN(slippage)))
+            slippage = StratUtils.roundHalfEven(5D * instrument.getPipValue(), instrument.getPipScale());
+        if(slippage < 0.0D)
+            slippage = StratUtils.roundHalfEven(5D * instrument.getPipValue(), instrument.getPipScale());
+        this.slippage = slippage;
+    }
+
+    public TesterOrder(TesterCustodian engine, String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double clientPrice, double slippage, String comment)
+        throws JFException
+    {
+        this(engine, label, instrument, orderCommand, amount, clientPrice, slippage);
+        this.comment = comment;
+    }
+
+    public TesterCustodian getEngine()
+    {
+        return custodian;
+    }
+
+    public com.dukascopy.api.IEngine.OrderCommand getOrderCommand()
+    {
+        return orderCommand;
+    }
+
+    public void setOrderCommand(com.dukascopy.api.IEngine.OrderCommand orderCommand)
+    {
+        this.orderCommand = orderCommand;
+    }
+
+    public boolean isLong()
+    {
+        return getOrderCommand().isLong();
+    }
+
+    public void close(double amount, double price, double slippage)
+        throws JFException
+    {
+        amount = StratUtils.roundHalfEven(amount * 1000000D, 2);
+        if(state == com.dukascopy.api.IOrder.State.FILLED)
+            custodian.closeOrder(this, price, amount);
+        else
+            throw new JFException((new StringBuilder()).append("Cannot close order at specified price in CREATED, OPENED, CLOSED or CANCELED state, current state - [").append(getState()).append("]").toString());
+    }
+
+    public synchronized void close(double amount, double price)
+        throws JFException
+    {
+        amount = StratUtils.roundHalfEven(amount * 1000000D, 2);
+        if(state == com.dukascopy.api.IOrder.State.FILLED)
+            custodian.closeOrder(this, price, amount);
+        else
+            throw new JFException((new StringBuilder()).append("Cannot close order at specified price in CREATED, OPENED, CLOSED or CANCELED state, current state - [").append(getState()).append("]").toString());
+    }
+
+    public synchronized void close(double amount)
+        throws JFException
+    {
+        amount = StratUtils.roundHalfEven(amount * 1000000D, 2);
+        if(state == com.dukascopy.api.IOrder.State.FILLED)
+            custodian.closeOrder(this, -1D, amount);
+        else
+            throw new JFException((new StringBuilder()).append("Cannot close order at specified price in CREATED, OPENED, CLOSED or CANCELED state, current state - [").append(getState()).append("]").toString());
+    }
+
+    public synchronized void close()
+        throws JFException
+    {
+        if(state == com.dukascopy.api.IOrder.State.OPENED)
+            custodian.cancelOrder(this);
+        else
+        if(state == com.dukascopy.api.IOrder.State.FILLED)
+            custodian.closeOrder(this);
+        else
+            throw new JFException((new StringBuilder()).append("Cannot close order in CREATED, CLOSED or CANCELED state, current state - [").append(getState()).append("]").toString());
+    }
+
+    public synchronized double getAmount()
+    {
+        return StratUtils.roundHalfEven(getAmountInUnits() / 1000000D, 7);
+    }
+
+    public synchronized double getAmountInUnits()
+    {
+        if(state == com.dukascopy.api.IOrder.State.CREATED || state == com.dukascopy.api.IOrder.State.CANCELED || state == com.dukascopy.api.IOrder.State.OPENED)
+            return requestedAmount;
+        else
+            return filledAmount;
+    }
+
+    public synchronized double getInitiallyFilledAmount()
+    {
+        return StratUtils.roundHalfEven(initiallyFilledAmount / 1000000D, 7);
+    }
+
+    public void setRequestedAmount(double amount)
+        throws JFException
+    {
+        custodian.changeAmount(this, amount);
+    }
+
+    public synchronized void setRequestedAmountSubmitted(double amount)
+    {
+        requestedAmount = amount;
+    }
+
+    public String getComment()
+    {
+        return comment;
+    }
+
+    public long getCreationTime()
+    {
+        return creationTime;
+    }
+
+    public synchronized long getCloseTime()
+    {
+        return closeTime;
+    }
+
+    public synchronized long getFillTime()
+    {
+        return fillTime;
+    }
+
+    public synchronized double getRequestedAmount()
+    {
+        return StratUtils.roundHalfEven(requestedAmount / 1000000D, 7);
+    }
+
+    public synchronized double getRequestedAmountInUnits()
+    {
+        return requestedAmount;
+    }
+
+    public String getLabel()
+    {
+        return label;
+    }
+
+    public synchronized long getStopLossDate()
+    {
+        return stopLossDate;
+    }
+
+    public synchronized double getStopLossPrice()
+    {
+        return stopLossPrice;
+    }
+
+    public synchronized long getTakeProfitDate()
+    {
+        return takeProfitDate;
+    }
+
+    public synchronized double getTakeProfitPrice()
+    {
+        return takeProfitPrice;
+    }
+
+    public void setOpenPrice(double price)
+        throws JFException
+    {
+        price = StratUtils.round(price, instrument.getPipScale() + 2);
+        custodian.changeOpenPrice(this, price);
+    }
+
+    public void setOpenPriceSubmitted(double price)
+    {
+        clientPrice = price;
+    }
+
+    public synchronized double getSlippage()
+    {
+        return StratUtils.round(slippage / instrument.getPipValue(), 2);
+    }
+
+    public synchronized void fillOrder(double price, double amount)
+    {
+        fillTime = custodian.getCurrentTime();
+        filledPrice = price;
+        filledAmount = amount;
+        initiallyFilledAmount = amount;
+        state = com.dukascopy.api.IOrder.State.FILLED;
+        orderCommand = orderCommand.isLong() ? com.dukascopy.api.IEngine.OrderCommand.BUY : com.dukascopy.api.IEngine.OrderCommand.SELL;
+    }
+
+    public synchronized void overnights(double overnightCommission)
+    {
+        if(!$assertionsDisabled && state != com.dukascopy.api.IOrder.State.FILLED)
+        {
+            throw new AssertionError();
+        } else
+        {
+            filledPrice = StratUtils.round(filledPrice + overnightCommission, 7);
+            return;
+        }
+    }
+
+    public synchronized double getOpenPrice()
+    {
+        if(state == com.dukascopy.api.IOrder.State.CREATED || state == com.dukascopy.api.IOrder.State.OPENED || state == com.dukascopy.api.IOrder.State.CANCELED)
+            return clientPrice;
+        else
+            return filledPrice;
+    }
+
+    public synchronized double getClientPrice()
+    {
+        return clientPrice;
+    }
+
+    public synchronized double getClosePrice()
+    {
+        return closePrice;
+    }
+
+    public synchronized double getClosePriceTotal()
+    {
+        return closePriceTotal;
+    }
+
+    public synchronized void setStopLossPrice(double price)
+        throws JFException
+    {
+        custodian.setStopLoss(this, price, orderCommand.isLong() ? OfferSide.BID : OfferSide.ASK, 0.0D);
+    }
+
+    /**
+     * @deprecated Method setStopLoss is deprecated
+     */
+
+    public void setStopLoss(double price)
+        throws JFException
+    {
+        NotificationUtilsProvider.getNotificationUtils().postWarningMessage("setStopLoss method is deprecated and will be removed later, please use setStopLossPrice method instead", true);
+        setStopLossPrice(price);
+    }
+
+    public synchronized void setStopLossSubmitted(double price, OfferSide side, double trailingStep, double lastClientPrice)
+    {
+        stopLossPrice = price;
+        if(price == 0.0D)
+        {
+            stopLossSide = null;
+            stopLossDate = 0L;
+            this.trailingStep = 0.0D;
+            this.lastClientPrice = 0.0D;
+        } else
+        {
+            stopLossSide = side;
+            stopLossDate = custodian.getCurrentTime();
+            this.trailingStep = trailingStep;
+            this.lastClientPrice = lastClientPrice;
+        }
+    }
+
+    public synchronized void setStopLossPrice(double price, OfferSide side)
+        throws JFException
+    {
+        custodian.setStopLoss(this, price, side, 0.0D);
+    }
+
+    /**
+     * @deprecated Method setStopLoss is deprecated
+     */
+
+    public void setStopLoss(double price, OfferSide side)
+        throws JFException
+    {
+        NotificationUtilsProvider.getNotificationUtils().postWarningMessage("setStopLoss method is deprecated and will be removed later, please use setStopLossPrice method instead", true);
+        setStopLossPrice(price, side);
+    }
+
+    public synchronized OfferSide getStopLossSide()
+    {
+        return stopLossSide;
+    }
+
+    public synchronized void setStopLossPrice(double price, OfferSide side, double trailingStep)
+        throws JFException
+    {
+        custodian.setStopLoss(this, price, side, trailingStep);
+    }
+
+    /**
+     * @deprecated Method setStopLoss is deprecated
+     */
+
+    public void setStopLoss(double price, OfferSide side, double trailingStep)
+        throws JFException
+    {
+        NotificationUtilsProvider.getNotificationUtils().postWarningMessage("setStopLoss method is deprecated and will be removed later, please use setStopLossPrice method instead", true);
+        setStopLossPrice(price, side, trailingStep);
+    }
+
+    public synchronized double getTrailingStep()
+    {
+        return trailingStep;
+    }
+
+    public synchronized void setTakeProfitPrice(double price)
+        throws JFException
+    {
+        custodian.setTakeProfit(this, price);
+    }
+
+    /**
+     * @deprecated Method setTakeProfit is deprecated
+     */
+
+    public void setTakeProfit(double price)
+        throws JFException
+    {
+        NotificationUtilsProvider.getNotificationUtils().postWarningMessage("setTakeProfit method is deprecated and will be removed later, please use setTakeProfitPrice method instead", true);
+        setTakeProfitPrice(price);
+    }
+
+    public synchronized void setTakeProfitSubmitted(double price)
+    {
+        takeProfitPrice = price;
+        if(price == 0.0D)
+            takeProfitDate = 0L;
+        else
+            takeProfitDate = custodian.getCurrentTime();
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public synchronized com.dukascopy.api.IOrder.State getState()
+    {
+        return state;
+    }
+
+    public synchronized void setGoodTillTime(long goodTillTime)
+        throws JFException
+    {
+        if(orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_BID && orderCommand != com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+        {
+            throw new JFException("Order should be \"place bid\" or \"place offer\"");
+        } else
+        {
+            custodian.setGoodTillTime(this, goodTillTime);
+            return;
+        }
+    }
+
+    public synchronized void setGoodTillTimeSubmitted(long goodTillTime)
+    {
+        this.goodTillTime = goodTillTime;
+    }
+
+    public synchronized long getGoodTillTime()
+    {
+        return goodTillTime;
+    }
+
+    public synchronized void cancelOrder()
+    {
+        cancelOrder(custodian.getCurrentTime());
+    }
+
+    public synchronized void cancelOrder(long closeTime)
+    {
+        state = com.dukascopy.api.IOrder.State.CANCELED;
+        this.closeTime = closeTime;
+    }
+
+    public synchronized void addCommission(double commission)
+    {
+        commissionInUSD += commission;
+    }
+
+    public synchronized void closeOrder(double price, double profitLossInAccountCCY)
+    {
+        closeOrder(price, profitLossInAccountCCY, custodian.getCurrentTime());
+    }
+
+    public synchronized void closeOrder(double price, double profitLossInAccountCCY, long closeTime)
+    {
+        closePrice = price;
+        if(closePriceTotal == 0.0D)
+        {
+            closePriceTotal = price;
+            if(isLong())
+                profitLossInPips = StratUtils.roundHalfEven((price - filledPrice) / instrument.getPipValue(), 1);
+            else
+                profitLossInPips = StratUtils.roundHalfEven((filledPrice - price) / instrument.getPipValue(), 1);
+        } else
+        {
+            double allAmount = closedAmount + filledAmount;
+            closePriceTotal = StratUtils.roundHalfEven((price * filledAmount + closePriceTotal * closedAmount) / allAmount, 7);
+            if(isLong())
+                profitLossInPips = StratUtils.roundHalfEven((StratUtils.roundHalfEven((price - filledPrice) / instrument.getPipValue(), 1) * filledAmount + profitLossInPips * closedAmount) / allAmount, 2);
+            else
+                profitLossInPips = StratUtils.roundHalfEven((StratUtils.roundHalfEven((filledPrice - price) / instrument.getPipValue(), 1) * filledAmount + profitLossInPips * closedAmount) / allAmount, 2);
+        }
+        closedAmount += filledAmount;
+        lastCloseAmount = filledAmount;
+        state = com.dukascopy.api.IOrder.State.CLOSED;
+        this.closeTime = closeTime;
+        this.profitLossInAccountCCY = this.profitLossInAccountCCY + profitLossInAccountCCY;
+        wasMerged = false;
+    }
+
+    public synchronized void closeNoOpenedOrder()
+    {
+        if(state != com.dukascopy.api.IOrder.State.CREATED)
+        {
+            throw new RuntimeException("State not CREATED");
+        } else
+        {
+            state = com.dukascopy.api.IOrder.State.CLOSED;
+            closeTime = creationTime = custodian.getCurrentTime();
+            return;
+        }
+    }
+
+    public synchronized void closeBeforeMerge()
+    {
+        state = com.dukascopy.api.IOrder.State.CLOSED;
+        closePrice = filledPrice;
+        lastCloseAmount = 0.0D;
+        wasMerged = true;
+        closeTime = custodian.getCurrentTime();
+    }
+
+    public synchronized double getLastCloseAmount()
+    {
+        return lastCloseAmount;
+    }
+
+    public synchronized void partialClose(double price, double amount, double profitLossInAccountCCY, long closeTime)
+    {
+        closePrice = price;
+        if(closePriceTotal == 0.0D)
+        {
+            closePriceTotal = price;
+            if(isLong())
+                profitLossInPips = StratUtils.roundHalfEven((price - filledPrice) / instrument.getPipValue(), 1);
+            else
+                profitLossInPips = StratUtils.roundHalfEven((filledPrice - price) / instrument.getPipValue(), 1);
+        } else
+        {
+            double allAmount = closedAmount + amount;
+            closePriceTotal = StratUtils.roundHalfEven((price * amount + closePriceTotal * closedAmount) / allAmount, 7);
+            if(isLong())
+                profitLossInPips = StratUtils.roundHalfEven((StratUtils.roundHalfEven((price - filledPrice) / instrument.getPipValue(), 1) * amount + profitLossInPips * closedAmount) / allAmount, 2);
+            else
+                profitLossInPips = StratUtils.roundHalfEven((StratUtils.roundHalfEven((filledPrice - price) / instrument.getPipValue(), 1) * amount + profitLossInPips * closedAmount) / allAmount, 2);
+        }
+        closedAmount = StratUtils.roundHalfEven(closedAmount + amount, 2);
+        filledAmount = StratUtils.roundHalfEven(filledAmount - amount, 2);
+        requestedAmount = StratUtils.roundHalfEven(requestedAmount - amount, 2);
+        lastCloseAmount = amount;
+        this.closeTime = closeTime;
+        this.profitLossInAccountCCY = StratUtils.roundHalfEven(this.profitLossInAccountCCY + profitLossInAccountCCY, 2);
+        wasMerged = false;
+    }
+
+    public void setLabel(String label)
+    {
+        this.label = label;
+    }
+
+    public synchronized void openOrder()
+    {
+        state = com.dukascopy.api.IOrder.State.OPENED;
+        creationTime = custodian.getCurrentTime();
+        orderId = custodian.getNewOrderId();
+    }
+
+    public synchronized double getProfitLossInAccountCCY()
+    {
+        return profitLossInAccountCCY;
+    }
+
+    public synchronized double getProfitLossInPips()
+    {
+        if(state == com.dukascopy.api.IOrder.State.FILLED)
+        {
+            double closePrice;
+            if(isLong())
+                closePrice = custodian.getLastTick(instrument).getBid();
+            else
+                closePrice = custodian.getLastTick(instrument).getAsk();
+            double plInPips;
+            if(isLong())
+                plInPips = StratUtils.roundHalfEven((closePrice - filledPrice) / instrument.getPipValue(), 1);
+            else
+                plInPips = StratUtils.roundHalfEven((filledPrice - closePrice) / instrument.getPipValue(), 1);
+            return plInPips;
+        }
+        if(state == com.dukascopy.api.IOrder.State.CLOSED)
+            return profitLossInPips;
+        else
+            return 0.0D;
+    }
+
+    public double getProfitLossInUSD()
+    {
+        double amount;
+        if(state == com.dukascopy.api.IOrder.State.CLOSED)
+            amount = closedAmount;
+        else
+            amount = filledAmount;
+        double profLossInSecondaryCCY = StratUtils.roundHalfEven(getProfitLossInPips() * instrument.getPipValue() * amount, 2);
+        return StratUtils.roundHalfEven(custodian.getCurrencyConverter().convert(profLossInSecondaryCCY, instrument.getSecondaryCurrency(), Instrument.EURUSD.getSecondaryCurrency(), null), 2);
+    }
+
+    public double getProfitLossInAccountCurrency()
+    {
+        double amount;
+        if(state == com.dukascopy.api.IOrder.State.CLOSED)
+            amount = closedAmount;
+        else
+            amount = filledAmount;
+        double profLossInSecondaryCCY = StratUtils.roundHalfEven(getProfitLossInPips() * instrument.getPipValue() * amount, 2);
+        return StratUtils.roundHalfEven(custodian.getCurrencyConverter().convert(profLossInSecondaryCCY, instrument.getSecondaryCurrency(), custodian.getTesterAccount().getCurrency(), null), 2);
+    }
+
+    public double getCommissionInUSD()
+    {
+        return StratUtils.roundHalfEven(commissionInUSD, 2);
+    }
+
+    public double getCommission()
+    {
+        return StratUtils.roundHalfEven(custodian.getCurrencyConverter().convert(commissionInUSD, Instrument.EURUSD.getSecondaryCurrency(), custodian.getTesterAccount().getCurrency(), null), 2);
+    }
+
+    public synchronized double getClosedAmount()
+    {
+        return closedAmount;
+    }
+
+    public boolean wasMerged()
+    {
+        return wasMerged;
+    }
+
+    public double getLastClientPrice()
+    {
+        return lastClientPrice;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(state.name()).append(" ").append(getOrderCommand()).append(" ").append(getAmount()).append(" @ ").append(getOpenPrice()).toString();
+    }
+
+    public String getId()
+    {
+        return orderId;
+    }
+
+    public void createId()
+    {
+        orderId = custodian.getNewOrderId();
+    }
+
+    public void waitForUpdate(long timeoutMills)
+    {
+        if(state != com.dukascopy.api.IOrder.State.CLOSED && state != com.dukascopy.api.IOrder.State.CANCELED)
+        {
+            updated = false;
+            try
+            {
+                custodian.waitForStateChange(this, timeoutMills, TimeUnit.MILLISECONDS);
+            }
+            catch(InterruptedException ie)
+            {
+                LOGGER.warn("Interrupted");
+            }
+            updatedMessage = null;
+        }
+    }
+
+    public IMessage waitForUpdate(long timeout, TimeUnit unit)
+    {
+        if(state != com.dukascopy.api.IOrder.State.CLOSED && state != com.dukascopy.api.IOrder.State.CANCELED)
+        {
+            updated = false;
+            try
+            {
+                custodian.waitForStateChange(this, timeout, unit);
+            }
+            catch(InterruptedException ie)
+            {
+                LOGGER.warn("Interrupted");
+            }
+            IMessage message = updatedMessage;
+            updatedMessage = null;
+            return message;
+        } else
+        {
+            return null;
+        }
+    }
+
+    public boolean isMcOrder()
+    {
+        return mcOrder;
+    }
+
+    public void setMcOrder(boolean mcOrder)
+    {
+        this.mcOrder = mcOrder;
+    }
+
+    public void update(IMessage message)
+    {
+        if(!updated)
+            updatedMessage = message;
+        updated = true;
+    }
+
+    public boolean updated()
+    {
+        return updated;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/TesterOrder);
+    private TesterCustodian custodian;
+    private String label;
+    private String orderId;
+    private Instrument instrument;
+    private com.dukascopy.api.IEngine.OrderCommand orderCommand;
+    private double requestedAmount;
+    private com.dukascopy.api.IOrder.State state;
+    private double clientPrice;
+    private double filledPrice;
+    private double closePrice;
+    private double closePriceTotal;
+    private double closedAmount;
+    private double slippage;
+    private double takeProfitPrice;
+    private long takeProfitDate;
+    private double stopLossPrice;
+    private long stopLossDate;
+    private OfferSide stopLossSide;
+    private double trailingStep;
+    private long goodTillTime;
+    private String comment;
+    private long creationTime;
+    private long fillTime;
+    private double initiallyFilledAmount;
+    private double filledAmount;
+    private long closeTime;
+    private boolean wasMerged;
+    private double profitLossInAccountCCY;
+    private double profitLossInPips;
+    private double commissionInUSD;
+    private double lastCloseAmount;
+    private double lastClientPrice;
+    private boolean mcOrder;
+    private boolean updated;
+    private IMessage updatedMessage;
+    static final boolean $assertionsDisabled = !com/dukascopy/dds2/greed/agent/strategy/tester/TesterOrder.desiredAssertionStatus();
+
+}

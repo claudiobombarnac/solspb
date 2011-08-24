@@ -1,0 +1,135 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ITesterReport.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            TesterReportData, InstrumentReportData
+
+public interface ITesterReport
+{
+    public static final class PerfStats extends Enum
+    {
+
+        public static PerfStats[] values()
+        {
+            return (PerfStats[])$VALUES.clone();
+        }
+
+        public static PerfStats valueOf(String name)
+        {
+            return (PerfStats)Enum.valueOf(com/dukascopy/dds2/greed/agent/strategy/tester/ITesterReport$PerfStats, name);
+        }
+
+        public String toString()
+        {
+            return text;
+        }
+
+        public static final PerfStats READ_DATA;
+        public static final PerfStats WRITE_DATA;
+        public static final PerfStats ACCOUNT_INFO_CALCS;
+        public static final PerfStats STOP_ORDERS;
+        public static final PerfStats HISTORY_CALLS;
+        public static final PerfStats INDICATOR_CALLS;
+        public static final PerfStats ORDER_CHANGES;
+        public static final PerfStats MC_CHECK;
+        public static final PerfStats ON_START;
+        public static final PerfStats ON_STOP;
+        public static final PerfStats ON_TICK;
+        public static final PerfStats ON_BAR;
+        public static final PerfStats ON_ACCOUNT;
+        public static final PerfStats ON_MESSAGE;
+        public static final PerfStats USER_TASKS;
+        public static final PerfStats OTHER;
+        public static final PerfStats TICK_BAR_PROCESSING;
+        private String text;
+        private static final PerfStats $VALUES[];
+
+        static 
+        {
+            READ_DATA = new PerfStats("READ_DATA", 0, "Ticks/Bars data reads");
+            WRITE_DATA = new PerfStats("WRITE_DATA", 1, "Ticks/Bars/Account Info data writing for charts");
+            ACCOUNT_INFO_CALCS = new PerfStats("ACCOUNT_INFO_CALCS", 2, "Account information calculations");
+            STOP_ORDERS = new PerfStats("STOP_ORDERS", 3, "Conditional orders processing");
+            HISTORY_CALLS = new PerfStats("HISTORY_CALLS", 4, "Historical data calls (including indicators data calls)");
+            INDICATOR_CALLS = new PerfStats("INDICATOR_CALLS", 5, "Indicator calculations");
+            ORDER_CHANGES = new PerfStats("ORDER_CHANGES", 6, "Order changes processing \"on server side\"");
+            MC_CHECK = new PerfStats("MC_CHECK", 7, "Margin call/cut checks");
+            ON_START = new PerfStats("ON_START", 8, "onStart method calls");
+            ON_STOP = new PerfStats("ON_STOP", 9, "onStop method calls");
+            ON_TICK = new PerfStats("ON_TICK", 10, "onTick method calls");
+            ON_BAR = new PerfStats("ON_BAR", 11, "onBar method calls");
+            ON_ACCOUNT = new PerfStats("ON_ACCOUNT", 12, "onAccount method calls");
+            ON_MESSAGE = new PerfStats("ON_MESSAGE", 13, "onMessage method calls");
+            USER_TASKS = new PerfStats("USER_TASKS", 14, "User tasks (IContext.executeTask) processing");
+            OTHER = new PerfStats("OTHER", 15, "Other operations");
+            TICK_BAR_PROCESSING = new PerfStats("TICK_BAR_PROCESSING", 16, "Ticks/Bars internal processing");
+            $VALUES = (new PerfStats[] {
+                READ_DATA, WRITE_DATA, ACCOUNT_INFO_CALCS, STOP_ORDERS, HISTORY_CALLS, INDICATOR_CALLS, ORDER_CHANGES, MC_CHECK, ON_START, ON_STOP, 
+                ON_TICK, ON_BAR, ON_ACCOUNT, ON_MESSAGE, USER_TASKS, OTHER, TICK_BAR_PROCESSING
+            });
+        }
+
+        private PerfStats(String s, int i, String text)
+        {
+            super(s, i);
+            this.text = text;
+        }
+    }
+
+
+    public abstract InstrumentReportData getInstrumentReportData(Instrument instrument);
+
+    public abstract void setInstrumentReportData(Instrument instrument, InstrumentReportData instrumentreportdata);
+
+    public abstract InstrumentReportData getOrCreateInstrumentReportData(Instrument instrument);
+
+    public abstract void setLastTick(Instrument instrument, ITick itick);
+
+    public abstract void addEvent(TesterReportData.TesterEvent testerevent);
+
+    public abstract List getEvents();
+
+    public abstract void addTurnover(double d);
+
+    public abstract void addCommission(double d);
+
+    public abstract void setFinishDeposit(double d);
+
+    public abstract String getStrategyName();
+
+    public abstract List getParameterValues();
+
+    public abstract long getFrom();
+
+    public abstract long getTo();
+
+    public abstract double getCommission();
+
+    public abstract double getTurnover();
+
+    public abstract double getInitialDeposit();
+
+    public abstract double getFinishDeposit();
+
+    public abstract void perfInitiate();
+
+    public abstract void perfStart(long l);
+
+    public abstract long perfLast();
+
+    public abstract void perfAdd(PerfStats perfstats, long l);
+
+    public abstract void perfStop(long l);
+
+    public abstract long[] getPerfStats();
+
+    public abstract int[] getPerfStatCounts();
+}

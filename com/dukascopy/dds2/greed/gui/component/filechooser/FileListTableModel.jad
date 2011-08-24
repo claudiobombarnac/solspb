@@ -1,0 +1,100 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   FileListTableModel.java
+
+package com.dukascopy.dds2.greed.gui.component.filechooser;
+
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import com.dukascopy.transport.common.datafeed.FileType;
+import com.dukascopy.transport.common.msg.strategy.FileItem;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import javax.swing.table.AbstractTableModel;
+
+public class FileListTableModel extends AbstractTableModel
+{
+
+    public FileListTableModel(List data, FileType ft)
+    {
+        tableData = new ArrayList();
+        df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        tableData = data;
+        fileType = ft;
+    }
+
+    public int getColumnCount()
+    {
+        return fileType != FileType.WORKSPACE && fileType != FileType.CHART && fileType != FileType.STRATEGY && fileType != FileType.INDICATOR && fileType != FileType.WIDGET ? 0 : 4;
+    }
+
+    public void setData(List data)
+    {
+        tableData = data;
+        fireTableDataChanged();
+    }
+
+    public void clearData()
+    {
+        tableData = new ArrayList();
+        fireTableDataChanged();
+    }
+
+    public int getRowCount()
+    {
+        return tableData.size();
+    }
+
+    public String getColumnName(int column)
+    {
+        if(column == 0)
+            return LocalizationManager.getText("chooser.file.name");
+        if(column == 1)
+            return LocalizationManager.getText("chooser.date.modified");
+        if(column == 2)
+            return LocalizationManager.getText("chooser.is.shared");
+        if(column == 3)
+            return LocalizationManager.getText("chooser.description");
+        else
+            return null;
+    }
+
+    public FileItem getRow(int index)
+    {
+        return (FileItem)tableData.get(index);
+    }
+
+    public Object getValueAt(int rowIndex, int columnIndex)
+    {
+        if(tableData.size() == 0)
+            return null;
+        FileItem object = getRow(rowIndex);
+        if(columnIndex == 0)
+            return object.getFileName();
+        if(columnIndex == 1)
+        {
+            Date lastModified = object.getLastModified();
+            if(lastModified != null)
+                return df.format(lastModified);
+            else
+                return "";
+        }
+        if(columnIndex == 2)
+            return object.isShared().booleanValue() ? LocalizationManager.getText("yes.option") : LocalizationManager.getText("no.option");
+        if(columnIndex == 3)
+            return object.getDescription();
+        else
+            return null;
+    }
+
+    public boolean isCellEditable(int rowIndex, int columnIndex)
+    {
+        return false;
+    }
+
+    private static final long serialVersionUID = 0x7bd9c8e9fd76555fL;
+    protected List tableData;
+    protected FileType fileType;
+    private DateFormat df;
+}

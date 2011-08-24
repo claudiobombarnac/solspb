@@ -1,0 +1,104 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JLocalizableDialog.java
+
+package com.dukascopy.dds2.greed.gui.l10n.components;
+
+import com.dukascopy.dds2.greed.gui.l10n.Localizable;
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import java.awt.Font;
+import java.awt.Frame;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
+
+public class JLocalizableDialog extends JDialog
+    implements Localizable
+{
+
+    public JLocalizableDialog(String key)
+    {
+        titleKey = key;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableDialog(Frame owner, boolean modal, String key)
+    {
+        super(owner, modal);
+        titleKey = key;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public transient JLocalizableDialog(String key, Object params[])
+    {
+        titleKey = key;
+        this.params = params;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableDialog(JFrame parent)
+    {
+        super(parent);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableDialog()
+    {
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public void setTitle(String key)
+    {
+        titleKey = key;
+        if(paramKeys != null)
+            super.setTitle(LocalizationManager.getTextWithArgumentKeys(titleKey, paramKeys));
+        else
+        if(params != null)
+            super.setTitle(LocalizationManager.getTextWithArguments(titleKey, params));
+        else
+            super.setTitle(LocalizationManager.getText(titleKey));
+    }
+
+    public void localize()
+    {
+        if(titleKey != null)
+        {
+            setFont(LocalizationManager.getDefaultFont(getFont().getSize()));
+            setTitle(titleKey);
+        }
+    }
+
+    public String getTitleKey()
+    {
+        return titleKey;
+    }
+
+    public void setTitleKey(String titleKey)
+    {
+        this.titleKey = titleKey;
+    }
+
+    public Object[] getParams()
+    {
+        return params;
+    }
+
+    public void setParams(Object params[])
+    {
+        this.params = params;
+    }
+
+    public Object[] getParamKeys()
+    {
+        return paramKeys;
+    }
+
+    public void setParamKeys(Object paramKeys[])
+    {
+        this.paramKeys = paramKeys;
+    }
+
+    String titleKey;
+    Object params[];
+    Object paramKeys[];
+}

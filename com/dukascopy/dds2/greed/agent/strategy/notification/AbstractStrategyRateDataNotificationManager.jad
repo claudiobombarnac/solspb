@@ -1,0 +1,285 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractStrategyRateDataNotificationManager.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.impl.connect.StrategyProcessor;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.dds2.greed.agent.strategy.tester.IStrategyRunner;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.IDataLoadingThread;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.notification:
+//            AbstractLiveBarFeedListenerWrapper, IStrategyNotificationManager
+
+public abstract class AbstractStrategyRateDataNotificationManager
+    implements IStrategyNotificationManager
+{
+
+    public AbstractStrategyRateDataNotificationManager(FeedDataProvider feedDataProvider)
+    {
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    protected abstract String validateJForexPeriodFields(JForexPeriod jforexperiod);
+
+    protected abstract AbstractLiveBarFeedListenerWrapper createListenerWrapper(Instrument instrument, JForexPeriod jforexperiod, OfferSide offerside, Object obj, IStrategyExceptionHandler istrategyexceptionhandler, JForexTaskManager jforextaskmanager, StrategyProcessor strategyprocessor, 
+            INotificationUtils inotificationutils);
+
+    protected abstract IDataLoadingThread createDataLoadingThread(IStrategyRunner istrategyrunner, Instrument instrument, JForexPeriod jforexperiod, OfferSide offerside, ArrayBlockingQueue arrayblockingqueue);
+
+    protected abstract void addLiveInProgressBarListener(Instrument instrument, JForexPeriod jforexperiod, OfferSide offerside, AbstractLiveBarFeedListenerWrapper abstractlivebarfeedlistenerwrapper);
+
+    protected abstract void removeLiveInProgressBarListener(AbstractLiveBarFeedListenerWrapper abstractlivebarfeedlistenerwrapper);
+
+    protected abstract void onBar(AbstractLiveBarFeedListenerWrapper abstractlivebarfeedlistenerwrapper, Instrument instrument, JForexPeriod jforexperiod, OfferSide offerside, IBar ibar);
+
+    protected void validateInstrument(Set instruments, Instrument instrument)
+    {
+        boolean found = false;
+        Iterator i$ = instruments.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Instrument instr = (Instrument)i$.next();
+            if(!instr.equals(instrument))
+                continue;
+            found = true;
+            break;
+        } while(true);
+        if(!found)
+            throw new IllegalArgumentException((new StringBuilder()).append("Could not load data for Instrument=").append(instrument).append(" because this Instrument isn't subscribed!").toString());
+        else
+            return;
+    }
+
+    protected FeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    protected Map getLiveFeedListenersMap()
+    {
+        if(liveFeedListenersMap == null)
+            liveFeedListenersMap = new Hashtable();
+        return liveFeedListenersMap;
+    }
+
+    protected Map getHistoricalFeedListenersMap()
+    {
+        if(historicalFeedListenersMap == null)
+            historicalFeedListenersMap = new Hashtable();
+        return historicalFeedListenersMap;
+    }
+
+    protected AbstractLiveBarFeedListenerWrapper subscribeToBarsFeed(IStrategy strategy, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, Map map, Object barFeedListener, IStrategyExceptionHandler exceptionHandler, 
+            JForexTaskManager taskManager, StrategyProcessor strategyProcessor, INotificationUtils notificationUtils)
+    {
+        if(barFeedListener == null || instrument == null || offerSide == null)
+            throw new NullPointerException((new StringBuilder()).append("Params are not correctly set - listener=").append(barFeedListener).append(" instrument=").append(instrument).append(" period=").append(jForexPeriod.getPeriod()).append(" offerSide=").append(offerSide).toString());
+        String msg = validateJForexPeriodFields(jForexPeriod);
+        if(msg != null)
+            throw new NullPointerException(msg);
+        List listeners = (List)map.get(strategy);
+        if(listeners == null)
+        {
+            listeners = new ArrayList();
+            map.put(strategy, listeners);
+        }
+        AbstractLiveBarFeedListenerWrapper listener = createListenerWrapper(instrument, jForexPeriod, offerSide, barFeedListener, exceptionHandler, taskManager, strategyProcessor, notificationUtils);
+        listeners.add(listener);
+        return listener;
+    }
+
+    protected List getHistoricalFeedListeners(IStrategy strategy)
+    {
+        Map map = getHistoricalFeedListenersMap();
+        JVM INSTR monitorenter ;
+        List result = (List)getHistoricalFeedListenersMap().get(strategy);
+        if(result == null)
+            return result;
+        result = Collections.unmodifiableList(result);
+        result;
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    protected AbstractLiveBarFeedListenerWrapper findFeedListener(IStrategy strategy, Map map, Object barFeedListener)
+    {
+        List listeners = (List)map.get(strategy);
+        return findCandleFeedListener(barFeedListener, listeners);
+    }
+
+    private AbstractLiveBarFeedListenerWrapper findCandleFeedListener(Object barFeedListener, List listeners)
+    {
+label0:
+        {
+            if(listeners == null)
+                break label0;
+            Iterator i$ = listeners.iterator();
+            AbstractLiveBarFeedListenerWrapper listener;
+            do
+            {
+                if(!i$.hasNext())
+                    break label0;
+                listener = (AbstractLiveBarFeedListenerWrapper)i$.next();
+            } while(!listener.getLiveBarFormedListener().equals(barFeedListener));
+            return listener;
+        }
+        return null;
+    }
+
+    public void subscribeToBarsFeedForHistoricalTester(IStrategy strategy, IStrategyRunner strategyRunner, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, Object barFeedListener, IStrategyExceptionHandler exceptionHandler, 
+            JForexTaskManager taskManager, StrategyProcessor strategyProcessor, INotificationUtils notificationUtils)
+    {
+        synchronized(getHistoricalFeedListenersMap())
+        {
+            validateInstrument(strategyRunner.getInstruments(), instrument);
+            AbstractLiveBarFeedListenerWrapper listener = subscribeToBarsFeed(strategy, instrument, jForexPeriod, offerSide, getHistoricalFeedListenersMap(), barFeedListener, exceptionHandler, taskManager, strategyProcessor, notificationUtils);
+            boolean containsDataLoadingThread = strategyRunner.containsDataLoadingThread(instrument, jForexPeriod, offerSide);
+            if(!containsDataLoadingThread)
+            {
+                ArrayBlockingQueue arrayBlockingQueue = new ArrayBlockingQueue(100, true);
+                IDataLoadingThread dataLoadingThread = createDataLoadingThread(strategyRunner, instrument, jForexPeriod, offerSide, arrayBlockingQueue);
+                (new Thread(dataLoadingThread)).start();
+                listener.setDataLoadingThread(dataLoadingThread);
+                strategyRunner.addDataLoadingThread(dataLoadingThread);
+            }
+        }
+    }
+
+    public void subscribeToLiveBarsFeed(IStrategy strategy, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, Object barFeedListener, IStrategyExceptionHandler exceptionHandler, JForexTaskManager taskManager, 
+            StrategyProcessor strategyProcessor, INotificationUtils notificationUtils)
+    {
+        synchronized(getLiveFeedListenersMap())
+        {
+            AbstractLiveBarFeedListenerWrapper listenerWrapper = subscribeToBarsFeed(strategy, instrument, jForexPeriod, offerSide, getLiveFeedListenersMap(), barFeedListener, exceptionHandler, taskManager, strategyProcessor, notificationUtils);
+            addLiveInProgressBarListener(instrument, jForexPeriod, offerSide, listenerWrapper);
+        }
+    }
+
+    protected List getHistoricalFeedListeners(IStrategy strategy, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide)
+    {
+        List strategyListeners = getHistoricalFeedListeners(strategy);
+        List result = new ArrayList();
+        if(strategyListeners != null)
+        {
+            Iterator i$ = strategyListeners.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                AbstractLiveBarFeedListenerWrapper listener = (AbstractLiveBarFeedListenerWrapper)i$.next();
+                if(listener.getInstrument().equals(instrument) && listener.getJForexPeriod().equals(jForexPeriod) && listener.getOfferSide().equals(offerSide))
+                    result.add(listener);
+            } while(true);
+        }
+        return result;
+    }
+
+    public void historicalBarReceived(IStrategy strategy, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IBar bar)
+    {
+        synchronized(getHistoricalFeedListenersMap())
+        {
+            if(strategy == null || instrument == null || jForexPeriod == null || jForexPeriod.getPeriod() == null || offerSide == null || bar == null)
+                throw new NullPointerException((new StringBuilder()).append("Params are not correctly set - strategy=").append(strategy).append(" instrument=").append(instrument).append(" period=").append(jForexPeriod.getPeriod()).append(" offerSide=").append(offerSide).append(" bar=").append(bar).toString());
+            List listenerWrappers = getHistoricalFeedListeners(strategy, instrument, jForexPeriod, offerSide);
+            for(Iterator i$ = listenerWrappers.iterator(); i$.hasNext();)
+            {
+                AbstractLiveBarFeedListenerWrapper listenerWrapper = (AbstractLiveBarFeedListenerWrapper)i$.next();
+                try
+                {
+                    onBar(listenerWrapper, instrument, jForexPeriod, offerSide, bar);
+                }
+                catch(Throwable t)
+                {
+                    t.printStackTrace();
+                }
+            }
+
+        }
+    }
+
+    private AbstractLiveBarFeedListenerWrapper unsubscribeFromBarsFeed(IStrategy strategy, Map map, Object barFeedListener)
+    {
+        List listeners = (List)map.get(strategy);
+        if(listeners != null)
+        {
+            AbstractLiveBarFeedListenerWrapper listenerToRemove = findFeedListener(strategy, map, barFeedListener);
+            if(listenerToRemove != null)
+                listeners.remove(listenerToRemove);
+            if(listeners.isEmpty())
+                map.remove(strategy);
+            return listenerToRemove;
+        } else
+        {
+            return null;
+        }
+    }
+
+    public void unsubscribeFromLiveBarsFeed(IStrategy strategy, Object barFeedListener)
+    {
+        synchronized(getLiveFeedListenersMap())
+        {
+            AbstractLiveBarFeedListenerWrapper listener = unsubscribeFromBarsFeed(strategy, getLiveFeedListenersMap(), barFeedListener);
+            unsubscribeLiveCandleFeedListener(listener);
+        }
+    }
+
+    public void unsubscribeFromBarsFeedForHistoricalTester(IStrategy strategy, IStrategyRunner strategyRunner, Object barFeedListener)
+    {
+        synchronized(getHistoricalFeedListenersMap())
+        {
+            AbstractLiveBarFeedListenerWrapper listener = unsubscribeFromBarsFeed(strategy, getHistoricalFeedListenersMap(), barFeedListener);
+            strategyRunner.removeDataLoadingThread(listener.getDataLoadingThread());
+        }
+    }
+
+    private void unsubscribeLiveCandleFeedListener(AbstractLiveBarFeedListenerWrapper listenerWrapper)
+    {
+        if(listenerWrapper == null)
+        {
+            return;
+        } else
+        {
+            removeLiveInProgressBarListener(listenerWrapper);
+            return;
+        }
+    }
+
+    public void unsubscribeFromAll(IStrategy strategy)
+    {
+        synchronized(getLiveFeedListenersMap())
+        {
+            List liveListeners = (List)getLiveFeedListenersMap().remove(strategy);
+            if(liveListeners != null)
+            {
+                AbstractLiveBarFeedListenerWrapper listener;
+                for(Iterator i$ = liveListeners.iterator(); i$.hasNext(); unsubscribeLiveCandleFeedListener(listener))
+                    listener = (AbstractLiveBarFeedListenerWrapper)i$.next();
+
+            }
+        }
+        synchronized(getHistoricalFeedListenersMap())
+        {
+            getHistoricalFeedListenersMap().remove(strategy);
+        }
+    }
+
+    private final FeedDataProvider feedDataProvider;
+    private Map liveFeedListenersMap;
+    private Map historicalFeedListenersMap;
+}

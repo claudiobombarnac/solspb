@@ -1,0 +1,320 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Order.java
+
+package com.dukascopy.dds2.greed.agent.strategy.objects;
+
+import com.dukascopy.dds2.greed.agent.AgentException;
+import com.dukascopy.dds2.greed.agent.IDDSAgent;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.transport.common.model.type.*;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import com.dukascopy.transport.common.msg.group.OrderMessage;
+import java.math.BigDecimal;
+import java.util.Date;
+
+public class Order
+{
+
+    public Order(Position position)
+    {
+        this.position = null;
+        agent = null;
+        ogm = null;
+        this.position = position;
+    }
+
+    public Order(OrderGroupMessage ogm)
+    {
+        position = null;
+        agent = null;
+        this.ogm = null;
+        this.ogm = ogm;
+    }
+
+    public String getLabel()
+    {
+        String rc = "";
+        if(ogm != null)
+            rc = ogm.getOpeningOrder().getTag();
+        if(position != null)
+            if(position.getOrderGroup() != null)
+            {
+                rc = position.getOrderGroup().getOpeningOrder().getTag();
+                if(rc == null)
+                    rc = position.getOrderGroup().getOrderGroupId();
+            } else
+            {
+                rc = position.getTag();
+                if(rc == null)
+                    rc = position.getPositionID();
+            }
+        return rc;
+    }
+
+    public Date getOrderCreatedTime()
+    {
+        String str = null;
+        Date rc = null;
+        if(ogm != null)
+            rc = ogm.getOpeningOrder().getCreatedDate();
+        if(position != null)
+            rc = position.getOrderGroup().getOpeningOrder().getCreatedDate();
+        return rc;
+    }
+
+    public String getId()
+    {
+        String rc = "";
+        if(ogm != null)
+            rc = ogm.getOpeningOrder().getOrderGroupId();
+        if(position != null)
+            rc = position.getPositionID();
+        return rc;
+    }
+
+    public double getProfitLoss()
+    {
+        double rc = 0.0D;
+        if(position != null && position.getProfitLoss() != null)
+            rc = position.getProfitLoss().getValue().doubleValue();
+        return rc;
+    }
+
+    public double getProfitLossPips()
+    {
+        if(position == null)
+        {
+            return 0.0D;
+        } else
+        {
+            double pnl = getProfitLoss();
+            double pipProfit = pnl / (getAmount() * getOnePip() * 1000000D);
+            pipProfit = StratUtils.round(pipProfit, 3);
+            return pipProfit;
+        }
+    }
+
+    public double getAmount()
+    {
+        double rc = 0.0D;
+        if(position != null && position.getAmount() != null)
+            rc = position.getAmount().getValue().doubleValue();
+        if(ogm != null)
+        {
+            if(ogm.getAmount() != null)
+                rc = ogm.getAmount().getValue().doubleValue();
+            if(rc == 0.0D)
+                rc = ogm.getOpeningOrder().getAmount().getValue().doubleValue();
+        }
+        rc *= 9.9999999999999995E-007D;
+        return rc;
+    }
+
+    public double getOnePip()
+    {
+        return StratUtils.pipValue(getSymbol());
+    }
+
+    public double getPriceOpen()
+    {
+        double rc = 0.0D;
+        if(ogm != null)
+        {
+            Money stopprice = ogm.getOpeningOrder().getPriceStop();
+            if(stopprice != null)
+                rc = stopprice.getValue().doubleValue();
+        }
+        if(position != null)
+            rc = position.getPriceOpen().getValue().doubleValue();
+        return rc;
+    }
+
+    public boolean isFilled()
+    {
+        boolean rc = false;
+        if(position != null)
+            rc = true;
+        return rc;
+    }
+
+    public String getSymbol()
+    {
+        String symbol = "";
+        if(ogm != null)
+            symbol = ogm.getInstrument();
+        if(position != null)
+            symbol = position.getInstrument();
+        return StratUtils.normalizeSymbol(symbol);
+    }
+
+    public int getOrderType()
+    {
+        int type = -1;
+        if(ogm != null)
+        {
+            if(ogm.getOpeningOrder().getSide() == OrderSide.BUY)
+                type = 0;
+            if(ogm.getOpeningOrder().getSide() == OrderSide.SELL)
+                type = 1;
+        }
+        if(position != null)
+        {
+            OrderGroupMessage groupMessage = position.getOrderGroup();
+            if(groupMessage != null)
+            {
+                if(groupMessage.getOpeningOrder().getSide() == OrderSide.BUY)
+                    type = 0;
+                if(groupMessage.getOpeningOrder().getSide() == OrderSide.SELL)
+                    type = 1;
+            } else
+            {
+                if(position.getPositionSide() == PositionSide.LONG)
+                    type = 0;
+                if(position.getPositionSide() == PositionSide.SHORT)
+                    type = 1;
+            }
+        }
+        return type;
+    }
+
+    public int close()
+    {
+        int rc = 0;
+        if(ogm != null)
+            rc = agent.cancelOrder(getLabel());
+        if(position != null)
+            rc = agent.closePosition(getLabel());
+        return rc;
+    }
+
+    public int close(double price, double amount)
+    {
+        int rc = 0;
+        if(ogm != null)
+            if(price != 0.0D || amount != 0.0D)
+                rc = -99;
+            else
+                rc = agent.cancelOrder(getLabel());
+        if(position != null)
+            rc = agent.closePosition(getLabel(), price, amount);
+        return rc;
+    }
+
+    public int closeProfitPosition(int profitPips)
+    {
+        int rc = 0;
+        if(position != null)
+            rc = agent.closeProfitPosition(getLabel(), profitPips);
+        return rc;
+    }
+
+    public int submitStop(int cmd, int pips)
+        throws AgentException
+    {
+        return agent.submitStop(getLabel(), cmd, pips);
+    }
+
+    public int submitStopPrice(int cmd, double price)
+        throws AgentException
+    {
+        return agent.submitStop(getLabel(), cmd, 0, price);
+    }
+
+    private double getPrice(int type)
+    {
+        double rc = 0.0D;
+        OrderMessage orderMessage = null;
+        OrderGroupMessage group = null;
+        if(ogm != null)
+            group = ogm;
+        if(position != null)
+            group = position.getOrderGroup();
+        if(type == 0)
+            orderMessage = group.getStopLossOrder();
+        else
+        if(type == 1)
+            orderMessage = group.getTakeProfitOrder();
+        if(orderMessage != null)
+        {
+            Money priceStop = orderMessage.getPriceStop();
+            Money priceLimit = orderMessage.getPriceLimit();
+            if(priceLimit != null)
+                rc = priceLimit.getValue().doubleValue();
+            if(priceStop != null)
+                rc = priceStop.getValue().doubleValue();
+        }
+        return rc;
+    }
+
+    public void modify(double d)
+    {
+    }
+
+    public double getStopLossPrice()
+    {
+        return getPrice(0);
+    }
+
+    public double getTakeProfitPrice()
+    {
+        return getPrice(1);
+    }
+
+    public String getComment()
+    {
+        OrderGroupMessage group = null;
+        if(ogm != null)
+            group = ogm;
+        if(position != null)
+            group = position.getOrderGroup();
+        return group.optString("comment");
+    }
+
+    public void setComment(String comment)
+    {
+        OrderGroupMessage group = null;
+        if(ogm != null)
+            group = ogm;
+        if(position != null)
+            group = position.getOrderGroup();
+        group.put("comment", comment);
+    }
+
+    public String toString()
+    {
+        if(ogm != null)
+            return (new StringBuilder()).append("Entry [").append(getLabel()).append("] ").append(getSymbol()).append(" ").append(getAmount()).toString();
+        if(position != null)
+            return (new StringBuilder()).append("Filled [").append(getLabel()).append("] ").append(getSymbol()).append(" ").append(getAmount()).append(" open=").append(getPriceOpen()).append(" [").append(getProfitLossPips()).append("]").toString();
+        else
+            return super.toString();
+    }
+
+    public boolean equals(Object obj)
+    {
+        if(obj instanceof Order)
+        {
+            Order ord = (Order)obj;
+            return ord.getId().equals(ord.getId());
+        } else
+        {
+            return super.equals(obj);
+        }
+    }
+
+    public int hashCode()
+    {
+        return Integer.parseInt(getId());
+    }
+
+    public void setAgent(IDDSAgent agent)
+    {
+        this.agent = agent;
+    }
+
+    private Position position;
+    private IDDSAgent agent;
+    private OrderGroupMessage ogm;
+}

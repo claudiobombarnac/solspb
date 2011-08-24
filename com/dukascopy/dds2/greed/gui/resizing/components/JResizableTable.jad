@@ -1,0 +1,63 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JResizableTable.java
+
+package com.dukascopy.dds2.greed.gui.resizing.components;
+
+import com.dukascopy.dds2.greed.gui.resizing.Resizable;
+import com.dukascopy.dds2.greed.gui.resizing.ResizingManager;
+import java.awt.Font;
+import javax.swing.JTable;
+import javax.swing.table.JTableHeader;
+import javax.swing.table.TableModel;
+
+public class JResizableTable extends JTable
+    implements Resizable
+{
+
+    public JResizableTable()
+    {
+        ResizingManager.addResizable(this);
+    }
+
+    public JResizableTable(TableModel tableModel)
+    {
+        super(tableModel);
+        ResizingManager.addResizable(this);
+    }
+
+    public JResizableTable(int numRows, int numColumns)
+    {
+        super(numRows, numColumns);
+        ResizingManager.addResizable(this);
+    }
+
+    public Object getDefaultSize()
+    {
+        return Integer.valueOf(getTableHeader().getFont().getSize());
+    }
+
+    public void setSizeMode(Object size)
+    {
+        setFont(getFont().deriveFont(((Float)size).floatValue()));
+        getTableHeader().setFont(getTableHeader().getFont().deriveFont(((Float)size).floatValue()));
+        apllySizeMode();
+    }
+
+    private void apllySizeMode()
+    {
+        if(ResizingManager.isLargeMode())
+            setRowHeight(24);
+        else
+        if(ResizingManager.isMediumMode())
+            setRowHeight(20);
+        else
+            setRowHeight(16);
+    }
+
+    private static final long serialVersionUID = 1L;
+    private static final int SMALL_ROW_HEIGHT = 16;
+    private static final int MEDIUM_ROW_HEIGHT = 20;
+    private static final int LARGE_ROW_HEIGHT = 24;
+}

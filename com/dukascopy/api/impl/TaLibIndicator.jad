@@ -1,0 +1,610 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   TaLibIndicator.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.impl.talib.FuncInfoHolder;
+import com.dukascopy.api.impl.talib.InputParameterInfoHolder;
+import com.dukascopy.api.impl.talib.IntegerListHolder;
+import com.dukascopy.api.impl.talib.IntegerRangeHolder;
+import com.dukascopy.api.impl.talib.OptInputParameterInfoHolder;
+import com.dukascopy.api.impl.talib.OutputParameterInfoHolder;
+import com.dukascopy.api.impl.talib.RealListHolder;
+import com.dukascopy.api.impl.talib.RealRangeHolder;
+import com.dukascopy.api.indicators.*;
+import com.dukascopy.charts.math.indicators.IndicatorsFilter;
+import com.tictactec.ta.lib.MInteger;
+import com.tictactec.ta.lib.meta.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl:
+//            TaLibException, TaLibMetaData
+
+public class TaLibIndicator
+    implements IIndicator, IMinMax
+{
+
+    public TaLibIndicator(TaLibMetaData taLibMetaData)
+    {
+        this.taLibMetaData = taLibMetaData;
+        FuncInfoHolder funcInfo = taLibMetaData.getFuncInfo();
+        String name = funcInfo.name.toUpperCase();
+        String groupName = funcInfo.group;
+        indicatorInfo = new IndicatorInfo(name, IndicatorsFilter.getTitle(funcInfo.name), groupName, (funcInfo.flags & 0x1000000) > 0 || (funcInfo.flags & 0x10000000) > 0, (funcInfo.flags & 0x4000000) > 0, (funcInfo.flags & 0x8000000) > 0 || funcInfo.name.startsWith("MACD") || funcInfo.name.equals("TRIX") || funcInfo.name.equals("MA") || funcInfo.name.startsWith("BBANDS"), funcInfo.nbInput, funcInfo.nbOptInput, funcInfo.nbOutput);
+        if(name.equalsIgnoreCase("SAR") || name.equalsIgnoreCase("SAREXT") || name.equalsIgnoreCase("AD") || name.equalsIgnoreCase("OBV") || funcInfo.name.startsWith("MAMA") || funcInfo.name.startsWith("DEMA"))
+            indicatorInfo.setRecalculateAll(true);
+        inputParamInfos = new InputParameterInfo[indicatorInfo.getNumberOfInputs()];
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$tictactec$ta$lib$meta$annotation$InputParameterType[];
+            static final int $SwitchMap$com$tictactec$ta$lib$meta$annotation$OptInputParameterType[];
+            static final int $SwitchMap$com$tictactec$ta$lib$meta$annotation$OutputParameterType[];
+            static final int $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type[];
+            static final int $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type = new int[com.dukascopy.api.indicators.OutputParameterInfo.Type.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.DOUBLE.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.INT.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type = new int[com.dukascopy.api.indicators.InputParameterInfo.Type.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type[com.dukascopy.api.indicators.InputParameterInfo.Type.DOUBLE.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$api$indicators$InputParameterInfo$Type[com.dukascopy.api.indicators.InputParameterInfo.Type.PRICE.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                $SwitchMap$com$tictactec$ta$lib$meta$annotation$OutputParameterType = new int[OutputParameterType.values().length];
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$OutputParameterType[OutputParameterType.TA_Output_Integer.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$OutputParameterType[OutputParameterType.TA_Output_Real.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                $SwitchMap$com$tictactec$ta$lib$meta$annotation$OptInputParameterType = new int[OptInputParameterType.values().length];
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$OptInputParameterType[OptInputParameterType.TA_OptInput_IntegerList.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$OptInputParameterType[OptInputParameterType.TA_OptInput_IntegerRange.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$OptInputParameterType[OptInputParameterType.TA_OptInput_RealList.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$OptInputParameterType[OptInputParameterType.TA_OptInput_RealRange.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+                $SwitchMap$com$tictactec$ta$lib$meta$annotation$InputParameterType = new int[InputParameterType.values().length];
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$InputParameterType[InputParameterType.TA_Input_Integer.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$InputParameterType[InputParameterType.TA_Input_Price.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$tictactec$ta$lib$meta$annotation$InputParameterType[InputParameterType.TA_Input_Real.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        for(int i = 0; i < inputParamInfos.length; i++)
+        {
+            InputParameterInfoHolder info = taLibMetaData.getInputParameterInfo(i);
+            com.dukascopy.api.indicators.InputParameterInfo.Type type;
+            switch(_cls1..SwitchMap.com.tictactec.ta.lib.meta.annotation.InputParameterType[info.type.ordinal()])
+            {
+            case 1: // '\001'
+                throw new IllegalArgumentException("Ints as input isn't supported");
+
+            case 2: // '\002'
+                type = com.dukascopy.api.indicators.InputParameterInfo.Type.PRICE;
+                break;
+
+            case 3: // '\003'
+                type = com.dukascopy.api.indicators.InputParameterInfo.Type.DOUBLE;
+                break;
+
+            default:
+                throw new IllegalArgumentException("Unknown input type");
+            }
+            inputParamInfos[i] = new InputParameterInfo(renameInputs(info.paramName), type);
+        }
+
+        optInputParamInfos = new OptInputParameterInfo[indicatorInfo.getNumberOfOptionalInputs()];
+        for(int i = 0; i < optInputParamInfos.length; i++)
+        {
+            OptInputParameterInfoHolder info = taLibMetaData.getOptInputParameterInfo(i);
+            OptInputDescription description;
+            switch(_cls1..SwitchMap.com.tictactec.ta.lib.meta.annotation.OptInputParameterType[info.type.ordinal()])
+            {
+            case 1: // '\001'
+                IntegerListHolder list = taLibMetaData.getOptInputIntegerList(i);
+                description = new IntegerListDescription(funcInfo.name.startsWith("BBANDS") ? 1 : list.defaultValue, list.value, list.string);
+                break;
+
+            case 2: // '\002'
+                IntegerRangeHolder range = taLibMetaData.getOptInputIntegerRange(i);
+                int value = range.defaultValue;
+                if(funcInfo.name.startsWith("BBANDS"))
+                    value = 20;
+                int min = range.min;
+                if(funcInfo.name.equals("MACD") && i == 2)
+                    min = 2;
+                if(funcInfo.name.equals("MACDFIX") && i == 0)
+                    min = 2;
+                if(funcInfo.name.equals("TRIX") && i == 0)
+                    min = 2;
+                if(funcInfo.name.equals("ULTOSC") && i == 2)
+                    min = 2;
+                int increment = range.suggested_increment;
+                if(increment == 0)
+                    increment = 1;
+                description = new IntegerRangeDescription(value, min, range.max, increment);
+                break;
+
+            case 3: // '\003'
+                RealListHolder rlist = taLibMetaData.getOptInputRealList(i);
+                description = new DoubleListDescription(rlist.defaultValue, rlist.value, rlist.string);
+                break;
+
+            case 4: // '\004'
+                RealRangeHolder rrange = taLibMetaData.getOptInputRealRange(i);
+                double suggestedIncrement = rrange.suggested_increment;
+                if(suggestedIncrement == 0.0D)
+                    if(rrange.precision > 0)
+                        suggestedIncrement = 1 / (10 * rrange.precision);
+                    else
+                        suggestedIncrement = 1.0D;
+                description = new DoubleRangeDescription(rrange.defaultValue, rrange.min, rrange.max, suggestedIncrement, rrange.precision);
+                break;
+
+            default:
+                throw new IllegalArgumentException("Unknown optional input type");
+            }
+            com.dukascopy.api.indicators.OptInputParameterInfo.Type type;
+            if((info.flags & 0x100000) > 0)
+                type = com.dukascopy.api.indicators.OptInputParameterInfo.Type.PERCENT;
+            else
+            if((info.flags & 0x200000) > 0)
+                type = com.dukascopy.api.indicators.OptInputParameterInfo.Type.DEGREE;
+            else
+            if((info.flags & 0x400000) > 0)
+                type = com.dukascopy.api.indicators.OptInputParameterInfo.Type.CURRENCY;
+            else
+                type = com.dukascopy.api.indicators.OptInputParameterInfo.Type.OTHER;
+            optInputParamInfos[i] = new OptInputParameterInfo(renameOptInput(info.paramName), type, description);
+        }
+
+        outputParamInfos = new OutputParameterInfo[indicatorInfo.getNumberOfOutputs()];
+        for(int i = 0; i < outputParamInfos.length; i++)
+        {
+            OutputParameterInfoHolder info = taLibMetaData.getOutputParameterInfo(i);
+            com.dukascopy.api.indicators.OutputParameterInfo.Type type;
+            switch(_cls1..SwitchMap.com.tictactec.ta.lib.meta.annotation.OutputParameterType[info.type.ordinal()])
+            {
+            case 1: // '\001'
+                type = com.dukascopy.api.indicators.OutputParameterInfo.Type.INT;
+                break;
+
+            case 2: // '\002'
+                type = com.dukascopy.api.indicators.OutputParameterInfo.Type.DOUBLE;
+                break;
+
+            default:
+                throw new IllegalArgumentException("Unknown output type");
+            }
+            int flags = info.flags;
+            if((funcInfo.flags & 0x10000000) > 0)
+            {
+                if((flags & 1) > 0)
+                    flags ^= 1;
+                if(type == com.dukascopy.api.indicators.OutputParameterInfo.Type.INT && (flags & 0x40) == 0 && (flags & 0x20) == 0 && (flags & 0x80) == 0 && (flags & 0x10) <= 0 && (flags & 4) <= 0 && (flags & 8) <= 0 && (flags & 2) <= 0 && (flags & 1) <= 0)
+                    flags |= 0x40;
+            }
+            com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyle = com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.fromFlagValue(flags);
+            if(drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.NONE)
+                drawingStyle = com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.LINE;
+            outputParamInfos[i] = new OutputParameterInfo(renameOutput(info.paramName), type, drawingStyle);
+            if(drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.HISTOGRAM && (name.equals("MACD") || name.equals("MACDEXT") || name.equals("MACDFIX")))
+                outputParamInfos[i].setHistogramTwoColor(true);
+        }
+
+        if(name.equals("RSI") || name.equals("STOCH") || name.equals("MFI"))
+            fixedMinMax = (new double[] {
+                0.0D, 100D
+            });
+        else
+        if(name.equals("WILLR"))
+            fixedMinMax = (new double[] {
+                -100D, 0.0D
+            });
+        else
+        if(name.equals("CCI"))
+            fixedMinMax = (new double[] {
+                -500D, 500D
+            });
+        else
+        if(name.equals("RVI") || name.equals("OBV"))
+            fixedMinMax = (new double[] {
+                0.0D
+            });
+    }
+
+    private String renameOutput(String origName)
+    {
+        if(origName == null)
+            return "";
+        if(origName.equalsIgnoreCase("outReal"))
+            return "Line";
+        if(origName.equalsIgnoreCase("outInPhase"))
+            return "Phase";
+        if(origName.equalsIgnoreCase("outQuadrature"))
+            return "Quadrature";
+        if(origName.equalsIgnoreCase("outInteger"))
+            return "Integer";
+        if(origName.equalsIgnoreCase("outSine"))
+            return "Sine";
+        if(origName.equalsIgnoreCase("outLeadSine"))
+            return "Lead Sine";
+        if(origName.equalsIgnoreCase("outMin"))
+            return "Min";
+        if(origName.equalsIgnoreCase("outMax"))
+            return "Max";
+        if(origName.equalsIgnoreCase("outMAMA"))
+            return "MAMA";
+        if(origName.equalsIgnoreCase("outFAMA"))
+            return "FAMA";
+        if(origName.equalsIgnoreCase("outRealUpperBand"))
+            return "Upper Band";
+        if(origName.equalsIgnoreCase("outRealMiddleBand"))
+            return "Middle Band";
+        if(origName.equalsIgnoreCase("outRealLowerBand"))
+            return "Lower Band";
+        if(origName.equalsIgnoreCase("outMACD"))
+            return "MACD";
+        if(origName.equalsIgnoreCase("outMACDSignal"))
+            return "MACD Signal";
+        if(origName.equalsIgnoreCase("outMACDHist"))
+            return "MACD Hist";
+        if(origName.equalsIgnoreCase("outSlowK"))
+            return "Slow %K";
+        if(origName.equalsIgnoreCase("outSlowD"))
+            return "Slow %D";
+        if(origName.equalsIgnoreCase("outFastK"))
+            return "Fast %K";
+        if(origName.equalsIgnoreCase("outFastD"))
+            return "Fast %D";
+        if(origName.equalsIgnoreCase("outAroonDown"))
+            return "Aroon Down";
+        if(origName.equalsIgnoreCase("outAroonUp"))
+            return "Aroon Up";
+        else
+            return origName;
+    }
+
+    private String renameOptInput(String origName)
+    {
+        if(origName == null)
+            return "";
+        if(origName.equalsIgnoreCase("optInFastPeriod"))
+            return "Fast Period";
+        if(origName.equalsIgnoreCase("optInSlowPeriod"))
+            return "Slow Period";
+        if(origName.equalsIgnoreCase("optInTimePeriod"))
+            return "Time Period";
+        if(origName.equalsIgnoreCase("optInTimePeriod1"))
+            return "Time Period 1";
+        if(origName.equalsIgnoreCase("optInTimePeriod2"))
+            return "Time Period 2";
+        if(origName.equalsIgnoreCase("optInTimePeriod3"))
+            return "Time Period 3";
+        if(origName.equalsIgnoreCase("optInNbDev"))
+            return "Nb Dev";
+        if(origName.equalsIgnoreCase("optInStartValue"))
+            return "Start Value";
+        if(origName.equalsIgnoreCase("optInOffsetOnReverse"))
+            return "Offset On Reverse";
+        if(origName.equalsIgnoreCase("optInAccelerationInitLong"))
+            return "Acceleration Init Long";
+        if(origName.equalsIgnoreCase("optInAccelerationLong"))
+            return "Acceleration Long";
+        if(origName.equalsIgnoreCase("optInAccelerationMaxLong"))
+            return "Acceleration Max Long";
+        if(origName.equalsIgnoreCase("optInAccelerationInitShort"))
+            return "Acceleration Init Short";
+        if(origName.equalsIgnoreCase("optInAccelerationShort"))
+            return "Acceleration Short";
+        if(origName.equalsIgnoreCase("optInAccelerationMaxShort"))
+            return "Acceleration Max Short";
+        if(origName.equalsIgnoreCase("optInFastLimit"))
+            return "Fast Limit";
+        if(origName.equalsIgnoreCase("optInSlowLimit"))
+            return "Slow Limit";
+        if(origName.equalsIgnoreCase("optInVFactor"))
+            return "V Factor";
+        if(origName.equalsIgnoreCase("optInAcceleration"))
+            return "Acceleration";
+        if(origName.equalsIgnoreCase("optInMaximum"))
+            return "Maximum";
+        if(origName.equalsIgnoreCase("optInMinPeriod"))
+            return "Min Period";
+        if(origName.equalsIgnoreCase("optInMaxPeriod"))
+            return "Max Period";
+        if(origName.equalsIgnoreCase("optInMAType"))
+            return "MA Type";
+        if(origName.equalsIgnoreCase("optInNbDevUp"))
+            return "Nb Dev Up";
+        if(origName.equalsIgnoreCase("optInNbDevDn"))
+            return "Nb Dev Dn";
+        if(origName.equalsIgnoreCase("optInPenetration"))
+            return "Penetration";
+        if(origName.equalsIgnoreCase("optInFastMAType"))
+            return "Fast MAType";
+        if(origName.equalsIgnoreCase("optInSlowMAType"))
+            return "Slow MAType";
+        if(origName.equalsIgnoreCase("optInSignalPeriod"))
+            return "Signal Period";
+        if(origName.equalsIgnoreCase("optInSignalMAType"))
+            return "Signal MAType";
+        if(origName.equalsIgnoreCase("optInFastK_Period"))
+            return "Fast %K Period";
+        if(origName.equalsIgnoreCase("optInFastD_Period"))
+            return "Fast %D Period";
+        if(origName.equalsIgnoreCase("optInSlowK_Period"))
+            return "Slow %K Period";
+        if(origName.equalsIgnoreCase("optInSlowD_Period"))
+            return "Slow %D Period";
+        if(origName.equalsIgnoreCase("optInSlowK_MAType"))
+            return "Slow %K MAType";
+        if(origName.equalsIgnoreCase("optInSlowD_MAType"))
+            return "Slow %D MAType";
+        if(origName.equalsIgnoreCase("optInFastK_MAType"))
+            return "Fast %K MAType";
+        if(origName.equalsIgnoreCase("optInFastD_MAType"))
+            return "Fast %D MAType";
+        else
+            return origName;
+    }
+
+    private String renameInputs(String origName)
+    {
+        if(origName == null)
+            return "";
+        if(origName.equalsIgnoreCase("inReal"))
+            return "Price";
+        if(origName.equalsIgnoreCase("inReal0"))
+            return "Price 0";
+        if(origName.equalsIgnoreCase("inReal1"))
+            return "Price 1";
+        if(origName.equalsIgnoreCase("inPriceOHLC"))
+            return "Price OHLC";
+        if(origName.equalsIgnoreCase("inPriceHLCV"))
+            return "Price HLCV";
+        if(origName.equalsIgnoreCase("inPriceHLC"))
+            return "Price HLC";
+        if(origName.equalsIgnoreCase("inPriceHL"))
+            return "Price HL";
+        if(origName.equalsIgnoreCase("inPriceV"))
+            return "Price V";
+        if(origName.equalsIgnoreCase("inPeriods"))
+            return "Periods";
+        else
+            return origName;
+    }
+
+    public void onStart(IIndicatorContext iindicatorcontext)
+    {
+    }
+
+    public IndicatorResult calculate(int startIndex, int endIndex)
+    {
+        MInteger outBegIdx = new MInteger();
+        MInteger outNbElement = new MInteger();
+        try
+        {
+            taLibMetaData.callFunc(startIndex, endIndex, outBegIdx, outNbElement);
+        }
+        catch(RuntimeException e)
+        {
+            throw e;
+        }
+        catch(Exception e)
+        {
+            throw new TaLibException(e);
+        }
+        return new IndicatorResult(outBegIdx.value, outNbElement.value);
+    }
+
+    public IndicatorInfo getIndicatorInfo()
+    {
+        return indicatorInfo;
+    }
+
+    public InputParameterInfo getInputParameterInfo(int index)
+    {
+        return inputParamInfos[index];
+    }
+
+    public int getLookback()
+    {
+        return taLibMetaData.getLookback();
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return 0;
+    }
+
+    public int getLookforward()
+    {
+        return 0;
+    }
+
+    public OptInputParameterInfo getOptInputParameterInfo(int index)
+    {
+        return optInputParamInfos[index];
+    }
+
+    public OutputParameterInfo getOutputParameterInfo(int index)
+    {
+        return outputParamInfos[index];
+    }
+
+    public void setInputParameter(int index, Object array)
+    {
+        InputParameterInfo inputParamInfo = inputParamInfos[index];
+        switch(_cls1..SwitchMap.com.dukascopy.api.indicators.InputParameterInfo.Type[inputParamInfo.getType().ordinal()])
+        {
+        case 1: // '\001'
+            taLibMetaData.setInputParamReal(index, array);
+            break;
+
+        case 2: // '\002'
+            double prices[][] = (double[][])(double[][])array;
+            taLibMetaData.setInputParamPrice(index, prices[0], prices[2], prices[3], prices[1], prices[4], new double[prices[0].length]);
+            break;
+        }
+    }
+
+    public void setOptInputParameter(int index, Object value)
+    {
+        OptInputParameterInfo inputParamInfo = optInputParamInfos[index];
+        if((inputParamInfo.getDescription() instanceof IntegerListDescription) || (inputParamInfo.getDescription() instanceof IntegerRangeDescription))
+            taLibMetaData.setOptInputParamInteger(index, ((Integer)value).intValue());
+        else
+        if((inputParamInfo.getDescription() instanceof DoubleListDescription) || (inputParamInfo.getDescription() instanceof DoubleRangeDescription))
+            taLibMetaData.setOptInputParamReal(index, ((Double)value).doubleValue());
+    }
+
+    public void setOutputParameter(int index, Object array)
+    {
+        OutputParameterInfo outputParamInfo = outputParamInfos[index];
+        switch(_cls1..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[outputParamInfo.getType().ordinal()])
+        {
+        case 1: // '\001'
+            taLibMetaData.setOutputParamReal(index, array);
+            break;
+
+        case 2: // '\002'
+            taLibMetaData.setOutputParamInteger(index, array);
+            break;
+        }
+    }
+
+    public double[] getMinMax(int outputIdx, Object values, int firstVisibleValueIndex, int lastVisibleValueIndex)
+    {
+        double result[] = null;
+        if(fixedMinMax != null && fixedMinMax.length == 2)
+            return fixedMinMax;
+        if(values instanceof double[])
+            result = calculateDoubleMinMax((double[])(double[])values, firstVisibleValueIndex, lastVisibleValueIndex);
+        else
+        if(values instanceof int[])
+            result = calculateIntegerMinMax((int[])(int[])values, firstVisibleValueIndex, lastVisibleValueIndex);
+        if(fixedMinMax != null && fixedMinMax.length == 1)
+        {
+            double fixedLevel = fixedMinMax[0];
+            double min = result[0];
+            double max = result[1];
+            if(fixedLevel > min && fixedLevel > max)
+                result[1] = fixedLevel;
+            else
+            if(fixedLevel < min && fixedLevel < max)
+                result[0] = fixedLevel;
+        }
+        return result;
+    }
+
+    private double[] calculateIntegerMinMax(int intValues[], int firstVisibleValueIndex, int lastVisibleValueIndex)
+    {
+        double curMin = (0.0D / 0.0D);
+        double curMax = (0.0D / 0.0D);
+        int i = firstVisibleValueIndex <= 0 ? 0 : firstVisibleValueIndex - 1;
+        for(int j = intValues.length - 1 <= lastVisibleValueIndex ? lastVisibleValueIndex : lastVisibleValueIndex + 1; i < j; i++)
+        {
+            int curValue = intValues[i];
+            if(curValue == 0x80000000)
+                continue;
+            if(curMin == -2147483648D)
+                curMin = curValue;
+            if(curMax == -2147483648D)
+                curMax = curValue;
+            curMin = curMin <= (double)curValue ? curMin : curValue;
+            curMax = curMax <= (double)curValue ? curValue : curMax;
+        }
+
+        if(curMin == curMax)
+        {
+            curMin = 1.0D;
+            curMax = 2D;
+        }
+        return (new double[] {
+            curMin, curMax
+        });
+    }
+
+    private double[] calculateDoubleMinMax(double doubleValues[], int firstVisibleValueIndex, int lastVisibleValueIndex)
+    {
+        double curMin = (0.0D / 0.0D);
+        double curMax = (0.0D / 0.0D);
+        int i = firstVisibleValueIndex <= 0 ? 0 : firstVisibleValueIndex - 1;
+        for(int j = doubleValues.length - 1 <= lastVisibleValueIndex ? lastVisibleValueIndex : lastVisibleValueIndex + 1; i < j; i++)
+        {
+            double curValue = doubleValues[i];
+            if(Double.isNaN(curValue))
+                continue;
+            if(curMin != curMin)
+                curMin = curValue;
+            if(curMax != curMax)
+                curMax = curValue;
+            curMin = curMin <= curValue ? curMin : curValue;
+            curMax = curMax <= curValue ? curValue : curMax;
+        }
+
+        return (new double[] {
+            curMin, curMax
+        });
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/TaLibIndicator);
+    private TaLibMetaData taLibMetaData;
+    private IndicatorInfo indicatorInfo;
+    private InputParameterInfo inputParamInfos[];
+    private OptInputParameterInfo optInputParamInfos[];
+    private OutputParameterInfo outputParamInfos[];
+    private double fixedMinMax[];
+
+}

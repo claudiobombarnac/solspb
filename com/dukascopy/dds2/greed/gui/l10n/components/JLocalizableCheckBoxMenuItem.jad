@@ -1,0 +1,60 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JLocalizableCheckBoxMenuItem.java
+
+package com.dukascopy.dds2.greed.gui.l10n.components;
+
+import com.dukascopy.dds2.greed.gui.l10n.Localizable;
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import java.awt.Font;
+import javax.swing.*;
+
+public class JLocalizableCheckBoxMenuItem extends JCheckBoxMenuItem
+    implements Localizable
+{
+
+    public JLocalizableCheckBoxMenuItem()
+    {
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableCheckBoxMenuItem(String textKey)
+    {
+        this.textKey = textKey;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableCheckBoxMenuItem(String textKey, Icon icon)
+    {
+        super(icon);
+        this.textKey = textKey;
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableCheckBoxMenuItem(Action action)
+    {
+        super(action);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public void localize()
+    {
+        setFont(LocalizationManager.getDefaultFont(getFont().getSize()));
+        setText(textKey);
+    }
+
+    public void setText(String key)
+    {
+        textKey = key;
+        if(textKey != null)
+            super.setText(LocalizationManager.getText(textKey));
+    }
+
+    public String getTextKey()
+    {
+        return textKey;
+    }
+
+    private String textKey;
+}

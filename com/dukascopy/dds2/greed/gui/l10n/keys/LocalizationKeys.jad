@@ -1,0 +1,154 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LocalizationKeys.java
+
+package com.dukascopy.dds2.greed.gui.l10n.keys;
+
+
+public class LocalizationKeys
+{
+
+    public LocalizationKeys()
+    {
+    }
+
+    public static final String SC_CALCULATOR_TOOLTIP_USE_TO_CALCULATE_WITH_THE_LAST_RESULT_YOU_FOUND = "sc.calculator.use.to.calculate.with.the.last.result.you.found";
+    public static final String SC_CALCULATOR_CHANGE_BASE_TO_BINARY = "sc.calculator.change.base.to.binary";
+    public static final String SC_CALCULATOR_INVERSE_COSINE_FUNCTION = "sc.calculator.inverse.cosine.function";
+    public static final String SC_CALCULATOR_INVERSE_SINE_FUNCTION = "sc.calculator.inverse.sine.function";
+    public static final String SC_CALCULATOR_ADDITION_OR_PLUS_SIGN = "sc.calculator.addtion.or.plus.sign";
+    public static final String SC_CALCULATOR_LOGICAL_BITWISE_AND = "sc.calculator.logical.bitwise.and";
+    public static final String SC_CALCULATOR_INVERSE_TANGENT_FUNCTION = "sc.calculator.inverse.tangent.function";
+    public static final String SC_CALCULATOR_COPY_RESULT_TO_CLIPBOARD_COPY = "sc.calculator.copy.result.to.clipboard.copy";
+    public static final String SC_CALCULATOR_DELETES_THE_LAST_PART_OF_THE_EXPRESSION_YOU_ARE_TYPING_BACKSPACE = "sc.calculator.deletes.the.last.part.of.the.expressio.you.are.typing.backspace";
+    public static final String SC_CALCULATOR_EVALUATES_THE_EXPRESSION_YOU_HAVE_JUST_TYPED = "sc.calculator.evaluates.the.expression.you.have.just.typed";
+    public static final String SC_CALCULATOR_USE_TO_DISPLAY_A_GRAPH = "sc.calculator.use.to.display.a.graph";
+    public static final String SC_CALCULATOR_CLEARS_THE_CALCULATOR_MEMORY = "sc.calculator.clears.the.calculator.memory";
+    public static final String SC_CALCULATOR_SUBSTRACTS_CURRENT_EXPRESSION_OR_MOST_RECENT_RESULT_FROM_MEMORY_VALUE = "sc.calculator.subtracts.current.expression.or.most.recent.result.value.from.memory";
+    public static final String SC_CALCULATOR_CHANGE_MODE = "sc.calculator.change.mode";
+    public static final String SC_CALCULATOR_ADDS_CURRENT_EXPRESSION_OR_MOST_RECENT_RESULT_TO_MEMORY_VALUE = "sc.calculator.adds.current.expression.or.most.recent.result.value.to.memory";
+    public static final String SC_CALCULATOR_SWITCH_OFF = "sc.calculator.switch.off";
+    public static final String SC_CALCULATOR_SWITCHES_THE_CALCULATOR_ON_AND_CLEARS_THE_DISPLAY = "sc.calculator.switches.the.calculator.on.and.clears.the.display";
+    public static final String SC_CALCULATOR_USE_TO_SELECT_ORIGINAL_FUNCTION_ON_ALL_KEYS = "sc.calculator.use.to.select.original.function.on.all.keys";
+    public static final String SC_CALCULATOR_USE_TO_RECALL_THE_VALUE_IN_MEMORY = "sc.calculator.use.to.recall.the.value.in.memory";
+    public static final String SC_CALCULATOR_CLEARS_THE_CALCULATOR_STATISTICS_MEMORY = "sc.calculator.clears.the.calculator.statistics.memory";
+    public static final String SC_CALCULATOR_USE_TO_SELECT_SECOND_INVERSE_FUNCTION_ON_SOME_KEYS = "sc.calculator.use.to.select.2nd.inverse.function.on.some.keys";
+    public static final String SC_CALCULATOR_REMOVES_CURRENT_EXPRESSION_OR_MOST_RECENT_RESULT_FROM_STATISTICS_MEMORY = "sc.calculator.removes.current.expression.or.most.recent.result.from.statistics.memory";
+    public static final String SC_CALCULATOR_ADDS_CURRENT_EXPRESSION_OR_MOST_RECENT_RESULT_AS_A_NUMBER_IN_STATISTICS_MEMORY = "sc.calculator.adds.current.expression.or.most.recent.result.as.a.number.in.statistics.memory";
+    public static final String SC_CALCULATOR_EVALUATES_CURRENT_EXPRESSION_AND_STORES_IN_MEMORY = "sc.calculator.evaluates.current.expression.and.stores.in.memory";
+    public static final String SC_CALCULATOR_COMBINATION_FUNCTION_TOOLTIP = "sc.calculator.combination.function.tooltip";
+    public static final String SC_CALCULATOR_COMPLEX_CONJUGATE_OF_X = "sc.calculator.complex.conjugate.of.x";
+    public static final String SC_CALCULATOR_COSINE_FUNCTION = "sc.calculator.cosine.function";
+    public static final String SC_CALCULATOR_TOGGLE_COMPLEX_NOTATION = "sc.calculator.toggle.complex.notation";
+    public static final String SC_CALCULATOR_CUBE_OF_X = "sc.calculator.cube.of.x";
+    public static final String SC_CALCULATOR_CUBE_ROOT_OF_X = "sc.calculator.cube.root.of.x";
+    public static final String SC_CALCULATOR_CHANGE_BASE_TO_DECIMAL = "sc.calculator.change.base.to.decimal";
+    public static final String SC_CALCULATOR_DIVISION = "sc.calculator.division";
+    public static final String SC_CALCULATOR_NEXT_EXPRESSION_DOWN_ARRAOW = "sc.calculator.next.expression.down.arrow";
+    public static final String SC_CALCULATOR_E_NUMBER_TOOLTIP = "sc.calculator.e.number.tooltip";
+    public static final String SC_CALCULATOR_EXPONENTIAL_FUNCTION = "sc.calculator.exponential.function";
+    public static final String SC_CALCULATOR_FACTORIAL_FUNCTION = "sc.calculator.factorial.function";
+    public static final String SC_CALCULATOR_CHANGE_BASE_TO_HEXADECIMAL = "sc.calculator.change.base.to.hexadecimal";
+    public static final String SC_CALCULATOR_ABOUT = "sc.calculator.about";
+    public static final String SC_CALCULATOR_THE_INVERSE_OF_X = "sc.calculator.the.inverse.of.x";
+    public static final String SC_CALCULATOR_MOVE_CARET_LEF_LEFT_ARROW = "sc.calculator.move.caret.left.left.arrow";
+    public static final String SC_CALCULATOR_NATURAL_LOGARITHM = "sc.calculator.natural.logarithm";
+    public static final String SC_CALCULATOR_BASE_10_NATURAL_LOGARITHM = "sc.calculator.base.10.logarithm";
+    public static final String SC_CALCULATOR_LEFT_PARANTHESIS_BRAKET = "sc.calculator.left.parenthesis.bracket";
+    public static final String SC_CALCULATOR_THE_MEAN_OF_THE_NUMBERS_STORED_IN_STATISTICS_MEMORY = "sc.calculator.the.mean.of.the.numbers.stored.in.statistics.memory";
+    public static final String SC_CALCULATOR_MULTIPLICATION = "sc.calculator.multiplication";
+    public static final String SC_CALCULATOR_CHANGE_BASE_TO_OCTAL = "sc.calculator.change.base.to.octal";
+    public static final String SC_CALCULATOR_LOGICAL_BITWISE_INCLUSIVE_OR = "sc.calculator.logical.bitwise.inclusive.or";
+    public static final String SC_CALCULATOR_PERMUTATION_FUNCTION = "sc.calculator.permutation.function.tooltip";
+    public static final String SC_CALCULATOR_CHANGE_TO_FROM_COMPLEX_POLAR_NOTATION = "sc.calculator.change.to.from.complex.polar.notation";
+    public static final String SC_CALCULATOR_POP_ST_DEV_FUNCTION = "sc.calculator.pop.st.dev.function";
+    public static final String SC_CALCULATOR_POWER_FUNCTION = "sc.calculator.power.function";
+    public static final String SC_CALCULATOR_MOVE_CARET_RIGHT_RIGHT_ARROW = "sc.calculator.move.caret.right.right.arrow";
+    public static final String SC_CALCULATOR_Y_TH_ROOT_OF_X = "sc.calculator.y.th.root.of.x";
+    public static final String SC_CALCULATOR_RIGHT_PARANTHESIS_BRAKET = "sc.calculator.right.parenthesis.bracket";
+    public static final String SC_CALCULATOR_CHANGE_TO_FROM_SCIENTIFIC_NOTATIOTN = "sc.calculator.change.to.from.scientific.notation";
+    public static final String SC_CALCULATOR_SINE_FUNCTION = "sc.calculator.sine.function";
+    public static final String SC_CALCULATOR_SQUARE_OF_X = "sc.calculator.square.of.x";
+    public static final String SC_CALCULATOR_SQUARE_ROOT_OF_X = "sc.calculator.square.root.of.x";
+    public static final String SC_CALCULATOR_ST_DEV_FUNCTION_TOOLTIP = "sc.calculator.st.dev.function.tooltip";
+    public static final String SC_CALCULATOR_SUBSTRACTION_OR_MINUS_SIGN = "sc.calculator.subtraction.or.minus.sign";
+    public static final String SC_CALCULATOR_TANGENT_FUNCTION = "sc.calculator.tangent.function";
+    public static final String SC_CALCULATOR_TEN_X_FUNCTION = "sc.calculator.ten.x.function";
+    public static final String SC_CALCULATOR_PREVIOUS_EXPRESSION_UP_ARROW = "sc.calculator.previous.expression.up.arrow";
+    public static final String SC_CALCULATOR_LOGICAL_BITWISE_EXCLUSIVE_OR = "sc.calculator.logical.bitwise.exclusive.or";
+    public static final String ITEM_LANG_BULGARIAN = "menu.item.lang.bulgarian";
+    public static final String ITEM_LANG_ENG = "menu.item.lang.english";
+    public static final String ITEM_LANG_GERMAN = "menu.item.lang.german";
+    public static final String ITEM_LANG_FRENCH = "menu.item.lang.french";
+    public static final String ITEM_LANG_RUSSIAN = "menu.item.lang.russian";
+    public static final String ITEM_LANG_CHINA = "menu.item.lang.china";
+    public static final String ITEM_LANG_SPAINISH = "menu.item.lang.spanish";
+    public static final String ITEM_LANG_ITALIAN = "menu.item.lang.italian";
+    public static final String ITEM_LANG_JAPANESE = "menu.item.lang.japanese";
+    public static final String ITEM_LANG_ARABIC = "menu.item.lang.arabic";
+    public static final String ITEM_LANG_PORTUGUESE = "menu.item.lang.portuguese";
+    public static final String ITEM_SHORT_LANG_BULGARIAN = "short.menu.item.lang.bulgarian";
+    public static final String ITEM_SHORT_LANG_ENG = "short.menu.item.lang.english";
+    public static final String ITEM_SHORT_LANG_GERMAN = "short.menu.item.lang.german";
+    public static final String ITEM_SHORT_LANG_FRENCH = "short.menu.item.lang.french";
+    public static final String ITEM_SHORT_LANG_RUSSIAN = "short.menu.item.lang.russian";
+    public static final String ITEM_SHORT_LANG_CHINA = "short.menu.item.lang.china";
+    public static final String ITEM_SHORT_LANG_SPAINISH = "short.menu.item.lang.spanish";
+    public static final String ITEM_SHORT_LANG_ITALIAN = "short.menu.item.lang.italian";
+    public static final String ITEM_SHORT_LANG_JAPANESE = "short.menu.item.lang.japanese";
+    public static final String ITEM_SHORT_LANG_ARABIC = "short.menu.item.lang.arabic";
+    public static final String ITEM_SHORT_LANG_PORTUGUESE = "short.menu.item.lang.portuguese";
+    public static final String ITEM_SMALL_SIZE_MODE = "item.small.size.mode";
+    public static final String ITEM_MEDIUM_SIZE_MODE = "item.medium.size.mode";
+    public static final String ITEM_LARGE_SIZE_MODE = "item.large.size.mode";
+    public static final String CUSTOM_PERIOD_SECS = "custom.period.secs";
+    public static final String CUSTOM_PERIOD_MINS = "custom.period.mins";
+    public static final String CUSTOM_PERIOD_HOURS = "custom.period.hours";
+    public static final String CUSTOM_PERIOD_DAYS = "custom.period.days";
+    public static final String CUSTOM_PERIOD_WEEKS = "custom.period.weeks";
+    public static final String CUSTOM_PERIOD_MONTHS = "custom.period.months";
+    public static final String PRICE_RANGE_PIP = "price.range.pip";
+    public static final String PRICE_RANGE_PIPS = "price.range.pips";
+    public static final String POINT_AND_FIGURE = "point.and.figure";
+    public static final String TRADE_BAR = "trade.bar";
+    public static final String TICK_BAR_TICK = "trade.bar.tick";
+    public static final String TICK_BAR_TICKS = "trade.bar.ticks";
+    public static final String CHOOSER_FILE_NAME = "chooser.file.name";
+    public static final String CHOOSER_KEY = "chooser.key";
+    public static final String CHOOSER_DESCRIPTION = "chooser.description";
+    public static final String CHOOSER_SHARING_WRONG_KEY = "chooser.sharing.wrong.key";
+    public static final String CHOOSER_SHARING_UNLOCKED_SUCCESS = "chooser.sharing.unlock.success";
+    public static final String CHOOSER_LOCAL = "chooser.local";
+    public static final String CHOOSER_LOCAL_EXT = "chooser.local.ext";
+    public static final String CHOOSER_REMOTE = "chooser.remote";
+    public static final String CHOOSER_REMOTE_EXT = "chooser.remote.ext";
+    public static final String CHOOSER_PUBLIC = "chooser.public";
+    public static final String CHOOSER_PUBLIC_EXT = "chooser.public.ext";
+    public static final String CHOOSER_DATE_MODIFIED = "chooser.date.modified";
+    public static final String CHOOSER_IS_SHARED = "chooser.is.shared";
+    public static final String CHOOSER_OPEN = "chooser.open";
+    public static final String CHOOSER_SAVE = "chooser.save";
+    public static final String BUTTON_SHARE = "button.share";
+    public static final String BUTTON_OK = "button.ok";
+    public static final String BUTTON_CANCEL = "button.cancel";
+    public static final String BUTTON_REFRESH = "button.refresh";
+    public static final String BUTTON_KEYS = "button.keys";
+    public static final String CHOOSER_LIST_FAILED = "chooser.list.failed";
+    public static final String CHOOSER_FILE_ALREADY_EXIST = "chooser.file.already.exist";
+    public static final String CHOOSER_KEY_ALREADY_EXIST = "chooser.file.already.exist";
+    public static final String KEY_COPY_CLIPBOARD = "key.copy.clipboard";
+    public static final String KEY_COPY_CLIPBOARD_TITLE = "key.copy.clipboard.title";
+    public static final String NO_KEYS = "no.keys";
+    public static final String YES_OPTION = "yes.option";
+    public static final String NO_OPTION = "no.option";
+    public static final String OK_OPTION = "ok.option";
+    public static final String CONFIRMATION_TITLE = "confirmation.title";
+    public static final String INFORMATION_TITLE = "information.title";
+    public static final String ERROR_TITLE = "error.title";
+    public static final String STRAT_PARAMS_DIALOG_TITLE = "strategy.parameters.dialog.title";
+    public static final String STRAT_PARAMS_DIALOG_BUTTON_RUN = "strategy.parameters.dialog.button.run";
+    public static final String STRAT_PARAMS_DIALOG_BUTTON_SET = "strategy.parameters.dialog.button.set";
+    public static final String STRAT_PARAMS_DIALOG_BUTTON_CANCEL = "strategy.parameters.dialog.button.cancel";
+    public static final String LABEL_ERROR_PROPERTY_IS_EMPTY = "label.error.property.is.empty";
+}

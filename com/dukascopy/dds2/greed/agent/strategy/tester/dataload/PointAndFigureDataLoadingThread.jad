@@ -1,0 +1,121 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PointAndFigureDataLoadingThread.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.dataload;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.impl.TimedData;
+import com.dukascopy.charts.data.datacache.IFeedDataProvider;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.data.datacache.pnf.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.data.datacache.priceaggregation.IPriceAggregationLiveFeedListener;
+import java.util.concurrent.BlockingQueue;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester.dataload:
+//            AbstractPriceAggregationDataLoadingThread
+
+public class PointAndFigureDataLoadingThread extends AbstractPriceAggregationDataLoadingThread
+{
+
+    public PointAndFigureDataLoadingThread(String name, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, BlockingQueue queue, long from, 
+            long to, IFeedDataProvider feedDataProvider)
+    {
+        super(name, instrument, jForexPeriod, offerSide, queue, from, to, feedDataProvider);
+    }
+
+    protected void executeRun()
+    {
+        IPointAndFigureLiveFeedListener liveFeedListener = new PointAndFigureLiveFeedAdapter() {
+
+            public void newPriceData(PointAndFigureData pointAndFigure)
+            {
+                if(!isStop())
+                    putDataToQueue(pointAndFigure);
+            }
+
+            public volatile void newPriceData(AbstractPriceAggregationData x0)
+            {
+                newPriceData((PointAndFigureData)x0);
+            }
+
+            final PointAndFigureDataLoadingThread this$0;
+
+            
+            {
+                this$0 = PointAndFigureDataLoadingThread.this;
+                super();
+            }
+        };
+        com.dukascopy.charts.data.datacache.LoadingProgressListener progressListener = createLoadingProgressListener();
+        long toTime = checkToTimeRightBound(getTo());
+        getFeedDataProvider().loadPointAndFigureTimeIntervalSynched(getInstrument(), getOfferSide(), getJForexPeriod().getPriceRange(), getJForexPeriod().getReversalAmount(), getFrom(), toTime, liveFeedListener, progressListener);
+    }
+
+    protected PointAndFigureData createEmptyBar()
+    {
+        return new PointAndFigureData(0x8000000000000000L, 0x8000000000000000L, -1D, -1D, -1D, -1D, -1D, -1L, null);
+    }
+
+    protected void addInProgressBarListener(IPointAndFigureLiveFeedListener inProgressListener)
+    {
+        getFeedDataProvider().addInProgressPointAndFigureListener(getInstrument(), getOfferSide(), getJForexPeriod().getPriceRange(), getJForexPeriod().getReversalAmount(), inProgressListener);
+    }
+
+    protected IPointAndFigureLiveFeedListener createInProgressAdapter()
+    {
+        return new PointAndFigureLiveFeedAdapter() {
+
+            final PointAndFigureDataLoadingThread this$0;
+
+            
+            {
+                this$0 = PointAndFigureDataLoadingThread.this;
+                super();
+            }
+        };
+    }
+
+    protected PointAndFigureData getInProgressBar()
+    {
+        return getFeedDataProvider().getInProgressPointAndFigure(getInstrument(), getOfferSide(), getJForexPeriod().getPriceRange(), getJForexPeriod().getReversalAmount());
+    }
+
+    protected boolean isInProgressBarLoadingNow()
+    {
+        return getFeedDataProvider().isInProgressPointAndFigureLoadingNow(getInstrument(), getOfferSide(), getJForexPeriod().getPriceRange(), getJForexPeriod().getReversalAmount());
+    }
+
+    protected void removeInProgressBarListener(IPointAndFigureLiveFeedListener inProgressListener)
+    {
+        getFeedDataProvider().removeInProgressPointAndFigureListener(inProgressListener);
+    }
+
+    protected volatile IPriceAggregationLiveFeedListener createInProgressAdapter()
+    {
+        return createInProgressAdapter();
+    }
+
+    protected volatile void removeInProgressBarListener(IPriceAggregationLiveFeedListener x0)
+    {
+        removeInProgressBarListener((IPointAndFigureLiveFeedListener)x0);
+    }
+
+    protected volatile void addInProgressBarListener(IPriceAggregationLiveFeedListener x0)
+    {
+        addInProgressBarListener((IPointAndFigureLiveFeedListener)x0);
+    }
+
+    protected volatile AbstractPriceAggregationData getInProgressBar()
+    {
+        return getInProgressBar();
+    }
+
+    protected volatile TimedData createEmptyBar()
+    {
+        return createEmptyBar();
+    }
+}

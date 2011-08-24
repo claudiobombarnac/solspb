@@ -1,0 +1,168 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Table.java
+
+package com.dukascopy.dds2.greed.gui.table;
+
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.JTable;
+import javax.swing.SwingUtilities;
+import javax.swing.table.*;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.table:
+//            AnnotatedTableModel, ColumnDescriptor
+
+public class Table extends JTable
+{
+    private class TableMouseListener
+        implements MouseListener
+    {
+
+        public void mouseClicked(MouseEvent e)
+        {
+            handleEvent(e, true);
+        }
+
+        public void mouseEntered(MouseEvent e)
+        {
+            handleEvent(e, true);
+        }
+
+        public void mouseExited(MouseEvent e)
+        {
+            handleEvent(e, true);
+        }
+
+        public void mousePressed(MouseEvent e)
+        {
+            handleEvent(e, true);
+        }
+
+        public void mouseReleased(MouseEvent e)
+        {
+            handleEvent(e, true);
+        }
+
+        final Table this$0;
+
+        private TableMouseListener()
+        {
+            this$0 = Table.this;
+            super();
+        }
+
+    }
+
+
+    public Table(AnnotatedTableModel tableModel)
+    {
+        super(tableModel);
+        init();
+    }
+
+    public Table(AnnotatedTableModel tableModel, TableColumnModel tableColumnModel)
+    {
+        super(tableModel, tableColumnModel);
+        setAutoCreateColumnsFromModel(true);
+        init();
+    }
+
+    private void init()
+    {
+        AnnotatedTableModel tableModel = (AnnotatedTableModel)getModel();
+        tableHeader.setReorderingAllowed(false);
+        setAutoResizeMode(1);
+        TableRowSorter rowSorter = new TableRowSorter(tableModel);
+        setRowSorter(rowSorter);
+        setSelectionMode(0);
+        for(int i = 0; i < getColumnCount(); i++)
+        {
+            ColumnDescriptor columnDescriptor = tableModel.getColumnDescriptor(i);
+            TableColumn column = getColumnModel().getColumn(convertColumnIndexToView(i));
+            int columnWidth = columnDescriptor.width();
+            if(columnWidth > 0)
+            {
+                column.setMinWidth(columnWidth);
+                column.setPreferredWidth(columnWidth);
+                column.setWidth(columnWidth);
+                column.sizeWidthToFit();
+            }
+            int columnMaxWidth = columnDescriptor.maxWidth();
+            if(columnMaxWidth > 0)
+                column.setMaxWidth(columnMaxWidth);
+            column.setResizable(columnDescriptor.resizable());
+            rowSorter.setSortable(i, columnDescriptor.sortable());
+        }
+
+        addMouseListener(new TableMouseListener());
+        addMouseMotionListener(new MouseMotionAdapter() {
+
+            public void mouseMoved(MouseEvent e)
+            {
+                setCursor(Cursor.getDefaultCursor());
+                handleEvent(e, false);
+            }
+
+            final Table this$0;
+
+            
+            {
+                this$0 = Table.this;
+                super();
+            }
+        });
+        getTableHeader().addMouseListener(new MouseAdapter() {
+
+            public void mouseClicked(MouseEvent e)
+            {
+                forwardEventToHeader(e);
+            }
+
+            final Table this$0;
+
+            
+            {
+                this$0 = Table.this;
+                super();
+            }
+        });
+    }
+
+    protected boolean showPopup(Point point, int row, int column)
+    {
+        return false;
+    }
+
+    private void handleEvent(MouseEvent mouseEvent, boolean convert)
+    {
+        Point point = mouseEvent.getPoint();
+        int column = columnAtPoint(point);
+        int row = rowAtPoint(point);
+        if(row >= getRowCount() || row < 0 || column >= getColumnCount() || column < 0)
+            return;
+        if(mouseEvent.isPopupTrigger() && showPopup(point, row, column))
+            return;
+        Component rendererComponent = getCellRenderer(row, column).getTableCellRendererComponent(this, getValueAt(row, column), false, false, row, column);
+        if(convert)
+            rendererComponent.dispatchEvent(SwingUtilities.convertMouseEvent(this, mouseEvent, rendererComponent));
+        else
+            rendererComponent.dispatchEvent(mouseEvent);
+    }
+
+    private void forwardEventToHeader(MouseEvent mouseEvent)
+    {
+        int columnIndex = columnAtPoint(mouseEvent.getPoint());
+        if(columnIndex < 0 || columnIndex >= getColumnCount())
+            return;
+        TableColumn tableColumn = getColumnModel().getColumn(columnIndex);
+        if(tableColumn != null && tableColumn.getHeaderRenderer() != null)
+        {
+            Component rendererComponent = tableColumn.getHeaderRenderer().getTableCellRendererComponent(this, null, false, false, -1, columnIndex);
+            rendererComponent.dispatchEvent(SwingUtilities.convertMouseEvent(this, mouseEvent, rendererComponent));
+        }
+    }
+
+
+}

@@ -1,0 +1,1973 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CurvesJsonProtocolHandler.java
+
+package com.dukascopy.charts.data.datacache;
+
+import SevenZip.Compression.LZMA.Decoder;
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.gui.component.filechooser.CancelLoadingException;
+import com.dukascopy.dds2.greed.gui.component.filechooser.FileProgressListener;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import com.dukascopy.transport.client.*;
+import com.dukascopy.transport.client.events.DisconnectedEvent;
+import com.dukascopy.transport.common.datafeed.*;
+import com.dukascopy.transport.common.msg.ProtocolMessage;
+import com.dukascopy.transport.common.msg.datafeed.*;
+import com.dukascopy.transport.common.msg.request.QuitRequestMessage;
+import com.dukascopy.transport.common.msg.response.ErrorResponseMessage;
+import com.dukascopy.transport.common.msg.strategy.*;
+import java.io.*;
+import java.net.*;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            NotConnectedException, Data, DataCacheException, ICurvesProtocolHandler, 
+//            IAuthenticator, LoadingProgressListener, DataCacheUtils, CurvesProtocolUtil, 
+//            FeedDataProvider
+
+class CurvesJsonProtocolHandler
+    implements ICurvesProtocolHandler, ClientListener, StreamListener
+{
+    private static class FileResponseMessage extends ProtocolMessage
+    {
+
+        public byte[] getData()
+        {
+            return data;
+        }
+
+        public void setData(byte data[])
+        {
+            this.data = data;
+        }
+
+        private byte data[];
+
+        private FileResponseMessage()
+        {
+        }
+
+    }
+
+
+    public CurvesJsonProtocolHandler()
+    {
+        inProcess = new AtomicInteger(0);
+        lastAccess = new AtomicLong();
+        requestNumber = new AtomicInteger(0);
+        httpResponse50X = Pattern.compile("HTTP response code.{1,5}5\\d\\d");
+        disconnectTimer = new Timer("Curves connection closing timer", true);
+        disconnectTimer.schedule(new TimerTask() {
+
+            public void run()
+            {
+                thisLock.lock();
+                if(transportClient != null && transportClient.isOnline() && inProcess.get() == 0 && lastAccess.get() + 60000L < System.currentTimeMillis())
+                {
+                    try
+                    {
+                        transportClient.controlSynchRequest(new QuitRequestMessage(), Long.valueOf(1000L));
+                    }
+                    catch(TimeoutException e) { }
+                    authorizationResponse = null;
+                    transportClient.disconnect();
+                }
+                if(inProcess.get() == 0 && lastAccess.get() + 60000L < System.currentTimeMillis())
+                    authorizationResponse = null;
+                thisLock.unlock();
+                break MISSING_BLOCK_LABEL_189;
+                Exception exception;
+                exception;
+                thisLock.unlock();
+                throw exception;
+            }
+
+            final CurvesJsonProtocolHandler this$0;
+
+            
+            {
+                this$0 = CurvesJsonProtocolHandler.this;
+                super();
+            }
+        }, 10000L, 10000L);
+    }
+
+    public void connect(IAuthenticator authenticator, String userName, String instanceId, String historyServerUrl)
+    {
+        Map map = requestResponse;
+        JVM INSTR monitorenter ;
+        thisLock.lock();
+        if(transportClient != null)
+            disconnect();
+        this.authenticator = authenticator;
+        if(historyServerUrl != null)
+        {
+            this.historyServerUrl = historyServerUrl.trim();
+            if(!historyServerUrl.endsWith("/"))
+                this.historyServerUrl = (new StringBuilder()).append(historyServerUrl).append("/").toString();
+        }
+        ThreadFactory threadFactory = new ThreadFactory() {
+
+            public Thread newThread(Runnable r)
+            {
+                Thread thread = new Thread(r, (new StringBuilder()).append("DFS_Mina_Thread_").append(threadNumber.getAndIncrement()).toString());
+                if(!thread.isDaemon())
+                    thread.setDaemon(true);
+                return thread;
+            }
+
+            final AtomicInteger threadNumber = new AtomicInteger(1);
+            final CurvesJsonProtocolHandler this$0;
+
+            
+            {
+                this$0 = CurvesJsonProtocolHandler.this;
+                super();
+            }
+        };
+        transportClient = new TransportClient(null, null, null, this, new ThreadPoolExecutor(1, 5, 5L, TimeUnit.SECONDS, new LinkedBlockingQueue(), threadFactory));
+        transportClient.setListener(this);
+        transportClient.setStreamListener(this);
+        transportClient.setSecurityExceptionHandler(new SecurityExceptionHandler() {
+
+            public boolean isIgnoreSecurityException(X509Certificate chain[], String authType, CertificateException exception)
+            {
+                CurvesJsonProtocolHandler.LOGGER.warn((new StringBuilder()).append("Security exception: ").append(exception).toString());
+                return true;
+            }
+
+            final CurvesJsonProtocolHandler this$0;
+
+            
+            {
+                this$0 = CurvesJsonProtocolHandler.this;
+                super();
+            }
+        });
+        String implementationVersion = com/dukascopy/charts/data/datacache/CurvesJsonProtocolHandler.getPackage().getImplementationVersion();
+        transportClient.setUserAgent((new StringBuilder()).append("JForex cache (build ").append(implementationVersion != null ? implementationVersion : "SNAPSHOT").append(")").toString());
+        transportClient.setPoolSize(2);
+        transportClient.setUseSsl(true);
+        LOGGER.debug((new StringBuilder()).append("Setting curves server parameters to transport client, login [").append(userName).append("]").toString());
+        transportClient.setLogin((new StringBuilder()).append(userName).append(" ").append(instanceId).toString());
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_318;
+        Exception exception;
+        exception;
+        thisLock.unlock();
+        throw exception;
+        Exception exception1;
+        exception1;
+        throw exception1;
+    }
+
+    public void disconnect()
+    {
+        connecting = false;
+        Map map = requestResponse;
+        JVM INSTR monitorenter ;
+        thisLock.lock();
+        requestResponse.clear();
+        requestResponse.notifyAll();
+        if(transportClient != null)
+        {
+            if(transportClient.isOnline())
+                try
+                {
+                    transportClient.controlSynchRequest(new QuitRequestMessage(), Long.valueOf(3000L));
+                }
+                catch(TimeoutException e) { }
+            transportClient.disconnect();
+            transportClient.terminate();
+            transportClient = null;
+        }
+        authorizationResponse = null;
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_127;
+        Exception exception;
+        exception;
+        thisLock.unlock();
+        throw exception;
+        Exception exception1;
+        exception1;
+        throw exception1;
+    }
+
+    public void close()
+    {
+        Map map = requestResponse;
+        JVM INSTR monitorenter ;
+        thisLock.lock();
+        if(transportClient != null)
+            disconnect();
+        disconnectTimer.cancel();
+        disconnectTimer = null;
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_63;
+        Exception exception;
+        exception;
+        thisLock.unlock();
+        throw exception;
+        Exception exception1;
+        exception1;
+        throw exception1;
+    }
+
+    public void connect(LoadingProgressListener loadingProgress)
+        throws NotConnectedException
+    {
+        while(!thisLock.tryLock(20L, TimeUnit.MILLISECONDS)) 
+            if(loadingProgress.stopJob())
+                break MISSING_BLOCK_LABEL_350;
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        if(transportClient.isOnline())
+            break MISSING_BLOCK_LABEL_306;
+        connecting = true;
+        InterruptedException e;
+        attempt = 1;
+        if(authorizationResponse == null)
+        {
+            authorizationResponse = authenticator.authenticate();
+            if(authorizationResponse == null)
+            {
+                try
+                {
+                    Thread.sleep(3000L);
+                }
+                // Misplaced declaration of an exception variable
+                catch(InterruptedException e) { }
+                throw new NotConnectedException("Cannot connect to authorization server");
+            }
+        }
+        applyAuthorizationResponse();
+        LOGGER.debug((new StringBuilder()).append("Connecting to data feed server [").append(transportClient.getAddress().toString()).append("]...").toString());
+        transportClient.connect();
+        long startTime;
+        for(startTime = System.currentTimeMillis(); !transportClient.isOnline() && startTime + 60000L > System.currentTimeMillis() && connecting;)
+            try
+            {
+                Thread.sleep(20L);
+            }
+            catch(InterruptedException e) { }
+
+        if(!transportClient.isOnline())
+        {
+            authorizationResponse = null;
+            try
+            {
+                Thread.sleep(3000L);
+            }
+            catch(InterruptedException e) { }
+            throw new NotConnectedException((new StringBuilder()).append("Cannot connect to data feed server after [").append(attempt).append("] attempts trying for a [").append((System.currentTimeMillis() - startTime) / 1000L).append("] seconds").toString());
+        }
+        connecting = false;
+        break MISSING_BLOCK_LABEL_306;
+        Exception exception;
+        exception;
+        connecting = false;
+        throw exception;
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_332;
+        Exception exception1;
+        exception1;
+        thisLock.unlock();
+        throw exception1;
+        return;
+        startTime;
+        LOGGER.error(startTime.getMessage(), startTime);
+    }
+
+    private void applyAuthorizationResponse()
+        throws NotConnectedException
+    {
+        if(authorizationResponse == null)
+            throw new NotConnectedException("Cannot connect to authorization server");
+        authorizationResponse = authorizationResponse.trim();
+        int index = authorizationResponse.indexOf('@');
+        if(index == -1)
+            throw new NotConnectedException((new StringBuilder()).append("Authorization for data feed server failed, incorrect response [").append(authorizationResponse).append("]").toString());
+        String feedDataServerURL = authorizationResponse.substring(0, index);
+        String newTicket = authorizationResponse.substring(index + 1);
+        if("null".equals(feedDataServerURL))
+            throw new NotConnectedException((new StringBuilder()).append("Authorization for data feed server failed, incorrect response [").append(authorizationResponse).append("]").toString());
+        int semicolonIndex = feedDataServerURL.indexOf(':');
+        String host;
+        int port;
+        if(semicolonIndex != -1)
+        {
+            host = feedDataServerURL.substring(0, semicolonIndex);
+            if(semicolonIndex + 1 >= feedDataServerURL.length())
+            {
+                LOGGER.warn("port not set, using default 443");
+                port = 443;
+            } else
+            {
+                port = Integer.parseInt(feedDataServerURL.substring(semicolonIndex + 1));
+            }
+        } else
+        {
+            host = feedDataServerURL;
+            port = 443;
+        }
+        transportClient.setAddress(new InetSocketAddress(host, port));
+        transportClient.setPassword(newTicket);
+        lastAuthenticationTime = System.currentTimeMillis();
+    }
+
+    public Data[] loadData(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            boolean forIntraperiod, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        return loadData(instrument, period, side, from, to, false, forIntraperiod, loadingProgress);
+    }
+
+    public Data[] loadCandles(String instrumentName, Period period, long from, long to, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        boolean incremented;
+        wait2SecsFromStart();
+        incremented = false;
+_L2:
+        if(loadingProgress.stopJob())
+            break; /* Loop/switch isn't completed */
+        if(!thisLock.tryLock(20L, TimeUnit.MILLISECONDS))
+            continue; /* Loop/switch isn't completed */
+        inProcess.incrementAndGet();
+        incremented = true;
+        thisLock.unlock();
+        break; /* Loop/switch isn't completed */
+        InterruptedException e;
+        e;
+        thisLock.unlock();
+        throw e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        if(true) goto _L2; else goto _L1
+_L1:
+        Data adata[];
+        if(!loadingProgress.stopJob())
+            break MISSING_BLOCK_LABEL_134;
+        adata = null;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return adata;
+        int tryCount;
+        SortedSet finalResponseMessages;
+        long startTime;
+        if(!$assertionsDisabled && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        tryCount = 0;
+        finalResponseMessages = null;
+        startTime = System.nanoTime();
+_L4:
+        if(tryCount >= 5 || finalResponseMessages != null)
+            break MISSING_BLOCK_LABEL_1058;
+        connect(loadingProgress);
+          goto _L3
+        NotConnectedException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        tryCount++;
+          goto _L4
+_L3:
+        int requestId;
+        CandleSubscribeRequestMessage message;
+        tryCount++;
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Downloading data for instrument [").append(instrumentName).append("], period [").append(period).append("], from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("]").toString());
+        }
+        requestId = requestNumber.getAndIncrement();
+        message = new CandleSubscribeRequestMessage();
+        message.setInstrument(instrumentName);
+        message.setStartTime(Long.valueOf(from / 1000L));
+        message.setEndTime(Long.valueOf(to / 1000L));
+        message.setPeriod(Long.valueOf(period.getInterval() / 1000L));
+        message.setRequestId(Integer.valueOf(requestId));
+        synchronized(requestResponse)
+        {
+            requestResponse.put(Integer.valueOf(requestId), null);
+        }
+        thisLock.lock();
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        transportClient.controlRequest(message);
+        thisLock.unlock();
+          goto _L5
+        Exception exception1;
+        exception1;
+        thisLock.unlock();
+        throw exception1;
+_L5:
+        Map map1 = requestResponse;
+        JVM INSTR monitorenter ;
+        long requestTime = System.currentTimeMillis();
+_L18:
+        if(requestResponse.containsKey(Integer.valueOf(requestId))) goto _L6; else goto _L4
+_L6:
+        SortedSet responseMessages = (SortedSet)requestResponse.get(Integer.valueOf(requestId));
+        if(responseMessages == null || responseMessages.isEmpty()) goto _L8; else goto _L7
+_L7:
+        if(responseMessages.first() instanceof CandleHistoryGroupMessage) goto _L10; else goto _L9
+_L9:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = responseMessages;
+          goto _L11
+_L10:
+        if(!(responseMessages.last() instanceof CandleHistoryGroupMessage) || !((CandleHistoryGroupMessage)responseMessages.last()).isHistoryFinished().booleanValue()) goto _L8; else goto _L12
+_L12:
+        boolean done;
+        int i = 0;
+        done = true;
+        Iterator i$ = responseMessages.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            ProtocolMessage responseMessage = (ProtocolMessage)i$.next();
+            CandleHistoryGroupMessage candleMessage = (CandleHistoryGroupMessage)responseMessage;
+            if(candleMessage.getMessageOrder().intValue() != i)
+            {
+                done = false;
+                break;
+            }
+            i++;
+        } while(true);
+        if(!done) goto _L8; else goto _L13
+_L13:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = responseMessages;
+          goto _L11
+_L8:
+        if(!loadingProgress.stopJob() || requestTime + 60000L >= System.currentTimeMillis()) goto _L15; else goto _L14
+_L14:
+        Data adata2[];
+        requestResponse.remove(Integer.valueOf(requestId));
+        adata2 = null;
+        map1;
+        JVM INSTR monitorexit ;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return adata2;
+_L15:
+        if(requestTime + 0x1d4c0L >= System.currentTimeMillis()) goto _L17; else goto _L16
+_L16:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = new TreeSet();
+        DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        ErrorResponseMessage responseMessage = new ErrorResponseMessage((new StringBuilder()).append("Request for data for instrument [").append(instrumentName).append("], period [").append(period).append("], from [").append(dateFormat.format(new Date(from))).append("], to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("] timed out").toString());
+        responseMessage.setRequestId(Integer.valueOf(requestId));
+        finalResponseMessages.add(responseMessage);
+          goto _L11
+_L17:
+        try
+        {
+            requestResponse.wait(1000L);
+        }
+        catch(InterruptedException e) { }
+          goto _L18
+_L11:
+        map1;
+        JVM INSTR monitorexit ;
+          goto _L4
+        Exception exception2;
+        exception2;
+        map1;
+        JVM INSTR monitorexit ;
+        throw exception2;
+        ProtocolMessage firstMessage;
+        if(finalResponseMessages == null || finalResponseMessages.isEmpty())
+            break MISSING_BLOCK_LABEL_1832;
+        firstMessage = (ProtocolMessage)finalResponseMessages.first();
+        if(firstMessage instanceof CandleHistoryGroupMessage)
+        {
+            Data adata1[];
+            try
+            {
+                List data = new ArrayList();
+                ProtocolMessage protocolMessage;
+                for(Iterator i$ = finalResponseMessages.iterator(); i$.hasNext(); CurvesProtocolUtil.parseCandles(((CandleHistoryGroupMessage)protocolMessage).getCandles(), false, data))
+                    protocolMessage = (ProtocolMessage)i$.next();
+
+                double processTime = (double)(System.nanoTime() - startTime) / 1000000D;
+                if(LOGGER.isTraceEnabled() || processTime > 3000D && LOGGER.isDebugEnabled() || processTime > 20000D)
+                {
+                    DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    String logMessage = (new StringBuilder()).append("Data downloaded in [").append(processTime).append("] milliseconds, size [").append(data.size()).append("]").toString();
+                    if(!data.isEmpty())
+                        logMessage = (new StringBuilder()).append(logMessage).append(", first data time [").append(dateFormat.format(new Date(((Data)data.get(0)).time))).append("], last data time [").append(dateFormat.format(new Date(((Data)data.get(data.size() - 1)).time))).append("]").toString();
+                    logMessage = (new StringBuilder()).append(logMessage).append(", request - instrument [").append(instrumentName).append("] period [").append(period).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString();
+                    if(processTime > 20000D)
+                        LOGGER.warn(logMessage);
+                    else
+                    if(processTime > 3000D)
+                        LOGGER.debug(logMessage);
+                    else
+                        LOGGER.trace(logMessage);
+                }
+                Data dataArray[] = (Data[])data.toArray(new Data[data.size()]);
+                if(dataArray.length > 0)
+                {
+                    long lastTime = dataArray[0].time;
+                    for(int i = 1; i < dataArray.length; i++)
+                        if(dataArray[i].time < lastTime)
+                            throw new DataCacheException("Data consistency error, not sorted");
+
+                }
+                if(dataArray.length > 0)
+                {
+                    long firstDataTime = dataArray[0].time;
+                    if(firstDataTime / 1000L < from / 1000L)
+                    {
+                        DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                        throw new DataCacheException((new StringBuilder()).append("Wrong data from data feed server, time of the first data element [").append(format.format(new Date(firstDataTime))).append(" (").append(firstDataTime).append(")] is less than requested interval start time , request - instrument [").append(instrumentName).append("] period [").append(period).append("] from [").append(format.format(new Date(from))).append("] to [").append(format.format(new Date(to))).append("]").toString());
+                    }
+                }
+                adata1 = dataArray;
+            }
+            catch(IOException e)
+            {
+                throw new DataCacheException(e);
+            }
+            if(incremented)
+            {
+                inProcess.decrementAndGet();
+                lastAccess.set(System.currentTimeMillis());
+            }
+            return adata1;
+        }
+        if(firstMessage instanceof ErrorResponseMessage)
+            throw new DataCacheException(((ErrorResponseMessage)firstMessage).getReason());
+        else
+            throw new DataCacheException("Unknown response");
+        DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        throw new DataCacheException((new StringBuilder()).append("Cannot execute request for data for instrument [").append(instrumentName).append("], period [").append(period).append("], from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("]").toString());
+        Exception exception3;
+        exception3;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        throw exception3;
+    }
+
+    public Data[] loadFile(Instrument instrument, Period period, OfferSide side, long chunkStart, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        long firstChunkCandle;
+        String fileName;
+        int fileDownloadAttempts;
+        firstChunkCandle = DataCacheUtils.getFirstCandleInChunkFast(period, chunkStart);
+        if(DataCacheUtils.getChunkEnd(period, firstChunkCandle) < FeedDataProvider.getDefaultInstance().getTimeOfFirstCandle(instrument, period))
+            return new Data[0];
+        if(historyServerUrl == null)
+            break MISSING_BLOCK_LABEL_768;
+        fileName = DataCacheUtils.getChunkFile(instrument, period, side, firstChunkCandle, 5).getPath();
+        fileDownloadAttempts = 3;
+_L2:
+        if(fileDownloadAttempts <= 0)
+            break; /* Loop/switch isn't completed */
+        Data dataArray[];
+        URL fileUrl = new URL((new StringBuilder()).append(historyServerUrl).append(fileName.substring(FilePathManager.getInstance().getCacheDirectory().length()).replace('\\', '/')).toString());
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        StratUtils.returnURL(fileUrl, os);
+        os.close();
+        byte bytesData[] = os.toByteArray();
+        if(bytesData.length != 0)
+        {
+            ByteArrayInputStream is = new ByteArrayInputStream(bytesData);
+            int propertiesSize = 5;
+            byte properties[] = new byte[propertiesSize];
+            int readBytes;
+            int i;
+            for(readBytes = 0; (i = is.read(properties, readBytes, properties.length - readBytes)) > -1 && readBytes < properties.length; readBytes += i);
+            if(readBytes != propertiesSize)
+                throw new DataCacheException("7ZIP: input .lzma file is too short");
+            Decoder decoder = new Decoder();
+            if(!decoder.SetDecoderProperties(properties))
+                throw new DataCacheException("7ZIP: Incorrect stream properties");
+            long outSize = 0L;
+            for(int i = 0; i < 8; i++)
+            {
+                int v = is.read();
+                if(v < 0)
+                    throw new DataCacheException("7ZIP: Can't read stream size");
+                outSize |= (long)v << 8 * i;
+            }
+
+            ByteArrayOutputStream bos = new ByteArrayOutputStream((int)outSize);
+            if(!decoder.Code(is, bos, outSize))
+                throw new DataCacheException((new StringBuilder()).append("Cannot decode 7zip compressed file [").append(fileName).append("]").toString());
+            bytesData = bos.toByteArray();
+        }
+        dataArray = CurvesProtocolUtil.bytesToChunkData(bytesData, period, 5, firstChunkCandle, instrument.getPipValue());
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            String logMessage = (new StringBuilder()).append("Data file downloaded, size [").append(dataArray.length).append("]").toString();
+            if(dataArray.length > 0)
+                logMessage = (new StringBuilder()).append(logMessage).append(", first data time [").append(dateFormat.format(new Date(dataArray[0].time))).append("], last data time [").append(dateFormat.format(new Date(dataArray[dataArray.length - 1].time))).append("]").toString();
+            LOGGER.trace(logMessage);
+        }
+        if(dataArray.length > 0)
+        {
+            long lastTime = dataArray[0].time;
+            for(int i = 1; i < dataArray.length; i++)
+                if(dataArray[i].time < lastTime)
+                    throw new DataCacheException("Data consistency error, not sorted");
+
+        }
+        return dataArray;
+        MalformedURLException e;
+        e;
+        throw new DataCacheException(e);
+        e;
+        LOGGER.debug((new StringBuilder()).append("WARN: file [").append(historyServerUrl).append(fileName.substring(FilePathManager.getInstance().getCacheDirectory().length()).replace('\\', '/')).append("] was not found [").append(e.getMessage()).append("]").toString());
+        return null;
+        e;
+        if(fileDownloadAttempts > 1 && httpResponse50X.matcher(e.getMessage()).find())
+        {
+            fileDownloadAttempts--;
+            LOGGER.debug(e.getMessage(), e);
+        } else
+        {
+            LOGGER.warn(e.getMessage(), e);
+            return null;
+        }
+        if(true) goto _L2; else goto _L1
+_L1:
+        return null;
+        return null;
+    }
+
+    private Data[] loadData(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            boolean inProgress, boolean forIntraperiod, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        boolean incremented;
+        if(!inProgress && to < FeedDataProvider.getDefaultInstance().getTimeOfFirstCandle(instrument, period))
+            return new Data[0];
+        wait2SecsFromStart();
+        incremented = false;
+_L2:
+        if(loadingProgress.stopJob())
+            break; /* Loop/switch isn't completed */
+        if(!thisLock.tryLock(20L, TimeUnit.MILLISECONDS))
+            continue; /* Loop/switch isn't completed */
+        inProcess.incrementAndGet();
+        incremented = true;
+        thisLock.unlock();
+        break; /* Loop/switch isn't completed */
+        InterruptedException e;
+        e;
+        thisLock.unlock();
+        throw e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        if(true) goto _L2; else goto _L1
+_L1:
+        Data adata[];
+        if(!loadingProgress.stopJob())
+            break MISSING_BLOCK_LABEL_158;
+        adata = null;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return adata;
+        int tryCount;
+        SortedSet finalResponseMessages;
+        long startTime;
+        if(!$assertionsDisabled && period != Period.TICK && !inProgress && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && period != Period.TICK && !inProgress && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        tryCount = 0;
+        finalResponseMessages = null;
+        startTime = System.nanoTime();
+_L4:
+        if(tryCount >= 5 || finalResponseMessages != null)
+            break MISSING_BLOCK_LABEL_1384;
+        connect(loadingProgress);
+          goto _L3
+        NotConnectedException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        tryCount++;
+          goto _L4
+_L3:
+        int requestId;
+        CandleSubscribeRequestMessage message;
+        tryCount++;
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Downloading ").append(inProgress ? "in-progress candle " : "").append("data ").append("for instrument [").append(instrument.toString()).append("] period [").append(period).append("] side [").append(side).append(inProgress ? "" : (new StringBuilder()).append("] from [").append(dateFormat.format(new Date(from))).toString()).append("] to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("]").toString());
+        }
+        requestId = requestNumber.getAndIncrement();
+        message = new CandleSubscribeRequestMessage();
+        if(!inProgress && from < FeedDataProvider.getTimeOfFirstOurCandle(instrument, period) && FeedDataProvider.getTimeOfFirstCandleStatic(instrument, period) < FeedDataProvider.getTimeOfFirstOurCandle(instrument, period))
+            message.setInstrument(instrument.toString());
+        else
+            message.setInstrument((new StringBuilder()).append("*").append(instrument.toString()).append(side != OfferSide.ASK ? "_Bid" : "_Ask").toString());
+        if(inProgress)
+        {
+            message.setEndTime(Long.valueOf(to));
+        } else
+        {
+            message.setStartTime(Long.valueOf(from / 1000L));
+            message.setEndTime(Long.valueOf(to / 1000L));
+        }
+        if(!inProgress)
+            if(period == Period.TICK)
+                message.setPeriod(Long.valueOf(0L));
+            else
+                message.setPeriod(Long.valueOf(period.getInterval() / 1000L));
+        if(inProgress)
+            message.setLastCandleRequest(true);
+        message.setRequestId(Integer.valueOf(requestId));
+        synchronized(requestResponse)
+        {
+            requestResponse.put(Integer.valueOf(requestId), null);
+        }
+        thisLock.lock();
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        transportClient.controlRequest(message);
+        thisLock.unlock();
+          goto _L5
+        Exception exception1;
+        exception1;
+        thisLock.unlock();
+        throw exception1;
+_L5:
+        Map map1 = requestResponse;
+        JVM INSTR monitorenter ;
+        long requestTime = System.currentTimeMillis();
+_L18:
+        if(requestResponse.containsKey(Integer.valueOf(requestId))) goto _L6; else goto _L4
+_L6:
+        SortedSet responseMessages = (SortedSet)requestResponse.get(Integer.valueOf(requestId));
+        if(responseMessages == null || responseMessages.isEmpty()) goto _L8; else goto _L7
+_L7:
+        if(responseMessages.first() instanceof CandleHistoryGroupMessage) goto _L10; else goto _L9
+_L9:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = responseMessages;
+          goto _L11
+_L10:
+        if(!(responseMessages.last() instanceof CandleHistoryGroupMessage) || !((CandleHistoryGroupMessage)responseMessages.last()).isHistoryFinished().booleanValue()) goto _L8; else goto _L12
+_L12:
+        boolean done;
+        int i = 0;
+        done = true;
+        Iterator i$ = responseMessages.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            ProtocolMessage responseMessage = (ProtocolMessage)i$.next();
+            CandleHistoryGroupMessage candleMessage = (CandleHistoryGroupMessage)responseMessage;
+            if(candleMessage.getMessageOrder().intValue() != i)
+            {
+                done = false;
+                break;
+            }
+            i++;
+        } while(true);
+        if(!done) goto _L8; else goto _L13
+_L13:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = responseMessages;
+          goto _L11
+_L8:
+        if(!loadingProgress.stopJob() || requestTime + 60000L >= System.currentTimeMillis()) goto _L15; else goto _L14
+_L14:
+        Data adata2[];
+        requestResponse.remove(Integer.valueOf(requestId));
+        adata2 = null;
+        map1;
+        JVM INSTR monitorexit ;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return adata2;
+_L15:
+        if(requestTime + 0x1d4c0L >= System.currentTimeMillis()) goto _L17; else goto _L16
+_L16:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = new TreeSet();
+        DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        ErrorResponseMessage responseMessage = new ErrorResponseMessage((new StringBuilder()).append("Request for ").append(inProgress ? "in-progress candle " : "").append("data ").append("for instrument [").append(instrument.toString()).append("] period [").append(period).append("] side [").append(side).append(inProgress ? "" : (new StringBuilder()).append("] from [").append(dateFormat.format(new Date(from))).toString()).append("] to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("] timed out").toString());
+        responseMessage.setRequestId(Integer.valueOf(requestId));
+        finalResponseMessages.add(responseMessage);
+          goto _L11
+_L17:
+        try
+        {
+            requestResponse.wait(1000L);
+        }
+        catch(InterruptedException e) { }
+          goto _L18
+_L11:
+        map1;
+        JVM INSTR monitorexit ;
+          goto _L4
+        Exception exception2;
+        exception2;
+        map1;
+        JVM INSTR monitorexit ;
+        throw exception2;
+        ProtocolMessage firstMessage;
+        if(finalResponseMessages == null || finalResponseMessages.isEmpty())
+            break MISSING_BLOCK_LABEL_2215;
+        firstMessage = (ProtocolMessage)finalResponseMessages.first();
+        if(firstMessage instanceof CandleHistoryGroupMessage)
+        {
+            Data adata1[];
+            try
+            {
+                List data = new ArrayList();
+                for(Iterator i$ = finalResponseMessages.iterator(); i$.hasNext();)
+                {
+                    ProtocolMessage protocolMessage = (ProtocolMessage)i$.next();
+                    if(period == Period.TICK)
+                        CurvesProtocolUtil.parseTicks(((CandleHistoryGroupMessage)protocolMessage).getCandles(), data);
+                    else
+                        CurvesProtocolUtil.parseCandles(((CandleHistoryGroupMessage)protocolMessage).getCandles(), forIntraperiod, data);
+                }
+
+                double processTime = (double)(System.nanoTime() - startTime) / 1000000D;
+                if(LOGGER.isTraceEnabled() || processTime > 3000D && LOGGER.isDebugEnabled() || processTime > 20000D)
+                {
+                    DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    String logMessage = (new StringBuilder()).append("Data downloaded in [").append(processTime).append("] milliseconds, size [").append(data.size()).append("]").toString();
+                    if(!data.isEmpty())
+                        logMessage = (new StringBuilder()).append(logMessage).append(", first data time [").append(dateFormat.format(new Date(((Data)data.get(0)).time))).append("], last data time [").append(dateFormat.format(new Date(((Data)data.get(data.size() - 1)).time))).append("]").toString();
+                    logMessage = (new StringBuilder()).append(logMessage).append(", request - instrument [").append(instrument).append("] period [").append(period).append("] side [").append(side).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString();
+                    if(processTime > 20000D)
+                        LOGGER.warn(logMessage);
+                    else
+                    if(processTime > 3000D)
+                        LOGGER.debug(logMessage);
+                    else
+                        LOGGER.trace(logMessage);
+                }
+                Data dataArray[] = (Data[])data.toArray(new Data[data.size()]);
+                if(!inProgress && dataArray.length > 0)
+                {
+                    long lastTime = dataArray[0].time;
+                    for(int i = 1; i < dataArray.length; i++)
+                        if(dataArray[i].time < lastTime)
+                            throw new DataCacheException("Data consistency error, not sorted");
+
+                }
+                if(!inProgress && dataArray.length > 0)
+                {
+                    long firstDataTime = dataArray[0].time;
+                    if(firstDataTime / 1000L < from / 1000L)
+                    {
+                        DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                        throw new DataCacheException((new StringBuilder()).append("Wrong data from data feed server, time of the first data element [").append(format.format(new Date(firstDataTime))).append(" (").append(firstDataTime).append(")] is less than requested interval start time , request - instrument [").append(instrument).append("] period [").append(period).append("] side [").append(side).append("] from [").append(format.format(new Date(from))).append("] to [").append(format.format(new Date(to))).append("]").toString());
+                    }
+                }
+                adata1 = dataArray;
+            }
+            catch(IOException e)
+            {
+                throw new DataCacheException(e);
+            }
+            if(incremented)
+            {
+                inProcess.decrementAndGet();
+                lastAccess.set(System.currentTimeMillis());
+            }
+            return adata1;
+        }
+        if(firstMessage instanceof ErrorResponseMessage)
+            throw new DataCacheException(((ErrorResponseMessage)firstMessage).getReason());
+        else
+            throw new DataCacheException("Unknown response");
+        DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        throw new DataCacheException((new StringBuilder()).append("Cannot execute request for ").append(inProgress ? "in-progress candle " : "").append("data ").append("for instrument [").append(instrument.toString()).append("] period [").append(period).append("] side [").append(side).append(inProgress ? "" : (new StringBuilder()).append("] from [").append(dateFormat.format(new Date(from))).toString()).append("] to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("]").toString());
+        Exception exception3;
+        exception3;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        throw exception3;
+    }
+
+    public Data[] loadInProgressCandle(Instrument instrument, long to, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        return loadData(instrument, null, null, 0x8000000000000000L, to, true, false, loadingProgress);
+    }
+
+    public ICurvesProtocolHandler.OrdersDataStruct loadOrders(Instrument instrument, long from, long to, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        boolean incremented;
+        wait2SecsFromStart();
+        incremented = false;
+_L2:
+        if(loadingProgress.stopJob())
+            break; /* Loop/switch isn't completed */
+        if(!thisLock.tryLock(20L, TimeUnit.MILLISECONDS))
+            continue; /* Loop/switch isn't completed */
+        inProcess.incrementAndGet();
+        incremented = true;
+        thisLock.unlock();
+        break; /* Loop/switch isn't completed */
+        InterruptedException e;
+        e;
+        thisLock.unlock();
+        throw e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        if(true) goto _L2; else goto _L1
+_L1:
+        ICurvesProtocolHandler.OrdersDataStruct ordersdatastruct;
+        if(!loadingProgress.stopJob())
+            break MISSING_BLOCK_LABEL_134;
+        ordersdatastruct = null;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return ordersdatastruct;
+        int tryCount;
+        SortedSet finalResponseMessages;
+        long startTime;
+        tryCount = 0;
+        finalResponseMessages = null;
+        startTime = System.nanoTime();
+_L4:
+        if(tryCount >= 5 || finalResponseMessages != null)
+            break MISSING_BLOCK_LABEL_1071;
+        connect(loadingProgress);
+          goto _L3
+        NotConnectedException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        tryCount++;
+          goto _L4
+_L3:
+        int requestId;
+        OrderHistoryRequestMessage orderRequestMessage;
+        tryCount++;
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Downloading orders data for instrument [").append(instrument.toString()).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("]").toString());
+        }
+        requestId = requestNumber.getAndIncrement();
+        orderRequestMessage = new OrderHistoryRequestMessage();
+        orderRequestMessage.setCurrencyPrimary(instrument.toString().substring(0, 3));
+        orderRequestMessage.setCurrencySecondary(instrument.toString().substring(4, 7));
+        orderRequestMessage.setStartTime(Long.valueOf(from / 1000L));
+        orderRequestMessage.setEndTime(Long.valueOf(to / 1000L));
+        orderRequestMessage.setGetRolloveredOrders(true);
+        orderRequestMessage.setGetRejectedOrders(false);
+        orderRequestMessage.setGetMergedPoss(true);
+        orderRequestMessage.setRequestId(Integer.valueOf(requestId));
+        synchronized(requestResponse)
+        {
+            requestResponse.put(Integer.valueOf(requestId), null);
+        }
+        thisLock.lock();
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        transportClient.controlRequest(orderRequestMessage);
+        thisLock.unlock();
+          goto _L5
+        Exception exception1;
+        exception1;
+        thisLock.unlock();
+        throw exception1;
+_L5:
+        Map map1 = requestResponse;
+        JVM INSTR monitorenter ;
+        long requestTime = System.currentTimeMillis();
+_L19:
+        if(requestResponse.containsKey(Integer.valueOf(requestId))) goto _L6; else goto _L4
+_L6:
+        SortedSet responseMessages = (SortedSet)requestResponse.get(Integer.valueOf(requestId));
+        if(responseMessages == null || responseMessages.isEmpty()) goto _L8; else goto _L7
+_L7:
+        if(!(responseMessages.first() instanceof OrderGroupsBinaryMessage)) goto _L10; else goto _L9
+_L9:
+        if(!(responseMessages.last() instanceof OrderGroupsBinaryMessage) || !((OrderGroupsBinaryMessage)responseMessages.last()).isHistoryFinished().booleanValue()) goto _L12; else goto _L11
+_L11:
+        boolean done;
+        int i = 0;
+        done = true;
+        Iterator i$ = responseMessages.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            ProtocolMessage responseMessage = (ProtocolMessage)i$.next();
+            OrderGroupsBinaryMessage candleMessage = (OrderGroupsBinaryMessage)responseMessage;
+            if(candleMessage.getMessageOrder().intValue() != i)
+            {
+                done = false;
+                break;
+            }
+            i++;
+        } while(true);
+        if(!done) goto _L8; else goto _L13
+_L13:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = responseMessages;
+          goto _L14
+_L12:
+        if(responseMessages.last() instanceof ErrorResponseMessage)
+        {
+            ErrorResponseMessage error = (ErrorResponseMessage)responseMessages.last();
+            responseMessages.clear();
+            responseMessages.add(error);
+        }
+          goto _L8
+_L10:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = responseMessages;
+          goto _L14
+_L8:
+        if(!loadingProgress.stopJob() || requestTime + 0x2bf20L >= System.currentTimeMillis()) goto _L16; else goto _L15
+_L15:
+        ICurvesProtocolHandler.OrdersDataStruct ordersdatastruct1;
+        requestResponse.remove(Integer.valueOf(requestId));
+        ordersdatastruct1 = null;
+        map1;
+        JVM INSTR monitorexit ;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return ordersdatastruct1;
+_L16:
+        if(requestTime + 0x927c0L >= System.currentTimeMillis()) goto _L18; else goto _L17
+_L17:
+        requestResponse.remove(Integer.valueOf(requestId));
+        finalResponseMessages = new TreeSet();
+        DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        ErrorResponseMessage responseMessage = new ErrorResponseMessage((new StringBuilder()).append("Request for orders data for instrument [").append(instrument.toString()).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("] timed out").toString());
+        responseMessage.setRequestId(Integer.valueOf(requestId));
+        finalResponseMessages.add(responseMessage);
+          goto _L14
+_L18:
+        try
+        {
+            requestResponse.wait(1000L);
+        }
+        catch(InterruptedException e) { }
+          goto _L19
+_L14:
+        map1;
+        JVM INSTR monitorexit ;
+          goto _L4
+        Exception exception2;
+        exception2;
+        map1;
+        JVM INSTR monitorexit ;
+        throw exception2;
+        ProtocolMessage firstMessage;
+        ICurvesProtocolHandler.OrdersDataStruct ordersdatastruct2;
+        if(finalResponseMessages == null || finalResponseMessages.isEmpty())
+            break MISSING_BLOCK_LABEL_1533;
+        firstMessage = (ProtocolMessage)finalResponseMessages.first();
+        if(!(firstMessage instanceof OrderGroupsBinaryMessage))
+            break MISSING_BLOCK_LABEL_1499;
+        ICurvesProtocolHandler.OrdersDataStruct ordersDataStruct = new ICurvesProtocolHandler.OrdersDataStruct();
+        List groupsData = new ArrayList();
+        List mergesData = new ArrayList();
+        List ordersData = new ArrayList();
+        for(Iterator i$ = finalResponseMessages.iterator(); i$.hasNext();)
+        {
+            ProtocolMessage protocolMessage = (ProtocolMessage)i$.next();
+            try
+            {
+                groupsData.addAll(((OrderGroupsBinaryMessage)protocolMessage).getOrderGroups());
+                mergesData.addAll(((OrderGroupsBinaryMessage)protocolMessage).getMerges());
+                ordersData.addAll(((OrderGroupsBinaryMessage)protocolMessage).getOrders());
+            }
+            catch(IOException e)
+            {
+                throw new DataCacheException(e.getMessage(), e);
+            }
+        }
+
+        ordersDataStruct.groups = groupsData;
+        ordersDataStruct.orders = ordersData;
+        ordersDataStruct.merges = mergesData;
+        double processTime = (double)(System.nanoTime() - startTime) / 1000000D;
+        if(LOGGER.isTraceEnabled() || processTime > 3000D && LOGGER.isDebugEnabled() || processTime > 60000D)
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            String logMessage = (new StringBuilder()).append("Orders data downloaded in [").append(processTime).append("] milliseconds, order groups size [").append(groupsData.size()).append("], orders size [").append(ordersData.size()).append("], merges size [").append(mergesData.size()).append("]").toString();
+            if(processTime > 60000D)
+                LOGGER.warn(logMessage);
+            else
+            if(processTime > 3000D)
+                LOGGER.debug(logMessage);
+            else
+                LOGGER.trace(logMessage);
+        }
+        ordersdatastruct2 = ordersDataStruct;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return ordersdatastruct2;
+        if(firstMessage instanceof ErrorResponseMessage)
+            throw new DataCacheException(((ErrorResponseMessage)firstMessage).getReason());
+        else
+            throw new DataCacheException("Unknown response");
+        DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+        throw new DataCacheException((new StringBuilder()).append("Cannot execute request orders data for instrument [").append(instrument.toString()).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("] attempt [").append(tryCount).append("]").toString());
+        Exception exception3;
+        exception3;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        throw exception3;
+    }
+
+    private void wait2SecsFromStart()
+    {
+        if(FeedDataProvider.getDefaultInstance().getFirstTickLocalTime() + 2000L > System.currentTimeMillis())
+            try
+            {
+                Thread.sleep((FeedDataProvider.getDefaultInstance().getFirstTickLocalTime() + 2000L) - System.currentTimeMillis());
+            }
+            catch(InterruptedException e) { }
+    }
+
+    public void authorized(TransportClient arg0)
+    {
+        LOGGER.debug("Authorized to data feed server");
+    }
+
+    public void disconnected(DisconnectedEvent arg0)
+    {
+        DisconnectReason reason = DisconnectReason.values()[arg0.getReason().getReason()];
+        if(reason == DisconnectReason.CLIENT_APP_REQUEST)
+            LOGGER.debug((new StringBuilder()).append("Disconnected from data feed server, reason - ").append(reason.toString()).toString());
+        else
+        if(reason == DisconnectReason.AUTHORIZATION_FAILED)
+            LOGGER.warn((new StringBuilder()).append("Disconnected from data feed server, reason - ").append(reason.toString()).append(". User + session id [").append(transportClient.getLogin()).append("], ticket [").append(transportClient.getPassword()).append("], last successful authorization time [").append(lastAuthenticationTime).append("], current time [").append(System.currentTimeMillis()).append("]").toString());
+        else
+            LOGGER.warn((new StringBuilder()).append("Disconnected from data feed server, reason - ").append(reason.toString()).toString());
+        if(!connecting)
+            break MISSING_BLOCK_LABEL_481;
+        attempt++;
+        if(attempt % 3 != 1 && reason != DisconnectReason.AUTHORIZATION_FAILED && reason != DisconnectReason.AUTHORIZATION_TIMEOUT && reason != DisconnectReason.CERTIFICATE_EXCEPTION)
+            break MISSING_BLOCK_LABEL_375;
+        authorizationResponse = null;
+        do
+        {
+            if(!connecting || authorizationResponse != null)
+                break;
+            authorizationResponse = authenticator.authenticate();
+            if(authorizationResponse == null)
+            {
+                LOGGER.error("Cannot connect to authorization server");
+                try
+                {
+                    Thread.sleep(10000L);
+                }
+                catch(InterruptedException e1)
+                {
+                    LOGGER.error(e1.getMessage(), e1);
+                }
+            }
+        } while(true);
+        thisLock.lock();
+        applyAuthorizationResponse();
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_375;
+        NotConnectedException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_375;
+        Exception exception;
+        exception;
+        thisLock.unlock();
+        throw exception;
+        if(!connecting)
+            break MISSING_BLOCK_LABEL_565;
+        thisLock.lock();
+        LOGGER.info((new StringBuilder()).append("Connecting to data feed server [").append(transportClient.getAddress().toString()).append("] attempt [").append(attempt).append("] ...").toString());
+        transportClient.connect();
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_565;
+        Exception exception1;
+        exception1;
+        thisLock.unlock();
+        throw exception1;
+        Map map = requestResponse;
+        JVM INSTR monitorenter ;
+        thisLock.lock();
+        int requestsCount = inProcess.get();
+        if(requestsCount > 0)
+        {
+            requestResponse.clear();
+            requestResponse.notifyAll();
+        }
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_553;
+        Exception exception2;
+        exception2;
+        thisLock.unlock();
+        throw exception2;
+        break MISSING_BLOCK_LABEL_565;
+        Exception exception3;
+        exception3;
+        throw exception3;
+    }
+
+    public void feedbackMessageReceived(TransportClient transportClient, ProtocolMessage message)
+    {
+        if(message instanceof CandleHistoryGroupMessage)
+        {
+            CandleHistoryGroupMessage historyGroupMessage = (CandleHistoryGroupMessage)message;
+            synchronized(requestResponse)
+            {
+                if(requestResponse.containsKey(historyGroupMessage.getRequestId()))
+                {
+                    SortedSet responseMessages = getResponseMessages(historyGroupMessage.getRequestId());
+                    responseMessages.add(historyGroupMessage);
+                    ProtocolMessage protocolMessage = (ProtocolMessage)responseMessages.last();
+                    if(!(protocolMessage instanceof CandleHistoryGroupMessage) || ((CandleHistoryGroupMessage)protocolMessage).isHistoryFinished().booleanValue() || (responseMessages.first() instanceof ErrorResponseMessage))
+                    {
+                        LOGGER.trace("Final CandleHistoryGroupMessage response received from curves server");
+                        requestResponse.notifyAll();
+                    }
+                } else
+                {
+                    LOGGER.warn("CandleHistoryGroup response received from history server, but none is waiting for it");
+                }
+            }
+        } else
+        if(message instanceof OrderGroupsBinaryMessage)
+        {
+            OrderGroupsBinaryMessage orderGroupsMessage = (OrderGroupsBinaryMessage)message;
+            synchronized(requestResponse)
+            {
+                if(requestResponse.containsKey(orderGroupsMessage.getRequestId()))
+                {
+                    SortedSet responseMessages = getResponseMessages(orderGroupsMessage.getRequestId());
+                    responseMessages.add(orderGroupsMessage);
+                    if(orderGroupsMessage.isHistoryFinished().booleanValue() || (responseMessages.first() instanceof ErrorResponseMessage))
+                    {
+                        LOGGER.trace("Final OrderGroupsBinaryMessage response received from curves server");
+                        requestResponse.notifyAll();
+                    }
+                } else
+                {
+                    LOGGER.warn("OrderGroup response received from history server, but none is waiting for it");
+                }
+            }
+        } else
+        if(message instanceof FileMngResponseMessage)
+        {
+            FileMngResponseMessage respMsg = (FileMngResponseMessage)message;
+            synchronized(requestResponse)
+            {
+                if(requestResponse.containsKey(respMsg.getRequestId()))
+                {
+                    SortedSet responseMessages = getResponseMessages(respMsg.getRequestId());
+                    responseMessages.add(respMsg);
+                    requestResponse.notifyAll();
+                } else
+                {
+                    LOGGER.warn((new StringBuilder()).append("File response message received from history server, but none is waiting for it: ").append(respMsg).toString());
+                }
+            }
+        } else
+        if(message instanceof ErrorResponseMessage)
+        {
+            LOGGER.debug("ErrorResponseMessage response received from curves server");
+            ErrorResponseMessage errorMessage = (ErrorResponseMessage)message;
+            synchronized(requestResponse)
+            {
+                if(requestResponse.containsKey(errorMessage.getRequestId()))
+                {
+                    SortedSet responseMessages = getResponseMessages(errorMessage.getRequestId());
+                    responseMessages.add(errorMessage);
+                    requestResponse.notifyAll();
+                } else
+                {
+                    LOGGER.warn((new StringBuilder()).append("Error response received from history server, but none is waiting for it: ").append(errorMessage.getReason()).toString());
+                }
+            }
+        }
+    }
+
+    public void handleStream(String requestIdStr, BlockingBinaryStream stream)
+    {
+        ByteArrayOutputStream baos;
+        byte buff[];
+        int i;
+        byte compressedByteArray[];
+        GZIPInputStream gzis;
+        baos = new ByteArrayOutputStream();
+        buff = new byte[512];
+        while((i = stream.read(buff)) != -1) 
+            baos.write(buff, 0, i);
+        compressedByteArray = baos.toByteArray();
+        if(compressedByteArray.length == 0)
+            break MISSING_BLOCK_LABEL_164;
+        ByteArrayInputStream bais = new ByteArrayInputStream(compressedByteArray);
+        baos.close();
+        baos = new ByteArrayOutputStream();
+        gzis = new GZIPInputStream(bais);
+        while((i = gzis.read(buff)) != -1) 
+            baos.write(buff, 0, i);
+        gzis.close();
+        break MISSING_BLOCK_LABEL_136;
+        Exception exception;
+        exception;
+        gzis.close();
+        throw exception;
+        ProtocolMessage responseMessage;
+        responseMessage = new FileResponseMessage();
+        byte byteData[] = baos.toByteArray();
+        ((FileResponseMessage)responseMessage).setData(byteData);
+        break MISSING_BLOCK_LABEL_230;
+        responseMessage = new FileResponseMessage();
+        ((FileResponseMessage)responseMessage).setData(compressedByteArray);
+        break MISSING_BLOCK_LABEL_230;
+        Exception e;
+        e;
+        responseMessage = new ErrorResponseMessage((new StringBuilder()).append(e.getClass().getName()).append(": ").append(e.getMessage()).toString());
+        synchronized(requestResponse)
+        {
+            int requestId = Integer.parseInt(requestIdStr);
+            if(requestResponse.containsKey(Integer.valueOf(requestId)))
+            {
+                SortedSet responseMessages = getResponseMessages(Integer.valueOf(requestId));
+                responseMessages.add(responseMessage);
+                requestResponse.notifyAll();
+            } else
+            {
+                LOGGER.debug("Response received from history server, but none is waiting for it");
+            }
+        }
+        return;
+    }
+
+    private SortedSet getResponseMessages(Integer requestId)
+    {
+        SortedSet responseMessages = (SortedSet)requestResponse.get(requestId);
+        if(responseMessages == null)
+        {
+            responseMessages = new TreeSet(new Comparator() {
+
+                public int compare(ProtocolMessage o1, ProtocolMessage o2)
+                {
+                    int messageOrder1;
+                    if(o1 instanceof CandleHistoryGroupMessage)
+                        messageOrder1 = ((CandleHistoryGroupMessage)o1).getMessageOrder().intValue();
+                    else
+                    if(o1 instanceof OrderGroupsBinaryMessage)
+                        messageOrder1 = ((OrderGroupsBinaryMessage)o1).getMessageOrder().intValue();
+                    else
+                        messageOrder1 = -1;
+                    int messageOrder2;
+                    if(o2 instanceof CandleHistoryGroupMessage)
+                        messageOrder2 = ((CandleHistoryGroupMessage)o2).getMessageOrder().intValue();
+                    else
+                    if(o2 instanceof OrderGroupsBinaryMessage)
+                        messageOrder2 = ((OrderGroupsBinaryMessage)o2).getMessageOrder().intValue();
+                    else
+                        messageOrder2 = -1;
+                    return messageOrder1 - messageOrder2;
+                }
+
+                public volatile int compare(Object x0, Object x1)
+                {
+                    return compare((ProtocolMessage)x0, (ProtocolMessage)x1);
+                }
+
+                final CurvesJsonProtocolHandler this$0;
+
+            
+            {
+                this$0 = CurvesJsonProtocolHandler.this;
+                super();
+            }
+            });
+            requestResponse.put(requestId, responseMessages);
+        }
+        return responseMessages;
+    }
+
+    public List getFileList(FileType fileType, com.dukascopy.transport.common.msg.strategy.FileItem.AccessType accessType, FileProgressListener loadingProgress)
+        throws StorageException, CancelLoadingException
+    {
+        List fileItems;
+        boolean incremented;
+        fileItems = null;
+        incremented = false;
+_L2:
+        if(loadingProgress.stopJob())
+            break; /* Loop/switch isn't completed */
+        if(!thisLock.tryLock(20L, TimeUnit.MILLISECONDS))
+            continue; /* Loop/switch isn't completed */
+        inProcess.incrementAndGet();
+        incremented = true;
+        thisLock.unlock();
+        break; /* Loop/switch isn't completed */
+        InterruptedException e;
+        e;
+        thisLock.unlock();
+        throw e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        if(true) goto _L2; else goto _L1
+_L1:
+label0:
+        {
+            List list;
+            int tryCount;
+            NotConnectedException e;
+            int requestId;
+            List list1;
+            FileItem fi;
+            FileMngRequestMessage msg;
+            Map map1;
+            long requestTime;
+            Exception exception1;
+            SortedSet responseMessages;
+            ProtocolMessage m;
+            InterruptedException e;
+            FileMngResponseMessage respMsg;
+            Exception exception2;
+            try
+            {
+                if(!loadingProgress.stopJob())
+                    break label0;
+                list = null;
+            }
+            catch(NotConnectedException nce)
+            {
+                throw new StorageException(nce);
+            }
+            finally
+            {
+                if(incremented)
+                {
+                    inProcess.decrementAndGet();
+                    lastAccess.set(System.currentTimeMillis());
+                }
+                loadingProgress.setThreadStopped();
+                throw exception3;
+            }
+            if(incremented)
+            {
+                inProcess.decrementAndGet();
+                lastAccess.set(System.currentTimeMillis());
+            }
+            loadingProgress.setThreadStopped();
+            return list;
+        }
+        tryCount = 0;
+_L4:
+        if(tryCount >= 5 || fileItems != null)
+            break MISSING_BLOCK_LABEL_645;
+        tryCount++;
+        connect(loadingProgress);
+          goto _L3
+        e;
+        LOGGER.error(e.getMessage(), e);
+          goto _L4
+_L3:
+        requestId = requestNumber.getAndIncrement();
+        fi = new FileItem();
+        fi.setFileType(fileType);
+        fi.setAccessType(accessType);
+        msg = new FileMngRequestMessage();
+        msg.setRequestId(Integer.valueOf(requestId));
+        msg.setCommand(com.dukascopy.transport.common.msg.strategy.FileItem.Command.LIST);
+        msg.setFileItem(fi);
+        synchronized(requestResponse)
+        {
+            requestResponse.put(Integer.valueOf(requestId), null);
+        }
+        thisLock.lock();
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        transportClient.controlRequest(msg);
+        thisLock.unlock();
+          goto _L5
+        exception1;
+        thisLock.unlock();
+        throw exception1;
+_L5:
+        map1 = requestResponse;
+        JVM INSTR monitorenter ;
+        requestTime = System.currentTimeMillis();
+_L8:
+        if(loadingProgress.stopJob())
+        {
+            requestResponse.remove(Integer.valueOf(requestId));
+            throw new CancelLoadingException("Getting list of remote files cancelled");
+        }
+        if(requestResponse.containsKey(Integer.valueOf(requestId))) goto _L6; else goto _L4
+_L6:
+label1:
+        {
+            responseMessages = (SortedSet)requestResponse.get(Integer.valueOf(requestId));
+            if(responseMessages != null && !responseMessages.isEmpty())
+            {
+                m = (ProtocolMessage)responseMessages.first();
+                if(m instanceof FileMngResponseMessage)
+                {
+                    respMsg = (FileMngResponseMessage)m;
+                    fileItems = respMsg.getFileList();
+                    requestResponse.remove(Integer.valueOf(requestId));
+                } else
+                if(m instanceof ErrorResponseMessage)
+                    throw new StorageException(((ErrorResponseMessage)m).getReason());
+                else
+                    throw new StorageException((new StringBuilder()).append("Unknown response: ").append(m).toString());
+                break label1;
+            }
+            if(requestTime + 10000L < System.currentTimeMillis())
+            {
+                requestResponse.remove(Integer.valueOf(requestId));
+                throw new StorageException((new StringBuilder()).append("Request for file list ").append(fileType).append(" timed out").toString());
+            }
+            try
+            {
+                requestResponse.wait(1000L);
+            }
+            // Misplaced declaration of an exception variable
+            catch(InterruptedException e) { }
+        }
+        if(true) goto _L8; else goto _L7
+_L7:
+        map1;
+        JVM INSTR monitorexit ;
+          goto _L4
+        exception2;
+        map1;
+        JVM INSTR monitorexit ;
+        throw exception2;
+        list1 = fileItems;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        loadingProgress.setThreadStopped();
+        return list1;
+    }
+
+    public Long uploadFile(FileItem item, String clientMode, LoadingProgressListener loadingProgress)
+        throws StorageException, FileAlreadyExistException
+    {
+        boolean responseReceived;
+        boolean incremented;
+        responseReceived = false;
+        incremented = false;
+_L2:
+        if(loadingProgress.stopJob())
+            break; /* Loop/switch isn't completed */
+        if(!thisLock.tryLock(20L, TimeUnit.MILLISECONDS))
+            continue; /* Loop/switch isn't completed */
+        inProcess.incrementAndGet();
+        incremented = true;
+        thisLock.unlock();
+        break; /* Loop/switch isn't completed */
+        InterruptedException e;
+        e;
+        thisLock.unlock();
+        throw e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        if(true) goto _L2; else goto _L1
+_L1:
+label0:
+        {
+            Long long1;
+            int tryCount;
+            NotConnectedException e;
+            int requestId;
+            FileMngRequestMessage msg;
+            Map map1;
+            long requestTime;
+            Exception exception1;
+            SortedSet responseMessages;
+            ProtocolMessage m;
+            InterruptedException e;
+            FileMngResponseMessage respMsg;
+            ErrorResponseMessage err;
+            FileItem retItem;
+            String reason;
+            Long long2;
+            Exception exception2;
+            try
+            {
+                if(!loadingProgress.stopJob())
+                    break label0;
+                long1 = null;
+            }
+            // Misplaced declaration of an exception variable
+            catch(int tryCount)
+            {
+                throw new StorageException(tryCount);
+            }
+            finally
+            {
+                if(incremented)
+                {
+                    inProcess.decrementAndGet();
+                    lastAccess.set(System.currentTimeMillis());
+                }
+                throw exception3;
+            }
+            if(incremented)
+            {
+                inProcess.decrementAndGet();
+                lastAccess.set(System.currentTimeMillis());
+            }
+            return long1;
+        }
+        tryCount = 0;
+_L10:
+        if(tryCount >= 5 || responseReceived) goto _L4; else goto _L3
+_L3:
+        tryCount++;
+        try
+        {
+            connect(loadingProgress);
+        }
+        // Misplaced declaration of an exception variable
+        catch(NotConnectedException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            continue; /* Loop/switch isn't completed */
+        }
+        requestId = requestNumber.getAndIncrement();
+        msg = new FileMngRequestMessage();
+        item.setUserSchema(clientMode);
+        item.setOwnerSchema(clientMode);
+        msg.setFileItem(item);
+        msg.setCommand(com.dukascopy.transport.common.msg.strategy.FileItem.Command.UPLOAD);
+        msg.setRequestId(Integer.valueOf(requestId));
+        synchronized(requestResponse)
+        {
+            requestResponse.put(Integer.valueOf(requestId), null);
+        }
+        thisLock.lock();
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        transportClient.controlRequest(msg);
+        thisLock.unlock();
+          goto _L5
+        exception1;
+        thisLock.unlock();
+        throw exception1;
+_L5:
+        map1 = requestResponse;
+        JVM INSTR monitorenter ;
+        requestTime = System.currentTimeMillis();
+_L8:
+        if(!loadingProgress.stopJob()) goto _L7; else goto _L6
+_L6:
+        responseMessages = null;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return responseMessages;
+_L7:
+        if(requestResponse.containsKey(Integer.valueOf(requestId)))
+            break MISSING_BLOCK_LABEL_405;
+        map1;
+        JVM INSTR monitorexit ;
+        continue; /* Loop/switch isn't completed */
+        responseMessages = (SortedSet)requestResponse.get(Integer.valueOf(requestId));
+        if(responseMessages == null || responseMessages.isEmpty())
+            break MISSING_BLOCK_LABEL_664;
+        m = (ProtocolMessage)responseMessages.first();
+        if(!(m instanceof FileMngResponseMessage))
+            break MISSING_BLOCK_LABEL_581;
+        respMsg = (FileMngResponseMessage)m;
+        requestResponse.remove(Integer.valueOf(requestId));
+        responseReceived = true;
+        retItem = respMsg.getFileItem();
+        if(retItem == null)
+            break MISSING_BLOCK_LABEL_570;
+        LOGGER.info((new StringBuilder()).append("File: ").append(retItem.getFileName()).append(" uploaded successfully.").toString());
+        long2 = retItem.getFileId();
+        map1;
+        JVM INSTR monitorexit ;
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        return long2;
+        throw new StorageException("Upload returned NULL file item");
+        if(m instanceof ErrorResponseMessage)
+        {
+            err = (ErrorResponseMessage)m;
+            reason = err.getReason();
+            if(reason != null && reason.startsWith(com.dukascopy.transport.common.msg.strategy.FileItem.ErrorMessage.FILE_ALREADY_EXIST.toString()))
+                throw new FileAlreadyExistException(reason);
+        } else
+        {
+            throw new StorageException((new StringBuilder()).append("Unknown response: ").append(m).toString());
+        }
+        if(requestTime + 10000L < System.currentTimeMillis())
+        {
+            requestResponse.remove(Integer.valueOf(requestId));
+            throw new StorageException((new StringBuilder()).append("Request for ").append(item.getFileName()).append(" upload timed out").toString());
+        }
+        try
+        {
+            requestResponse.wait(1000L);
+        }
+        // Misplaced declaration of an exception variable
+        catch(InterruptedException e) { }
+          goto _L8
+        exception2;
+        map1;
+        JVM INSTR monitorexit ;
+        throw exception2;
+_L4:
+        if(incremented)
+        {
+            inProcess.decrementAndGet();
+            lastAccess.set(System.currentTimeMillis());
+        }
+        break MISSING_BLOCK_LABEL_821;
+        return null;
+        if(true) goto _L10; else goto _L9
+_L9:
+    }
+
+    public FileItem downloadFile(long fileId, LoadingProgressListener loadingProgress)
+        throws StorageException
+    {
+        FileMngRequestMessage msg;
+        msg = new FileMngRequestMessage();
+        FileItem f = new FileItem();
+        f.setFileId(Long.valueOf(fileId));
+        msg.setFileItem(f);
+        msg.setCommand(com.dukascopy.transport.common.msg.strategy.FileItem.Command.DOWNLOAD);
+        ProtocolMessage response;
+        connect(loadingProgress);
+        response = null;
+        thisLock.lock();
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        response = transportClient.controlSynchRequest(msg, Long.valueOf(10000L));
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_119;
+        Exception exception;
+        exception;
+        thisLock.unlock();
+        throw exception;
+        FileMngResponseMessage fileMngResponseMessage;
+        if(!(response instanceof FileMngResponseMessage))
+            break MISSING_BLOCK_LABEL_140;
+        fileMngResponseMessage = (FileMngResponseMessage)response;
+        return fileMngResponseMessage.getFileItem();
+        try
+        {
+            if(response instanceof ErrorResponseMessage)
+                throw new StorageException(((ErrorResponseMessage)response).getReason());
+            else
+                throw new StorageException((new StringBuilder()).append("Unknown response: ").append(response).toString());
+        }
+        catch(TimeoutException e)
+        {
+            throw new StorageException(e);
+        }
+        catch(NotConnectedException e)
+        {
+            throw new StorageException(e);
+        }
+    }
+
+    public FileItem useKey(String key, FileType fileType, LoadingProgressListener loadingProgress, String clientType)
+        throws StorageException, KeyNotFoundException
+    {
+        FileMngRequestMessage msg;
+        ProtocolMessage ret;
+        connect(loadingProgress);
+        msg = new FileMngRequestMessage();
+        FileItem fi = new FileItem();
+        fi.setShareKey(key);
+        fi.setFileType(fileType);
+        fi.setUserSchema(clientType);
+        msg.setFileItem(fi);
+        msg.setCommand(com.dukascopy.transport.common.msg.strategy.FileItem.Command.USE_KEY);
+        ret = null;
+        thisLock.lock();
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        ret = transportClient.controlSynchRequest(msg, Long.valueOf(10000L));
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_129;
+        Exception exception;
+        exception;
+        thisLock.unlock();
+        throw exception;
+        FileItem item;
+        if(!(ret instanceof FileMngResponseMessage))
+            break MISSING_BLOCK_LABEL_189;
+        item = ((FileMngResponseMessage)ret).getFileItem();
+        if(item == null)
+            throw new StorageException((new StringBuilder()).append("Cannot find file by key: ").append(key).append(". Server error.").toString());
+        return item;
+        try
+        {
+            if(ret instanceof ErrorResponseMessage)
+            {
+                ErrorResponseMessage err = (ErrorResponseMessage)ret;
+                if(err.getReason() != null && err.getReason().startsWith(com.dukascopy.transport.common.msg.strategy.FileItem.ErrorMessage.KEY_NOT_FOUND.toString()))
+                    throw new KeyNotFoundException(key);
+                else
+                    throw new StorageException(err.getReason());
+            } else
+            {
+                throw new StorageException((new StringBuilder()).append("Unknown response: ").append(ret).toString());
+            }
+        }
+        catch(TimeoutException e)
+        {
+            throw new StorageException(e);
+        }
+        catch(NotConnectedException e)
+        {
+            throw new StorageException(e);
+        }
+    }
+
+    public List listStrategyParameters(long fileId, LoadingProgressListener loadingProgress)
+        throws StorageException
+    {
+        List ret;
+        FileMngRequestMessage msg;
+        ret = new ArrayList();
+        msg = new FileMngRequestMessage();
+        FileItem f = new FileItem();
+        f.setFileId(Long.valueOf(fileId));
+        msg.setFileItem(f);
+        msg.setCommand(com.dukascopy.transport.common.msg.strategy.FileItem.Command.LIST_PARAMETERS);
+        ProtocolMessage response;
+        connect(loadingProgress);
+        response = null;
+        thisLock.lock();
+        if(transportClient == null)
+            throw new NotConnectedException("Cannot connect to data feed server, transport not initialized");
+        response = transportClient.controlSynchRequest(msg, Long.valueOf(10000L));
+        thisLock.unlock();
+        break MISSING_BLOCK_LABEL_128;
+        Exception exception;
+        exception;
+        thisLock.unlock();
+        throw exception;
+        if(response instanceof FileMngResponseMessage)
+        {
+            FileMngResponseMessage fileMngResponseMessage = (FileMngResponseMessage)response;
+            ret = fileMngResponseMessage.getFileItem().getParameters();
+        } else
+        if(response instanceof ErrorResponseMessage)
+            throw new StorageException(((ErrorResponseMessage)response).getReason());
+        else
+            throw new StorageException((new StringBuilder()).append("Unknown response: ").append(response).toString());
+        break MISSING_BLOCK_LABEL_236;
+        TimeoutException e;
+        e;
+        throw new StorageException(e);
+        e;
+        throw new StorageException(e);
+        return ret;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/CurvesJsonProtocolHandler);
+    private TransportClient transportClient;
+    private AtomicInteger inProcess;
+    private AtomicLong lastAccess;
+    private String historyServerUrl;
+    private IAuthenticator authenticator;
+    private String authorizationResponse;
+    private volatile boolean connecting;
+    private volatile int attempt;
+    private AtomicInteger requestNumber;
+    private final Map requestResponse = new HashMap();
+    private final Lock thisLock = new ReentrantLock();
+    private long lastAuthenticationTime;
+    private Timer disconnectTimer;
+    private Pattern httpResponse50X;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/datacache/CurvesJsonProtocolHandler.desiredAssertionStatus();
+
+
+
+
+
+
+
+}

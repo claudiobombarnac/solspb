@@ -1,0 +1,29 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:27
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   FuncInfoHolder.java
+
+package com.dukascopy.api.impl.talib;
+
+
+// Referenced classes of package com.dukascopy.api.impl.talib:
+//            Holder
+
+public class FuncInfoHolder extends Holder
+{
+
+    public FuncInfoHolder()
+    {
+        hint = "";
+        helpFile = "";
+    }
+
+    public String name;
+    public String group;
+    public String hint;
+    public String helpFile;
+    public int flags;
+    public int nbInput;
+    public int nbOptInput;
+    public int nbOutput;
+}

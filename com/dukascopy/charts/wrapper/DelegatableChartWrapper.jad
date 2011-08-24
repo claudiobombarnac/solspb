@@ -1,0 +1,344 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DelegatableChartWrapper.java
+
+package com.dukascopy.charts.wrapper;
+
+import com.dukascopy.api.DataType;
+import com.dukascopy.api.IChart;
+import com.dukascopy.api.IChartObject;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.PriceRange;
+import com.dukascopy.api.ReversalAmount;
+import com.dukascopy.api.TickBarSize;
+import com.dukascopy.api.drawings.IChartObjectFactory;
+import com.dukascopy.api.indicators.IIndicator;
+import com.dukascopy.api.indicators.OutputParameterInfo;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.charts.wrapper:
+//            AbstractChartWrapper
+
+public class DelegatableChartWrapper
+    implements IChart
+{
+
+    public DelegatableChartWrapper(IChart delegate, String callerId)
+    {
+        _flddelegate = delegate;
+        this.callerId = callerId;
+    }
+
+    public IChart getDelegate()
+    {
+        return _flddelegate;
+    }
+
+    public String getCallerId()
+    {
+        return callerId;
+    }
+
+    public void addIndicator(IIndicator indicator)
+    {
+        _flddelegate.addIndicator(indicator);
+    }
+
+    public void addIndicator(IIndicator indicator, Object optParams[])
+    {
+        _flddelegate.addIndicator(indicator, optParams);
+    }
+
+    public void addIndicator(IIndicator indicator, Object optParams[], java.awt.Color outputColors[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle outputDrawingStyles[], int outputWidths[])
+    {
+        _flddelegate.addIndicator(indicator, optParams, outputColors, outputDrawingStyles, outputWidths);
+    }
+
+    public void addSubIndicator(Integer subChartId, IIndicator indicator)
+    {
+        _flddelegate.addSubIndicator(subChartId, indicator);
+    }
+
+    public void addToMainChart(IChartObject object)
+    {
+        String previousCallerId = ((AbstractChartWrapper)_flddelegate).getOwnerId(object);
+        try
+        {
+            ((AbstractChartWrapper)_flddelegate).setOwnerId(object, callerId);
+            _flddelegate.addToMainChart(object);
+        }
+        catch(RuntimeException e)
+        {
+            ((AbstractChartWrapper)_flddelegate).setOwnerId(object, previousCallerId);
+            throw e;
+        }
+    }
+
+    public void addToMainChartUnlocked(IChartObject object)
+    {
+        String previousCallerId = ((AbstractChartWrapper)_flddelegate).getOwnerId(object);
+        try
+        {
+            ((AbstractChartWrapper)_flddelegate).setOwnerId(object, callerId);
+            _flddelegate.addToMainChartUnlocked(object);
+        }
+        catch(RuntimeException e)
+        {
+            ((AbstractChartWrapper)_flddelegate).setOwnerId(object, previousCallerId);
+            throw e;
+        }
+    }
+
+    public void addToSubChart(Integer subChartId, int indicatorId, IChartObject object)
+    {
+        String previousCallerId = ((AbstractChartWrapper)_flddelegate).getOwnerId(object);
+        try
+        {
+            ((AbstractChartWrapper)_flddelegate).setOwnerId(object, callerId);
+            _flddelegate.addToSubChart(subChartId, indicatorId, object);
+        }
+        catch(RuntimeException e)
+        {
+            ((AbstractChartWrapper)_flddelegate).setOwnerId(object, previousCallerId);
+            throw e;
+        }
+    }
+
+    public void comment(String comment)
+    {
+        _flddelegate.comment(comment);
+    }
+
+    public IChartObject draw(String key, com.dukascopy.api.IChart.Type type, long time1, double price1, long time2, double price2, long time3, double price3)
+    {
+        return _flddelegate.draw(key, type, time1, price1, time2, price2, time3, price3);
+    }
+
+    public IChartObject draw(String key, com.dukascopy.api.IChart.Type type, long time1, double price1, long time2, double price2)
+    {
+        return _flddelegate.draw(key, type, time1, price1, time2, price2);
+    }
+
+    public IChartObject draw(String key, com.dukascopy.api.IChart.Type type, long time1, double price1)
+    {
+        return _flddelegate.draw(key, type, time1, price1);
+    }
+
+    public IChartObject drawUnlocked(String key, com.dukascopy.api.IChart.Type type, long time1, double price1, long time2, double price2, long time3, double price3)
+    {
+        return _flddelegate.drawUnlocked(key, type, time1, price1, time2, price2, time3, price3);
+    }
+
+    public IChartObject drawUnlocked(String key, com.dukascopy.api.IChart.Type type, long time1, double price1, long time2, double price2)
+    {
+        return _flddelegate.drawUnlocked(key, type, time1, price1, time2, price2);
+    }
+
+    public IChartObject drawUnlocked(String key, com.dukascopy.api.IChart.Type type, long time1, double price1)
+    {
+        return _flddelegate.drawUnlocked(key, type, time1, price1);
+    }
+
+    public IChartObject get(String key)
+    {
+        return _flddelegate.get(key);
+    }
+
+    public List getAll()
+    {
+        return _flddelegate.getAll();
+    }
+
+    public int getBarsCount()
+    {
+        return _flddelegate.getBarsCount();
+    }
+
+    public IChartObjectFactory getChartObjectFactory()
+    {
+        return _flddelegate.getChartObjectFactory();
+    }
+
+    public java.awt.Color getCommentColor()
+    {
+        return _flddelegate.getCommentColor();
+    }
+
+    public java.awt.Font getCommentFont()
+    {
+        return _flddelegate.getCommentFont();
+    }
+
+    public int getCommentHorizontalPosition()
+    {
+        return _flddelegate.getCommentHorizontalPosition();
+    }
+
+    public int getCommentVerticalPosition()
+    {
+        return _flddelegate.getCommentVerticalPosition();
+    }
+
+    public DataType getDataType()
+    {
+        return _flddelegate.getDataType();
+    }
+
+    public List getIndicators()
+    {
+        return _flddelegate.getIndicators();
+    }
+
+    public Instrument getInstrument()
+    {
+        return _flddelegate.getInstrument();
+    }
+
+    public PriceRange getPriceRange()
+    {
+        return _flddelegate.getPriceRange();
+    }
+
+    public ReversalAmount getReversalAmount()
+    {
+        return _flddelegate.getReversalAmount();
+    }
+
+    public OfferSide getSelectedOfferSide()
+    {
+        return _flddelegate.getSelectedOfferSide();
+    }
+
+    public Period getSelectedPeriod()
+    {
+        return _flddelegate.getSelectedPeriod();
+    }
+
+    public TickBarSize getTickBarSize()
+    {
+        return _flddelegate.getTickBarSize();
+    }
+
+    public Boolean isChartObjectUnlocked(IChartObject chartObject)
+    {
+        return _flddelegate.isChartObjectUnlocked(chartObject);
+    }
+
+    public void move(IChartObject objectToMove, long newTime, double newPrice)
+    {
+        _flddelegate.move(objectToMove, newTime, newPrice);
+    }
+
+    public void move(String chartObjectKey, long newTime, double newPrice)
+    {
+        _flddelegate.move(chartObjectKey, newTime, newPrice);
+    }
+
+    public double priceMax(int index)
+    {
+        return _flddelegate.priceMax(index);
+    }
+
+    public double priceMin(int index)
+    {
+        return _flddelegate.priceMin(index);
+    }
+
+    public IChartObject remove(String key)
+    {
+        return _flddelegate.remove(key);
+    }
+
+    public void remove(IChartObject chartObject)
+    {
+        _flddelegate.remove(chartObject);
+    }
+
+    public void removeAll()
+    {
+        _flddelegate.removeAll();
+    }
+
+    public void removeIndicator(IIndicator indicator)
+    {
+        _flddelegate.removeIndicator(indicator);
+    }
+
+    public void repaint()
+    {
+        _flddelegate.repaint();
+    }
+
+    public void setCommentColor(java.awt.Color color)
+    {
+        _flddelegate.setCommentColor(color);
+    }
+
+    public void setCommentFont(java.awt.Font font)
+    {
+        _flddelegate.setCommentFont(font);
+    }
+
+    public void setCommentHorizontalPosition(int position)
+    {
+        _flddelegate.setCommentHorizontalPosition(position);
+    }
+
+    public void setCommentVerticalPosition(int position)
+    {
+        _flddelegate.setCommentVerticalPosition(position);
+    }
+
+    public void setInstrument(Instrument instrument)
+    {
+        _flddelegate.setInstrument(instrument);
+    }
+
+    public int size()
+    {
+        return _flddelegate.size();
+    }
+
+    public int windowsTotal()
+    {
+        return _flddelegate.windowsTotal();
+    }
+
+    public Iterator iterator()
+    {
+        return _flddelegate.iterator();
+    }
+
+    public List getStrategyChartObjects()
+    {
+        List objects = getAll();
+        List result = new ArrayList();
+        if(objects != null && callerId != null)
+        {
+            Iterator i$ = objects.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                IChartObject object = (IChartObject)i$.next();
+                String chartObjectOwnerId = ((AbstractChartWrapper)_flddelegate).getOwnerId(object);
+                if(callerId.equals(chartObjectOwnerId))
+                    result.add(object);
+            } while(true);
+        }
+        return result;
+    }
+
+    public List remove(List chartObjects)
+    {
+        return _flddelegate.remove(chartObjects);
+    }
+
+    private final IChart _flddelegate;
+    private final String callerId;
+}

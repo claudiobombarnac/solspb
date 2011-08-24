@@ -1,0 +1,94 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractLiveBarFeedListenerWrapper.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.impl.connect.StrategyProcessor;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.IDataLoadingThread;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public abstract class AbstractLiveBarFeedListenerWrapper
+{
+
+    public AbstractLiveBarFeedListenerWrapper(Object liveListener, Object liveBarUpdatedListener, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IStrategyExceptionHandler exceptionHandler, JForexTaskManager taskManager, 
+            StrategyProcessor strategyProcessor, INotificationUtils notificationUtils)
+    {
+        liveBarFormedListener = liveListener;
+        this.liveBarUpdatedListener = liveBarUpdatedListener;
+        this.instrument = instrument;
+        this.jForexPeriod = jForexPeriod;
+        this.offerSide = offerSide;
+        this.exceptionHandler = exceptionHandler;
+        this.taskManager = taskManager;
+        this.strategyProcessor = strategyProcessor;
+        this.notificationUtils = notificationUtils;
+    }
+
+    public Object getLiveBarFormedListener()
+    {
+        return liveBarFormedListener;
+    }
+
+    public IDataLoadingThread getDataLoadingThread()
+    {
+        return dataLoadingThread;
+    }
+
+    public void setDataLoadingThread(IDataLoadingThread dataLoadingThread)
+    {
+        this.dataLoadingThread = dataLoadingThread;
+    }
+
+    public Object getLiveBarUpdatedListener()
+    {
+        return liveBarUpdatedListener;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    public JForexPeriod getJForexPeriod()
+    {
+        return jForexPeriod;
+    }
+
+    protected void onException(Throwable t)
+    {
+        Object strategy = strategyProcessor != null ? ((Object) (strategyProcessor.getStrategy())) : ((Object) (this));
+        String msg = StrategyWrapper.representError(strategy, t);
+        notificationUtils.postErrorMessage(msg, t, false);
+        LOGGER.error(t.getMessage(), t);
+        if(exceptionHandler != null)
+            exceptionHandler.onException(taskManager.getStrategyId(), com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_BAR, t);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/notification/AbstractLiveBarFeedListenerWrapper);
+    private final Object liveBarFormedListener;
+    private final Object liveBarUpdatedListener;
+    private final Instrument instrument;
+    private final OfferSide offerSide;
+    private final JForexPeriod jForexPeriod;
+    private IDataLoadingThread dataLoadingThread;
+    private IStrategyExceptionHandler exceptionHandler;
+    private JForexTaskManager taskManager;
+    private StrategyProcessor strategyProcessor;
+    private INotificationUtils notificationUtils;
+
+}

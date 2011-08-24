@@ -1,0 +1,44 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IDataSequence.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.charts.data.datacache.Data;
+
+public interface IDataSequence
+{
+
+    public abstract boolean isEmpty();
+
+    public abstract int size();
+
+    public abstract long getFrom();
+
+    public abstract long getTo();
+
+    public abstract double getMin();
+
+    public abstract double getMax();
+
+    public abstract Data[] getData();
+
+    public abstract int getExtraBefore();
+
+    public abstract int getExtraAfter();
+
+    public abstract double[] getFormulaOutputDouble(int i, int j);
+
+    public abstract int[] getFormulaOutputInt(int i, int j);
+
+    public abstract boolean isFormulasMinMaxEmpty(Integer integer);
+
+    public abstract double getFormulasMinFor(Integer integer);
+
+    public abstract double getFormulasMaxFor(Integer integer);
+
+    public abstract Object getFormulaValue(int i, int j, long l);
+
+    public abstract long[][] getGaps();
+}

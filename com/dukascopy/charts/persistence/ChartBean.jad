@@ -1,0 +1,433 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ChartBean.java
+
+package com.dukascopy.charts.persistence;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.charts.data.datacache.IFeedDataProvider;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.presentation.*;
+import java.util.LinkedList;
+import java.util.List;
+
+public class ChartBean
+{
+
+    public ChartBean(int chartId, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide)
+    {
+        this(chartId, instrument, jForexPeriod, offerSide, Filter.ALL_FLATS, TimePeriodAggregationPresentationType.CANDLE, TicksPresentationType.LINE, PriceRangeAggregationPresentationType.RANGE_BAR, PointAndFigurePresentationType.BOX, TickBarPresentationType.BAR);
+    }
+
+    public ChartBean(int chartId, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, Filter filter, TimePeriodAggregationPresentationType candleType, TicksPresentationType tickType, 
+            PriceRangeAggregationPresentationType priceRangeType, PointAndFigurePresentationType pointAndFigurePresentationType, TickBarPresentationType tickBarPresentationType)
+    {
+        needCreateDefaultChartObjects = false;
+        id = chartId;
+        this.instrument = instrument;
+        this.jForexPeriod = jForexPeriod;
+        this.offerSide = offerSide;
+        this.filter = filter;
+        timePeriodPresentationType = candleType;
+        ticksPresentationType = tickType;
+        priceRangePresentationType = priceRangeType;
+        this.pointAndFigurePresentationType = pointAndFigurePresentationType;
+        this.tickBarPresentationType = tickBarPresentationType;
+        gridVisible = 1;
+        mouseCursorVisible = 0;
+        lastCandleVisible = 1;
+        verticalMovementEnabled = 0;
+        endTime = -1L;
+        minPrice = -1D;
+        maxPrice = -1D;
+        autoShiftActive = 1;
+        chartShiftInPx = -1;
+        yAxisPadding = -1D;
+        dataUnitWidth = -1;
+    }
+
+    public int getId()
+    {
+        return id;
+    }
+
+    public void setId(int id)
+    {
+        this.id = id;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public void setInstrument(Instrument instrument)
+    {
+        this.instrument = instrument;
+    }
+
+    public Period getPeriod()
+    {
+        return getJForexPeriod().getPeriod();
+    }
+
+    public void setPeriod(Period period)
+    {
+        getJForexPeriod().setPeriod(period);
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    public void setOfferSide(OfferSide offerSide)
+    {
+        this.offerSide = offerSide;
+    }
+
+    public Filter getFilter()
+    {
+        return filter;
+    }
+
+    public void setFilter(Filter filter)
+    {
+        this.filter = filter;
+    }
+
+    public TimePeriodAggregationPresentationType getTimePeriodPresentationType()
+    {
+        return timePeriodPresentationType;
+    }
+
+    public void setTimePeriodPresentationType(TimePeriodAggregationPresentationType timePeriodPresentationType)
+    {
+        this.timePeriodPresentationType = timePeriodPresentationType;
+    }
+
+    public TicksPresentationType getTicksPresentationType()
+    {
+        return ticksPresentationType;
+    }
+
+    public void setTicksPresentationType(TicksPresentationType ticksPresentationType)
+    {
+        this.ticksPresentationType = ticksPresentationType;
+    }
+
+    public int getGridVisible()
+    {
+        return gridVisible;
+    }
+
+    public void setGridVisible(int gridVisible)
+    {
+        this.gridVisible = gridVisible;
+    }
+
+    public int getMouseCursorVisible()
+    {
+        return mouseCursorVisible;
+    }
+
+    public void setMouseCursorVisible(int mouseCursorVisible)
+    {
+        this.mouseCursorVisible = mouseCursorVisible;
+    }
+
+    public int getLastCandleVisible()
+    {
+        return lastCandleVisible;
+    }
+
+    public void setLastCandleVisible(int lastCandleVisible)
+    {
+        this.lastCandleVisible = lastCandleVisible;
+    }
+
+    public int getVerticalMovementEnabled()
+    {
+        return verticalMovementEnabled;
+    }
+
+    public void setVerticalMovementEnabled(int verticalMovementEnabled)
+    {
+        this.verticalMovementEnabled = verticalMovementEnabled;
+    }
+
+    public boolean getVerticalMovementEnabledAsBoolean()
+    {
+        return verticalMovementEnabled != 0;
+    }
+
+    public void setVerticalMovementEnabledAsBoolean(boolean verticalMovementEnabled)
+    {
+        this.verticalMovementEnabled = verticalMovementEnabled ? 1 : 0;
+    }
+
+    public long getEndTime()
+    {
+        return endTime;
+    }
+
+    public void setEndTime(long endTime)
+    {
+        this.endTime = endTime;
+    }
+
+    public double getMinPrice()
+    {
+        return minPrice;
+    }
+
+    public void setMinPrice(double minPrice)
+    {
+        this.minPrice = minPrice;
+    }
+
+    public double getMaxPrice()
+    {
+        return maxPrice;
+    }
+
+    public void setMaxPrice(double maxPrice)
+    {
+        this.maxPrice = maxPrice;
+    }
+
+    public int getChartShiftInPx()
+    {
+        return chartShiftInPx;
+    }
+
+    public void setChartShiftInPx(int chartShiftInPx)
+    {
+        this.chartShiftInPx = chartShiftInPx;
+    }
+
+    public int getDataUnitWidth()
+    {
+        return dataUnitWidth;
+    }
+
+    public void setDataUnitWidth(int dataUnitWidth)
+    {
+        this.dataUnitWidth = dataUnitWidth;
+    }
+
+    public double getYAxisPadding()
+    {
+        return yAxisPadding;
+    }
+
+    public void setYAxisPadding(double yAxisPadding)
+    {
+        this.yAxisPadding = yAxisPadding;
+    }
+
+    public int getAutoShiftActive()
+    {
+        return autoShiftActive;
+    }
+
+    public boolean getAutoShiftActiveAsBoolean()
+    {
+        return getAutoShiftActive() == 1;
+    }
+
+    public void setAutoShiftActive(int autoShiftActive)
+    {
+        this.autoShiftActive = autoShiftActive;
+    }
+
+    public List getIndicatorWrappers()
+    {
+        return indicatorWrappers;
+    }
+
+    public void setIndicatorWrappers(List indicatorWrappers)
+    {
+        this.indicatorWrappers = indicatorWrappers;
+    }
+
+    public void addIndicatorWrapper(IndicatorWrapper wrapper)
+    {
+        if(indicatorWrappers == null)
+            indicatorWrappers = new LinkedList();
+        indicatorWrappers.add(wrapper);
+    }
+
+    public List getChartObjects()
+    {
+        return chartObjects;
+    }
+
+    public void setChartObjects(List chartObjects)
+    {
+        this.chartObjects = chartObjects;
+    }
+
+    public IFeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    public void setFeedDataProvider(IFeedDataProvider feedDataProvider)
+    {
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    public Runnable getStartLoadingDataRunnable()
+    {
+        return startLoadingDataRunnable;
+    }
+
+    public void setStartLoadingDataRunnable(Runnable startLoadingDataRunnable)
+    {
+        this.startLoadingDataRunnable = startLoadingDataRunnable;
+    }
+
+    public boolean getReadOnly()
+    {
+        return readOnly;
+    }
+
+    public void setReadOnly(boolean readOnly)
+    {
+        this.readOnly = readOnly;
+    }
+
+    public boolean isHistoricalTesterChart()
+    {
+        return historicalTesterChart;
+    }
+
+    public void setHistoricalTesterChart(boolean historicalTesterChart)
+    {
+        this.historicalTesterChart = historicalTesterChart;
+    }
+
+    public DataType getDataType()
+    {
+        return getJForexPeriod().getDataType();
+    }
+
+    public void setDataType(DataType dataType)
+    {
+        getJForexPeriod().setDataType(dataType);
+    }
+
+    public PriceRangeAggregationPresentationType getPriceRangePresentationType()
+    {
+        return priceRangePresentationType;
+    }
+
+    public void setPriceRangePresentationType(PriceRangeAggregationPresentationType priceRangePresentationType)
+    {
+        this.priceRangePresentationType = priceRangePresentationType;
+    }
+
+    public PriceRange getPriceRange()
+    {
+        return getJForexPeriod().getPriceRange();
+    }
+
+    public void setPriceRange(PriceRange priceRange)
+    {
+        getJForexPeriod().setPriceRange(priceRange);
+    }
+
+    public PointAndFigurePresentationType getPointAndFigurePresentationType()
+    {
+        return pointAndFigurePresentationType;
+    }
+
+    public void setPointAndFigurePresentationType(PointAndFigurePresentationType pointAndFigurePresentationType)
+    {
+        this.pointAndFigurePresentationType = pointAndFigurePresentationType;
+    }
+
+    public ReversalAmount getReversalAmount()
+    {
+        return getJForexPeriod().getReversalAmount();
+    }
+
+    public void setReversalAmount(ReversalAmount reversalAmount)
+    {
+        getJForexPeriod().setReversalAmount(reversalAmount);
+    }
+
+    public JForexPeriod getJForexPeriod()
+    {
+        if(jForexPeriod == null)
+            jForexPeriod = new JForexPeriod();
+        return jForexPeriod;
+    }
+
+    public void setJForexPeriod(JForexPeriod jForexPeriod)
+    {
+        this.jForexPeriod = jForexPeriod;
+    }
+
+    public boolean isNeedCreateDefaultChartObjects()
+    {
+        return needCreateDefaultChartObjects;
+    }
+
+    public void setNeedCreateDefaultChartObjects(boolean needCreateDefaultChartObjects)
+    {
+        this.needCreateDefaultChartObjects = needCreateDefaultChartObjects;
+    }
+
+    public TickBarPresentationType getTickBarPresentationType()
+    {
+        return tickBarPresentationType;
+    }
+
+    public void setTickBarPresentationType(TickBarPresentationType tickBarPresentationType)
+    {
+        this.tickBarPresentationType = tickBarPresentationType;
+    }
+
+    public TickBarSize getTickBarSize()
+    {
+        return getJForexPeriod().getTickBarSize();
+    }
+
+    public void setTickBarSize(TickBarSize tickBarSize)
+    {
+        getJForexPeriod().setTickBarSize(tickBarSize);
+    }
+
+    private int id;
+    private Instrument instrument;
+    private JForexPeriod jForexPeriod;
+    private OfferSide offerSide;
+    private Filter filter;
+    private TimePeriodAggregationPresentationType timePeriodPresentationType;
+    private TicksPresentationType ticksPresentationType;
+    private PriceRangeAggregationPresentationType priceRangePresentationType;
+    private PointAndFigurePresentationType pointAndFigurePresentationType;
+    private TickBarPresentationType tickBarPresentationType;
+    private int gridVisible;
+    private int mouseCursorVisible;
+    private int lastCandleVisible;
+    private int verticalMovementEnabled;
+    private long endTime;
+    private double minPrice;
+    private double maxPrice;
+    private int autoShiftActive;
+    private int chartShiftInPx;
+    private double yAxisPadding;
+    private int dataUnitWidth;
+    private List indicatorWrappers;
+    private List chartObjects;
+    private IFeedDataProvider feedDataProvider;
+    private Runnable startLoadingDataRunnable;
+    private boolean readOnly;
+    private boolean historicalTesterChart;
+    private boolean needCreateDefaultChartObjects;
+}

@@ -1,0 +1,135 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   NullCandleDataSequence.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.api.Period;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.Data;
+import java.util.Collections;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider:
+//            CandleDataSequence
+
+public class NullCandleDataSequence extends CandleDataSequence
+{
+
+    public NullCandleDataSequence()
+    {
+        super(Period.TEN_SECS, System.currentTimeMillis(), System.currentTimeMillis(), 0, 0, new CandleData[0], new long[0][], Collections.emptyMap(), Collections.emptyMap(), false, false);
+    }
+
+    public boolean isEmpty()
+    {
+        return true;
+    }
+
+    public int size()
+    {
+        return 0;
+    }
+
+    public void calculateMasterDataMinMax()
+    {
+    }
+
+    public double getMin()
+    {
+        return 4.9406564584124654E-324D;
+    }
+
+    public double getMax()
+    {
+        return 1.7976931348623157E+308D;
+    }
+
+    public CandleData[] getData()
+    {
+        return new CandleData[0];
+    }
+
+    public CandleData getCandleInProgress()
+    {
+        return null;
+    }
+
+    public CandleData getBeforeFirst()
+    {
+        return null;
+    }
+
+    public CandleData getAfterLast()
+    {
+        return null;
+    }
+
+    public long[][] getGaps()
+    {
+        return new long[0][];
+    }
+
+    public long getFrom()
+    {
+        return 0x7fffffffffffffffL;
+    }
+
+    public long getTo()
+    {
+        return 0x7fffffffffffffffL;
+    }
+
+    public boolean isLatestDataVisible()
+    {
+        return true;
+    }
+
+    public boolean isIncludesLatestData()
+    {
+        return true;
+    }
+
+    protected void calculateMinMax()
+    {
+    }
+
+    public void calculateSlaveDataMinMax()
+    {
+    }
+
+    public boolean isDataAvailable()
+    {
+        return false;
+    }
+
+    public double[] getFormulaOutputDouble(int id, int outputNumber)
+    {
+        return new double[0];
+    }
+
+    public int[] getFormulaOutputInt(int id, int outputNumber)
+    {
+        return new int[0];
+    }
+
+    public boolean isFormulasMinMaxEmpty(Integer indicatorId)
+    {
+        return true;
+    }
+
+    public double getFormulasMinFor(Integer indicatorId)
+    {
+        return 0.0D;
+    }
+
+    public double getFormulasMaxFor(Integer indicatorId)
+    {
+        return 0.0D;
+    }
+
+    public volatile Data[] getData()
+    {
+        return getData();
+    }
+}

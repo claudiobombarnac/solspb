@@ -1,0 +1,112 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   Notation.java
+
+package com.dukascopy.calculator;
+
+import java.io.PrintStream;
+
+public class Notation
+{
+
+    public static void main(String args[])
+    {
+        Notation t = new Notation();
+        System.out.println((new StringBuilder()).append("t is ").append(t.scientific() ? "scientific" : "standard").toString());
+        System.out.println((new StringBuilder()).append("t is ").append(t.standard() ? "standard" : "scientific").toString());
+        t.setScientific();
+        System.out.println((new StringBuilder()).append("t is ").append(t.standard() ? "standard" : "scientific").toString());
+        t.setStandard();
+        System.out.println((new StringBuilder()).append("t is ").append(t.standard() ? "standard" : "scientific").toString());
+        t.toggle(1);
+        System.out.println((new StringBuilder()).append("t is ").append(t.standard() ? "standard" : "scientific").toString());
+    }
+
+    public Notation()
+    {
+        value = 0;
+    }
+
+    public boolean scientific()
+    {
+        return !standard();
+    }
+
+    public boolean standard()
+    {
+        return (value & 1) == 0;
+    }
+
+    public void setScientific()
+    {
+        value |= 1;
+    }
+
+    public void setStandard()
+    {
+        value &= -2;
+    }
+
+    public boolean polar()
+    {
+        return !rectangular();
+    }
+
+    public boolean rectangular()
+    {
+        return (value & 2) == 0;
+    }
+
+    public void setPolar()
+    {
+        value |= 2;
+    }
+
+    public void setRectangular()
+    {
+        value &= -3;
+    }
+
+    public boolean complex()
+    {
+        return !nonComplex();
+    }
+
+    public boolean nonComplex()
+    {
+        return (value & 4) == 0;
+    }
+
+    public void setComplex()
+    {
+        value |= 4;
+    }
+
+    public void setNonComplex()
+    {
+        value &= -5;
+    }
+
+    public void toggle(int v)
+    {
+        switch(v)
+        {
+        case 1: // '\001'
+        case 2: // '\002'
+        case 4: // '\004'
+            value ^= v;
+            return;
+
+        case 3: // '\003'
+        default:
+            System.out.println("Warning: unknown toggle");
+            return;
+        }
+    }
+
+    private int value;
+    public static final int SCIENTIFIC = 1;
+    public static final int POLAR = 2;
+    public static final int COMPLEX = 4;
+}

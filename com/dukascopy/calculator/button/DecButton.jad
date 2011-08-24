@@ -1,0 +1,31 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:31
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   DecButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.MainCalculatorPanel;
+import com.dukascopy.calculator.function.Dec;
+import com.dukascopy.calculator.function.PObject;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            EqualsButton
+
+public class DecButton extends EqualsButton
+{
+
+    public DecButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new Dec());
+        setText();
+        setShortcut(getPobject().shortcut());
+        setTextSize();
+        changeBase = EqualsButton.ChangeBase.DECIMAL;
+        addActionListener(this);
+        setToolTipKey(getPobject().tooltip());
+    }
+
+    private static final long serialVersionUID = 1L;
+}

@@ -1,0 +1,87 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ReadOnlyCalculatorApplet.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.function.Mean;
+import com.dukascopy.calculator.function.PopStDev;
+import com.dukascopy.calculator.function.StDev;
+import java.awt.Insets;
+import javax.swing.JFrame;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            DisplayPanel, Parser, OObject, AngleType, 
+//            Base, Notation
+
+public interface ReadOnlyCalculatorApplet
+{
+
+    public abstract DisplayPanel displayPanel();
+
+    public abstract int displayHeight(int i);
+
+    public abstract int buttonHeight(int i);
+
+    public abstract int buttonWidth(int i);
+
+    public abstract int strutSize(int i);
+
+    public abstract int displayHeight();
+
+    public abstract int buttonHeight();
+
+    public abstract int buttonWidth();
+
+    public abstract int strutSize();
+
+    public abstract int minSize();
+
+    public abstract float buttonTextSize();
+
+    public abstract float entryTextSize();
+
+    public abstract float displayTextSize();
+
+    public abstract float extraTextSize();
+
+    public abstract boolean getOn();
+
+    public abstract boolean getShift();
+
+    public abstract Parser getParser();
+
+    public abstract OObject getValue();
+
+    public abstract OObject getMemory();
+
+    public abstract AngleType getAngleType();
+
+    public abstract boolean getStat();
+
+    public abstract int getMode();
+
+    public abstract Mean statMean();
+
+    public abstract Complex statSumSquares();
+
+    public abstract StDev statSampleStDev();
+
+    public abstract PopStDev statPopulationStDev();
+
+    public abstract JFrame frame();
+
+    public abstract Base getBase();
+
+    public abstract Notation getNotation();
+
+    public abstract Insets getFrameInsets();
+
+    public abstract int graphHeight();
+
+    public abstract int getSizesSize();
+
+    public abstract int getMinSize();
+}

@@ -1,0 +1,44 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ModeButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.MainCalculatorPanel;
+import com.dukascopy.calculator.function.Mode;
+import java.awt.event.ActionEvent;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            CalculatorButton
+
+public class ModeButton extends CalculatorButton
+{
+
+    public ModeButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new Mode());
+        setText();
+        setTextSize();
+        addActionListener(this);
+        setShortcut('?');
+        setToolTipKey("sc.calculator.change.mode");
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+        synchronized(mainCalculatorPanel)
+        {
+            if(getMainCalculatorPanel().getOn())
+            {
+                getMainCalculatorPanel().setMode(getMainCalculatorPanel().getMode() + 1);
+                getMainCalculatorPanel().setShift(false);
+                getMainCalculatorPanel().updateDisplay(true, true);
+            }
+            getMainCalculatorPanel().requestFocusInWindow();
+        }
+    }
+
+    private static final long serialVersionUID = 1L;
+}

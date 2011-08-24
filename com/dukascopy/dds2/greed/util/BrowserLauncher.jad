@@ -1,0 +1,48 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   BrowserLauncher.java
+
+package com.dukascopy.dds2.greed.util;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public final class BrowserLauncher
+{
+
+    private BrowserLauncher()
+    {
+    }
+
+    public static String getBrowserForUnix()
+    {
+        String arr$[];
+        int len$;
+        int i$;
+        arr$ = BROWSERS;
+        len$ = arr$.length;
+        i$ = 0;
+_L1:
+        String browser;
+        if(i$ >= len$)
+            break MISSING_BLOCK_LABEL_67;
+        browser = arr$[i$];
+        if(Runtime.getRuntime().exec(new String[] {
+    "which", browser
+}).waitFor() == 0)
+            return browser;
+        i$++;
+          goto _L1
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage());
+        return null;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/util/BrowserLauncher);
+    private static final String BROWSERS[] = {
+        "firefox", "opera", "konqueror", "epiphany", "seamonkey", "galeon", "kazehakase", "mozilla", "netscape"
+    };
+
+}

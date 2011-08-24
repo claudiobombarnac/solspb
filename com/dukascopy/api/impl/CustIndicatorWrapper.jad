@@ -1,0 +1,67 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:22
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   CustIndicatorWrapper.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.indicators.IIndicator;
+import com.dukascopy.dds2.greed.agent.compiler.JFXPack;
+import com.dukascopy.dds2.greed.util.FullAccessDisclaimerProvider;
+import com.dukascopy.dds2.greed.util.IFullAccessDisclaimer;
+import java.io.File;
+
+// Referenced classes of package com.dukascopy.api.impl:
+//            ServiceWrapper
+
+public class CustIndicatorWrapper extends ServiceWrapper
+{
+
+    public CustIndicatorWrapper()
+    {
+    }
+
+    public String getName()
+    {
+        if(isNewUnsaved)
+            return (new StringBuilder()).append("*Indicator").append(newFileIndex).toString();
+        if(srcFile != null)
+            return srcFile.getName();
+        if(binFile != null)
+            return binFile.getName();
+        else
+            return null;
+    }
+
+    public IIndicator getIndicator()
+    {
+        if(pack == null)
+            return null;
+        else
+            return (IIndicator)pack.getTarget();
+    }
+
+    public void reinit()
+    {
+        pack = null;
+    }
+
+    public boolean requestFullAccess()
+        throws Exception
+    {
+        if(pack == null)
+            pack = JFXPack.loadFromPack(getBinaryFile());
+        if(pack != null)
+        {
+            if(pack.isFullAccessRequested())
+                return FullAccessDisclaimerProvider.getDisclaimer().showDialog(pack);
+            else
+                return true;
+        } else
+        {
+            return false;
+        }
+    }
+
+    private JFXPack pack;
+}

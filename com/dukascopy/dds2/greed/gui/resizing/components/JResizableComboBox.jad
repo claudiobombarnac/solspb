@@ -1,0 +1,72 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JResizableComboBox.java
+
+package com.dukascopy.dds2.greed.gui.resizing.components;
+
+import com.dukascopy.dds2.greed.gui.resizing.Resizable;
+import com.dukascopy.dds2.greed.gui.resizing.ResizingManager;
+import java.awt.Font;
+import java.util.Vector;
+import javax.swing.ComboBoxModel;
+import javax.swing.JComboBox;
+
+public class JResizableComboBox extends JComboBox
+    implements Resizable
+{
+
+    public JResizableComboBox()
+    {
+        this(com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize.SIZE_30X24);
+    }
+
+    public JResizableComboBox(Object items[], com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize deaultSize)
+    {
+        super(items);
+        this.deaultSize = deaultSize != null ? deaultSize : com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize.SIZE_30X24;
+        apllySize();
+        ResizingManager.addResizable(this);
+    }
+
+    public JResizableComboBox(com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize deaultSize)
+    {
+        this.deaultSize = deaultSize != null ? deaultSize : com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize.SIZE_30X24;
+        apllySize();
+        ResizingManager.addResizable(this);
+    }
+
+    protected JResizableComboBox(ComboBoxModel comboBoxModel, com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize deaultSize)
+    {
+        super(comboBoxModel);
+        this.deaultSize = deaultSize != null ? deaultSize : com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize.SIZE_30X24;
+        ResizingManager.addResizable(this);
+    }
+
+    protected JResizableComboBox(Vector items, com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize deaultSize)
+    {
+        super(items);
+        this.deaultSize = deaultSize != null ? deaultSize : com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize.SIZE_30X24;
+        ResizingManager.addResizable(this);
+    }
+
+    public Object getDefaultSize()
+    {
+        return Integer.valueOf(getFont().getSize());
+    }
+
+    public void setSizeMode(Object size)
+    {
+        setFont(getFont().deriveFont(((Float)size).floatValue()));
+        apllySize();
+    }
+
+    private void apllySize()
+    {
+        setPreferredSize(deaultSize.getSize());
+        setMaximumSize(deaultSize.getSize());
+        setMinimumSize(deaultSize.getSize());
+    }
+
+    private final com.dukascopy.dds2.greed.gui.resizing.ResizingManager.ComponentSize deaultSize;
+}

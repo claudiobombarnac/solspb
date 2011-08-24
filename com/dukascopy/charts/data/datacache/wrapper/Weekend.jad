@@ -1,0 +1,94 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Weekend.java
+
+package com.dukascopy.charts.data.datacache.wrapper;
+
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+
+public class Weekend
+{
+
+    public Weekend()
+    {
+        this(0x8000000000000000L, 0x8000000000000000L);
+    }
+
+    public Weekend(long start, long end)
+    {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+        this.start = start;
+        this.end = end;
+    }
+
+    public long getStart()
+    {
+        return start;
+    }
+
+    public void setStart(long start)
+    {
+        this.start = start;
+    }
+
+    public long getEnd()
+    {
+        return end;
+    }
+
+    public void setEnd(long end)
+    {
+        this.end = end;
+    }
+
+    public String getFormattedEnd()
+    {
+        return DATE_FORMAT.format(Long.valueOf(getEnd()));
+    }
+
+    public String getFormattedStart()
+    {
+        return DATE_FORMAT.format(Long.valueOf(getStart()));
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(getFormattedStart()).append(" - ").append(getFormattedEnd()).toString();
+    }
+
+    public int hashCode()
+    {
+        int prime = 31;
+        int result = 1;
+        result = 31 * result + (int)(end ^ end >>> 32);
+        result = 31 * result + (int)(start ^ start >>> 32);
+        return result;
+    }
+
+    public boolean equals(Object obj)
+    {
+        if(this == obj)
+            return true;
+        if(obj == null)
+            return false;
+        if(getClass() != obj.getClass())
+            return false;
+        Weekend other = (Weekend)obj;
+        if(end != other.end)
+            return false;
+        return start == other.start;
+    }
+
+    public boolean isWeekendTime(long time)
+    {
+        boolean value = getStart() <= time && time < getEnd();
+        return value;
+    }
+
+    static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss:SSS");
+    private long start;
+    private long end;
+
+}

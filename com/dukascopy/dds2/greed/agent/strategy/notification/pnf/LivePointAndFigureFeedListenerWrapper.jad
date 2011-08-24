@@ -1,0 +1,56 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LivePointAndFigureFeedListenerWrapper.java
+
+package com.dukascopy.dds2.greed.agent.strategy.notification.pnf;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.feed.IPointAndFigureFeedListener;
+import com.dukascopy.api.impl.connect.JForexTaskManager;
+import com.dukascopy.api.impl.connect.StrategyProcessor;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.data.datacache.pnf.IPointAndFigureLiveFeedListener;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.dds2.greed.agent.strategy.notification.AbstractLiveBarFeedListenerWrapper;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+
+public class LivePointAndFigureFeedListenerWrapper extends AbstractLiveBarFeedListenerWrapper
+    implements IPointAndFigureLiveFeedListener
+{
+
+    public LivePointAndFigureFeedListenerWrapper(IPointAndFigureFeedListener liveListener, IPointAndFigureLiveFeedListener liveBarUpdatedListener, Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide, IStrategyExceptionHandler exceptionHandler, JForexTaskManager taskManager, 
+            StrategyProcessor strategyProcessor, INotificationUtils notificationUtils)
+    {
+        super(liveListener, liveBarUpdatedListener, instrument, jForexPeriod, offerSide, exceptionHandler, taskManager, strategyProcessor, notificationUtils);
+    }
+
+    public void newPriceData(PointAndFigureData pointAndFigure)
+    {
+        try
+        {
+            ((IPointAndFigureFeedListener)getLiveBarFormedListener()).onBar(getInstrument(), getOfferSide(), getJForexPeriod().getPriceRange(), getJForexPeriod().getReversalAmount(), pointAndFigure);
+        }
+        catch(Throwable t)
+        {
+            onException(t);
+        }
+    }
+
+    public void newPriceDatas(PointAndFigureData apointandfiguredata[], int i, int j)
+    {
+    }
+
+    public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+    {
+        newPriceDatas((PointAndFigureData[])x0, x1, x2);
+    }
+
+    public volatile void newPriceData(AbstractPriceAggregationData x0)
+    {
+        newPriceData((PointAndFigureData)x0);
+    }
+}

@@ -1,0 +1,103 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   StringArray.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.complex.DoubleFormat;
+import java.util.*;
+
+public class StringArray extends Vector
+{
+
+    public StringArray()
+    {
+    }
+
+    public void add(String string)
+    {
+        Vector q = new Vector();
+        q.add(string);
+        add(q);
+    }
+
+    public void add(char character)
+    {
+        add(Character.toString(character));
+    }
+
+    public void add(String string[])
+    {
+        Vector t = new Vector();
+        t.addAll(Arrays.asList(string));
+        add(t);
+    }
+
+    public boolean isOne()
+    {
+        if(size() != 1)
+            return false;
+        if(((Vector)firstElement()).size() != 1)
+            return false;
+        return ((String)((Vector)firstElement()).elementAt(0)).equals("1");
+    }
+
+    public boolean isZero()
+    {
+        if(size() != 1)
+            return false;
+        if(((Vector)firstElement()).size() != 1)
+            return false;
+        return ((String)((Vector)firstElement()).elementAt(0)).equals("0");
+    }
+
+    public boolean isMinusOne()
+    {
+        if(size() != 1)
+            return false;
+        if(((Vector)firstElement()).size() != 2)
+            return false;
+        if(!((String)((Vector)firstElement()).elementAt(0)).equals(DoubleFormat.minus.elementAt(0)))
+            return false;
+        return ((String)((Vector)firstElement()).elementAt(1)).equals("1");
+    }
+
+    public void removeDoubleSuperscripts()
+    {
+        int superscriptLevel = 0;
+        for(Iterator i$ = iterator(); i$.hasNext();)
+        {
+            Vector i = (Vector)i$.next();
+            ListIterator j = i.listIterator();
+            while(j.hasNext()) 
+            {
+                String s = (String)j.next();
+                if(s.startsWith("<sup>"))
+                {
+                    if(superscriptLevel > 0)
+                    {
+                        s = s.substring(5);
+                        j.set("^");
+                        j.add("(");
+                        j.previous();
+                        j.next();
+                        j.add(s);
+                        j.previous();
+                        j.next();
+                    }
+                    superscriptLevel++;
+                }
+                if(s.endsWith("</sup>") && --superscriptLevel > 0)
+                {
+                    s = s.substring(0, s.length() - 6);
+                    j.set(s);
+                    j.add(")");
+                }
+            }
+        }
+
+    }
+
+    private static final long serialVersionUID = 1L;
+}

@@ -1,0 +1,70 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   VAxis.java
+
+package com.dukascopy.calculator.graph;
+
+import java.awt.Graphics2D;
+import java.awt.font.TextLayout;
+import java.awt.geom.Line2D;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            Axis, Model, View, Transformation
+
+public class VAxis extends Axis
+{
+
+    public VAxis()
+    {
+        setX(0.0D);
+    }
+
+    public void setX(double x)
+    {
+        this.x = x;
+    }
+
+    public void draw(Model model, View view, Graphics2D graphics2d)
+    {
+        double top = view.getTransformation().toModelY(0.0D);
+        double bottom = view.getTransformation().toModelY(view.getHeight());
+        double x = view.getTransformation().toViewX(this.x);
+        java.awt.geom.Line2D.Double line = new java.awt.geom.Line2D.Double(x, 0.0D, x, view.getHeight());
+        graphics2d.draw(line);
+        if(getShowMajorUnit())
+        {
+            double unit = view.getTransformation().getYMajorUnit();
+            double origin = view.getTransformation().getOriginY();
+            for(int i = (int)Math.ceil(bottom / unit) - 2; i < (int)Math.floor(top / unit) + 1; i++)
+            {
+                double tick = view.getTransformation().toViewY((double)i * unit);
+                line = new java.awt.geom.Line2D.Double(x, tick, x - (double)getMajorUnitTickLength(), tick);
+                graphics2d.draw(line);
+                if((double)i * unit != origin)
+                {
+                    String s = convertDouble((double)i * unit);
+                    graphics2d.setFont(view.getFont());
+                    TextLayout textLayout = new TextLayout(s, graphics2d.getFont(), graphics2d.getFontRenderContext());
+                    float width = textLayout.getAdvance();
+                    float height = textLayout.getAscent();
+                    graphics2d.drawString(s, (float)x - width - (float)getMajorUnitTickLength() - 2.0F, (float)tick + 0.5F * height);
+                }
+            }
+
+        }
+        if(getShowMinorUnit())
+        {
+            double unit = view.getTransformation().getYMinorUnit();
+            for(int i = (int)Math.ceil(bottom / unit) - 2; i < (int)Math.floor(top / unit) + 1; i++)
+            {
+                double tick = view.getTransformation().toViewY((double)i * unit);
+                line = new java.awt.geom.Line2D.Double(x, tick, x - (double)getMinorUnitTickLength(), tick);
+                graphics2d.draw(line);
+            }
+
+        }
+    }
+
+    protected double x;
+}

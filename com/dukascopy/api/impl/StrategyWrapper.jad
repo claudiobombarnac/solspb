@@ -1,0 +1,185 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyWrapper.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.agent.compiler.JFXPack;
+import com.dukascopy.dds2.greed.util.FullAccessDisclaimerProvider;
+import com.dukascopy.dds2.greed.util.IFullAccessDisclaimer;
+import java.io.File;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+
+// Referenced classes of package com.dukascopy.api.impl:
+//            ServiceWrapper
+
+public class StrategyWrapper extends ServiceWrapper
+{
+
+    public StrategyWrapper()
+    {
+        strategy = null;
+        pack = null;
+    }
+
+    public String getName()
+    {
+        if(isNewUnsaved)
+            return (new StringBuilder()).append("*Strategy").append(newFileIndex).toString();
+        if(srcFile != null)
+            if(isModified)
+                return (new StringBuilder()).append("*").append(srcFile.getName()).toString();
+            else
+                return srcFile.getName();
+        if(binFile != null)
+            return binFile.getName();
+        else
+            return null;
+    }
+
+    public IStrategy getStrategy(boolean hasToReload)
+        throws Exception
+    {
+        if(strategy == null || hasToReload)
+        {
+            pack = JFXPack.loadFromPack(getBinaryFile());
+            if(pack != null)
+            {
+                if(pack.isFullAccessRequested())
+                    FullAccessDisclaimerProvider.getDisclaimer().showDialog(pack);
+                if(pack != null)
+                    strategy = (IStrategy)pack.getTarget();
+            }
+        }
+        return strategy;
+    }
+
+    public IStrategy getStrategy(boolean hasToReload, boolean fullAccessGranted)
+        throws Exception
+    {
+        if(strategy == null || hasToReload)
+        {
+            pack = JFXPack.loadFromPack(getBinaryFile());
+            if(pack != null)
+            {
+                if(pack.isFullAccessRequested() && fullAccessGranted)
+                    pack.setFullAccess(fullAccessGranted);
+                if(pack != null)
+                    strategy = (IStrategy)pack.getTarget();
+            }
+        }
+        return strategy;
+    }
+
+    public IStrategy getStrategy()
+        throws Exception
+    {
+        if(strategy == null)
+            throw new Exception("Init strategy first");
+        else
+            return strategy;
+    }
+
+    public String getStrategyKey()
+    {
+        return (new StringBuilder()).append(getName()).append(" ").append(pack.getMD5HexString()).toString();
+    }
+
+    public boolean isFullAccessGranted()
+    {
+        return strategy != null && pack != null && pack.isFullAccess();
+    }
+
+    public ClassLoader getClassLoader()
+    {
+        return pack.getClassLoader();
+    }
+
+    public boolean isAnnotated()
+        throws Exception
+    {
+        if(this.strategy != null)
+        {
+            IStrategy strategy = getStrategy();
+            if(strategy != null)
+            {
+                Field arr$[] = strategy.getClass().getFields();
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    Field field = arr$[i$];
+                    Annotation arr$[] = field.getAnnotations();
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        Annotation annotation = arr$[i$];
+                        if(annotation.annotationType().equals(com/dukascopy/api/Configurable) || annotation.annotationType().equals(com/dukascopy/api/Library) || annotation.annotationType().equals(com/dukascopy/api/RequiresFullAccess))
+                            return true;
+                    }
+
+                }
+
+            }
+        }
+        return false;
+    }
+
+    public boolean isFullAccessRequested()
+        throws Exception
+    {
+        File binaryFile = getBinaryFile();
+        if(binaryFile != null)
+            return JFXPack.loadFromPack(binaryFile).isFullAccessRequested();
+        else
+            return false;
+    }
+
+    public static String representError(Object str, Throwable ex)
+    {
+        Throwable throwable = null;
+        if(ex.getCause() != null)
+            throwable = ex.getCause();
+        else
+            throwable = ex;
+        String msg = throwable.toString();
+        StackTraceElement elements[] = throwable.getStackTrace();
+        if(elements != null && elements.length > 0)
+        {
+            StackTraceElement element = elements[0];
+            StackTraceElement arr$[] = elements;
+            int len$ = arr$.length;
+            int i$ = 0;
+            do
+            {
+                if(i$ >= len$)
+                    break;
+                StackTraceElement stackTraceElement = arr$[i$];
+                if(stackTraceElement != null && stackTraceElement.getClassName().equals(str.getClass().getName()))
+                {
+                    element = stackTraceElement;
+                    break;
+                }
+                i$++;
+            } while(true);
+            if(element != null)
+                msg = (new StringBuilder()).append(msg).append(" @ ").append(element).toString();
+        }
+        return msg;
+    }
+
+    public boolean isRemote()
+    {
+        return false;
+    }
+
+    public boolean isRemotelyRunnable()
+    {
+        return getBinaryFile() != null && getBinaryFile().exists();
+    }
+
+    protected IStrategy strategy;
+    protected JFXPack pack;
+}

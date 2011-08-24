@@ -1,0 +1,304 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   StrategyProcessor.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.execution.*;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import com.dukascopy.transport.common.msg.group.OrderMessage;
+import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
+import com.dukascopy.transport.common.msg.response.ErrorResponseMessage;
+import com.dukascopy.transport.common.msg.response.NotificationMessage;
+import java.util.Set;
+import java.util.concurrent.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            JForexTaskManager, PlatformOrderImpl
+
+public class StrategyProcessor
+{
+
+    public StrategyProcessor(JForexTaskManager taskManager, IStrategy strategy, boolean fullAccessGranted)
+    {
+        executorService = null;
+        this.strategy = null;
+        this.taskManager = null;
+        onBarImplemented = true;
+        this.strategy = strategy;
+        this.taskManager = taskManager;
+        this.fullAccessGranted = fullAccessGranted;
+        ScienceQueue strategyQueue = new ScienceQueue();
+        executorService = new ScienceThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, strategyQueue);
+        executorService.setThreadFactory(new ScienceThreadFactory(strategy.getClass().getClassLoader(), strategy.getClass().getSimpleName()));
+        executorService.prestartAllCoreThreads();
+    }
+
+    public void onMessage(IMessage message, boolean asynch)
+    {
+        Task task = new TaskMessage(taskManager, strategy, message, taskManager.getExceptionHandler());
+        executeTask(task, asynch);
+    }
+
+    public void updateAccountInfo(IAccount account)
+    {
+        Task task = new TaskAccount(taskManager, strategy, account, taskManager.getExceptionHandler());
+        executeTask(task, false);
+    }
+
+    public void onMarket(Instrument instrument, ITick tick)
+    {
+        Task task = new TaskTick(taskManager, strategy, instrument, tick, taskManager.getExceptionHandler());
+        executeTask(task, false);
+    }
+
+    public void updateOrder(OrderGroupMessage orderGroup)
+    {
+        Task task = new TaskOrderGroupUpdate(taskManager, strategy, orderGroup);
+        executeTask(task, false);
+    }
+
+    public void updateOrder(OrderMessage orderMessage)
+    {
+        Task task = new TaskOrderUpdate(taskManager, strategy, orderMessage);
+        executeTask(task, false);
+    }
+
+    public void updateOrder(NotificationMessage notificationMessage)
+    {
+        Task task = new TaskOrderNotify(taskManager, strategy, notificationMessage);
+        executeTask(task, false);
+    }
+
+    public void updateOrder(MergePositionsMessage mergePositionsMessage)
+    {
+        Task task = new TaskOrdersMerged(taskManager, strategy, mergePositionsMessage);
+        executeTask(task, false);
+    }
+
+    public void updateOrder(PlatformOrderImpl order, ErrorResponseMessage errorResponseMessage)
+    {
+        if(order != null)
+        {
+            Task task = new TaskOrderError(taskManager, strategy, errorResponseMessage, order, taskManager.getExceptionHandler());
+            executeTask(task, true);
+        } else
+        {
+            LOGGER.warn((new StringBuilder()).append("WARNING[onErrorMessage]:").append(errorResponseMessage).toString());
+        }
+    }
+
+    public void waitForUpdate(PlatformOrderImpl platformOrderImpl, long timeout, TimeUnit unit)
+        throws InterruptedException
+    {
+        executorService.runExceptTicksAndBars(platformOrderImpl, timeout, unit);
+    }
+
+    public long getStrategyId()
+    {
+        return ((ScienceThreadFactory)executorService.getThreadFactory()).getThreadId();
+    }
+
+    public long onStart(IContext platformConfigImpl)
+    {
+        ScienceRejectedExecutionHandler rejectedExecutionHandler = new ScienceRejectedExecutionHandler(platformConfigImpl, ((ScienceThreadFactory)executorService.getThreadFactory()).getThread());
+        executorService.setRejectedExecutionHandler(rejectedExecutionHandler);
+        Task task = new TaskStart(platformConfigImpl, strategy);
+        try
+        {
+            task.call();
+        }
+        catch(Exception ex)
+        {
+            String msg = representError(strategy, ex);
+            NotificationUtilsProvider.getNotificationUtils().postErrorMessage(msg, ex, false);
+            taskManager.getExceptionHandler().onException(taskManager.getStrategyId(), com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_START, ex);
+            return 0L;
+        }
+        return getStrategyId();
+    }
+
+    public void onStop()
+    {
+        if(executorService == null)
+            return;
+        executorService.getQueue().clear();
+        Task stopCallable = new TaskStop(strategy);
+        if(Thread.currentThread().getId() == getStrategyId())
+        {
+            try
+            {
+                stopCallable.call();
+            }
+            catch(Exception e)
+            {
+                String msg = representError(strategy, e);
+                NotificationUtilsProvider.getNotificationUtils().postErrorMessage(msg, e, false);
+                LOGGER.error(e.getMessage(), e);
+            }
+        } else
+        {
+            Future future = executorService.submit(stopCallable);
+            try
+            {
+                future.get(5L, TimeUnit.SECONDS);
+            }
+            catch(TimeoutException e)
+            {
+                ((ScienceThreadFactory)executorService.getThreadFactory()).getThread().interrupt();
+                try
+                {
+                    future.get(5L, TimeUnit.SECONDS);
+                }
+                catch(Exception e1)
+                {
+                    LOGGER.error(e.getMessage(), e);
+                }
+            }
+            catch(Exception e)
+            {
+                String msg = representError(strategy, e);
+                NotificationUtilsProvider.getNotificationUtils().postErrorMessage(msg, e, false);
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+        executorService.shutdown();
+    }
+
+    public void halt()
+    {
+        executorService.shutdownNow();
+        try
+        {
+            executorService.awaitTermination(5L, TimeUnit.SECONDS);
+        }
+        catch(InterruptedException e) { }
+        if(!executorService.isTerminated())
+        {
+            LOGGER.warn((new StringBuilder()).append("Killing strategy thread [").append(strategy.getClass().getSimpleName()).append("]").toString());
+            NotificationUtilsProvider.getNotificationUtils().postWarningMessage((new StringBuilder()).append("Killing strategy thread [").append(strategy.getClass().getSimpleName()).append("]").toString());
+            executorService.kill();
+        }
+    }
+
+    public boolean isStopping()
+    {
+        return taskManager.isStrategyStopping();
+    }
+
+    public Future executeTask(Callable callable, boolean asynch)
+    {
+        if(taskManager.isThreadOk(Thread.currentThread().getId()) && !asynch)
+        {
+            FutureTask future = new FutureTask(callable);
+            future.run();
+            return future;
+        }
+        if(!taskManager.isStrategyStopping())
+        {
+            if(callable instanceof Task)
+                return executorService.submit(callable);
+            else
+                return executorService.submit(new TaskCustom(taskManager, callable, false));
+        } else
+        {
+            return null;
+        }
+    }
+
+    public Future executeStop(JForexTaskManager.StopCallable callable)
+    {
+        return executorService.submit(new TaskCustom(taskManager, callable, true));
+    }
+
+    public static String representError(Object str, Throwable ex)
+    {
+        Throwable throwable;
+        if(ex.getCause() != null)
+            throwable = ex.getCause();
+        else
+            throwable = ex;
+        String msg = throwable.toString();
+        StackTraceElement elements[] = throwable.getStackTrace();
+        StackTraceElement element = elements[0];
+        StackTraceElement arr$[] = elements;
+        int len$ = arr$.length;
+        int i$ = 0;
+        do
+        {
+            if(i$ >= len$)
+                break;
+            StackTraceElement stackTraceElement = arr$[i$];
+            if(stackTraceElement.getClassName().equals(str.getClass().getName()))
+            {
+                element = stackTraceElement;
+                break;
+            }
+            i$++;
+        } while(true);
+        if(element != null)
+            msg = (new StringBuilder()).append(msg).append(" @ ").append(element).toString();
+        return msg;
+    }
+
+    public void onBar(Instrument instrument, Period period, IBar askBar, IBar bidBar)
+    {
+        Task task = new TaskOnBar(taskManager, this, instrument, period, askBar, bidBar, taskManager.getExceptionHandler());
+        executeTask(task, false);
+    }
+
+    public JForexTaskManager getTaskManager()
+    {
+        return taskManager;
+    }
+
+    public IStrategy getStrategy()
+    {
+        return strategy;
+    }
+
+    public boolean isOnBarImplemented()
+    {
+        return onBarImplemented;
+    }
+
+    public void setOnBarImplemented(boolean onBarImplemented)
+    {
+        this.onBarImplemented = onBarImplemented;
+    }
+
+    public boolean isFullAccessGranted()
+    {
+        return fullAccessGranted;
+    }
+
+    public void setSubscribedInstruments(Set requiredInstruments)
+    {
+        taskManager.setSubscribedInstruments(requiredInstruments);
+    }
+
+    public Set getSubscribedInstruments()
+    {
+        return taskManager.getSubscribedInstruments();
+    }
+
+    public IAccount getAccount()
+    {
+        return taskManager.getAccount();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/StrategyProcessor);
+    private ScienceThreadPoolExecutor executorService;
+    private IStrategy strategy;
+    private JForexTaskManager taskManager;
+    private boolean onBarImplemented;
+    private boolean fullAccessGranted;
+
+}

@@ -1,0 +1,213 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CustomPeriodCandleLiveFeedListener.java
+
+package com.dukascopy.charts.data.datacache.customperiod.candle;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import java.util.ArrayList;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.customperiod.candle:
+//            CustomPeriodFromCandlesCreator
+
+public class CustomPeriodCandleLiveFeedListener
+    implements LiveFeedListener
+{
+
+    public CustomPeriodCandleLiveFeedListener(Instrument instrument, OfferSide offerSide, CustomPeriodFromCandlesCreator customPeriodFromCandlesCreator, LiveFeedListener originalLiveFeedListener, IFeedDataProvider feedDataProvider, long dataSequenceStartTime, 
+            long dataSequenceEndTime, long time)
+    {
+        this(instrument, offerSide, customPeriodFromCandlesCreator, originalLiveFeedListener, feedDataProvider, dataSequenceStartTime, dataSequenceEndTime, -1, -1, time);
+    }
+
+    public CustomPeriodCandleLiveFeedListener(Instrument instrument, OfferSide offerSide, CustomPeriodFromCandlesCreator customPeriodFromCandlesCreator, LiveFeedListener originalLiveFeedListener, IFeedDataProvider feedDataProvider, int beforeNumberOfCandles, int afterNumberOfCandles, 
+            long time)
+    {
+        this(instrument, offerSide, customPeriodFromCandlesCreator, originalLiveFeedListener, feedDataProvider, -1L, -1L, beforeNumberOfCandles, afterNumberOfCandles, time);
+    }
+
+    public CustomPeriodCandleLiveFeedListener(Instrument instrument, OfferSide offerSide, CustomPeriodFromCandlesCreator customPeriodFromCandlesCreator, LiveFeedListener originalLiveFeedListener, IFeedDataProvider feedDataProvider, long dataSequenceStartTime, 
+            long dataSequenceEndTime, int beforeNumberOfCandles, int afterNumberOfCandles, long time)
+    {
+        this.instrument = instrument;
+        this.offerSide = offerSide;
+        customPeriodCreator = customPeriodFromCandlesCreator;
+        this.originalLiveFeedListener = originalLiveFeedListener;
+        this.feedDataProvider = feedDataProvider;
+        this.beforeNumberOfCandles = beforeNumberOfCandles;
+        this.afterNumberOfCandles = afterNumberOfCandles;
+        this.dataSequenceStartTime = dataSequenceStartTime;
+        this.dataSequenceEndTime = dataSequenceEndTime;
+        this.time = time;
+    }
+
+    public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+            double close, double low, double high, double vol)
+    {
+        CandleData candleData = new CandleData(time, open, close, low, high, vol);
+        CandleData analysedCandle = getCustomPeriodCreator().analyse(candleData);
+        if(analysedCandle != null && (getDataSequenceEndTime() <= -1L || getDataSequenceStartTime() <= -1L))
+            desiredPeriodDataCreated(analysedCandle);
+    }
+
+    public void newTick(Instrument instrument1, long l, double d, double d1, 
+            double d2, double d3)
+    {
+    }
+
+    protected void fireNewData(CandleData data)
+    {
+        getOriginalLiveFeedListener().newCandle(getInstrument(), getCustomPeriodCreator().getDesiredPeriod(), getOfferSide(), data.getTime(), data.getOpen(), data.getClose(), data.getLow(), data.getHigh(), data.getVolume());
+    }
+
+    protected void desiredPeriodDataCreated(CandleData data)
+    {
+        if(data != null)
+            getCollectedDatas().add(data);
+    }
+
+    public List getCollectedDatas()
+    {
+        if(collectedDatas == null)
+            collectedDatas = new ArrayList(4500);
+        return collectedDatas;
+    }
+
+    protected CustomPeriodFromCandlesCreator getCustomPeriodCreator()
+    {
+        return customPeriodCreator;
+    }
+
+    protected Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    protected OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    protected LiveFeedListener getOriginalLiveFeedListener()
+    {
+        return originalLiveFeedListener;
+    }
+
+    protected int getBeforeNumberOfCandles()
+    {
+        return beforeNumberOfCandles;
+    }
+
+    protected int getAfterNumberOfCandles()
+    {
+        return afterNumberOfCandles;
+    }
+
+    protected long getDataSequenceStartTime()
+    {
+        return dataSequenceStartTime;
+    }
+
+    protected long getDataSequenceEndTime()
+    {
+        return dataSequenceEndTime;
+    }
+
+    protected long getTime()
+    {
+        return time;
+    }
+
+    protected IFeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    public void finishLoading(boolean allDataLoaded, long startTime, long endTime, long currentTime)
+    {
+        CandleData candleDataInProgress = feedDataProvider.getInProgressCandle(getInstrument(), getCustomPeriodCreator().getDesiredPeriod(), getOfferSide());
+        CandleData lastData[] = getCustomPeriodCreator().completeAnalysis();
+        if(lastData != null && candleDataInProgress != null)
+        {
+            CandleData arr$[] = lastData;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                CandleData data = arr$[i$];
+                if(data != null && candleDataInProgress != null && DataCacheUtils.getPreviousCandleStartFast(getCustomPeriodCreator().getDesiredPeriod(), candleDataInProgress.getTime()) == data.getTime())
+                    desiredPeriodDataCreated(data);
+            }
+
+        }
+        if(getBeforeNumberOfCandles() > -1 && getAfterNumberOfCandles() > -1)
+            sendDataForNumberOfCandles();
+        else
+        if(getDataSequenceEndTime() <= -1L || getDataSequenceStartTime() <= -1L)
+            throw new IllegalArgumentException("We can work only with candle concrete numbers or with data sequence times!");
+        getCollectedDatas().clear();
+    }
+
+    private void sendDataForDataSequenceTimes()
+    {
+        CandleData datas[] = (CandleData[])getCollectedDatas().toArray(new CandleData[getCollectedDatas().size()]);
+        for(int i = datas.length - 1; i >= 0; i--)
+        {
+            CandleData data = datas[i];
+            if(getDataSequenceStartTime() <= data.getTime() && data.getTime() <= getDataSequenceEndTime())
+                fireNewData(data);
+        }
+
+    }
+
+    private void sendDataForNumberOfCandles()
+    {
+        int dataTotalCount = getCollectedDatas().size();
+        if(dataTotalCount < 0)
+            return;
+        int dataIndex = 0;
+        int timeIndex = -1;
+        CandleData prevData = null;
+        CandleData datas[] = (CandleData[])getCollectedDatas().toArray(new CandleData[getCollectedDatas().size()]);
+        for(int i = 0; i < datas.length; i++)
+        {
+            CandleData data = datas[i];
+            if(getTime() == data.getTime() || prevData != null && prevData.getTime() <= getTime() && getTime() <= data.getTime())
+                timeIndex = dataIndex;
+            dataIndex++;
+            prevData = data;
+        }
+
+        if(timeIndex < 0)
+            timeIndex = datas.length - 1;
+        int startIndex = timeIndex - getBeforeNumberOfCandles();
+        startIndex = startIndex >= 0 ? startIndex : 0;
+        int datasCount = startIndex + getBeforeNumberOfCandles() + getAfterNumberOfCandles() + 1;
+        if(datasCount > dataTotalCount)
+        {
+            datasCount = dataTotalCount;
+            startIndex = dataTotalCount - (getBeforeNumberOfCandles() + getAfterNumberOfCandles());
+            startIndex = startIndex >= 0 ? startIndex : 0;
+        }
+        for(int i = startIndex; i < datasCount; i++)
+        {
+            CandleData candleData = datas[i];
+            fireNewData(candleData);
+        }
+
+    }
+
+    private List collectedDatas;
+    private CustomPeriodFromCandlesCreator customPeriodCreator;
+    private final Instrument instrument;
+    private final OfferSide offerSide;
+    private final LiveFeedListener originalLiveFeedListener;
+    private final int beforeNumberOfCandles;
+    private final int afterNumberOfCandles;
+    private final long dataSequenceStartTime;
+    private final long dataSequenceEndTime;
+    private final long time;
+    private final IFeedDataProvider feedDataProvider;
+}

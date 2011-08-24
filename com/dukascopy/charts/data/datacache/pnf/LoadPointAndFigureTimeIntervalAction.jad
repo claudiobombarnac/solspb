@@ -1,0 +1,108 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadPointAndFigureTimeIntervalAction.java
+
+package com.dukascopy.charts.data.datacache.pnf;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.*;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.pnf:
+//            PointAndFigureData, TickLiveFeedListenerForPointAndFigure, CandleLiveFeedListenerForPointAndFigure, PointAndFigureCreator, 
+//            IPointAndFigureLiveFeedListener
+
+public class LoadPointAndFigureTimeIntervalAction extends AbstractLoadPriceAggregationByTimeRangeAction
+{
+
+    public LoadPointAndFigureTimeIntervalAction(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, long fromTime, long toTime, FeedDataProvider feedDataProvider, IPointAndFigureLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener, com.dukascopy.charts.data.datacache.CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy)
+    {
+        super(instrument, offerSide, fromTime, toTime, feedDataProvider, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        this.priceRange = priceRange;
+        this.reversalAmount = reversalAmount;
+        validateFromToTime(fromTime, toTime);
+    }
+
+    protected PointAndFigureData[] createArray(int size)
+    {
+        return new PointAndFigureData[size];
+    }
+
+    protected AbstractPriceAggregationLiveFeedListener createLiveFeedListener(PointAndFigureCreator creator, long lastPossibleTime)
+    {
+        if(Period.TICK.equals(getBarsBasedOnCandlesPeriod()))
+            return new TickLiveFeedListenerForPointAndFigure(creator);
+        else
+            return new CandleLiveFeedListenerForPointAndFigure(creator, lastPossibleTime);
+    }
+
+    protected PointAndFigureCreator createPriceAggregationCreator(long startTime, int rangeBarsCount, boolean liveCreation, boolean directOrder)
+    {
+        return new PointAndFigureCreator((double)getPriceRange().getPipCount() * getInstrument().getPipValue(), getReversalAmount().getAmount(), rangeBarsCount, directOrder, getOfferSide(), liveCreation, (IPointAndFigureLiveFeedListener)getPriceAggregationLiveFeedListener());
+    }
+
+    protected PointAndFigureData getInProgressBar()
+    {
+        return getFeedDataProvider().getInProgressPointAndFigure(getInstrument(), getOfferSide(), getPriceRange(), getReversalAmount());
+    }
+
+    public PriceRange getPriceRange()
+    {
+        return priceRange;
+    }
+
+    public ReversalAmount getReversalAmount()
+    {
+        return reversalAmount;
+    }
+
+    protected Period getBarsBasedOnCandlesPeriod()
+    {
+        return getSuitablePeriod(getPriceRange().getPipCount(), getReversalAmount().getAmount());
+    }
+
+    protected LoadDataAction createLoadDataAction(long fromTime, long toTime, LiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction;
+        if(Period.TICK.equals(getBarsBasedOnCandlesPeriod()))
+            loadDataAction = new LoadDataAction(getFeedDataProvider(), getInstrument(), fromTime, toTime, liveFeedListener, loadingProgressListener, null, false, getIntraperiodExistsPolicy(), false);
+        else
+            loadDataAction = new LoadDataAction(getFeedDataProvider(), getInstrument(), getBarsBasedOnCandlesPeriod(), getOfferSide(), fromTime, toTime, liveFeedListener, loadingProgressListener, null, false, getIntraperiodExistsPolicy(), false);
+        return loadDataAction;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(getInstrument()).append(" ").append(getBarsBasedOnCandlesPeriod()).append(" ").append(getOfferSide()).append(" ").append(getPriceRange()).append(" ").append(getReversalAmount()).toString();
+    }
+
+    protected boolean isInProgressBarLoadingNow()
+    {
+        return getFeedDataProvider().isInProgressPointAndFigureLoadingNow(getInstrument(), getOfferSide(), getPriceRange(), getReversalAmount());
+    }
+
+    protected volatile AbstractPriceAggregationData getInProgressBar()
+    {
+        return getInProgressBar();
+    }
+
+    protected volatile AbstractPriceAggregationLiveFeedListener createLiveFeedListener(IPriceAggregationCreator x0, long x1)
+    {
+        return createLiveFeedListener((PointAndFigureCreator)x0, x1);
+    }
+
+    protected volatile AbstractPriceAggregationData[] createArray(int x0)
+    {
+        return createArray(x0);
+    }
+
+    protected volatile IPriceAggregationCreator createPriceAggregationCreator(long x0, int x1, boolean x2, boolean x3)
+    {
+        return createPriceAggregationCreator(x0, x1, x2, x3);
+    }
+
+    private final PriceRange priceRange;
+    private final ReversalAmount reversalAmount;
+}

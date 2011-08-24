@@ -1,0 +1,89 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   SortedDataItem.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.util;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.impl.TimedData;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+
+public class SortedDataItem
+{
+
+    public SortedDataItem()
+    {
+        this(null, null, null, null);
+    }
+
+    public SortedDataItem(Instrument instrument, JForexPeriod jForexPeriod, TimedData askBar, TimedData bidBar)
+    {
+        this.instrument = instrument;
+        this.jForexPeriod = jForexPeriod;
+        this.askBar = askBar;
+        this.bidBar = bidBar;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public void setInstrument(Instrument instrument)
+    {
+        this.instrument = instrument;
+    }
+
+    public JForexPeriod getJForexPeriod()
+    {
+        return jForexPeriod;
+    }
+
+    public void setJForexPeriod(JForexPeriod jForexPeriod)
+    {
+        this.jForexPeriod = jForexPeriod;
+    }
+
+    public TimedData getAskBar()
+    {
+        return askBar;
+    }
+
+    public void setAskBar(TimedData askBar)
+    {
+        this.askBar = askBar;
+    }
+
+    public TimedData getBidBar()
+    {
+        return bidBar;
+    }
+
+    public void setBidBar(TimedData bidBar)
+    {
+        this.bidBar = bidBar;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(String.valueOf(getInstrument())).append(" ").append(String.valueOf(getJForexPeriod())).append(" ").append(String.valueOf(getAskBar())).append(" ").append(String.valueOf(getBidBar())).toString();
+    }
+
+    public long getAskOrBidBarTime()
+    {
+        TimedData bar = getAskOrBidData();
+        return bar.getTime();
+    }
+
+    public TimedData getAskOrBidData()
+    {
+        TimedData bar = getAskBar() != null ? getAskBar() : getBidBar();
+        return bar;
+    }
+
+    private Instrument instrument;
+    private JForexPeriod jForexPeriod;
+    private TimedData askBar;
+    private TimedData bidBar;
+}

@@ -1,0 +1,177 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ExecutionControl.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.charts.data.datacache.LoadingProgressListener;
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            ExecutionControlEvent, ExecutionControlListener
+
+public class ExecutionControl
+{
+
+    public ExecutionControl()
+    {
+        running = true;
+        executing = false;
+        speed = 7;
+        processTick = true;
+        listeners = new LinkedList();
+        startEnabled = true;
+    }
+
+    public void addExecutionControlListener(ExecutionControlListener listener)
+    {
+        listeners.add(listener);
+    }
+
+    public void removeExecutionControlListener(ExecutionControlListener listener)
+    {
+        listeners.remove(listener);
+    }
+
+    public void startExecuting(boolean visualEnabled)
+    {
+        executing = true;
+        this.visualEnabled = visualEnabled;
+        fireStateChanged();
+        run();
+    }
+
+    public boolean isExecuting()
+    {
+        return executing;
+    }
+
+    public boolean isVisualEnabled()
+    {
+        return visualEnabled;
+    }
+
+    public void stopExecuting(boolean visualEnabled)
+    {
+        executing = false;
+        this.visualEnabled = visualEnabled;
+        fireStateChanged();
+        run();
+    }
+
+    public void setSpeed(int value)
+    {
+        if(speed != value)
+        {
+            speed = value;
+            fireSpeedChanged();
+        }
+    }
+
+    public int getSpeed()
+    {
+        return speed;
+    }
+
+    public boolean isPaused()
+    {
+        return !running;
+    }
+
+    public void pause()
+    {
+        running = false;
+    }
+
+    public synchronized void run()
+    {
+        if(!running)
+        {
+            running = true;
+            notifyAll();
+        }
+    }
+
+    public synchronized void nextTick()
+    {
+        processTick = true;
+        notifyAll();
+    }
+
+    public synchronized void waitForResume(LoadingProgressListener progressListener)
+    {
+        if(!running)
+        {
+            fireStateChanged();
+            while(!running && !processTick && !progressListener.stopJob()) 
+                try
+                {
+                    wait(1000L);
+                }
+                catch(InterruptedException e) { }
+            if(running)
+                fireStateChanged();
+        }
+    }
+
+    public synchronized void tickProcessed()
+    {
+        processTick = false;
+    }
+
+    protected void fireStateChanged()
+    {
+        ExecutionControlEvent event = new ExecutionControlEvent(this);
+        ExecutionControlListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.stateChanged(event))
+            listener = (ExecutionControlListener)i$.next();
+
+    }
+
+    protected void fireSpeedChanged()
+    {
+        ExecutionControlEvent event = new ExecutionControlEvent(this);
+        ExecutionControlListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.speedChanged(event))
+            listener = (ExecutionControlListener)i$.next();
+
+    }
+
+    public void setStartEnabled(boolean startEnabled)
+    {
+        this.startEnabled = startEnabled;
+    }
+
+    public boolean isStartEnabled()
+    {
+        return startEnabled;
+    }
+
+    public boolean isOptimization()
+    {
+        return optimization;
+    }
+
+    public void setOptimization(boolean optimization)
+    {
+        this.optimization = optimization;
+    }
+
+    public static final int HALF_THE_REAL_SPEED = 0;
+    public static final int REAL_SPEED = 1;
+    public static final int REAL_SPEED_2X = 2;
+    public static final int REAL_SPEED_5X = 3;
+    public static final int REAL_SPEED_10X = 4;
+    public static final int REAL_SPEED_100X = 5;
+    public static final int REAL_SPEED_500X = 6;
+    public static final int MAX_SPEED = 7;
+    private boolean running;
+    private boolean executing;
+    private int speed;
+    private boolean processTick;
+    private boolean visualEnabled;
+    private List listeners;
+    private boolean startEnabled;
+    private boolean optimization;
+}

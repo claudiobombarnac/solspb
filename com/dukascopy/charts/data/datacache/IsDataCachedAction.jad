@@ -1,0 +1,82 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IsDataCachedAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import java.util.concurrent.Callable;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            DataCacheException, NoDataForPeriodException, DataCacheUtils, FeedDataProvider, 
+//            LocalCacheManager
+
+public class IsDataCachedAction
+    implements Callable
+{
+
+    public IsDataCachedAction(FeedDataProvider feedDataProvider, Instrument instrument, Period period, OfferSide side, long from, long to)
+    {
+        this.instrument = instrument;
+        this.period = period;
+        this.from = from;
+        this.to = to;
+        this.side = side;
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    public Boolean call()
+        throws NoDataForPeriodException, DataCacheException
+    {
+        if(instrument == null || period == null || from > to || period != Period.TICK && side == null)
+            throw new DataCacheException("Wrong parameters");
+        if(period != Period.TICK)
+        {
+            if(!DataCacheUtils.isCandleBasic(period))
+                throw new NoDataForPeriodException("There is no data in database for requested period");
+            if(!DataCacheUtils.isIntervalValid(period, from, to))
+                throw new DataCacheException("Time interval is not valid for period requested");
+        }
+        long lastTickTime = feedDataProvider.getCurrentTime(instrument);
+        long correctedFrom = from;
+        long correctedTo = to;
+        long timeOfFirstCandle = feedDataProvider.getTimeOfFirstCandle(instrument, period);
+        if(timeOfFirstCandle == 0x7fffffffffffffffL)
+            return Boolean.valueOf(true);
+        if(period == Period.TICK)
+        {
+            if(correctedFrom < timeOfFirstCandle)
+                correctedFrom = timeOfFirstCandle;
+            if(lastTickTime != 0x8000000000000000L && correctedTo > lastTickTime + 500L)
+                correctedTo = lastTickTime + 500L;
+        } else
+        if(correctedFrom < timeOfFirstCandle)
+        {
+            for(correctedFrom = DataCacheUtils.getCandleStartFast(period, correctedFrom); correctedFrom < timeOfFirstCandle; correctedFrom = DataCacheUtils.getNextCandleStartFast(period, correctedFrom));
+            if(lastTickTime != 0x8000000000000000L)
+            {
+                long lastTickCandleStartTime = DataCacheUtils.getCandleStartFast(period, lastTickTime);
+                if(correctedTo >= lastTickCandleStartTime)
+                    correctedTo = DataCacheUtils.getPreviousCandleStartFast(period, lastTickCandleStartTime);
+            }
+        }
+        if(correctedFrom > correctedTo)
+            return Boolean.valueOf(true);
+        else
+            return Boolean.valueOf(feedDataProvider.getLocalCacheManager().isDataCached(instrument, period, side, correctedFrom, correctedTo));
+    }
+
+    public volatile Object call()
+        throws Exception
+    {
+        return call();
+    }
+
+    private final Instrument instrument;
+    private final Period period;
+    private final OfferSide side;
+    private final long from;
+    private final long to;
+    private FeedDataProvider feedDataProvider;
+}

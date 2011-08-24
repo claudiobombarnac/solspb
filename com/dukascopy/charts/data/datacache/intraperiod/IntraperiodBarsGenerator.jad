@@ -1,0 +1,808 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IntraperiodBarsGenerator.java
+
+package com.dukascopy.charts.data.datacache.intraperiod;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.TickData;
+import com.dukascopy.charts.data.datacache.pnf.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.data.datacache.priceaggregation.IPriceAggregationCreator;
+import com.dukascopy.charts.data.datacache.rangebar.*;
+import com.dukascopy.charts.data.datacache.tickbar.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.intraperiod:
+//            IIntraperiodBarsGenerator
+
+public class IntraperiodBarsGenerator
+    implements IIntraperiodBarsGenerator
+{
+
+    public IntraperiodBarsGenerator(FeedDataProvider feedDataProvider)
+    {
+        DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.S");
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    private Map getInProgressPriceRangeCreatorsMap()
+    {
+        if(inProgressPriceRangeCreatorsMap == null)
+            inProgressPriceRangeCreatorsMap = new Hashtable();
+        return inProgressPriceRangeCreatorsMap;
+    }
+
+    private Map getInProgressPointAndFigureCreatorsMap()
+    {
+        if(inProgressPointAndFigureCreatorsMap == null)
+            inProgressPointAndFigureCreatorsMap = new Hashtable();
+        return inProgressPointAndFigureCreatorsMap;
+    }
+
+    private Map getInProgressTickBarCreatorsMap()
+    {
+        if(inProgressTickBarCreatorsMap == null)
+            inProgressTickBarCreatorsMap = new Hashtable();
+        return inProgressTickBarCreatorsMap;
+    }
+
+    private void processTickForTickBars(Instrument instrument, TickData tickData)
+    {
+        Map instrumentsMap;
+label0:
+        {
+            synchronized(getInProgressTickBarCreatorsMap())
+            {
+                instrumentsMap = (Map)getInProgressTickBarCreatorsMap().get(instrument);
+                if(instrumentsMap != null)
+                    break label0;
+            }
+            return;
+        }
+        for(Iterator i$ = instrumentsMap.keySet().iterator(); i$.hasNext();)
+        {
+            OfferSide offerSide = (OfferSide)i$.next();
+            Map offerSidesMap = (Map)instrumentsMap.get(offerSide);
+            if(offerSidesMap != null)
+            {
+                Iterator i$ = offerSidesMap.keySet().iterator();
+                while(i$.hasNext()) 
+                {
+                    TickBarSize tickBarSize = (TickBarSize)i$.next();
+                    IPriceAggregationCreator creator = (IPriceAggregationCreator)offerSidesMap.get(tickBarSize);
+                    if(creator != null && creator.getLastData() != null)
+                    {
+                        boolean currentBarFormingFinished = creator.analyse(tickData);
+                        if(!currentBarFormingFinished)
+                            fireInProgressTickBarUpdated(instrument, offerSide, tickBarSize, (TickBarData)creator.getLastData());
+                    }
+                }
+            }
+        }
+
+        map;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    private void fireInProgressTickBarUpdated(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, TickBarData bar)
+    {
+        bar = (TickBarData)clone(bar);
+        feedDataProvider.fireInProgressTickBarUpdated(instrument, offerSide, tickBarSize, bar);
+    }
+
+    private void fireInProgressTickBarFormed(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, TickBarData bar)
+    {
+        bar = (TickBarData)clone(bar);
+        feedDataProvider.fireInProgressTickBarFormed(instrument, offerSide, tickBarSize, bar);
+    }
+
+    private void processTickForPointAndFigures(Instrument instrument, TickData tickData)
+    {
+        Map instrumentMap;
+label0:
+        {
+            synchronized(getInProgressPointAndFigureCreatorsMap())
+            {
+                instrumentMap = (Map)getInProgressPointAndFigureCreatorsMap().get(instrument);
+                if(instrumentMap != null)
+                    break label0;
+            }
+            return;
+        }
+        for(Iterator i$ = instrumentMap.keySet().iterator(); i$.hasNext();)
+        {
+            OfferSide offerSide = (OfferSide)i$.next();
+            Map offerSideMap = (Map)instrumentMap.get(offerSide);
+            if(offerSideMap != null)
+            {
+                Iterator i$ = offerSideMap.keySet().iterator();
+                while(i$.hasNext()) 
+                {
+                    PriceRange priceRange = (PriceRange)i$.next();
+                    Map priceRangeMap = (Map)offerSideMap.get(priceRange);
+                    if(priceRangeMap != null)
+                    {
+                        Iterator i$ = priceRangeMap.keySet().iterator();
+                        while(i$.hasNext()) 
+                        {
+                            ReversalAmount reversalAmount = (ReversalAmount)i$.next();
+                            IPriceAggregationCreator creator = (IPriceAggregationCreator)priceRangeMap.get(reversalAmount);
+                            if(creator != null && creator.getLastData() != null)
+                            {
+                                boolean currentBarFormingFinished = creator.analyse(tickData);
+                                if(!currentBarFormingFinished)
+                                    fireInProgressPointAndFigureUpdated(instrument, offerSide, priceRange, reversalAmount, (PointAndFigureData)creator.getLastData());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        map;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    private void fireInProgressPointAndFigureFormed(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, PointAndFigureData bar)
+    {
+        bar = (PointAndFigureData)clone(bar);
+        feedDataProvider.fireInProgressPointAndFigureFormed(instrument, offerSide, priceRange, reversalAmount, bar);
+    }
+
+    private void fireInProgressPointAndFigureUpdated(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, PointAndFigureData bar)
+    {
+        bar = (PointAndFigureData)clone(bar);
+        feedDataProvider.fireInProgressPointAndFigureUpdated(instrument, offerSide, priceRange, reversalAmount, bar);
+    }
+
+    private void processTickForPriceRanges(Instrument instrument, TickData tickData)
+    {
+        Map instrumentMap;
+label0:
+        {
+            synchronized(getInProgressPriceRangeCreatorsMap())
+            {
+                instrumentMap = (Map)getInProgressPriceRangeCreatorsMap().get(instrument);
+                if(instrumentMap != null)
+                    break label0;
+            }
+            return;
+        }
+        for(Iterator i$ = instrumentMap.keySet().iterator(); i$.hasNext();)
+        {
+            OfferSide offerSide = (OfferSide)i$.next();
+            Map offerSideMap = (Map)instrumentMap.get(offerSide);
+            if(offerSideMap != null)
+            {
+                Iterator i$ = offerSideMap.keySet().iterator();
+                while(i$.hasNext()) 
+                {
+                    PriceRange priceRange = (PriceRange)i$.next();
+                    IPriceAggregationCreator creator = (IPriceAggregationCreator)offerSideMap.get(priceRange);
+                    if(creator != null && creator.getLastData() != null)
+                    {
+                        boolean currentBarFormingFinished = creator.analyse(tickData);
+                        if(!currentBarFormingFinished)
+                            fireInProgressPriceRangeUpdated(instrument, offerSide, priceRange, (PriceRangeData)creator.getLastData());
+                    }
+                }
+            }
+        }
+
+        map;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    private void fireInProgressPriceRangeUpdated(Instrument instrument, OfferSide offerSide, PriceRange priceRange, PriceRangeData bar)
+    {
+        bar = (PriceRangeData)clone(bar);
+        feedDataProvider.fireInProgressPriceRangeUpdated(instrument, offerSide, priceRange, bar);
+    }
+
+    private void fireInProgressPriceRangeFormed(Instrument instrument, OfferSide offerSide, PriceRange priceRange, PriceRangeData bar)
+    {
+        bar = (PriceRangeData)clone(bar);
+        feedDataProvider.fireInProgressPriceRangeFormed(instrument, offerSide, priceRange, bar);
+    }
+
+    public void processTick(Instrument instrument, TickData tickData)
+    {
+        try
+        {
+            processTickForPriceRanges(instrument, tickData);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+        }
+        try
+        {
+            processTickForPointAndFigures(instrument, tickData);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+        }
+        try
+        {
+            processTickForTickBars(instrument, tickData);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+        }
+    }
+
+    public void startToFillInProgressPriceRange(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange)
+    {
+        synchronized(getInProgressPriceRangeCreatorsMap())
+        {
+            if(instrument == null || offerSide == null || priceRange == null)
+                throw new NullPointerException("Params are not correct!");
+            Map instrumentMap = (Map)getInProgressPriceRangeCreatorsMap().get(instrument);
+            if(instrumentMap == null)
+            {
+                instrumentMap = new Hashtable();
+                getInProgressPriceRangeCreatorsMap().put(instrument, instrumentMap);
+            }
+            Map offerSideMap = (Map)instrumentMap.get(offerSide);
+            if(offerSideMap == null)
+            {
+                offerSideMap = new Hashtable();
+                instrumentMap.put(offerSide, offerSideMap);
+            }
+            IPriceAggregationCreator creator = (IPriceAggregationCreator)offerSideMap.get(priceRange);
+            if(creator == null)
+            {
+                creator = new FlowPriceRangeCreator(instrument, offerSide, priceRange);
+                creator.addListener(new PriceRangeLiveFeedAdapter() {
+
+                    public void newPriceData(PriceRangeData bar)
+                    {
+                        fireInProgressPriceRangeFormed(instrument, offerSide, priceRange, bar);
+                    }
+
+                    public volatile void newPriceData(AbstractPriceAggregationData x0)
+                    {
+                        newPriceData((PriceRangeData)x0);
+                    }
+
+                    final Instrument val$instrument;
+                    final OfferSide val$offerSide;
+                    final PriceRange val$priceRange;
+                    final IntraperiodBarsGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodBarsGenerator.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                super();
+            }
+                });
+                offerSideMap.put(priceRange, creator);
+                asynchLoadLastPriceRange(instrument, offerSide, priceRange, creator);
+            }
+        }
+    }
+
+    private void asynchLoadLastPriceRange(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final IPriceAggregationCreator creator)
+    {
+        Runnable runnable = new Runnable() {
+
+            public void run()
+            {
+                PriceRangeData lastBar = loadLastPriceRange(instrument, offerSide, priceRange);
+                synchronized(getInProgressPriceRangeCreatorsMap())
+                {
+                    creator.setupLastData(lastBar);
+                }
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final PriceRange val$priceRange;
+            final IPriceAggregationCreator val$creator;
+            final IntraperiodBarsGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodBarsGenerator.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                creator = ipriceaggregationcreator;
+                super();
+            }
+        };
+        invoke(runnable);
+    }
+
+    private PriceRangeData loadLastPriceRange(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        PriceRangeData lastBar = feedDataProvider.loadLastPriceRangeDataSynched(instrument, offerSide, priceRange);
+        return lastBar;
+    }
+
+    public void stopToFillInProgressPriceRange(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        Map instrumentMap;
+label0:
+        {
+            synchronized(getInProgressPriceRangeCreatorsMap())
+            {
+                if(instrument == null || offerSide == null || priceRange == null)
+                    throw new NullPointerException("Params are not correct!");
+                instrumentMap = (Map)getInProgressPriceRangeCreatorsMap().get(instrument);
+                if(instrumentMap != null)
+                    break label0;
+            }
+            return;
+        }
+        Map offerSideMap;
+        offerSideMap = (Map)instrumentMap.get(offerSide);
+        if(offerSideMap != null)
+            break MISSING_BLOCK_LABEL_76;
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        offerSideMap.remove(priceRange);
+        map;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    public void startToFillInProgressPointAndFigure(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final ReversalAmount reversalAmount)
+    {
+        synchronized(getInProgressPointAndFigureCreatorsMap())
+        {
+            if(instrument == null || offerSide == null || priceRange == null || reversalAmount == null)
+                throw new NullPointerException("Params are not correct!");
+            Map instrumentMap = (Map)getInProgressPointAndFigureCreatorsMap().get(instrument);
+            if(instrumentMap == null)
+            {
+                instrumentMap = new Hashtable();
+                getInProgressPointAndFigureCreatorsMap().put(instrument, instrumentMap);
+            }
+            Map offerSideMap = (Map)instrumentMap.get(offerSide);
+            if(offerSideMap == null)
+            {
+                offerSideMap = new Hashtable();
+                instrumentMap.put(offerSide, offerSideMap);
+            }
+            Map priceRangeMap = (Map)offerSideMap.get(priceRange);
+            if(priceRangeMap == null)
+            {
+                priceRangeMap = new Hashtable();
+                offerSideMap.put(priceRange, priceRangeMap);
+            }
+            IPriceAggregationCreator creator = (IPriceAggregationCreator)priceRangeMap.get(reversalAmount);
+            if(creator == null)
+            {
+                creator = new FlowPointAndFigureFromTicksCreator(instrument.getPipValue() * (double)priceRange.getPipCount(), reversalAmount.getAmount(), offerSide);
+                creator.addListener(new PointAndFigureLiveFeedAdapter() {
+
+                    public void newPriceData(PointAndFigureData bar)
+                    {
+                        fireInProgressPointAndFigureFormed(instrument, offerSide, priceRange, reversalAmount, bar);
+                    }
+
+                    public volatile void newPriceData(AbstractPriceAggregationData x0)
+                    {
+                        newPriceData((PointAndFigureData)x0);
+                    }
+
+                    final Instrument val$instrument;
+                    final OfferSide val$offerSide;
+                    final PriceRange val$priceRange;
+                    final ReversalAmount val$reversalAmount;
+                    final IntraperiodBarsGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodBarsGenerator.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                reversalAmount = reversalamount;
+                super();
+            }
+                });
+                priceRangeMap.put(reversalAmount, creator);
+                asynchLoadLastPointAndFigure(instrument, offerSide, priceRange, reversalAmount, creator);
+            }
+        }
+    }
+
+    private void asynchLoadLastPointAndFigure(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final ReversalAmount reversalAmount, final IPriceAggregationCreator creator)
+    {
+        Runnable runnable = new Runnable() {
+
+            public void run()
+            {
+                PointAndFigureData lastBar = loadLastPointAndFigure(instrument, offerSide, priceRange, reversalAmount);
+                synchronized(getInProgressPointAndFigureCreatorsMap())
+                {
+                    creator.setupLastData(lastBar);
+                }
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final PriceRange val$priceRange;
+            final ReversalAmount val$reversalAmount;
+            final IPriceAggregationCreator val$creator;
+            final IntraperiodBarsGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodBarsGenerator.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                reversalAmount = reversalamount;
+                creator = ipriceaggregationcreator;
+                super();
+            }
+        };
+        invoke(runnable);
+    }
+
+    private PointAndFigureData loadLastPointAndFigure(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        PointAndFigureData lastBar = feedDataProvider.loadLastPointAndFigureDataSynched(instrument, offerSide, priceRange, reversalAmount);
+        return lastBar;
+    }
+
+    public void stopToFillInProgressPointAndFigure(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        Map instrumentMap;
+label0:
+        {
+            synchronized(getInProgressPointAndFigureCreatorsMap())
+            {
+                if(instrument == null || offerSide == null || priceRange == null || reversalAmount == null)
+                    throw new NullPointerException("Params are not correct!");
+                instrumentMap = (Map)getInProgressPointAndFigureCreatorsMap().get(instrument);
+                if(instrumentMap != null)
+                    break label0;
+            }
+            return;
+        }
+        Map offerSideMap;
+        offerSideMap = (Map)instrumentMap.get(offerSide);
+        if(offerSideMap != null)
+            break MISSING_BLOCK_LABEL_81;
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        Map priceRangeMap;
+        priceRangeMap = (Map)offerSideMap.get(priceRange);
+        if(priceRangeMap != null)
+            break MISSING_BLOCK_LABEL_103;
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        priceRangeMap.remove(reversalAmount);
+        map;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    public void startToFillInProgressTickBar(final Instrument instrument, final OfferSide offerSide, final TickBarSize tickBarSize)
+    {
+        synchronized(getInProgressTickBarCreatorsMap())
+        {
+            if(instrument == null || offerSide == null || tickBarSize == null)
+                throw new NullPointerException("Params are not correct!");
+            Map instrumentMap = (Map)getInProgressTickBarCreatorsMap().get(instrument);
+            if(instrumentMap == null)
+            {
+                instrumentMap = new Hashtable();
+                getInProgressTickBarCreatorsMap().put(instrument, instrumentMap);
+            }
+            Map offerSideMap = (Map)instrumentMap.get(offerSide);
+            if(offerSideMap == null)
+            {
+                offerSideMap = new Hashtable();
+                instrumentMap.put(offerSide, offerSideMap);
+            }
+            IPriceAggregationCreator creator = (IPriceAggregationCreator)offerSideMap.get(tickBarSize);
+            if(creator == null)
+            {
+                creator = new FlowTickBarCreator(tickBarSize.getSize(), offerSide);
+                creator.addListener(new TickBarLiveFeedAdapter() {
+
+                    public void newPriceData(TickBarData bar)
+                    {
+                        fireInProgressTickBarFormed(instrument, offerSide, tickBarSize, bar);
+                    }
+
+                    public volatile void newPriceData(AbstractPriceAggregationData x0)
+                    {
+                        newPriceData((TickBarData)x0);
+                    }
+
+                    final Instrument val$instrument;
+                    final OfferSide val$offerSide;
+                    final TickBarSize val$tickBarSize;
+                    final IntraperiodBarsGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodBarsGenerator.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                tickBarSize = tickbarsize;
+                super();
+            }
+                });
+                offerSideMap.put(tickBarSize, creator);
+                asynchLoadLastTickBar(instrument, offerSide, tickBarSize, creator);
+            }
+        }
+    }
+
+    private void asynchLoadLastTickBar(final Instrument instrument, final OfferSide offerSide, final TickBarSize tickBarSize, final IPriceAggregationCreator creator)
+    {
+        Runnable runnable = new Runnable() {
+
+            public void run()
+            {
+                TickBarData lastBar = loadLastTickBar(instrument, offerSide, tickBarSize);
+                synchronized(getInProgressTickBarCreatorsMap())
+                {
+                    creator.setupLastData(lastBar);
+                }
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final TickBarSize val$tickBarSize;
+            final IPriceAggregationCreator val$creator;
+            final IntraperiodBarsGenerator this$0;
+
+            
+            {
+                this$0 = IntraperiodBarsGenerator.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                tickBarSize = tickbarsize;
+                creator = ipriceaggregationcreator;
+                super();
+            }
+        };
+        invoke(runnable);
+    }
+
+    private TickBarData loadLastTickBar(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        TickBarData lastBar = feedDataProvider.loadLastTickBarDataSynched(instrument, offerSide, tickBarSize);
+        return lastBar;
+    }
+
+    public void stopToFillInProgressTickBar(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        Map instrumentMap;
+label0:
+        {
+            synchronized(getInProgressTickBarCreatorsMap())
+            {
+                if(instrument == null || offerSide == null || tickBarSize == null)
+                    throw new NullPointerException("Params are not correct!");
+                instrumentMap = (Map)getInProgressTickBarCreatorsMap().get(instrument);
+                if(instrumentMap != null)
+                    break label0;
+            }
+            return;
+        }
+        Map offerSideMap;
+        offerSideMap = (Map)instrumentMap.get(offerSide);
+        if(offerSideMap != null)
+            break MISSING_BLOCK_LABEL_76;
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        offerSideMap.remove(tickBarSize);
+        map;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    public PointAndFigureData getInProgressPointAndFigure(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        Map map = getInProgressPointAndFigureCreatorsMap();
+        JVM INSTR monitorenter ;
+        IPriceAggregationCreator creator = getInProgressPointAndFigureCreator(instrument, offerSide, priceRange, reversalAmount);
+        if(creator == null)
+            return null;
+        (PointAndFigureData)clone(creator.getLastData());
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    private IPriceAggregationCreator getInProgressPointAndFigureCreator(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        if(instrument == null || offerSide == null || priceRange == null || reversalAmount == null)
+            throw new NullPointerException("Params are not correct!");
+        Map instrumentMap = (Map)getInProgressPointAndFigureCreatorsMap().get(instrument);
+        if(instrumentMap == null)
+            return null;
+        Map offerSideMap = (Map)instrumentMap.get(offerSide);
+        if(offerSideMap == null)
+            return null;
+        Map priceRangeMap = (Map)offerSideMap.get(priceRange);
+        if(priceRangeMap == null)
+        {
+            return null;
+        } else
+        {
+            IPriceAggregationCreator creator = (IPriceAggregationCreator)priceRangeMap.get(reversalAmount);
+            return creator;
+        }
+    }
+
+    public PriceRangeData getInProgressPriceRange(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        Map map = getInProgressPriceRangeCreatorsMap();
+        JVM INSTR monitorenter ;
+        PriceRangeData result;
+        result = null;
+        IPriceAggregationCreator creator = getInProgressPriceRangeCreator(instrument, offerSide, priceRange);
+        if(creator != null)
+            result = (PriceRangeData)clone(creator.getLastData());
+        return result;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    private IPriceAggregationCreator getInProgressPriceRangeCreator(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        if(instrument == null || offerSide == null || priceRange == null)
+            throw new NullPointerException("Params are not correct!");
+        Map instrumentMap = (Map)getInProgressPriceRangeCreatorsMap().get(instrument);
+        if(instrumentMap != null)
+        {
+            Map offerSideMap = (Map)instrumentMap.get(offerSide);
+            if(offerSideMap != null)
+            {
+                IPriceAggregationCreator creator = (IPriceAggregationCreator)offerSideMap.get(priceRange);
+                return creator;
+            }
+        }
+        return null;
+    }
+
+    public TickBarData getInProgressTickBar(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        Map map = getInProgressTickBarCreatorsMap();
+        JVM INSTR monitorenter ;
+        IPriceAggregationCreator creator = getInProgressTickBarCreator(instrument, offerSide, tickBarSize);
+        if(creator == null)
+            return null;
+        (TickBarData)clone(creator.getLastData());
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    private IPriceAggregationCreator getInProgressTickBarCreator(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        if(instrument == null || offerSide == null || tickBarSize == null)
+            throw new NullPointerException("Params are not correct!");
+        Map instrumentMap = (Map)getInProgressTickBarCreatorsMap().get(instrument);
+        if(instrumentMap == null)
+            return null;
+        Map offerSideMap = (Map)instrumentMap.get(offerSide);
+        if(offerSideMap == null)
+        {
+            return null;
+        } else
+        {
+            IPriceAggregationCreator creator = (IPriceAggregationCreator)offerSideMap.get(tickBarSize);
+            return creator;
+        }
+    }
+
+    private AbstractPriceAggregationData clone(AbstractPriceAggregationData bar)
+    {
+        return bar != null ? bar.clone() : null;
+    }
+
+    private void invoke(Runnable runnable)
+    {
+        (new Thread(runnable)).start();
+    }
+
+    public boolean isInProgressPriceRangeLoadingNow(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        Map map = getInProgressPriceRangeCreatorsMap();
+        JVM INSTR monitorenter ;
+        IPriceAggregationCreator creator = getInProgressPriceRangeCreator(instrument, offerSide, priceRange);
+        return isInProgressBarLoadingNow(creator);
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public boolean isInProgressTickBarLoadingNow(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        Map map = getInProgressTickBarCreatorsMap();
+        JVM INSTR monitorenter ;
+        IPriceAggregationCreator creator = getInProgressTickBarCreator(instrument, offerSide, tickBarSize);
+        return isInProgressBarLoadingNow(creator);
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public boolean isInProgressPointAndFigureLoadingNow(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        Map map = getInProgressPointAndFigureCreatorsMap();
+        JVM INSTR monitorenter ;
+        IPriceAggregationCreator creator = getInProgressPointAndFigureCreator(instrument, offerSide, priceRange, reversalAmount);
+        return isInProgressBarLoadingNow(creator);
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    private boolean isInProgressBarLoadingNow(IPriceAggregationCreator creator)
+    {
+        return creator != null && creator.getLastData() == null;
+    }
+
+    private SimpleDateFormat DATE_FORMAT;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/intraperiod/IntraperiodBarsGenerator);
+    private Map inProgressPriceRangeCreatorsMap;
+    private Map inProgressPointAndFigureCreatorsMap;
+    private Map inProgressTickBarCreatorsMap;
+    private final FeedDataProvider feedDataProvider;
+
+
+
+
+
+
+
+
+
+
+}

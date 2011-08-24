@@ -1,0 +1,41 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TenX.java
+
+package com.dukascopy.calculator.function;
+
+import com.dukascopy.calculator.OObject;
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            RFunction
+
+public class TenX extends RFunction
+{
+
+    public TenX()
+    {
+        ftooltip = "sc.calculator.ten.x.function";
+        fshortcut = 'l';
+    }
+
+    public double function(double x)
+    {
+        return Math.exp(x * Math.log(10D));
+    }
+
+    public OObject function(OObject x)
+    {
+        return x.tenx();
+    }
+
+    public String[] name_array()
+    {
+        return fname;
+    }
+
+    private static final String fname[] = {
+        "1", "0", "<sup><i>x</i></sup>"
+    };
+
+}

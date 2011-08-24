@@ -1,0 +1,498 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterOrdersProvider.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IOrder;
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.charts.data.datacache.LoadingProgressListener;
+import com.dukascopy.charts.data.datacache.OrderHistoricalData;
+import com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable;
+import com.dukascopy.charts.data.datacache.OrdersListener;
+import com.dukascopy.charts.data.orders.AbstractOrdersProvider;
+import com.dukascopy.charts.data.orders.CalculatedAccount;
+import com.dukascopy.charts.data.orders.IOrdersProvider;
+import com.dukascopy.charts.persistence.ChartBean;
+import com.dukascopy.dds2.greed.util.IOrderUtils;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Currency;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            TesterOrder
+
+public class TesterOrdersProvider extends AbstractOrdersProvider
+    implements IOrdersProvider
+{
+
+    public TesterOrdersProvider()
+    {
+    }
+
+    public synchronized Collection getOpenOrdersForInstrument(Instrument instrument, long from, long to)
+    {
+        Map orders = ordersByInstrument[instrument.ordinal()];
+        if(orders == null)
+        {
+            orders = new HashMap();
+            ordersByInstrument[instrument.ordinal()] = orders;
+        }
+        Collection result = new ArrayList();
+        Iterator i$ = orders.values().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            OrderHistoricalData data = (OrderHistoricalData)i$.next();
+            if(data.getHistoryEnd() >= from && data.getHistoryStart() <= to || data.getHistoryStart() == 0x7fffffffffffffffL || data.isOpened() && (data.getEntryOrder().getStopLossPrice().compareTo(BigDecimal.ZERO) >= 0 || data.getEntryOrder().getTakeProfitPrice().compareTo(BigDecimal.ZERO) >= 0))
+                result.add(data);
+        } while(true);
+        return result;
+    }
+
+    public IOrderUtils getOrderUtils()
+    {
+        return new IOrderUtils() {
+
+            public void addStopLoss(String s, String s1)
+            {
+            }
+
+            public void addTakeProfit(String s, String s1)
+            {
+            }
+
+            public boolean cancelOrder(String orderId)
+            {
+                return false;
+            }
+
+            public void closeOrder(String s)
+            {
+            }
+
+            public void condCloseOrder(String s)
+            {
+            }
+
+            public void editOrder(String s, java.awt.event.ActionListener actionlistener, ChartBean chartbean)
+            {
+            }
+
+            public void editOrder(String s, double d, java.awt.event.ActionListener actionlistener, ChartBean chartbean)
+            {
+            }
+
+            public void createNewOrder(java.awt.Window window1, Instrument instrument1, com.dukascopy.api.IEngine.OrderCommand ordercommand, double d, Integer integer)
+            {
+            }
+
+            public void selectGroupIds(List list)
+            {
+            }
+
+            public AccountInfoMessage getAccountInfo()
+            {
+                return null;
+            }
+
+            public void orderChangePreview(ChartBean chartbean, String s, BigDecimal bigdecimal, String s1, java.awt.Color color1, java.awt.Stroke stroke1)
+            {
+            }
+
+            public void cancelOrderChangePreview(ChartBean chartbean, String s)
+            {
+            }
+
+            public void setOrderLinesVisible(ChartBean chartbean, String s, boolean flag)
+            {
+            }
+
+            final TesterOrdersProvider this$0;
+
+            
+            {
+                this$0 = TesterOrdersProvider.this;
+                super();
+            }
+        };
+    }
+
+    public synchronized void orderSubmitOk(TesterOrder order)
+    {
+        try
+        {
+            OrderHistoricalDataMutable lineData = getGraphicalData(order);
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData pendingOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData();
+            pendingOrder.setAmount(BigDecimal.valueOf(order.getRequestedAmountInUnits()));
+            pendingOrder.setSide(order.getOrderCommand());
+            pendingOrder.setOpenPrice(BigDecimal.valueOf(order.getOpenPrice()));
+            pendingOrder.setCreationTime(order.getCreationTime());
+            extendOrderHistoryRange(lineData, pendingOrder.getCreationTime());
+            pendingOrder.setOrderId(order.getId());
+            pendingOrder.setLabel(order.getLabel());
+            if(order.getStopLossPrice() != 0.0D)
+            {
+                pendingOrder.setStopLossOrderId(order.getId());
+                pendingOrder.setStopLossPrice(BigDecimal.valueOf(order.getStopLossPrice()));
+                pendingOrder.setStopLossByBid(order.getStopLossSide() == OfferSide.BID);
+            }
+            if(order.getTakeProfitPrice() != 0.0D)
+            {
+                pendingOrder.setTakeProfitOrderId(order.getId());
+                pendingOrder.setTakeProfitPrice(BigDecimal.valueOf(order.getTakeProfitPrice()));
+            }
+            lineData.addPendingOrder(pendingOrder);
+            fireOrderNew(order.getInstrument(), saveGraphicalData(order.getInstrument(), lineData));
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public synchronized void orderChangedOkSLTP(long currentTime, TesterOrder order)
+    {
+        try
+        {
+            OrderHistoricalDataMutable lineData = getGraphicalData(order);
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData openingOrder;
+            if(!lineData.isOpened())
+            {
+                openingOrder = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData)lineData.getPendingOrders().get(0);
+            } else
+            {
+                openingOrder = lineData.getEntryOrder();
+                extendOrderHistoryRange(lineData, currentTime);
+            }
+            if(order.getStopLossPrice() != 0.0D)
+            {
+                openingOrder.setStopLossOrderId(order.getId());
+                openingOrder.setStopLossPrice(BigDecimal.valueOf(order.getStopLossPrice()));
+                openingOrder.setStopLossByBid(order.getStopLossSide() == OfferSide.BID);
+            } else
+            {
+                openingOrder.setStopLossOrderId(null);
+                openingOrder.setStopLossPrice(OrderHistoricalData.NEG_ONE);
+            }
+            if(order.getTakeProfitPrice() != 0.0D)
+            {
+                openingOrder.setTakeProfitOrderId(order.getId());
+                openingOrder.setTakeProfitPrice(BigDecimal.valueOf(order.getTakeProfitPrice()));
+            } else
+            {
+                openingOrder.setTakeProfitOrderId(null);
+                openingOrder.setTakeProfitPrice(OrderHistoricalData.NEG_ONE);
+            }
+            fireOrderChange(order.getInstrument(), saveGraphicalData(order.getInstrument(), lineData));
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public synchronized void orderChangedOkPending(TesterOrder order)
+    {
+        try
+        {
+            OrderHistoricalDataMutable lineData = getGraphicalData(order);
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData pendingOrder = (com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData)lineData.getPendingOrders().get(0);
+            pendingOrder.setAmount(BigDecimal.valueOf(order.getRequestedAmountInUnits()));
+            pendingOrder.setOpenPrice(BigDecimal.valueOf(order.getOpenPrice()));
+            fireOrderChange(order.getInstrument(), saveGraphicalData(order.getInstrument(), lineData));
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public synchronized void orderFillOk(TesterOrder order)
+    {
+        try
+        {
+            OrderHistoricalDataMutable lineData = getGraphicalData(order);
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData entryOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData();
+            entryOrder.setAmount(BigDecimal.valueOf(order.getAmountInUnits()));
+            entryOrder.setOpenPrice(BigDecimal.valueOf(order.getOpenPrice()));
+            entryOrder.setSide(order.getOrderCommand());
+            entryOrder.setCreationTime(order.getCreationTime());
+            entryOrder.setFillTime(order.getFillTime());
+            extendOrderHistoryRange(lineData, entryOrder.getCreationTime());
+            extendOrderHistoryRange(lineData, entryOrder.getFillTime());
+            entryOrder.setOrderId(order.getId());
+            entryOrder.setLabel(order.getLabel());
+            if(order.getStopLossPrice() != 0.0D)
+            {
+                entryOrder.setStopLossOrderId(order.getId());
+                entryOrder.setStopLossPrice(BigDecimal.valueOf(order.getStopLossPrice()));
+                entryOrder.setStopLossByBid(order.getStopLossSide() == OfferSide.BID);
+            }
+            if(order.getTakeProfitPrice() != 0.0D)
+            {
+                entryOrder.setTakeProfitOrderId(order.getId());
+                entryOrder.setTakeProfitPrice(BigDecimal.valueOf(order.getTakeProfitPrice()));
+            }
+            lineData.setEntryOrder(entryOrder);
+            lineData.clearPendingOrders();
+            lineData.setOpened(true);
+            fireOrderChange(order.getInstrument(), saveGraphicalData(order.getInstrument(), lineData));
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public synchronized void orderCancelOk(TesterOrder order)
+    {
+        try
+        {
+            Map orders = ordersByInstrument[order.getInstrument().ordinal()];
+            if(orders == null)
+            {
+                orders = new HashMap();
+                ordersByInstrument[order.getInstrument().ordinal()] = orders;
+            }
+            OrderHistoricalDataMutable lineData = new OrderHistoricalDataMutable((OrderHistoricalData)orders.remove(order.getId()));
+            lineData.setClosed(true);
+            fireOrderChange(order.getInstrument(), new OrderHistoricalData(lineData));
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public synchronized void orderFillRejected(TesterOrder order)
+    {
+        try
+        {
+            Map orders = ordersByInstrument[order.getInstrument().ordinal()];
+            if(orders == null)
+            {
+                orders = new HashMap();
+                ordersByInstrument[order.getInstrument().ordinal()] = orders;
+            }
+            OrderHistoricalDataMutable lineData = new OrderHistoricalDataMutable((OrderHistoricalData)orders.remove(order.getId()));
+            lineData.setClosed(true);
+            fireOrderChange(order.getInstrument(), new OrderHistoricalData(lineData));
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public synchronized void orderCloseOk(TesterOrder order, double closeAmount)
+    {
+        try
+        {
+            OrderHistoricalDataMutable lineData = getGraphicalData(order);
+            if(order.getState() == com.dukascopy.api.IOrder.State.CLOSED)
+                lineData.setClosed(true);
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData closeOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData();
+            closeOrder.setAmount(BigDecimal.valueOf(closeAmount));
+            closeOrder.setClosePrice(BigDecimal.valueOf(order.getClosePrice()));
+            closeOrder.setCloseTime(order.getCloseTime());
+            extendOrderHistoryRange(lineData, closeOrder.getCloseTime());
+            lineData.putCloseData((new StringBuilder()).append(order.getId()).append("_").append(lineData.getCloseDataMap().size()).toString(), closeOrder);
+            fireOrderChange(order.getInstrument(), saveGraphicalData(order.getInstrument(), lineData));
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    public synchronized void ordersMergeOk(IOrder orders[], TesterOrder resultingOrder, long mergeTime)
+    {
+        try
+        {
+            Instrument instrument = orders[0].getInstrument();
+            Map lineOrders = ordersByInstrument[instrument.ordinal()];
+            OrderHistoricalDataMutable resultingLineData = new OrderHistoricalDataMutable();
+            String id;
+            if(resultingOrder == null)
+                id = orders[0].getId();
+            else
+                id = resultingOrder.getId();
+            resultingLineData.setOrderGroupId(id);
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData closeData = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.CloseData();
+            com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData entryOrder = new com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData();
+            resultingLineData.setEntryOrder(entryOrder);
+            resultingLineData.setOpened(true);
+            entryOrder.setOrderId(id);
+            entryOrder.setLabel(resultingOrder.getLabel());
+            entryOrder.setAmount(BigDecimal.ZERO);
+            entryOrder.setSide(com.dukascopy.api.IEngine.OrderCommand.BUY);
+            if(resultingOrder != null && resultingOrder.getState() == com.dukascopy.api.IOrder.State.FILLED)
+            {
+                entryOrder.setAmount(BigDecimal.valueOf(resultingOrder.getAmountInUnits()));
+                entryOrder.setSide(resultingOrder.getOrderCommand());
+                entryOrder.setOpenPrice(BigDecimal.valueOf(resultingOrder.getOpenPrice()));
+                entryOrder.setCreationTime(resultingOrder.getCreationTime());
+                entryOrder.setFillTime(resultingOrder.getFillTime());
+                extendOrderHistoryRange(resultingLineData, entryOrder.getCreationTime());
+                extendOrderHistoryRange(resultingLineData, entryOrder.getFillTime());
+                entryOrder.setOrderId(resultingOrder.getId());
+                resultingLineData.setClosed(false);
+            } else
+            {
+                resultingLineData.setClosed(true);
+                closeData.setAmount(BigDecimal.ZERO);
+                resultingLineData.putCloseData((new StringBuilder()).append(id).append("_0").toString(), closeData);
+            }
+            List mergedOrders = new ArrayList(orders.length);
+            String mergedFrom[] = new String[orders.length];
+            BigDecimal closePrice = BigDecimal.ZERO;
+            BigDecimal amount = BigDecimal.ZERO;
+            for(int i = 0; i < orders.length; i++)
+            {
+                IOrder order = orders[i];
+                mergedFrom[i] = order.getId();
+                OrderHistoricalData mergedOrderUnmodifiable = (OrderHistoricalData)lineOrders.get(order.getId());
+                if(mergedOrderUnmodifiable == null)
+                    continue;
+                OrderHistoricalDataMutable mergedOrder = new OrderHistoricalDataMutable(mergedOrderUnmodifiable);
+                mergedOrder.setMergedToGroupId(id);
+                mergedOrder.setMergedToTime(mergeTime);
+                extendOrderHistoryRange(mergedOrder, mergeTime);
+                com.dukascopy.charts.data.datacache.OrderHistoricalDataMutable.OpenData mergedOrderEntryOrder = mergedOrder.getEntryOrder();
+                if(mergedOrderEntryOrder != null)
+                {
+                    extendOrderHistoryRange(resultingLineData, mergedOrderEntryOrder.getFillTime());
+                    closePrice = closePrice.add(mergedOrderEntryOrder.getAmount().multiply(mergedOrderEntryOrder.getOpenPrice()));
+                    amount = amount.add(mergedOrderEntryOrder.getAmount());
+                }
+                mergedOrderUnmodifiable = new OrderHistoricalData(mergedOrder);
+                mergedOrders.add(mergedOrderUnmodifiable);
+                lineOrders.put(order.getId(), mergedOrderUnmodifiable);
+            }
+
+            entryOrder.setMergedFrom(mergedFrom);
+            if(entryOrder.getCreationTime() == 0L)
+            {
+                entryOrder.setCreationTime(mergeTime);
+                extendOrderHistoryRange(resultingLineData, entryOrder.getCreationTime());
+            }
+            entryOrder.setFillTime(mergeTime);
+            extendOrderHistoryRange(resultingLineData, entryOrder.getFillTime());
+            if(resultingOrder == null || resultingOrder.getState() != com.dukascopy.api.IOrder.State.FILLED)
+            {
+                closeData.setCloseTime(mergeTime);
+                extendOrderHistoryRange(resultingLineData, closeData.getCloseTime());
+                closeData.setClosePrice(closePrice.divide(amount, BigDecimal.valueOf(instrument.getPipValue()).scale() + 1, 6));
+                entryOrder.setOpenPrice(closeData.getClosePrice());
+            }
+            OrderHistoricalData unmodifiableResult = new OrderHistoricalData(resultingLineData);
+            lineOrders.put(resultingLineData.getOrderGroupId(), unmodifiableResult);
+            fireOrderMerge(instrument, unmodifiableResult, mergedOrders);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private OrderHistoricalDataMutable getGraphicalData(TesterOrder order)
+    {
+        if(!$assertionsDisabled && order.getInstrument() == null)
+            throw new AssertionError("Instrument cannot be null");
+        Map orders = ordersByInstrument[order.getInstrument().ordinal()];
+        if(orders == null)
+        {
+            orders = new HashMap();
+            ordersByInstrument[order.getInstrument().ordinal()] = orders;
+        }
+        String orderId = order.getId();
+        OrderHistoricalData orderHistoricalData = (OrderHistoricalData)orders.get(orderId);
+        if(orderHistoricalData == null)
+        {
+            OrderHistoricalDataMutable lineData = new OrderHistoricalDataMutable();
+            lineData.setOrderGroupId(orderId);
+            return lineData;
+        } else
+        {
+            return new OrderHistoricalDataMutable(orderHistoricalData);
+        }
+    }
+
+    private OrderHistoricalData saveGraphicalData(Instrument instrument, OrderHistoricalDataMutable lineData)
+    {
+        Map orders = ordersByInstrument[instrument.ordinal()];
+        if(orders == null)
+        {
+            orders = new HashMap();
+            ordersByInstrument[instrument.ordinal()] = orders;
+        }
+        OrderHistoricalData data = new OrderHistoricalData(lineData);
+        orders.put(lineData.getOrderGroupId(), data);
+        return data;
+    }
+
+    protected ITick getLastTick(Instrument instrument)
+    {
+        return null;
+    }
+
+    public double convert(double amount, Currency sourceCurrency, Currency currency, OfferSide offerside)
+    {
+        return 0.0D;
+    }
+
+    public BigDecimal convert(BigDecimal amount, Currency sourceCurrency, Currency targetCurrency, OfferSide offerside)
+    {
+        return null;
+    }
+
+    public synchronized void setCalculatedAccountData(double equity, double leverage, double creditLine)
+    {
+        calculatedAccount.setCalculatedEquity(equity);
+        calculatedAccount.setCalculatedUseOfLeverage(leverage);
+        calculatedAccount.setCalculatedCreditLine(creditLine);
+    }
+
+    public synchronized double recalculateEquity()
+    {
+        return calculatedAccount.getEquity();
+    }
+
+    public synchronized void getOrdersForInstrument(Instrument instrument, long from, long to, OrdersListener ordersListener, LoadingProgressListener progressListener)
+    {
+        Map orders = ordersByInstrument[instrument.ordinal()];
+        if(orders == null)
+        {
+            orders = new HashMap();
+            ordersByInstrument[instrument.ordinal()] = orders;
+        }
+        Iterator i$ = orders.values().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            OrderHistoricalData data = (OrderHistoricalData)i$.next();
+            if(data.getHistoryEnd() >= from && data.getHistoryStart() <= to || data.getHistoryStart() == 0x7fffffffffffffffL || !data.isClosed() && data.isOpened() && (data.getEntryOrder().getStopLossPrice().compareTo(BigDecimal.ZERO) >= 0 || data.getEntryOrder().getTakeProfitPrice().compareTo(BigDecimal.ZERO) >= 0))
+                ordersListener.newOrder(instrument, data);
+        } while(true);
+        progressListener.loadingFinished(true, from, to, to, null);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/TesterOrdersProvider);
+    static final boolean $assertionsDisabled = !com/dukascopy/dds2/greed/agent/strategy/tester/TesterOrdersProvider.desiredAssertionStatus();
+
+}

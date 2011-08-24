@@ -1,0 +1,247 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ResizingManager.java
+
+package com.dukascopy.dds2.greed.gui.resizing;
+
+import java.awt.Dimension;
+import java.lang.ref.WeakReference;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+import javax.swing.SwingUtilities;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.resizing:
+//            Resizable
+
+public class ResizingManager
+{
+    public static final class ComponentSize extends Enum
+    {
+
+        public static ComponentSize[] values()
+        {
+            return (ComponentSize[])$VALUES.clone();
+        }
+
+        public static ComponentSize valueOf(String name)
+        {
+            return (ComponentSize)Enum.valueOf(com/dukascopy/dds2/greed/gui/resizing/ResizingManager$ComponentSize, name);
+        }
+
+        protected Dimension getSmallSize()
+        {
+            return smallSize;
+        }
+
+        protected Dimension getMediumSize()
+        {
+            return mediumSize;
+        }
+
+        protected Dimension getLargeSize()
+        {
+            return largeSize;
+        }
+
+        public Dimension getSize()
+        {
+            if(SizeMode.SMALL.equals(ResizingManager.currentSizeMode))
+                return getSmallSize();
+            if(SizeMode.MEDIUM.equals(ResizingManager.currentSizeMode))
+                return getMediumSize();
+            if(SizeMode.LARGE.equals(ResizingManager.currentSizeMode))
+                return getLargeSize();
+            else
+                return getSmallSize();
+        }
+
+        public static final ComponentSize SIZE_180X24;
+        public static final ComponentSize SIZE_130X24;
+        public static final ComponentSize SIZE_120X24;
+        public static final ComponentSize SIZE_110X24;
+        public static final ComponentSize SIZE_100X24;
+        public static final ComponentSize SIZE_90X24;
+        public static final ComponentSize SIZE_80X24;
+        public static final ComponentSize SIZE_70X24;
+        public static final ComponentSize SIZE_40X24;
+        public static final ComponentSize SIZE_30X24;
+        public static final ComponentSize SIZE_24X24;
+        public static final ComponentSize SIZE_20X20;
+        public static final ComponentSize SIZE_33X9;
+        public static final ComponentSize TOLBAR_BTN_SIZE;
+        private final Dimension smallSize;
+        private final Dimension mediumSize;
+        private final Dimension largeSize;
+        private static final ComponentSize $VALUES[];
+
+        static 
+        {
+            SIZE_180X24 = new ComponentSize("SIZE_180X24", 0, new Dimension(180, 24), new Dimension(180, 35), new Dimension(180, 50));
+            SIZE_130X24 = new ComponentSize("SIZE_130X24", 1, new Dimension(130, 24), new Dimension(165, 35), new Dimension(200, 50));
+            SIZE_120X24 = new ComponentSize("SIZE_120X24", 2, new Dimension(120, 24), new Dimension(150, 35), new Dimension(180, 50));
+            SIZE_110X24 = new ComponentSize("SIZE_110X24", 3, new Dimension(110, 24), new Dimension(138, 35), new Dimension(165, 50));
+            SIZE_100X24 = new ComponentSize("SIZE_100X24", 4, new Dimension(100, 24), new Dimension(125, 35), new Dimension(150, 50));
+            SIZE_90X24 = new ComponentSize("SIZE_90X24", 5, new Dimension(90, 24), new Dimension(113, 36), new Dimension(135, 51));
+            SIZE_80X24 = new ComponentSize("SIZE_80X24", 6, new Dimension(80, 24), new Dimension(100, 35), new Dimension(120, 50));
+            SIZE_70X24 = new ComponentSize("SIZE_70X24", 7, new Dimension(70, 24), new Dimension(88, 35), new Dimension(105, 50));
+            SIZE_40X24 = new ComponentSize("SIZE_40X24", 8, new Dimension(40, 24), new Dimension(40, 35), new Dimension(40, 50));
+            SIZE_30X24 = new ComponentSize("SIZE_30X24", 9, new Dimension(30, 24), new Dimension(38, 35), new Dimension(45, 50));
+            SIZE_24X24 = new ComponentSize("SIZE_24X24", 10, new Dimension(24, 24), new Dimension(30, 35), new Dimension(36, 50));
+            SIZE_20X20 = new ComponentSize("SIZE_20X20", 11, new Dimension(20, 20), new Dimension(20, 20), new Dimension(20, 20));
+            SIZE_33X9 = new ComponentSize("SIZE_33X9", 12, new Dimension(33, 9), new Dimension(45, 15), new Dimension(60, 25));
+            TOLBAR_BTN_SIZE = new ComponentSize("TOLBAR_BTN_SIZE", 13, new Dimension(30, 28), new Dimension(45, 40), new Dimension(60, 55));
+            $VALUES = (new ComponentSize[] {
+                SIZE_180X24, SIZE_130X24, SIZE_120X24, SIZE_110X24, SIZE_100X24, SIZE_90X24, SIZE_80X24, SIZE_70X24, SIZE_40X24, SIZE_30X24, 
+                SIZE_24X24, SIZE_20X20, SIZE_33X9, TOLBAR_BTN_SIZE
+            });
+        }
+
+        private ComponentSize(String s, int i, Dimension smallSize, Dimension mediumSize, Dimension largeSize)
+        {
+            super(s, i);
+            this.smallSize = smallSize;
+            this.mediumSize = mediumSize;
+            this.largeSize = largeSize;
+        }
+    }
+
+    public static final class SizeMode extends Enum
+    {
+
+        public static SizeMode[] values()
+        {
+            return (SizeMode[])$VALUES.clone();
+        }
+
+        public static SizeMode valueOf(String name)
+        {
+            return (SizeMode)Enum.valueOf(com/dukascopy/dds2/greed/gui/resizing/ResizingManager$SizeMode, name);
+        }
+
+        protected float getMultiplayer()
+        {
+            return multiplayer;
+        }
+
+        public static final SizeMode SMALL;
+        public static final SizeMode MEDIUM;
+        public static final SizeMode LARGE;
+        public final String key;
+        public final float multiplayer;
+        private static final SizeMode $VALUES[];
+
+        static 
+        {
+            SMALL = new SizeMode("SMALL", 0, "item.small.size.mode", 1.0F);
+            MEDIUM = new SizeMode("MEDIUM", 1, "item.medium.size.mode", 1.25F);
+            LARGE = new SizeMode("LARGE", 2, "item.large.size.mode", 1.5F);
+            $VALUES = (new SizeMode[] {
+                SMALL, MEDIUM, LARGE
+            });
+        }
+
+        private SizeMode(String s, int i, String key, float multiplayer)
+        {
+            super(s, i);
+            this.key = key;
+            this.multiplayer = multiplayer;
+        }
+    }
+
+
+    public ResizingManager()
+    {
+    }
+
+    public static void addResizable(Resizable resizable)
+    {
+        WeakReference resizableRef = new WeakReference(resizable);
+        CACHE.put(resizableRef, new WeakReference(resizable.getDefaultSize()));
+        resizable.setSizeMode(getCompCorrectSize(resizableRef));
+    }
+
+    private static Object getCompCorrectSize(WeakReference resizableRef)
+    {
+        if(((WeakReference)CACHE.get(resizableRef)).get() instanceof ComponentSize)
+            return ((ComponentSize)((WeakReference)CACHE.get(resizableRef)).get()).getSize();
+        if(!(((WeakReference)CACHE.get(resizableRef)).get() instanceof Integer))
+            return Float.valueOf(14F);
+        if(!CACHE.containsKey(resizableRef))
+            return ((Resizable)resizableRef.get()).getDefaultSize();
+        else
+            return Float.valueOf((new BigDecimal(currentSizeMode.getMultiplayer())).multiply(new BigDecimal(((Integer)((WeakReference)CACHE.get(resizableRef)).get()).intValue())).setScale(0, RoundingMode.HALF_UP).floatValue());
+    }
+
+    private static synchronized void fireSizeChanged()
+    {
+        Iterator i$ = CACHE.entrySet().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            Resizable resizable = (Resizable)((WeakReference)entry.getKey()).get();
+            if(resizable != null)
+                resizable.setSizeMode(getCompCorrectSize((WeakReference)entry.getKey()));
+        } while(true);
+    }
+
+    private static synchronized void setSize(SizeMode sizeMode)
+    {
+        currentSizeMode = sizeMode;
+    }
+
+    public static void changeSize(SizeMode sizeMode)
+    {
+        SwingUtilities.invokeLater(new Runnable(sizeMode) {
+
+            public void run()
+            {
+                ResizingManager.setSize(sizeMode);
+                ResizingManager.fireSizeChanged();
+            }
+
+            final SizeMode val$sizeMode;
+
+            
+            {
+                sizeMode = sizemode;
+                super();
+            }
+        });
+    }
+
+    public static SizeMode getCurrentSizeMode()
+    {
+        return currentSizeMode;
+    }
+
+    public static boolean isSmallMode()
+    {
+        return SizeMode.SMALL.equals(currentSizeMode);
+    }
+
+    public static boolean isMediumMode()
+    {
+        return SizeMode.MEDIUM.equals(currentSizeMode);
+    }
+
+    public static boolean isLargeMode()
+    {
+        return SizeMode.LARGE.equals(currentSizeMode);
+    }
+
+    private static final Map CACHE = new HashMap();
+    public static final float DEFAULT_FONT_SIZE = 14F;
+    private static SizeMode currentSizeMode;
+
+    static 
+    {
+        currentSizeMode = SizeMode.SMALL;
+    }
+
+
+
+}

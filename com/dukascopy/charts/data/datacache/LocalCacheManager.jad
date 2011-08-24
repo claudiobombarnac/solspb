@@ -1,0 +1,3039 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LocalCacheManager.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import com.dukascopy.transport.util.Hex;
+import java.io.*;
+import java.nio.channels.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import javax.crypto.*;
+import javax.crypto.spec.SecretKeySpec;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            CacheManager, DataCacheException, TickData, IntraPeriodCandleData, 
+//            Data, CandleData, OrdersChunkData, OrderHistoricalData, 
+//            InstrumentSubscriptionListener, LiveFeedListener, LoadingProgressListener, DataCacheUtils, 
+//            FeedDataProvider, CurvesDataLoader
+
+public class LocalCacheManager extends CacheManager
+    implements InstrumentSubscriptionListener
+{
+    private static class CandleWriteTask extends DelayedWriteTask
+    {
+
+        public Period period;
+        public long firstChunkCandle;
+        public List candleData;
+
+        private CandleWriteTask()
+        {
+            candleData = new ArrayList();
+        }
+
+    }
+
+    private static class TickWriteTask extends DelayedWriteTask
+    {
+
+        public void ensureCapacity(int minCapacity)
+        {
+            int oldCapacity = data.length;
+            if(minCapacity > oldCapacity)
+            {
+                int newCapacity = (oldCapacity * 3) / 2 + 1;
+                if(newCapacity < minCapacity)
+                    newCapacity = minCapacity;
+                byte copy[] = new byte[newCapacity];
+                System.arraycopy(data, 0, copy, 0, oldCapacity);
+                data = copy;
+            }
+        }
+
+        public byte data[];
+        public int size;
+        public long lastWrittenTickTime;
+
+        private TickWriteTask()
+        {
+            data = new byte[40];
+        }
+
+    }
+
+    private static class DelayedWriteTask
+    {
+
+        public File intraperiodFile;
+        public Instrument instrument;
+
+        private DelayedWriteTask()
+        {
+        }
+
+    }
+
+    private class WriteDelayedTasks extends TimerTask
+    {
+
+        public void run()
+        {
+            if(LocalCacheManager.LOGGER.isTraceEnabled())
+                LocalCacheManager.LOGGER.trace((new StringBuilder()).append("Flushing delayed write tasks [").append(delayedWriteTasks.size()).append("]").toString());
+_L3:
+label0:
+            {
+                synchronized(delayedWriteTasks)
+                {
+                    if(!delayedWriteTasks.isEmpty())
+                        break label0;
+                }
+                return;
+            }
+            File file = (File)delayedWriteTasks.keySet().iterator().next();
+            map;
+            JVM INSTR monitorexit ;
+              goto _L1
+            exception;
+            throw exception;
+_L1:
+            java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+            ReentrantReadWriteLock rwLock = getLock(file);
+            wLock = rwLock.writeLock();
+            wLock.lock();
+            if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+                LocalCacheManager.LOGGER.error("Cannot create cache directory");
+            try
+            {
+                RandomAccessFile fileHandle = getIntraPeriodFileHandle(file);
+                flushDelayedWriteTasks(file, fileHandle);
+            }
+            catch(Exception e)
+            {
+                LocalCacheManager.LOGGER.error(e.getMessage(), e);
+            }
+            wLock.unlock();
+            if(true) goto _L3; else goto _L2
+_L2:
+            Exception exception1;
+            exception1;
+            wLock.unlock();
+            throw exception1;
+        }
+
+        final LocalCacheManager this$0;
+
+        private WriteDelayedTasks()
+        {
+            this$0 = LocalCacheManager.this;
+            super();
+        }
+
+    }
+
+    private class CloseFileLocks extends TimerTask
+    {
+
+        public void run()
+        {
+            Map map = fileLocks;
+            JVM INSTR monitorenter ;
+            Iterator iterator;
+            if(fileLocks.size() <= 40)
+                break MISSING_BLOCK_LABEL_138;
+            iterator = fileLocks.entrySet().iterator();
+_L2:
+            java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+            boolean locked;
+            do
+            {
+                if(!iterator.hasNext() || fileLocks.size() <= 40)
+                    break MISSING_BLOCK_LABEL_138;
+                java.util.Map.Entry entry = (java.util.Map.Entry)iterator.next();
+                ReentrantReadWriteLock rwLock = (ReentrantReadWriteLock)entry.getValue();
+                wLock = rwLock.writeLock();
+                locked = wLock.tryLock();
+            } while(!locked);
+            iterator.remove();
+            wLock.unlock();
+            if(true) goto _L2; else goto _L1
+_L1:
+            Exception exception;
+            exception;
+            wLock.unlock();
+            throw exception;
+            break MISSING_BLOCK_LABEL_167;
+            Exception exception1;
+            exception1;
+            throw exception1;
+            Exception e;
+            e;
+            LocalCacheManager.LOGGER.error(e.getMessage(), e);
+        }
+
+        final LocalCacheManager this$0;
+
+        private CloseFileLocks()
+        {
+            this$0 = LocalCacheManager.this;
+            super();
+        }
+
+    }
+
+    private class CloseFileHandles extends TimerTask
+    {
+
+        public void run()
+        {
+            Map map = fileHandles;
+            JVM INSTR monitorenter ;
+            Iterator iterator;
+            if(fileHandles.size() <= 40)
+                break MISSING_BLOCK_LABEL_252;
+            if(LocalCacheManager.LOGGER.isTraceEnabled())
+                LocalCacheManager.LOGGER.trace((new StringBuilder()).append("[").append(fileHandles.size()).append("] open file handles, closing less used of them").toString());
+            iterator = fileHandles.entrySet().iterator();
+_L2:
+            java.util.Map.Entry entry;
+            File fileToClose;
+            java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+            boolean locked;
+            do
+            {
+                if(!iterator.hasNext() || fileHandles.size() <= 40)
+                    break MISSING_BLOCK_LABEL_252;
+                entry = (java.util.Map.Entry)iterator.next();
+                fileToClose = (File)entry.getKey();
+                ReentrantReadWriteLock rwLock = getLock(fileToClose);
+                wLock = rwLock.writeLock();
+                locked = wLock.tryLock();
+            } while(!locked);
+            RandomAccessFile raFile = (RandomAccessFile)entry.getValue();
+            raFile.close();
+            iterator.remove();
+            LocalCacheManager.LOGGER.trace((new StringBuilder()).append("Removing file handle for file [").append(fileToClose).append("]").toString());
+            wLock.unlock();
+            if(true) goto _L2; else goto _L1
+_L1:
+            Exception exception;
+            exception;
+            wLock.unlock();
+            throw exception;
+            break MISSING_BLOCK_LABEL_281;
+            Exception exception1;
+            exception1;
+            throw exception1;
+            IOException e;
+            e;
+            LocalCacheManager.LOGGER.error(e.getMessage(), e);
+        }
+
+        final LocalCacheManager this$0;
+
+        private CloseFileHandles()
+        {
+            this$0 = LocalCacheManager.this;
+            super();
+        }
+
+    }
+
+
+    public LocalCacheManager(String scheme, boolean purgeOnWrongVersion)
+        throws DataCacheException
+    {
+        File cacheDir;
+        int maxCacheInstances;
+        int i;
+        super(purgeOnWrongVersion);
+        fileHandles = new LinkedHashMap(140, 0.75F, true);
+        lastWrittenTickTimes = new long[Instrument.values().length];
+        delayedWriteTasks = new HashMap();
+        lastOrderUpdateTimes = new long[Instrument.values().length];
+        for(int i = 0; i < lastOrderUpdateTimes.length; i++)
+            lastOrderUpdateTimes[i] = 0x8000000000000000L;
+
+        this.scheme = scheme;
+        cacheDir = new File(FilePathManager.getInstance().getCacheDirectory());
+        maxCacheInstances = 500;
+        String prop = System.getProperty("jforex.max.cache.instances");
+        if(prop != null)
+            try
+            {
+                maxCacheInstances = Integer.parseInt(prop);
+            }
+            catch(NumberFormatException e)
+            {
+                LOGGER.warn(e.getMessage(), e);
+            }
+        i = 0;
+_L3:
+        if(i >= maxCacheInstances) goto _L2; else goto _L1
+_L1:
+        File lockFile = new File(cacheDir, (new StringBuilder()).append("lock").append(i).append(".lck").toString());
+        FileChannel channel = (new RandomAccessFile(lockFile, "rw")).getChannel();
+        try
+        {
+            FileLock lock = channel.tryLock();
+            if(lock == null || !lock.isValid())
+                continue; /* Loop/switch isn't completed */
+            cacheLock = lock;
+            intraperiodNum = i;
+            if(!cacheDir.exists())
+                break; /* Loop/switch isn't completed */
+            File instruments[] = cacheDir.listFiles();
+            File arr$[] = instruments;
+            int len$ = arr$.length;
+            int i$ = 0;
+            do
+            {
+                if(i$ >= len$)
+                    break; /* Loop/switch isn't completed */
+                File instrumentDir = arr$[i$];
+                if(instrumentDir.isDirectory())
+                {
+                    File intraperiodDir = new File(instrumentDir, (new StringBuilder()).append("intraperiod").append(intraperiodNum != 0 ? ((Object) (Integer.valueOf(intraperiodNum))) : "").toString());
+                    if(intraperiodDir.exists())
+                    {
+                        File intraperiodFiles[] = intraperiodDir.listFiles();
+                        File arr$[] = intraperiodFiles;
+                        int len$ = arr$.length;
+                        for(int i$ = 0; i$ < len$; i$++)
+                        {
+                            File intraperiodFile = arr$[i$];
+                            if(intraperiodFile.isFile() && !intraperiodFile.delete())
+                            {
+                                cacheLock.release();
+                                channel.close();
+                                throw new IOException((new StringBuilder()).append("Cannot delete old cache files [").append(intraperiodFile.getPath()).append("]").toString());
+                            }
+                        }
+
+                    }
+                }
+                i$++;
+            } while(true);
+        }
+        catch(OverlappingFileLockException e)
+        {
+            channel.close();
+        }
+        continue; /* Loop/switch isn't completed */
+        IOException e;
+        e;
+        LOGGER.warn(e.getMessage(), e);
+        i++;
+          goto _L3
+_L2:
+        if(cacheLock == null || !cacheLock.isValid())
+            throw new DataCacheException("Can not lock cache");
+        for(i = 0; i < lastWrittenTickTimes.length; i++)
+            lastWrittenTickTimes[i] = 0x8000000000000000L;
+
+        timer = new Timer("LocalCacheTimer", true);
+        CloseFileHandles checkTask = new CloseFileHandles();
+        timer.schedule(checkTask, 5000L, 60000L);
+        CloseFileLocks checkLocksTask = new CloseFileLocks();
+        timer.schedule(checkLocksTask, 5000L, 10000L);
+        writeDelayedTasks = new WriteDelayedTasks();
+        timer.schedule(writeDelayedTasks, 5000L, 5000L);
+        cacheManagers.add(this);
+        return;
+    }
+
+    public void subscribedToInstrument(Instrument instrument)
+    {
+        File arr$[];
+        int len$;
+        int i$;
+        File cacheDir = new File(FilePathManager.getInstance().getCacheDirectory());
+        File intraperiodDir = new File(new File(cacheDir, instrument.name()), (new StringBuilder()).append("intraperiod").append(intraperiodNum != 0 ? ((Object) (Integer.valueOf(intraperiodNum))) : "").toString());
+        if(!intraperiodDir.exists())
+            break MISSING_BLOCK_LABEL_292;
+        File intraperiodFiles[] = intraperiodDir.listFiles();
+        arr$ = intraperiodFiles;
+        len$ = arr$.length;
+        i$ = 0;
+_L3:
+        if(i$ >= len$) goto _L2; else goto _L1
+_L1:
+        File intraperiodFile;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        intraperiodFile = arr$[i$];
+        if(!intraperiodFile.isFile() || !intraperiodFile.getName().endsWith("_ticks.bin"))
+            continue; /* Loop/switch isn't completed */
+        ReentrantReadWriteLock rwLock = getLock(intraperiodFile);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        try
+        {
+            RandomAccessFile fileHandle = getIntraPeriodFileHandle(intraperiodFile);
+            clearDelayedWriteTasks(intraperiodFile);
+            fileHandle.close();
+        }
+        catch(IOException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        synchronized(fileHandles)
+        {
+            fileHandles.remove(intraperiodFile);
+        }
+        if(!intraperiodFile.delete())
+            LOGGER.error((new StringBuilder()).append("Cannot delete old ticks intraperiod file [").append(intraperiodFile.getPath()).append("]").toString());
+        wLock.unlock();
+        continue; /* Loop/switch isn't completed */
+        Exception exception1;
+        exception1;
+        wLock.unlock();
+        throw exception1;
+        i$++;
+          goto _L3
+_L2:
+    }
+
+    public void unsubscribedFromInstrument(Instrument instrument)
+    {
+        clearDelayedWriteTasks(instrument);
+        lastWrittenTickTimes[instrument.ordinal()] = 0x8000000000000000L;
+    }
+
+    public static void deleteCacheBeforeHalt()
+    {
+        Thread lockAndDeleteThread;
+        for(Iterator i$ = cacheManagers.iterator(); i$.hasNext(); lockAndDeleteThread.start())
+        {
+            LocalCacheManager cacheManager = (LocalCacheManager)i$.next();
+            lockAndDeleteThread = new Thread(cacheManager) {
+
+                public void run()
+                {
+                    cacheManager.deleteIntaperiodCacheBeforeHalt();
+                }
+
+                final LocalCacheManager val$cacheManager;
+
+            
+            {
+                cacheManager = localcachemanager;
+                super();
+            }
+            };
+        }
+
+        for(long startTime = System.currentTimeMillis(); cacheManagers.size() > 0 && System.currentTimeMillis() < startTime + 30000L;)
+            try
+            {
+                Thread.sleep(100L);
+            }
+            catch(InterruptedException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+
+        deleteChunksCache();
+    }
+
+    private static void deleteChunksCache()
+    {
+        File dirToDelete = new File(FilePathManager.getInstance().getCacheDirectory());
+        if(dirToDelete.exists())
+        {
+            File files[] = dirToDelete.listFiles();
+            File arr$[] = files;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File file = arr$[i$];
+                if(file.isDirectory())
+                    deleteCacheRecursive(file);
+                else
+                    file.delete();
+            }
+
+        }
+        dirToDelete.delete();
+    }
+
+    public void deleteIntaperiodCacheBeforeHalt()
+    {
+        Map map = fileHandlesCache;
+        JVM INSTR monitorenter ;
+        Map map1 = fileHandles;
+        JVM INSTR monitorenter ;
+        timer.cancel();
+        try
+        {
+            Thread.sleep(1000L);
+        }
+        catch(InterruptedException e)
+        {
+            LOGGER.warn(e.getMessage(), e);
+        }
+        for(Iterator iterator = fileHandlesCache.entrySet().iterator(); iterator.hasNext(); iterator.remove())
+        {
+            java.util.Map.Entry entry = (java.util.Map.Entry)iterator.next();
+            CacheManager.FileCacheItem cacheItem = (CacheManager.FileCacheItem)entry.getValue();
+            RandomAccessFile arr$[] = cacheItem.fileHandles;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                RandomAccessFile fileHandle = arr$[i$];
+                if(fileHandle == null)
+                    continue;
+                try
+                {
+                    fileHandle.close();
+                }
+                catch(IOException e)
+                {
+                    LOGGER.error(e.getMessage(), e);
+                }
+            }
+
+        }
+
+        for(Iterator iterator = fileHandles.entrySet().iterator(); iterator.hasNext(); iterator.remove())
+        {
+            java.util.Map.Entry entry = (java.util.Map.Entry)iterator.next();
+            RandomAccessFile fileHandle = (RandomAccessFile)entry.getValue();
+            if(fileHandle == null)
+                continue;
+            try
+            {
+                fileHandle.close();
+            }
+            catch(IOException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+
+        Instrument arr$[] = Instrument.values();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Instrument instrument = arr$[i$];
+            StringBuilder fileName = new StringBuilder(getCacheDirectory());
+            fileName.append(instrument.name()).append(File.separatorChar);
+            fileName.append("intraperiod");
+            if(intraperiodNum != 0)
+                fileName.append(intraperiodNum);
+            fileName.append(File.separatorChar);
+            File dirToDelete = new File(fileName.toString());
+            if(dirToDelete.exists())
+            {
+                File files[] = dirToDelete.listFiles();
+                File arr$[] = files;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    File file = arr$[i$];
+                    if(file.isDirectory())
+                        deleteCacheRecursive(file);
+                    else
+                        file.delete();
+                }
+
+            }
+            dirToDelete.delete();
+            try
+            {
+                FileChannel channel = cacheLock.channel();
+                channel.close();
+            }
+            catch(IOException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+
+        cacheManagers.remove(this);
+        do
+            try
+            {
+                Thread.sleep(100L);
+            }
+            catch(InterruptedException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        while(true);
+    }
+
+    protected static void deleteCacheRecursive(File dirToDelete)
+    {
+        if(dirToDelete.exists())
+        {
+            File files[] = dirToDelete.listFiles();
+            File arr$[] = files;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                File file = arr$[i$];
+                if(file.isDirectory())
+                    deleteCacheRecursive(file);
+                else
+                    file.delete();
+            }
+
+            dirToDelete.delete();
+        }
+    }
+
+    public void newTickChunkStart(Instrument instrument, long time)
+    {
+        long fileStartTime = DataCacheUtils.getChunkStartFast(Period.TICK, time);
+        File file;
+        try
+        {
+            file = getIntraPeriodFile(instrument, Period.TICK, null, fileStartTime);
+        }
+        catch(DataCacheException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            return;
+        }
+        synchronized(delayedWriteTasks)
+        {
+            TickWriteTask tickWriteTask = (TickWriteTask)delayedWriteTasks.get(file);
+            if(tickWriteTask == null)
+            {
+                tickWriteTask = new TickWriteTask();
+                tickWriteTask.instrument = instrument;
+                tickWriteTask.intraperiodFile = file;
+                delayedWriteTasks.put(file, tickWriteTask);
+            }
+            int bytesCount = TickData.getLength(version);
+            tickWriteTask.ensureCapacity(tickWriteTask.size + bytesCount);
+            TickData data = new TickData();
+            data.time = 0x8000000000000000L;
+            data.ask = 0.0D;
+            data.bid = 0.0D;
+            data.askVol = 0.0D;
+            data.bidVol = 0.0D;
+            data.toBytes(version, fileStartTime, instrument.getPipValue(), tickWriteTask.data, tickWriteTask.size);
+            tickWriteTask.size = tickWriteTask.size + bytesCount;
+            tickWriteTask.lastWrittenTickTime = time;
+        }
+    }
+
+    public void newTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol, boolean allowWrite)
+    {
+        long fileStartTime = DataCacheUtils.getChunkStartFast(Period.TICK, time);
+        File file;
+        try
+        {
+            file = getIntraPeriodFile(instrument, Period.TICK, null, fileStartTime);
+        }
+        catch(DataCacheException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            return;
+        }
+        boolean forceFlush = false;
+        synchronized(delayedWriteTasks)
+        {
+            TickWriteTask tickWriteTask = (TickWriteTask)delayedWriteTasks.get(file);
+            if(tickWriteTask == null)
+            {
+                tickWriteTask = new TickWriteTask();
+                tickWriteTask.instrument = instrument;
+                tickWriteTask.intraperiodFile = file;
+                delayedWriteTasks.put(file, tickWriteTask);
+            }
+            int bytesCount = TickData.getLength(version);
+            tickWriteTask.ensureCapacity(tickWriteTask.size + bytesCount);
+            TickData data = new TickData();
+            data.time = time;
+            data.ask = ask;
+            data.bid = bid;
+            data.askVol = askVol;
+            data.bidVol = bidVol;
+            data.toBytes(version, fileStartTime, instrument.getPipValue(), tickWriteTask.data, tickWriteTask.size);
+            tickWriteTask.size = tickWriteTask.size + bytesCount;
+            tickWriteTask.lastWrittenTickTime = time;
+            if(allowWrite && tickWriteTask.size > 0x80000)
+                forceFlush = true;
+        }
+        if(forceFlush)
+            flushDelayedWriteTasks();
+    }
+
+    private void processTickWriteTasks(TickWriteTask tickWriteTask, RandomAccessFile fileHandle)
+        throws DataCacheException
+    {
+        try
+        {
+            if(lastWrittenTickTimes[tickWriteTask.instrument.ordinal()] == 0x8000000000000000L)
+            {
+                fileHandle.seek(0L);
+                fileHandle.setLength(0L);
+            }
+            fileHandle.seek(fileHandle.length());
+            fileHandle.write(tickWriteTask.data, 0, tickWriteTask.size);
+            lastWrittenTickTimes[tickWriteTask.instrument.ordinal()] = tickWriteTask.lastWrittenTickTime;
+        }
+        catch(IOException e)
+        {
+            throw new DataCacheException(e);
+        }
+    }
+
+    protected RandomAccessFile getIntraPeriodFileHandle(File file)
+        throws IOException
+    {
+        Map map = fileHandles;
+        JVM INSTR monitorenter ;
+        RandomAccessFile fileHandle = (RandomAccessFile)fileHandles.get(file);
+        if(fileHandle != null)
+            return fileHandle;
+        if(fileHandles.size() >= 100)
+            (new CloseFileHandles()).run();
+        try
+        {
+            file.deleteOnExit();
+        }
+        catch(NullPointerException e) { }
+        fileHandle = new RandomAccessFile(file, "rw");
+        fileHandles.put(file, fileHandle);
+        fileHandle;
+        map;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public void saveChunkInCache(Instrument instrument, Period period, OfferSide side, long from, Data data[])
+        throws DataCacheException
+    {
+        File file;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        super.saveChunkInCache(instrument, period, side, from, data);
+        from = DataCacheUtils.getChunkStart(period, from);
+        file = getIntraPeriodFile(instrument, period, side, from);
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        clearDelayedWriteTasks(file);
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            throw new DataCacheException("Cannot create cache directory");
+        if(file.exists())
+            try
+            {
+                RandomAccessFile fileHandle = getIntraPeriodFileHandle(file);
+                fileHandle.close();
+                synchronized(fileHandles)
+                {
+                    fileHandles.remove(file);
+                }
+                if(!file.delete())
+                    LOGGER.warn((new StringBuilder()).append("Cannot delete old file [").append(file.getPath()).append("]").toString());
+            }
+            catch(IOException e)
+            {
+                LOGGER.warn(e.getMessage(), e);
+            }
+        wLock.unlock();
+        break MISSING_BLOCK_LABEL_225;
+        Exception exception1;
+        exception1;
+        wLock.unlock();
+        throw exception1;
+    }
+
+    public long[][] getIntraperiodIntervalsToLoad(Instrument instrument, Period period, OfferSide side, long from, long to)
+        throws DataCacheException
+    {
+        long fileStartTime;
+        File file;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Finding intraperiod intervals that we need to load, instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], from [").append(format.format(new Date(from))).append("], to [").append(format.format(new Date(to))).append("]").toString());
+        }
+        if(!$assertionsDisabled && period != Period.TICK && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && period != Period.TICK && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        fileStartTime = DataCacheUtils.getChunkStart(period, from);
+        file = getIntraPeriodFile(instrument, period, side, fileStartTime);
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        if(!file.exists() && !delayedTasksExists(file))
+            break MISSING_BLOCK_LABEL_1388;
+        RandomAccessFile fileHandle;
+        TickData firstLastTicks[];
+        long al1[][];
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            LOGGER.error("Cannot create cache directory");
+        fileHandle = getIntraPeriodFileHandle(file);
+        flushDelayedWriteTasks(file, fileHandle);
+        fileHandle.seek(0L);
+        if(period != Period.TICK)
+            break MISSING_BLOCK_LABEL_803;
+        firstLastTicks = readFirstLastTicks(instrument, fileStartTime, fileHandle);
+        if(firstLastTicks != null)
+            break MISSING_BLOCK_LABEL_442;
+        fileHandle.close();
+        synchronized(fileHandles)
+        {
+            fileHandles.remove(file);
+        }
+        if(!file.delete())
+            throw new DataCacheException((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+        al1 = (new long[][] {
+            new long[] {
+                from, DataCacheUtils.getChunkEnd(period, from)
+            }
+        });
+        wLock.unlock();
+        return al1;
+        if(lastWrittenTickTimes[instrument.ordinal()] == 0x8000000000000000L)
+            break MISSING_BLOCK_LABEL_548;
+        if(firstLastTicks[0].time != 0x8000000000000000L)
+            break MISSING_BLOCK_LABEL_486;
+        al1 = new long[0][];
+        wLock.unlock();
+        return al1;
+        if(from >= firstLastTicks[0].time)
+            break MISSING_BLOCK_LABEL_534;
+        al1 = (new long[][] {
+            new long[] {
+                from, firstLastTicks[0].time
+            }
+        });
+        wLock.unlock();
+        return al1;
+        Exception exception1;
+        long al[][];
+        long firstCandleTime;
+        long al2[][];
+        int candlesToSkip;
+        int intraPeriodCandleDataLength;
+        int position;
+        long al3[][];
+        long intervalStart;
+        long nextExpectedTime;
+        byte buff[];
+        IntraPeriodCandleData candleData;
+        List intervals;
+        int readBytes;
+        int i;
+        long al4[][];
+        int offset;
+        DateFormat format;
+        long al5[][];
+        try
+        {
+            al2 = new long[0][];
+        }
+        catch(IOException e)
+        {
+            throw new DataCacheException(e);
+        }
+        finally
+        {
+            wLock.unlock();
+        }
+        wLock.unlock();
+        return al2;
+        if(firstLastTicks[0].time != 0x8000000000000000L)
+            break MISSING_BLOCK_LABEL_624;
+        if(to <= firstLastTicks[1].time)
+            break MISSING_BLOCK_LABEL_610;
+        al2 = (new long[][] {
+            new long[] {
+                firstLastTicks[1].time, to
+            }
+        });
+        wLock.unlock();
+        return al2;
+        al2 = new long[0][];
+        wLock.unlock();
+        return al2;
+        if(from >= firstLastTicks[0].time)
+            break MISSING_BLOCK_LABEL_741;
+        if(to <= firstLastTicks[1].time)
+            break MISSING_BLOCK_LABEL_706;
+        al2 = (new long[][] {
+            new long[] {
+                from, firstLastTicks[0].time
+            }, new long[] {
+                firstLastTicks[1].time, to
+            }
+        });
+        wLock.unlock();
+        return al2;
+        al2 = (new long[][] {
+            new long[] {
+                from, firstLastTicks[0].time
+            }
+        });
+        wLock.unlock();
+        return al2;
+        if(to <= firstLastTicks[1].time)
+            break MISSING_BLOCK_LABEL_789;
+        al2 = (new long[][] {
+            new long[] {
+                firstLastTicks[1].time, to
+            }
+        });
+        wLock.unlock();
+        return al2;
+        al2 = new long[0][];
+        wLock.unlock();
+        return al2;
+        firstCandleTime = DataCacheUtils.getFirstCandleInChunk(period, fileStartTime);
+        candlesToSkip = DataCacheUtils.getCandlesCountBetween(period, firstCandleTime, DataCacheUtils.getPreviousCandleStart(period, from));
+        intraPeriodCandleDataLength = IntraPeriodCandleData.getLength(version);
+        position = intraPeriodCandleDataLength * candlesToSkip;
+        if((long)position <= fileHandle.length())
+            break MISSING_BLOCK_LABEL_883;
+        al3 = (new long[][] {
+            new long[] {
+                from, to
+            }
+        });
+        wLock.unlock();
+        return al3;
+        fileHandle.seek(position);
+        intervalStart = from;
+        nextExpectedTime = from;
+        buff = new byte[intraPeriodCandleDataLength * 10];
+        candleData = new IntraPeriodCandleData();
+        intervals = new ArrayList();
+_L7:
+        for(readBytes = 0; (i = fileHandle.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+        offset = 0;
+_L5:
+        if(offset >= readBytes || nextExpectedTime > to)
+            continue; /* Loop/switch isn't completed */
+        if(offset + intraPeriodCandleDataLength > readBytes) goto _L2; else goto _L1
+_L1:
+        candleData.fromBytes(version, firstCandleTime, instrument.getPipValue(), buff, offset);
+        if(nextExpectedTime == candleData.time || candleData.empty) goto _L4; else goto _L3
+_L3:
+        format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        LOGGER.warn((new StringBuilder()).append("intraperiod has wrong time at position [").append(position).append("], expected time [").append(format.format(new Date(nextExpectedTime))).append("], read time [").append(format.format(new Date(candleData.time))).append("], file [").append(file.getPath()).append("], length [").append(fileHandle.length()).append("]").toString());
+        al5 = (new long[][] {
+            new long[] {
+                firstCandleTime, DataCacheUtils.getChunkEnd(period, from)
+            }
+        });
+        wLock.unlock();
+        return al5;
+_L4:
+        if(!candleData.empty)
+            if(candleData.time == intervalStart)
+            {
+                intervalStart = DataCacheUtils.getNextCandleStart(period, intervalStart);
+            } else
+            {
+                intervals.add(new long[] {
+                    intervalStart, DataCacheUtils.getCandleStart(period, candleData.time - 1L)
+                });
+                intervalStart = DataCacheUtils.getNextCandleStart(period, candleData.time);
+            }
+_L2:
+        offset += intraPeriodCandleDataLength;
+        nextExpectedTime = DataCacheUtils.getNextCandleStart(period, nextExpectedTime);
+          goto _L5
+        if(nextExpectedTime <= to && readBytes > 0) goto _L7; else goto _L6
+_L6:
+        if(intervalStart < nextExpectedTime || intervalStart == nextExpectedTime && intervalStart <= to)
+            intervals.add(new long[] {
+                intervalStart, to
+            });
+        al4 = (long[][])intervals.toArray(new long[intervals.size()][]);
+        wLock.unlock();
+        return al4;
+        al = (new long[][] {
+            new long[] {
+                from, to
+            }
+        });
+        wLock.unlock();
+        return al;
+        throw exception1;
+    }
+
+    private TickData[] readFirstLastTicks(Instrument instrument, long firstChunkCandle, RandomAccessFile fileHandle)
+        throws IOException
+    {
+        fileHandle.seek(0L);
+        int tickDataLength = TickData.getLength(version);
+        byte tickBuff[] = new byte[tickDataLength];
+        int i;
+        int readBytes;
+        for(readBytes = 0; (i = fileHandle.read(tickBuff, readBytes, tickBuff.length - readBytes)) > -1 && readBytes < tickBuff.length; readBytes += i);
+        if(readBytes < tickDataLength)
+            return null;
+        TickData firstTick = new TickData();
+        firstTick.fromBytes(version, firstChunkCandle, instrument.getPipValue(), tickBuff, 0);
+        fileHandle.seek(fileHandle.length() - (long)tickDataLength - fileHandle.length() % (long)tickDataLength);
+        int i;
+        for(readBytes = 0; (i = fileHandle.read(tickBuff, readBytes, tickBuff.length - readBytes)) > -1 && readBytes < tickBuff.length; readBytes += i);
+        if(readBytes < tickDataLength)
+        {
+            return null;
+        } else
+        {
+            TickData lastTick = new TickData();
+            lastTick.fromBytes(version, firstChunkCandle, instrument.getPipValue(), tickBuff, 0);
+            return (new TickData[] {
+                firstTick, lastTick
+            });
+        }
+    }
+
+    public void saveIntraperiodData(Instrument instrument, Period period, OfferSide side, Data data[], boolean dataFromChunkStart)
+        throws DataCacheException
+    {
+        Exception exception;
+        if(LOGGER.isTraceEnabled() && data.length > 1)
+            LOGGER.trace((new StringBuilder()).append("Saving intraperiod data in cache, instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], data size [").append(data.length).append("]").toString());
+        if(data.length == 0)
+            return;
+        if(period == Period.TICK)
+        {
+            saveIntraperiodDataForTicks(instrument, data, dataFromChunkStart);
+        } else
+        {
+            long fileStartTime = DataCacheUtils.getChunkStart(period, data[0].time);
+            File file = getIntraPeriodFile(instrument, period, side, fileStartTime);
+            ReentrantReadWriteLock rwLock = getLock(file);
+            java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock = rwLock.writeLock();
+            wLock.lock();
+            try
+            {
+                if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+                    throw new DataCacheException("Cannot create cache directory");
+                RandomAccessFile fileHandle = getIntraPeriodFileHandle(file);
+                flushDelayedWriteTasks(file, fileHandle);
+                saveIntraperiodCandleDataToFile(instrument, DataCacheUtils.getFirstCandleInChunk(period, fileStartTime), file, fileHandle, period, data);
+            }
+            catch(IOException e)
+            {
+                throw new DataCacheException(e);
+            }
+            finally
+            {
+                wLock.unlock();
+            }
+            wLock.unlock();
+        }
+        break MISSING_BLOCK_LABEL_245;
+        throw exception;
+    }
+
+    private void saveIntraperiodCandleDataToFile(Instrument instrument, long firstChunkCandle, File file, RandomAccessFile fileHandle, Period period, Data data[])
+        throws DataCacheException
+    {
+        try
+        {
+            fileHandle.seek(0L);
+            IntraPeriodCandleData emptyCandle = new IntraPeriodCandleData();
+            emptyCandle.empty = true;
+            int intraPeriodCandleDataLength = IntraPeriodCandleData.getLength(version);
+            byte emptyCandleData[] = new byte[intraPeriodCandleDataLength];
+            emptyCandle.toBytes(version, firstChunkCandle, instrument.getPipValue(), emptyCandleData, 0);
+            byte candleBytes[] = new byte[intraPeriodCandleDataLength];
+            long fileStartTime = DataCacheUtils.getChunkStart(period, data[0].time);
+            long firstCandleTime = DataCacheUtils.getFirstCandleInChunkFast(period, fileStartTime);
+            Data arr$[] = data;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Data dataElement = arr$[i$];
+                IntraPeriodCandleData candleData = (IntraPeriodCandleData)dataElement;
+                int candlesToSkip = DataCacheUtils.getCandlesCountBetween(period, firstCandleTime, DataCacheUtils.getPreviousCandleStart(period, candleData.time));
+                int position;
+                for(position = intraPeriodCandleDataLength * candlesToSkip; fileHandle.length() < (long)position; fileHandle.write(emptyCandleData))
+                    fileHandle.seek(fileHandle.length() - fileHandle.length() % (long)intraPeriodCandleDataLength);
+
+                fileHandle.seek(position);
+                candleData.toBytes(version, firstChunkCandle, instrument.getPipValue(), candleBytes, 0);
+                fileHandle.write(candleBytes);
+                if(assertionsEnabled())
+                {
+                    long expectedTime = DataCacheUtils.getTimeForNCandlesForward(period, firstCandleTime, candlesToSkip + 1);
+                    if(candleData.time != expectedTime)
+                        throw new DataCacheException((new StringBuilder()).append("Trying to write candle with time [").append(candleData.time).append("] in the place where should be candle with time [").append(expectedTime).append("] in file [").append(file.getPath()).append("]").toString());
+                    if((long)position != fileHandle.getFilePointer() - (long)intraPeriodCandleDataLength || DataCacheUtils.getTimeForNCandlesForward(period, firstCandleTime, (int)fileHandle.getFilePointer() / intraPeriodCandleDataLength) != candleData.time)
+                        throw new DataCacheException((new StringBuilder()).append("Position doesn't belong to the candle, first candle time [").append(firstCandleTime).append("] position [").append(position).append("] in file [").append(file.getPath()).append("], candle time we wrote there [").append(candleData.time).append("]").toString());
+                }
+            }
+
+        }
+        catch(IOException e)
+        {
+            throw new DataCacheException(e);
+        }
+    }
+
+    protected void saveIntraperiodDataForTicks(Instrument instrument, Data data[], boolean dataFromChunkStart)
+        throws DataCacheException
+    {
+        Exception exception4;
+        int tickDataLength = TickData.getLength(version);
+        long fileStartTime = DataCacheUtils.getChunkStart(Period.TICK, data[0].time);
+        File file = getIntraPeriodFile(instrument, Period.TICK, null, fileStartTime);
+        ReentrantReadWriteLock rwLock = getLock(file);
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock = rwLock.writeLock();
+        wLock.lock();
+        try
+        {
+            if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+                throw new DataCacheException("Cannot create cache directory");
+            if(dataFromChunkStart)
+            {
+                Data newData[] = new Data[data.length + 1];
+                newData[0] = new TickData(0x8000000000000000L, 0.0D, 0.0D, 0.0D, 0.0D);
+                System.arraycopy(data, 0, newData, 1, data.length);
+                data = newData;
+            }
+            RandomAccessFile fileHandle;
+            if(file.exists() || delayedTasksExists(file))
+            {
+                if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+                    LOGGER.error("Cannot create cache directory");
+                fileHandle = getIntraPeriodFileHandle(file);
+                flushDelayedWriteTasks(file, fileHandle);
+                long startPosition = findStartPositionInTicksFile(fileStartTime, fileHandle, data[data.length - 1].time);
+                if(startPosition >= 0L && startPosition < fileHandle.length())
+                {
+                    fileHandle.seek(startPosition);
+                    byte tickBuff[] = new byte[tickDataLength];
+                    int i;
+                    int readBytes;
+                    for(readBytes = 0; (i = fileHandle.read(tickBuff, readBytes, tickBuff.length - readBytes)) > -1 && readBytes < tickBuff.length; readBytes += i);
+                    if(readBytes < tickDataLength)
+                    {
+                        LOGGER.error((new StringBuilder()).append("Couldn't read tick from intraperiod file [").append(file.getPath()).append("] at position [").append(startPosition).append("], file length [").append(fileHandle.length()).append("]").toString());
+                        fileHandle.close();
+                        synchronized(fileHandles)
+                        {
+                            fileHandles.remove(file);
+                        }
+                        if(!file.delete())
+                            throw new DataCacheException((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+                        fileHandle = getIntraPeriodFileHandle(file);
+                    } else
+                    {
+                        TickData tickAtPosition = new TickData();
+                        tickAtPosition.fromBytes(version, fileStartTime, instrument.getPipValue(), tickBuff, 0);
+                        if(data[data.length - 1].time == tickAtPosition.time)
+                            startPosition += tickDataLength;
+                    }
+                }
+                if(startPosition >= 0L && startPosition < fileHandle.length())
+                {
+                    fileHandle.seek(startPosition);
+                    byte fileBytes[] = new byte[(int)(fileHandle.length() - fileHandle.length() % (long)tickDataLength - startPosition)];
+                    int i;
+                    int readBytes;
+                    for(readBytes = 0; (i = fileHandle.read(fileBytes, readBytes, fileBytes.length - readBytes)) > -1 && readBytes < fileBytes.length; readBytes += i);
+                    if(readBytes < fileBytes.length)
+                    {
+                        fileHandle.close();
+                        synchronized(fileHandles)
+                        {
+                            fileHandles.remove(file);
+                        }
+                        if(!file.delete())
+                            throw new DataCacheException((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+                        fileHandle = getIntraPeriodFileHandle(file);
+                    } else
+                    {
+                        Data newData[] = new Data[data.length + fileBytes.length / tickDataLength];
+                        System.arraycopy(data, 0, newData, 0, data.length);
+                        for(int j = 0; j < fileBytes.length / tickDataLength; j++)
+                        {
+                            TickData tickData = new TickData();
+                            tickData.fromBytes(version, fileStartTime, instrument.getPipValue(), fileBytes, j * tickDataLength);
+                            newData[data.length + j] = tickData;
+                        }
+
+                        if(assertionsEnabled())
+                        {
+                            long prevTime = newData[0].time;
+                            Data arr$[] = newData;
+                            int len$ = arr$.length;
+                            for(int i$ = 0; i$ < len$; i$++)
+                            {
+                                Data dataElement = arr$[i$];
+                                if(prevTime > dataElement.time)
+                                {
+                                    DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                                    format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                                    throw new DataCacheException((new StringBuilder()).append("Data consistency check failed for intraperiod file: [").append(file.getName()).append("]. ").append("Time of the previous tick [").append(format.format(new Date(prevTime))).append("], time of the next tick [").append(format.format(new Date(dataElement.time))).append("]").toString());
+                                }
+                                prevTime = dataElement.time;
+                            }
+
+                        }
+                        data = newData;
+                    }
+                }
+                startPosition = findStartPositionInTicksFile(fileStartTime, fileHandle, data[0].time);
+                if(startPosition > 0L && startPosition < fileHandle.length())
+                {
+                    fileHandle.seek(startPosition);
+                    byte tickBuff[] = new byte[tickDataLength];
+                    int i;
+                    int readBytes;
+                    for(readBytes = 0; (i = fileHandle.read(tickBuff, readBytes, tickBuff.length - readBytes)) > -1 && readBytes < tickBuff.length; readBytes += i);
+                    if(readBytes < tickDataLength)
+                    {
+                        LOGGER.error((new StringBuilder()).append("Couldn't read tick from intraperiod file [").append(file.getPath()).append("] at position [").append(startPosition).append("], file length [").append(fileHandle.length()).append("]").toString());
+                        fileHandle.close();
+                        synchronized(fileHandles)
+                        {
+                            fileHandles.remove(file);
+                        }
+                        if(!file.delete())
+                            throw new DataCacheException((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+                        fileHandle = getIntraPeriodFileHandle(file);
+                    } else
+                    {
+                        TickData tickAtPosition = new TickData();
+                        tickAtPosition.fromBytes(version, fileStartTime, instrument.getPipValue(), tickBuff, 0);
+                        if(tickAtPosition.time != 0x8000000000000000L)
+                        {
+                            if(tickAtPosition.time != data[0].time)
+                                LOGGER.warn("Tick at first element of the incoming intraperiod array was not found in already existing intraperiod file");
+                            fileHandle.seek(0L);
+                            byte fileBytes[] = new byte[(int)startPosition];
+                            int i;
+                            for(readBytes = 0; (i = fileHandle.read(fileBytes, readBytes, fileBytes.length - readBytes)) > -1 && readBytes < fileBytes.length; readBytes += i);
+                            if(readBytes < fileBytes.length)
+                            {
+                                fileHandle.close();
+                                synchronized(fileHandles)
+                                {
+                                    fileHandles.remove(file);
+                                }
+                                if(!file.delete())
+                                    throw new DataCacheException((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+                                fileHandle = getIntraPeriodFileHandle(file);
+                            } else
+                            {
+                                Data newData[] = new Data[data.length + fileBytes.length / tickDataLength];
+                                int j;
+                                for(j = 0; j < fileBytes.length / tickDataLength; j++)
+                                {
+                                    TickData tickData = new TickData();
+                                    tickData.fromBytes(version, fileStartTime, instrument.getPipValue(), fileBytes, j * tickDataLength);
+                                    newData[j] = tickData;
+                                }
+
+                                System.arraycopy(data, 0, newData, j, data.length);
+                                if(assertionsEnabled())
+                                {
+                                    long prevTime = newData[0].time;
+                                    Data arr$[] = newData;
+                                    int len$ = arr$.length;
+                                    for(int i$ = 0; i$ < len$; i$++)
+                                    {
+                                        Data dataElement = arr$[i$];
+                                        if(prevTime > dataElement.time)
+                                        {
+                                            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                                            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                                            throw new DataCacheException((new StringBuilder()).append("Data consistency check failed for intraperiod file: [").append(file.getName()).append("]. ").append("Time of the previous tick [").append(format.format(new Date(prevTime))).append("], time of the next tick [").append(format.format(new Date(dataElement.time))).append("]").toString());
+                                        }
+                                        prevTime = dataElement.time;
+                                    }
+
+                                }
+                                data = newData;
+                            }
+                        }
+                    }
+                }
+            }
+            if(assertionsEnabled())
+            {
+                long prevTime = data[0].time;
+                Data arr$[] = data;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    Data dataElement = arr$[i$];
+                    if(prevTime > dataElement.time)
+                    {
+                        DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                        throw new DataCacheException((new StringBuilder()).append("Data consistency check failed for intraperiod file: [").append(file.getName()).append("]. ").append("Time of the previous tick [").append(format.format(new Date(prevTime))).append("], time of the next tick [").append(format.format(new Date(dataElement.time))).append("]").toString());
+                    }
+                    prevTime = dataElement.time;
+                }
+
+            }
+            prevTime = getIntraPeriodFileHandle(file);
+            prevTime.setLength(0L);
+            prevTime.seek(0L);
+            byte buffer[] = new byte[tickDataLength * 10];
+            int count = 0;
+            Data arr$[] = data;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Data dataBlock = arr$[i$];
+                dataBlock.toBytes(version, fileStartTime, instrument.getPipValue(), buffer, count * tickDataLength);
+                if(count == 9)
+                {
+                    prevTime.write(buffer);
+                    count = 0;
+                } else
+                {
+                    count++;
+                }
+            }
+
+            if(count > 0)
+                prevTime.write(buffer, 0, count * tickDataLength);
+        }
+        catch(IOException e)
+        {
+            throw new DataCacheException(e);
+        }
+        finally
+        {
+            wLock.unlock();
+        }
+        wLock.unlock();
+        break MISSING_BLOCK_LABEL_2021;
+        throw exception4;
+    }
+
+    public void clearTicksIntraPeriod(Instrument instrument)
+    {
+        File arr$[];
+        int len$;
+        int i$;
+        File files[] = DataCacheUtils.getIntraPeriodTickFiles(intraperiodNum, instrument);
+        arr$ = files;
+        len$ = arr$.length;
+        i$ = 0;
+_L3:
+        if(i$ >= len$) goto _L2; else goto _L1
+_L1:
+        File file;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        file = arr$[i$];
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        if(file.exists())
+        {
+            RandomAccessFile fileHandle = getIntraPeriodFileHandle(file);
+            fileHandle.close();
+            synchronized(fileHandles)
+            {
+                fileHandles.remove(file);
+            }
+            if(!file.delete())
+            {
+                LOGGER.warn((new StringBuilder()).append("Cannot delete intraperiod file for ticks [").append(file.getPath()).append("]").toString());
+                fileHandle = getIntraPeriodFileHandle(file);
+                fileHandle.setLength(0L);
+            }
+        }
+        clearDelayedWriteTasks(file);
+        wLock.unlock();
+        continue; /* Loop/switch isn't completed */
+        IOException e;
+        e;
+        LOGGER.warn(e.getMessage(), e);
+        wLock.unlock();
+        continue; /* Loop/switch isn't completed */
+        Exception exception1;
+        exception1;
+        wLock.unlock();
+        throw exception1;
+        i$++;
+          goto _L3
+_L2:
+    }
+
+    public void addIntraPeriodCandle(Instrument instrument, Period period, OfferSide side, IntraPeriodCandleData candleData)
+    {
+        if(candleData.open == 0.0D || candleData.close == 0.0D || candleData.low == 0.0D || candleData.high == 0.0D)
+        {
+            LOGGER.error("Trying to write candle with one of the prices set to zero... ignoring this call");
+            return;
+        }
+        try
+        {
+            long fileStartTime = DataCacheUtils.getChunkStart(period, candleData.time);
+            File file = getIntraPeriodFile(instrument, period, side, fileStartTime);
+            synchronized(delayedWriteTasks)
+            {
+                CandleWriteTask candleWriteTask = (CandleWriteTask)delayedWriteTasks.get(file);
+                if(candleWriteTask == null)
+                {
+                    candleWriteTask = new CandleWriteTask();
+                    candleWriteTask.instrument = instrument;
+                    candleWriteTask.firstChunkCandle = DataCacheUtils.getFirstCandleInChunk(period, fileStartTime);
+                    candleWriteTask.intraperiodFile = file;
+                    candleWriteTask.period = period;
+                    delayedWriteTasks.put(file, candleWriteTask);
+                }
+                candleWriteTask.candleData.add(candleData);
+            }
+        }
+        catch(DataCacheException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        return;
+    }
+
+    public boolean isDataCached(Instrument instrument, Period period, OfferSide side, long from, long to)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Checking if data is in cache, instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], from [").append(format.format(new Date(from))).append("], to [").append(format.format(new Date(to))).append("]").toString());
+        }
+        if(!$assertionsDisabled && period != Period.TICK && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && period != Period.TICK && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        long chunks[][] = DataCacheUtils.separateChunksForCache(period, from, to);
+        for(int i = 0; i < chunks.length; i++)
+        {
+            File file = getChunkFile(instrument, period, side, chunks[i][0], version);
+            if(file.exists())
+                continue;
+            file = getIntraPeriodFile(instrument, period, side, chunks[i][0]);
+            if(file.exists() || delayedTasksExists(file))
+            {
+                if(period == Period.TICK)
+                    continue;
+                long chunkStart = chunks[i][0];
+                long fromFixed = DataCacheUtils.getCandleStart(period, chunkStart);
+                if(fromFixed < chunkStart)
+                    chunkStart = DataCacheUtils.getNextCandleStart(period, chunkStart);
+                long intervals[][] = getIntraperiodIntervalsToLoad(instrument, period, side, from <= chunkStart ? DataCacheUtils.getFirstCandleInChunkFast(period, chunkStart) : from, chunks[i][1]);
+                if(intervals.length > 0)
+                    return false;
+            } else
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public CandleData readData(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LiveFeedListener listener, boolean blocking, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, long chunk[], CandleData lastNonEmptyElement, double commission)
+        throws DataCacheException
+    {
+        if(intraperiodExistsPolicy == CurvesDataLoader.IntraperiodExistsPolicy.USE_INTRAPERIOD_WHEN_POSSIBLE)
+        {
+            File file = getIntraPeriodFile(instrument, period, side, chunk[0]);
+            if(file.exists() || delayedTasksExists(file))
+            {
+                if(period == Period.TICK)
+                    readTicksFromIntraPeriodFile(instrument, file, chunk[0], chunk[1], from, to, listener, blocking);
+                else
+                    lastNonEmptyElement = readCandlesFromIntraPeriodFile(file, instrument, period, side, chunk[0], from, to, listener, lastNonEmptyElement, blocking, commission);
+            } else
+            {
+                file = getChunkFile(instrument, period, side, chunk[0], version);
+                if(chunkFileExists(file))
+                {
+                    if(period == Period.TICK)
+                        readTicksFromChunkFile(instrument, file, chunk[0], from, to, listener, blocking, commission);
+                    else
+                        lastNonEmptyElement = readCandlesFromChunkFile(file, instrument, period, side, chunk[0], from, to, listener, lastNonEmptyElement, blocking, commission);
+                } else
+                if(lastNonEmptyElement != null)
+                {
+                    lastNonEmptyElement = fillWithFlats(instrument, period, side, chunk[0], chunk[1], from, to, listener, lastNonEmptyElement);
+                } else
+                {
+                    DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    LOGGER.warn((new StringBuilder()).append("Some or all of the requested data was not found, instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], chunk from [").append(format.format(new Date(chunk[0]))).append("], chunk to [").append(format.format(new Date(chunk[1]))).append("]").toString());
+                }
+            }
+        } else
+        {
+            File file = getChunkFile(instrument, period, side, chunk[0], version);
+            if(chunkFileExists(file))
+            {
+                if(period == Period.TICK)
+                    readTicksFromChunkFile(instrument, file, chunk[0], from, to, listener, blocking, commission);
+                else
+                    lastNonEmptyElement = readCandlesFromChunkFile(file, instrument, period, side, chunk[0], from, to, listener, lastNonEmptyElement, blocking, commission);
+            } else
+            {
+                file = getIntraPeriodFile(instrument, period, side, chunk[0]);
+                if(file.exists() || delayedTasksExists(file))
+                {
+                    if(period == Period.TICK)
+                        readTicksFromIntraPeriodFile(instrument, file, chunk[0], chunk[1], from, to, listener, blocking);
+                    else
+                        lastNonEmptyElement = readCandlesFromIntraPeriodFile(file, instrument, period, side, chunk[0], from, to, listener, lastNonEmptyElement, blocking, commission);
+                } else
+                if(lastNonEmptyElement != null)
+                {
+                    lastNonEmptyElement = fillWithFlats(instrument, period, side, chunk[0], chunk[1], from, to, listener, lastNonEmptyElement);
+                } else
+                {
+                    DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                    format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                    LOGGER.warn((new StringBuilder()).append("Some or all of the requested data was not found, instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], chunk from [").append(format.format(new Date(chunk[0]))).append("], chunk to [").append(format.format(new Date(chunk[1]))).append("]").toString());
+                }
+            }
+        }
+        return lastNonEmptyElement;
+    }
+
+    public void readLastAvailableData(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, LiveFeedListener listener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Reading last available data from cache, instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], from [").append(format.format(new Date(from))).append("], to [").append(format.format(new Date(to))).append("]").toString());
+        }
+        if(!$assertionsDisabled && period != Period.TICK && from != 0x8000000000000000L && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && period != Period.TICK && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        long fromChunkStart = DataCacheUtils.getChunkStart(period, from);
+        long chunkStart = DataCacheUtils.getChunkStart(period, to);
+        long chunkEnd = DataCacheUtils.getChunkEnd(period, to);
+        CandleData lastNonEmptyElement = null;
+        do
+        {
+            File file;
+            if((intraperiodExistsPolicy != CurvesDataLoader.IntraperiodExistsPolicy.USE_INTRAPERIOD_WHEN_POSSIBLE ? chunkFileExists(file = getChunkFile(instrument, period, side, chunkStart, version)) ? period != Period.TICK ? !readLastAvailableCandlesFromChunkFile(file, instrument, period, side, chunkStart, from, to, listener, loadingProgress) : !readLastAvailableTicksFromChunkFile(instrument, file, chunkStart, chunkEnd, from, to, listener, loadingProgress) : !(file = getIntraPeriodFile(instrument, period, side, chunkStart)).exists() && !delayedTasksExists(file) || (period != Period.TICK ? !readLastAvailableCandlesFromIntraPeriodFile(file, instrument, period, side, chunkStart, from, to, listener, loadingProgress, lastNonEmptyElement) : !readLastAvailableTicksFromIntraPeriodFile(instrument, file, chunkStart, chunkEnd, from, to, listener, loadingProgress)) : !(file = getIntraPeriodFile(instrument, period, side, chunkStart)).exists() && !delayedTasksExists(file) ? !chunkFileExists(file) || (period != Period.TICK ? !readLastAvailableCandlesFromChunkFile(file, instrument, period, side, chunkStart, from, to, listener, loadingProgress) : !readLastAvailableTicksFromChunkFile(instrument, file, chunkStart, chunkEnd, from, to, listener, loadingProgress)) : period != Period.TICK ? !readLastAvailableCandlesFromIntraPeriodFile(file, instrument, period, side, chunkStart, from, to, listener, loadingProgress, lastNonEmptyElement) : !readLastAvailableTicksFromIntraPeriodFile(instrument, file, chunkStart, chunkEnd, from, to, listener, loadingProgress)) || loadingProgress.stopJob())
+                break;
+            chunkStart = DataCacheUtils.getPreviousChunkStart(period, chunkStart);
+        } while(chunkStart >= fromChunkStart);
+    }
+
+    protected boolean readLastAvailableTicksFromChunkFile(Instrument instrument, File file, long fileStartTime, long fileEndTime, long from, long to, LiveFeedListener listener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        ReentrantReadWriteLock rwLock;
+        java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock rLock;
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("Reading last available ticks from file [").append(file.getPath()).append("]").toString());
+        rwLock = getLock(file);
+        rLock = rwLock.readLock();
+        rLock.lock();
+        RandomAccessFile fileHandle;
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            LOGGER.error("Cannot create cache directory");
+        fileHandle = getChunkFileHandle(file, true);
+        boolean flag;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        try
+        {
+            flag = readTicksFromEndFromFile(instrument, file, fileStartTime, from, to, listener, loadingProgress, fileHandle);
+        }
+        catch(DataCacheException e)
+        {
+            rLock.unlock();
+            wLock = rwLock.writeLock();
+            wLock.lock();
+            synchronized(fileHandlesCache)
+            {
+                CacheManager.FileCacheItem cacheItem = (CacheManager.FileCacheItem)fileHandlesCache.remove(file);
+                if(cacheItem != null)
+                {
+                    RandomAccessFile arr$[] = cacheItem.fileHandles;
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        RandomAccessFile cachedFileHandle = arr$[i$];
+                        if(cachedFileHandle == null)
+                            continue;
+                        try
+                        {
+                            cachedFileHandle.close();
+                        }
+                        catch(IOException ex)
+                        {
+                            LOGGER.error(ex.getMessage(), ex);
+                        }
+                    }
+
+                }
+            }
+            fileHandle.close();
+            if(!file.delete())
+                LOGGER.error((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+            else
+                synchronized(fileExistanceCache)
+                {
+                    fileExistanceCache.remove(file);
+                }
+            throw e;
+        }
+        finally
+        {
+            returnChunkFileHandle(file, fileHandle);
+            throw exception2;
+        }
+        returnChunkFileHandle(file, fileHandle);
+        rLock.unlock();
+        return flag;
+        IOException e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception3;
+        exception3;
+        rLock.unlock();
+        throw exception3;
+    }
+
+    private boolean readLastAvailableCandlesFromChunkFile(File file, Instrument instrument, Period period, OfferSide side, long fileStartTime, long from, long to, LiveFeedListener listener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        ReentrantReadWriteLock rwLock;
+        java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock rLock;
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("Reading last available candles from intraperiod file [").append(file.getPath()).append("]").toString());
+        if(!$assertionsDisabled && from != 0x8000000000000000L && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        rwLock = getLock(file);
+        rLock = rwLock.readLock();
+        rLock.lock();
+        RandomAccessFile fileHandle;
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            LOGGER.error("Cannot create cache directory");
+        fileHandle = getChunkFileHandle(file, true);
+        boolean flag;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        try
+        {
+            flag = readCandlesFromEndFromFile(file, fileHandle, instrument, period, side, fileStartTime, from, to, listener, loadingProgress);
+        }
+        catch(DataCacheException e)
+        {
+            rLock.unlock();
+            wLock = rwLock.writeLock();
+            wLock.lock();
+            synchronized(fileHandlesCache)
+            {
+                CacheManager.FileCacheItem cacheItem = (CacheManager.FileCacheItem)fileHandlesCache.remove(file);
+                if(cacheItem != null)
+                {
+                    RandomAccessFile arr$[] = cacheItem.fileHandles;
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        RandomAccessFile cachedFileHandle = arr$[i$];
+                        if(cachedFileHandle == null)
+                            continue;
+                        try
+                        {
+                            cachedFileHandle.close();
+                        }
+                        catch(IOException ex)
+                        {
+                            LOGGER.error(ex.getMessage(), ex);
+                        }
+                    }
+
+                }
+            }
+            fileHandle.close();
+            if(!file.delete())
+                LOGGER.error((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+            else
+                synchronized(fileExistanceCache)
+                {
+                    fileExistanceCache.remove(file);
+                }
+            throw e;
+        }
+        finally
+        {
+            returnChunkFileHandle(file, fileHandle);
+            throw exception2;
+        }
+        returnChunkFileHandle(file, fileHandle);
+        rLock.unlock();
+        return flag;
+        IOException e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception3;
+        exception3;
+        rLock.unlock();
+        throw exception3;
+    }
+
+    private boolean readLastAvailableTicksFromIntraPeriodFile(Instrument instrument, File file, long fileStartTime, long fileEndTime, long from, long to, LiveFeedListener listener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("Reading last available ticks from intraperiod file [").append(file.getPath()).append("]").toString());
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        RandomAccessFile fileHandle;
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            LOGGER.error("Cannot create cache directory");
+        fileHandle = getIntraPeriodFileHandle(file);
+        flushDelayedWriteTasks(file, fileHandle);
+        boolean flag;
+        try
+        {
+            flag = readTicksFromEndFromFile(instrument, file, fileStartTime, from, to, listener, loadingProgress, fileHandle);
+        }
+        catch(DataCacheException e)
+        {
+            fileHandle.close();
+            synchronized(fileHandles)
+            {
+                fileHandles.remove(file);
+            }
+            if(!file.delete())
+                LOGGER.error((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+            throw e;
+        }
+        wLock.unlock();
+        return flag;
+        IOException e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception1;
+        exception1;
+        wLock.unlock();
+        throw exception1;
+    }
+
+    private boolean readLastAvailableCandlesFromIntraPeriodFile(File file, Instrument instrument, Period period, OfferSide side, long fileStartTime, long from, long to, LiveFeedListener listener, LoadingProgressListener loadingProgress, CandleData lastNonEmptyElement)
+        throws DataCacheException
+    {
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("Reading last available candles from intraperiod file [").append(file.getPath()).append("]").toString());
+        if(!$assertionsDisabled && from != 0x8000000000000000L && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        RandomAccessFile fileHandle;
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            LOGGER.error("Cannot create cache directory");
+        fileHandle = getIntraPeriodFileHandle(file);
+        flushDelayedWriteTasks(file, fileHandle);
+        boolean flag;
+        try
+        {
+            flag = readIntraperiodCandlesFromEndFromFile(file, fileHandle, instrument, period, side, fileStartTime, from, to, listener, loadingProgress);
+        }
+        catch(DataCacheException e)
+        {
+            fileHandle.close();
+            synchronized(fileHandles)
+            {
+                fileHandles.remove(file);
+            }
+            if(!file.delete())
+                LOGGER.error((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+            throw e;
+        }
+        wLock.unlock();
+        return flag;
+        IOException e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception1;
+        exception1;
+        wLock.unlock();
+        throw exception1;
+    }
+
+    private boolean readIntraperiodCandlesFromEndFromFile(File file, RandomAccessFile fileHandle, Instrument instrument, Period period, OfferSide side, long fileStartTime, 
+            long from, long to, LiveFeedListener listener, LoadingProgressListener loadingProgress)
+        throws IOException, DataCacheException
+    {
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            LOGGER.error("Cannot create cache directory");
+        int intraPeriodCandleDataLength = IntraPeriodCandleData.getLength(version);
+        int startPosition = 0;
+        long candleTime = DataCacheUtils.getFirstCandleInChunkFast(period, fileStartTime);
+        long firstChunkCandle = candleTime;
+        if(to > candleTime)
+        {
+            startPosition = DataCacheUtils.getCandlesCountBetween(period, candleTime, DataCacheUtils.getPreviousCandleStart(period, to)) * intraPeriodCandleDataLength;
+            candleTime = to;
+        }
+        if((long)(startPosition + intraPeriodCandleDataLength) > fileHandle.length())
+            return false;
+        byte buff[] = new byte[intraPeriodCandleDataLength];
+        for(; startPosition >= 0; startPosition -= intraPeriodCandleDataLength)
+        {
+            fileHandle.seek(startPosition);
+            int i;
+            int readBytes;
+            for(readBytes = 0; (i = fileHandle.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+            if(readBytes < intraPeriodCandleDataLength)
+                return false;
+            IntraPeriodCandleData candleData = new IntraPeriodCandleData();
+            candleData.fromBytes(version, firstChunkCandle, instrument.getPipValue(), buff, 0);
+            if(candleData.empty)
+                return false;
+            if(candleData.time != candleTime)
+            {
+                DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                String errorMessage = (new StringBuilder()).append("Data cache file corrupted, candle time [").append(format.format(new Date(candleData.time))).append("],").append("expected candle time [").append(format.format(new Date(candleTime))).append("], file [").append(file.getPath()).append("], position in file [").append(startPosition).append("]").toString();
+                throw new DataCacheException(errorMessage);
+            }
+            if(candleData.time >= from && (loadingProgress == null || !loadingProgress.stopJob()))
+                listener.newCandle(instrument, period, side, candleTime, candleData.open, candleData.close, candleData.low, candleData.high, candleData.vol);
+            else
+                return false;
+            candleTime = DataCacheUtils.getPreviousCandleStart(period, candleTime);
+        }
+
+        return true;
+    }
+
+    private void readTicksFromIntraPeriodFile(Instrument instrument, File file, long fileStartTime, long fileEndTime, long from, long to, LiveFeedListener listener, boolean blocking)
+        throws DataCacheException
+    {
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("Reading ticks from intraperiod file [").append(file.getPath()).append("]").toString());
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        RandomAccessFile fileHandle;
+        File tempFile;
+        InputStream is;
+        OutputStream os;
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            LOGGER.error("Cannot create cache directory");
+        fileHandle = getIntraPeriodFileHandle(file);
+        flushDelayedWriteTasks(file, fileHandle);
+        if(!blocking)
+            break MISSING_BLOCK_LABEL_260;
+        tempFile = File.createTempFile("jforex", ".tmp");
+        tempFile.deleteOnExit();
+        is = new BufferedInputStream(new FileInputStream(file));
+        os = new BufferedOutputStream(new FileOutputStream(tempFile));
+        byte buff[] = new byte[1024];
+        int i;
+        while((i = is.read(buff, 0, buff.length)) != -1) 
+            os.write(buff, 0, i);
+        os.flush();
+        os.close();
+        is.close();
+        break MISSING_BLOCK_LABEL_237;
+        Exception exception;
+        exception;
+        os.close();
+        is.close();
+        throw exception;
+        file = tempFile;
+        wLock.unlock();
+        wLock = null;
+        fileHandle = new RandomAccessFile(file, "rw");
+        Exception exception2;
+        try
+        {
+            readTicksFromFile(instrument, file, fileStartTime, from, to, listener, fileHandle, 0.0D);
+        }
+        catch(DataCacheException e)
+        {
+            fileHandle.close();
+            synchronized(fileHandles)
+            {
+                fileHandles.remove(file);
+            }
+            if(!file.delete())
+                LOGGER.error((new StringBuilder()).append("Data cache corrupted, cannot delete file [").append(file.getPath()).append("]").toString());
+            throw e;
+        }
+        finally
+        {
+            if(!blocking) goto _L0; else goto _L0
+        }
+        if(blocking)
+        {
+            fileHandle.close();
+            file.delete();
+        }
+        break MISSING_BLOCK_LABEL_414;
+        fileHandle.close();
+        file.delete();
+        throw exception2;
+        IOException e;
+        e;
+        throw new DataCacheException(e);
+        if(wLock != null)
+            wLock.unlock();
+        break MISSING_BLOCK_LABEL_442;
+        Exception exception3;
+        exception3;
+        if(wLock != null)
+            wLock.unlock();
+        throw exception3;
+    }
+
+    public CandleData readCandlesFromChunkFile(File file, Instrument instrument, Period period, OfferSide side, long fileStartTime, long from, long to, LiveFeedListener listener, CandleData lastNonEmptyElement, boolean blocking, double feedCommission)
+        throws DataCacheException
+    {
+        ReentrantReadWriteLock rwLock;
+        java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock rLock;
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("Reading candles from chunk file [").append(file.getPath()).append("]").toString());
+        if(!$assertionsDisabled && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        rwLock = getLock(file);
+        rLock = rwLock.readLock();
+        rLock.lock();
+        RandomAccessFile fileHandle;
+        long firstChunkCandle;
+        fileHandle = getChunkFileHandle(file, !blocking);
+        firstChunkCandle = DataCacheUtils.getFirstCandleInChunk(period, fileStartTime);
+        long fileLength = fileHandle.length();
+        if(fileLength != 0L) goto _L2; else goto _L1
+_L1:
+        if(lastNonEmptyElement != null)
+        {
+            long chunkEnd = DataCacheUtils.getChunkEnd(period, fileStartTime);
+            lastNonEmptyElement = fillWithFlats(instrument, period, side, fileStartTime, chunkEnd, from, to, listener, lastNonEmptyElement);
+        }
+          goto _L3
+_L2:
+        long candleTime;
+        int candleDataLength;
+        byte buff[];
+        int startPosition = 0;
+        candleTime = DataCacheUtils.getCandleStart(period, fileStartTime);
+        if(candleTime < fileStartTime)
+            candleTime = DataCacheUtils.getNextCandleStartFast(period, candleTime);
+        candleDataLength = CandleData.getLength(version);
+        if(from > candleTime)
+        {
+            startPosition = DataCacheUtils.getCandlesCountBetween(period, candleTime, DataCacheUtils.getPreviousCandleStart(period, from)) * candleDataLength;
+            candleTime = from;
+        }
+        int bufferSize = (8192 / candleDataLength) * candleDataLength;
+        if(period != Period.MONTHLY)
+        {
+            int untilTo = DataCacheUtils.getCandlesCountBetweenFast(period, candleTime, to) * candleDataLength;
+            if(bufferSize > untilTo)
+                bufferSize = untilTo + candleDataLength;
+            if((long)bufferSize > fileLength - (long)startPosition)
+                bufferSize = (int)fileLength - startPosition;
+        }
+        fileHandle.seek(startPosition);
+        buff = new byte[bufferSize];
+_L9:
+        int i;
+        int readBytes;
+        CandleData candleData;
+        int j;
+        for(readBytes = 0; (i = fileHandle.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+        candleData = new CandleData();
+        j = 0;
+_L8:
+        if(j >= readBytes)
+            continue; /* Loop/switch isn't completed */
+        if(j + candleDataLength > readBytes) goto _L5; else goto _L4
+_L4:
+        candleData.fromBytes(version, firstChunkCandle, instrument.getPipValue(), buff, j);
+        if(candleData.time > to) goto _L7; else goto _L6
+_L6:
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(candleData.time != candleTime)
+        {
+            rLock.unlock();
+            wLock = rwLock.writeLock();
+            wLock.lock();
+            synchronized(fileHandlesCache)
+            {
+                CacheManager.FileCacheItem cacheItem = (CacheManager.FileCacheItem)fileHandlesCache.remove(file);
+                if(cacheItem != null)
+                {
+                    RandomAccessFile arr$[] = cacheItem.fileHandles;
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        RandomAccessFile cachedFileHandle = arr$[i$];
+                        if(cachedFileHandle == null)
+                            continue;
+                        try
+                        {
+                            cachedFileHandle.close();
+                        }
+                        catch(IOException ex)
+                        {
+                            LOGGER.error(ex.getMessage(), ex);
+                        }
+                    }
+
+                }
+            }
+            fileHandle.close();
+            if(file.delete())
+                synchronized(fileExistanceCache)
+                {
+                    fileExistanceCache.remove(file);
+                }
+            DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            throw new DataCacheException((new StringBuilder()).append("Data cache file [").append(file.getPath()).append("] corrupted, read candle time [").append(format.format(new Date(candleData.time))).append("], expected candle time [").append(format.format(new Date(candleTime))).append("]").toString());
+        }
+        if(lastNonEmptyElement == null)
+            lastNonEmptyElement = new CandleData();
+        if(feedCommission != 0.0D)
+        {
+            candleData.open = DataCacheUtils.getPriceWithCommission(instrument, side, candleData.open, feedCommission);
+            candleData.close = DataCacheUtils.getPriceWithCommission(instrument, side, candleData.close, feedCommission);
+            candleData.low = DataCacheUtils.getPriceWithCommission(instrument, side, candleData.low, feedCommission);
+            candleData.high = DataCacheUtils.getPriceWithCommission(instrument, side, candleData.high, feedCommission);
+        }
+        listener.newCandle(instrument, period, side, candleTime, candleData.open, candleData.close, candleData.low, candleData.high, candleData.vol);
+        lastNonEmptyElement.time = candleData.time;
+        lastNonEmptyElement.open = candleData.open;
+        lastNonEmptyElement.close = candleData.close;
+        lastNonEmptyElement.high = candleData.high;
+        lastNonEmptyElement.low = candleData.low;
+        lastNonEmptyElement.vol = candleData.vol;
+        candleTime = DataCacheUtils.getNextCandleStartFast(period, candleTime);
+          goto _L5
+_L7:
+        CandleData candledata1 = lastNonEmptyElement;
+        returnChunkFileHandle(file, fileHandle);
+        rLock.unlock();
+        return candledata1;
+_L5:
+        j += candleDataLength;
+          goto _L8
+        if(i > -1) goto _L9; else goto _L3
+_L3:
+        CandleData candledata = lastNonEmptyElement;
+        returnChunkFileHandle(file, fileHandle);
+        rLock.unlock();
+        return candledata;
+        Exception exception2;
+        exception2;
+        returnChunkFileHandle(file, fileHandle);
+        throw exception2;
+        IOException e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception3;
+        exception3;
+        rLock.unlock();
+        throw exception3;
+    }
+
+    private CandleData fillWithFlats(Instrument instrument, Period period, OfferSide side, long chunkStart, long chunkEnd, 
+            long from, long to, LiveFeedListener listener, CandleData lastNonEmptyElement)
+        throws DataCacheException
+    {
+        long candleTime = DataCacheUtils.getCandleStart(period, chunkStart);
+        if(candleTime < chunkStart)
+            candleTime = DataCacheUtils.getNextCandleStart(period, candleTime);
+        if(from > candleTime)
+            candleTime = from;
+        for(; candleTime <= to && candleTime <= chunkEnd; candleTime = DataCacheUtils.getNextCandleStart(period, candleTime))
+        {
+            lastNonEmptyElement.time = candleTime;
+            listener.newCandle(instrument, period, side, candleTime, lastNonEmptyElement.close, lastNonEmptyElement.close, lastNonEmptyElement.close, lastNonEmptyElement.close, 0.0D);
+        }
+
+        return lastNonEmptyElement;
+    }
+
+    private CandleData readCandlesFromIntraPeriodFile(File file, Instrument instrument, Period period, OfferSide side, long fileStartTime, long from, long to, LiveFeedListener listener, CandleData lastNonEmptyElement, boolean blocking, double feedCommission)
+        throws DataCacheException
+    {
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("Reading candles from intraperiod file [").append(file.getPath()).append("]").toString());
+        if(!$assertionsDisabled && from != DataCacheUtils.getCandleStart(period, from))
+            throw new AssertionError();
+        if(!$assertionsDisabled && to != DataCacheUtils.getCandleStart(period, to))
+            throw new AssertionError();
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        from = DataCacheUtils.getCandleStart(period, from);
+        RandomAccessFile fileHandle;
+        File tempFile;
+        InputStream is;
+        OutputStream os;
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            LOGGER.error("Cannot create cache directory");
+        fileHandle = getIntraPeriodFileHandle(file);
+        flushDelayedWriteTasks(file, fileHandle);
+        if(!blocking)
+            break MISSING_BLOCK_LABEL_320;
+        tempFile = File.createTempFile("jforex", ".tmp");
+        tempFile.deleteOnExit();
+        is = new BufferedInputStream(new FileInputStream(file));
+        os = new BufferedOutputStream(new FileOutputStream(tempFile));
+        byte buff[] = new byte[1024];
+        int i;
+        while((i = is.read(buff, 0, buff.length)) != -1) 
+            os.write(buff, 0, i);
+        os.flush();
+        os.close();
+        is.close();
+        break MISSING_BLOCK_LABEL_297;
+        Exception exception;
+        exception;
+        os.close();
+        is.close();
+        throw exception;
+        file = tempFile;
+        wLock.unlock();
+        wLock = null;
+        fileHandle = new RandomAccessFile(file, "rw");
+        long firstCandleTime;
+        long candleTime;
+        int intraPeriodCandleDataLength;
+        byte buff[];
+        int startPosition = 0;
+        firstCandleTime = DataCacheUtils.getFirstCandleInChunkFast(period, fileStartTime);
+        candleTime = firstCandleTime;
+        intraPeriodCandleDataLength = IntraPeriodCandleData.getLength(version);
+        if(from > candleTime)
+        {
+            startPosition = DataCacheUtils.getCandlesCountBetween(period, candleTime, DataCacheUtils.getPreviousCandleStart(period, from)) * intraPeriodCandleDataLength;
+            candleTime = from;
+        }
+        fileHandle.seek(startPosition);
+        buff = new byte[intraPeriodCandleDataLength * 10];
+_L12:
+        int i;
+        int readBytes;
+        IntraPeriodCandleData candleData;
+        int j;
+        for(readBytes = 0; (i = fileHandle.read(buff, readBytes, buff.length - readBytes)) > -1 && readBytes < buff.length; readBytes += i);
+        candleData = new IntraPeriodCandleData();
+        j = 0;
+_L10:
+        if(j >= readBytes)
+            continue; /* Loop/switch isn't completed */
+        if(j + intraPeriodCandleDataLength > readBytes) goto _L2; else goto _L1
+_L1:
+        candleData.fromBytes(version, firstCandleTime, instrument.getPipValue(), buff, j);
+        if(candleData.empty)
+        {
+            CandleData candleFromChunkFile = readCandleFromChunkFile(instrument, period, side, fileStartTime, candleTime, lastNonEmptyElement, blocking, feedCommission);
+            if(candleFromChunkFile != null)
+            {
+                candleData.empty = false;
+                candleData.time = candleFromChunkFile.time;
+                candleData.open = candleFromChunkFile.open;
+                candleData.high = candleFromChunkFile.high;
+                candleData.low = candleFromChunkFile.low;
+                candleData.close = candleFromChunkFile.close;
+            }
+        }
+        if(!candleData.empty) goto _L4; else goto _L3
+_L3:
+        if(candleTime > to) goto _L6; else goto _L5
+_L5:
+        if(lastNonEmptyElement != null)
+        {
+            lastNonEmptyElement.time = candleTime;
+            listener.newCandle(instrument, period, side, candleTime, lastNonEmptyElement.close, lastNonEmptyElement.close, lastNonEmptyElement.close, lastNonEmptyElement.close, 0.0D);
+        }
+          goto _L7
+_L6:
+        DateFormat format = lastNonEmptyElement;
+        if(blocking)
+        {
+            fileHandle.close();
+            file.delete();
+        }
+        if(wLock != null)
+            wLock.unlock();
+        return format;
+_L4:
+        if(candleData.time != candleTime)
+        {
+            format = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            String errorMessage = (new StringBuilder()).append("Data cache file corrupted, candle time [").append(format.format(new Date(candleData.time))).append("],").append("expected candle time [").append(format.format(new Date(candleTime))).append("], file [").append(file.getPath()).append("], position in file [").append((fileHandle.getFilePointer() - (long)readBytes) + (long)j).append("]").toString();
+            fileHandle.close();
+            synchronized(fileHandles)
+            {
+                fileHandles.remove(file);
+            }
+            file.delete();
+            throw new DataCacheException(errorMessage);
+        }
+        if(candleData.time > to) goto _L9; else goto _L8
+_L8:
+        if(lastNonEmptyElement == null)
+            lastNonEmptyElement = new CandleData();
+        lastNonEmptyElement.time = candleData.time;
+        lastNonEmptyElement.open = candleData.open;
+        lastNonEmptyElement.close = candleData.close;
+        lastNonEmptyElement.high = candleData.high;
+        lastNonEmptyElement.low = candleData.low;
+        lastNonEmptyElement.vol = candleData.vol;
+        listener.newCandle(instrument, period, side, candleTime, candleData.open, candleData.close, candleData.low, candleData.high, candleData.vol);
+        if(assertionsEnabled() && DataCacheUtils.getTimeForNCandlesForward(period, firstCandleTime, (int)(((fileHandle.getFilePointer() - (long)readBytes) + (long)j) / (long)intraPeriodCandleDataLength) + 1) != candleData.time)
+            throw new DataCacheException((new StringBuilder()).append("Position doesn't belong to the candle, first candle time [").append(firstCandleTime).append("] position [").append((fileHandle.getFilePointer() - (long)readBytes) + (long)j).append("] in file [").append(file.getPath()).append("], candle time we wrote there [").append(candleData.time).append("]").toString());
+          goto _L7
+_L9:
+        format = lastNonEmptyElement;
+        if(blocking)
+        {
+            fileHandle.close();
+            file.delete();
+        }
+        if(wLock != null)
+            wLock.unlock();
+        return format;
+_L7:
+        candleTime = DataCacheUtils.getNextCandleStart(period, candleTime);
+_L2:
+        j += intraPeriodCandleDataLength;
+          goto _L10
+        if(i > -1) goto _L12; else goto _L11
+_L11:
+        CandleData candledata = lastNonEmptyElement;
+        if(blocking)
+        {
+            fileHandle.close();
+            file.delete();
+        }
+        if(wLock != null)
+            wLock.unlock();
+        return candledata;
+        Exception exception2;
+        exception2;
+        if(blocking)
+        {
+            fileHandle.close();
+            file.delete();
+        }
+        throw exception2;
+        IOException e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception3;
+        exception3;
+        if(wLock != null)
+            wLock.unlock();
+        throw exception3;
+    }
+
+    private CandleData readCandleFromChunkFile(Instrument instrument, Period period, OfferSide side, long fileStartTime, long candleTime, 
+            CandleData lastNonEmptyElement, boolean blocking, double feedCommission)
+        throws DataCacheException
+    {
+        File file = getChunkFile(instrument, period, side, fileStartTime, version);
+        if(chunkFileExists(file))
+        {
+            LiveFeedListener liveFeedListener = new LiveFeedListener() {
+
+                public void newTick(Instrument instrument1, long l, double d, double d1, 
+                        double d2, double d3)
+                {
+                }
+
+                public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                        double d1, double d2, double d3, double d4)
+                {
+                }
+
+                final LocalCacheManager this$0;
+
+            
+            {
+                this$0 = LocalCacheManager.this;
+                super();
+            }
+            };
+            CandleData result = readCandlesFromChunkFile(file, instrument, period, side, fileStartTime, candleTime, candleTime, liveFeedListener, lastNonEmptyElement, blocking, feedCommission);
+            return result;
+        } else
+        {
+            return null;
+        }
+    }
+
+    protected File getIntraPeriodFile(Instrument instrument, Period period, OfferSide side, long from)
+        throws DataCacheException
+    {
+        return DataCacheUtils.getIntraPeriodFile(intraperiodNum, instrument, period, side, from);
+    }
+
+    protected void closeHandles()
+    {
+        timer.cancel();
+        WriteDelayedTasks writeDelayedTasks = new WriteDelayedTasks();
+        CloseFileLocks checkLocksTask = new CloseFileLocks();
+        CloseFileHandles checkTask = new CloseFileHandles();
+        writeDelayedTasks.run();
+        checkLocksTask.run();
+        checkTask.run();
+        super.closeHandles();
+        Map map = fileHandles;
+        JVM INSTR monitorenter ;
+        java.util.Map.Entry arr$[];
+        int len$;
+        int i$;
+        java.util.Map.Entry entries[] = (java.util.Map.Entry[])fileHandles.entrySet().toArray(new java.util.Map.Entry[fileHandles.entrySet().size()]);
+        arr$ = entries;
+        len$ = arr$.length;
+        i$ = 0;
+_L3:
+        if(i$ >= len$) goto _L2; else goto _L1
+_L1:
+        java.util.Map.Entry fileHandleEntry;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        fileHandleEntry = arr$[i$];
+        if(fileHandleEntry == null)
+            continue; /* Loop/switch isn't completed */
+        File file = (File)fileHandleEntry.getKey();
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        try
+        {
+            RandomAccessFile fileHandle = (RandomAccessFile)fileHandleEntry.getValue();
+            fileHandle.close();
+        }
+        catch(IOException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        wLock.unlock();
+        continue; /* Loop/switch isn't completed */
+        Exception exception;
+        exception;
+        wLock.unlock();
+        throw exception;
+          goto _L3
+        Exception exception1;
+        exception1;
+        throw exception1;
+_L2:
+    }
+
+    private boolean delayedTasksExists(File file)
+    {
+        Map map = delayedWriteTasks;
+        JVM INSTR monitorenter ;
+        return delayedWriteTasks.containsKey(file);
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    private void clearDelayedWriteTasks(Instrument instrument)
+    {
+        synchronized(delayedWriteTasks)
+        {
+            Iterator iterator = delayedWriteTasks.values().iterator();
+            do
+            {
+                if(!iterator.hasNext())
+                    break;
+                DelayedWriteTask task = (DelayedWriteTask)iterator.next();
+                if(task.instrument == instrument)
+                    iterator.remove();
+            } while(true);
+        }
+    }
+
+    private void clearDelayedWriteTasks(File file)
+    {
+        synchronized(delayedWriteTasks)
+        {
+            delayedWriteTasks.remove(file);
+        }
+    }
+
+    private void flushDelayedWriteTasks(File file, RandomAccessFile fileHandle)
+        throws DataCacheException
+    {
+        DelayedWriteTask task;
+        synchronized(delayedWriteTasks)
+        {
+            task = (DelayedWriteTask)delayedWriteTasks.remove(file);
+        }
+        if(task != null)
+            if(task instanceof TickWriteTask)
+            {
+                if(LOGGER.isTraceEnabled())
+                    LOGGER.trace((new StringBuilder()).append("Flushing delayed write tasks for file [").append(file.getPath()).append("] [").append(((TickWriteTask)task).data.length / TickData.getLength(version)).append("]").toString());
+                processTickWriteTasks((TickWriteTask)task, fileHandle);
+            } else
+            {
+                CandleWriteTask candleWriteTask = (CandleWriteTask)task;
+                if(LOGGER.isTraceEnabled())
+                    LOGGER.trace((new StringBuilder()).append("Flushing delayed write tasks for file [").append(file.getPath()).append("] [").append(((CandleWriteTask)task).candleData.size()).append("]").toString());
+                saveIntraperiodCandleDataToFile(candleWriteTask.instrument, candleWriteTask.firstChunkCandle, file, fileHandle, candleWriteTask.period, (Data[])((CandleWriteTask)task).candleData.toArray(new Data[((CandleWriteTask)task).candleData.size()]));
+            }
+    }
+
+    public void flushDelayedWriteTasks()
+    {
+        writeDelayedTasks.run();
+    }
+
+    public void saveOrdersData(String accountId, Instrument instrument, long chunkStart, OrdersChunkData data)
+        throws DataCacheException
+    {
+        File file;
+        File lockFile;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(!$assertionsDisabled && (data.from != chunkStart || chunkStart != DataCacheUtils.getOrdersChunkStart(chunkStart)))
+            throw new AssertionError();
+        file = DataCacheUtils.getOrdersChunkFile(scheme, accountId, instrument, chunkStart, version);
+        lockFile = new File((new StringBuilder()).append(file.getPath()).append(".lock").toString());
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        RandomAccessFile raf;
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            throw new DataCacheException("Cannot create cache directory");
+        raf = new RandomAccessFile(lockFile, "rw");
+        FileChannel channel = raf.getChannel();
+        FileLock lock = tryLock(lockFile, channel, 10000L);
+        FileOutputStream fos = new FileOutputStream(file);
+        BufferedOutputStream bos = new BufferedOutputStream(fos);
+        byte key[] = Hex.decodeHex(FeedDataProvider.getEncryptionKey().toCharArray());
+        SecretKeySpec skeySpec = new SecretKeySpec(key, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(1, skeySpec);
+        CipherOutputStream cos = new CipherOutputStream(bos, cipher);
+        data.writeObject(cos);
+        setLastOrderUpdateTime(instrument, data.to);
+        cos.flush();
+        cos.close();
+        bos.close();
+        fos.close();
+        break MISSING_BLOCK_LABEL_293;
+        Exception exception;
+        exception;
+        fos.close();
+        throw exception;
+        if(lock.isValid())
+            lock.release();
+        break MISSING_BLOCK_LABEL_327;
+        Exception exception1;
+        exception1;
+        if(lock.isValid())
+            lock.release();
+        throw exception1;
+        channel.close();
+        break MISSING_BLOCK_LABEL_345;
+        Exception exception2;
+        exception2;
+        channel.close();
+        throw exception2;
+        raf.close();
+        break MISSING_BLOCK_LABEL_363;
+        Exception exception3;
+        exception3;
+        raf.close();
+        throw exception3;
+        RandomAccessFile lockRaf;
+        if(!assertionsEnabled())
+            break MISSING_BLOCK_LABEL_669;
+        lockRaf = new RandomAccessFile(lockFile, "rw");
+        FileChannel channel;
+        FileLock lock;
+        channel = lockRaf.getChannel();
+        lock = tryLock(lockFile, channel, 10000L);
+        raf = new RandomAccessFile(file, "rw");
+        byte buff[] = new byte[8192];
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        int i;
+        while((i = raf.read(buff)) != -1) 
+            baos.write(buff, 0, i);
+        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+        byte key[] = Hex.decodeHex(FeedDataProvider.getEncryptionKey().toCharArray());
+        SecretKeySpec skeySpec = new SecretKeySpec(key, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(2, skeySpec);
+        CipherInputStream cis = new CipherInputStream(bais, cipher);
+        OrdersChunkData checkData = new OrdersChunkData();
+        checkData.readObject(cis);
+        if(cis.read() != -1)
+            throw new IOException("Orders file corrupted, contains more bytes than expected");
+        cis.close();
+        if(!data.equals(checkData))
+            throw new DataCacheException("Saved orders data not equal to restored orders data");
+        raf.close();
+        break MISSING_BLOCK_LABEL_607;
+        Exception exception4;
+        exception4;
+        raf.close();
+        throw exception4;
+        if(lock.isValid())
+            lock.release();
+        channel.close();
+        break MISSING_BLOCK_LABEL_651;
+        Exception exception5;
+        exception5;
+        if(lock.isValid())
+            lock.release();
+        channel.close();
+        throw exception5;
+        lockRaf.close();
+        break MISSING_BLOCK_LABEL_669;
+        Exception exception6;
+        exception6;
+        lockRaf.close();
+        throw exception6;
+        if(wLock != null)
+            wLock.unlock();
+        break MISSING_BLOCK_LABEL_719;
+        DataCacheException e;
+        e;
+        throw e;
+        e;
+        throw e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception7;
+        exception7;
+        if(wLock != null)
+            wLock.unlock();
+        throw exception7;
+    }
+
+    private FileLock tryLock(File file, FileChannel channel, long timeout)
+        throws IOException, DataCacheException, InterruptedException
+    {
+        for(long time = System.currentTimeMillis(); time + timeout > System.currentTimeMillis(); Thread.sleep(20L))
+        {
+            FileLock lock = channel.tryLock();
+            if(lock != null && lock.isValid())
+                return lock;
+        }
+
+        throw new DataCacheException((new StringBuilder()).append("Cannot lock file: ").append(file).toString());
+    }
+
+    public boolean isOrderDataCached(String accountId, Instrument instrument, long chunkStart)
+        throws DataCacheException
+    {
+        if(!$assertionsDisabled && chunkStart != DataCacheUtils.getOrdersChunkStart(chunkStart))
+        {
+            throw new AssertionError();
+        } else
+        {
+            File file = DataCacheUtils.getOrdersChunkFile(scheme, accountId, instrument, chunkStart, version);
+            return file.exists();
+        }
+    }
+
+    public boolean isFullOrderChunkExists(String accountId, Instrument instrument, long chunkStart, Set openOrderIds)
+        throws DataCacheException
+    {
+        File file;
+        File lockFile;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(!$assertionsDisabled && chunkStart != DataCacheUtils.getOrdersChunkStart(chunkStart))
+            throw new AssertionError();
+        file = DataCacheUtils.getOrdersChunkFile(scheme, accountId, instrument, chunkStart, version);
+        lockFile = new File((new StringBuilder()).append(file.getPath()).append(".lock").toString());
+        if(!file.exists())
+            return false;
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        RandomAccessFile lockRaf = new RandomAccessFile(lockFile, "rw");
+        FileChannel channel = lockRaf.getChannel();
+        FileLock lock = tryLock(lockFile, channel, 10000L);
+        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        OrdersChunkData chunkData;
+        boolean flag2;
+        byte buff[] = new byte[8192];
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        int i;
+        while((i = raf.read(buff)) != -1) 
+            baos.write(buff, 0, i);
+        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+        byte key[] = Hex.decodeHex(FeedDataProvider.getEncryptionKey().toCharArray());
+        SecretKeySpec skeySpec = new SecretKeySpec(key, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(2, skeySpec);
+        CipherInputStream cis = new CipherInputStream(bais, cipher);
+        chunkData = new OrdersChunkData();
+        chunkData.readObject(cis);
+        if(cis.read() != -1)
+            throw new IOException("Orders file corrupted, contains more bytes than expected");
+        cis.close();
+        if(chunkData.openGroupsIds != null && !chunkData.openGroupsIds.isEmpty() && chunkData.full)
+            break MISSING_BLOCK_LABEL_375;
+        flag2 = chunkData.full;
+        raf.close();
+        if(lock.isValid())
+            lock.release();
+        channel.close();
+        lockRaf.close();
+        if(wLock != null)
+            wLock.unlock();
+        return flag2;
+        Iterator i$ = chunkData.openGroupsIds.iterator();
+        boolean flag3;
+        String orderGroupId;
+        do
+        {
+            if(!i$.hasNext())
+                break MISSING_BLOCK_LABEL_466;
+            orderGroupId = (String)i$.next();
+        } while(openOrderIds.contains(orderGroupId));
+        flag3 = false;
+        raf.close();
+        if(lock.isValid())
+            lock.release();
+        channel.close();
+        lockRaf.close();
+        if(wLock != null)
+            wLock.unlock();
+        return flag3;
+        i$ = 1;
+        raf.close();
+        if(lock.isValid())
+            lock.release();
+        channel.close();
+        lockRaf.close();
+        if(wLock != null)
+            wLock.unlock();
+        return i$;
+        Exception exception;
+        exception;
+        raf.close();
+        throw exception;
+        Exception exception1;
+        exception1;
+        if(lock.isValid())
+            lock.release();
+        throw exception1;
+        Exception exception2;
+        exception2;
+        channel.close();
+        throw exception2;
+        Exception exception3;
+        exception3;
+        lockRaf.close();
+        throw exception3;
+        StreamCorruptedException e;
+        e;
+        boolean flag1;
+        String message = e.getMessage();
+        if(message.contains("stream version [1]") && message.contains("class version [2]"))
+            LOGGER.debug(message, e);
+        else
+            LOGGER.warn(message, e);
+        file.delete();
+        flag1 = false;
+        if(wLock != null)
+            wLock.unlock();
+        return flag1;
+        e;
+        boolean flag;
+        file.delete();
+        flag = false;
+        if(wLock != null)
+            wLock.unlock();
+        return flag;
+        e;
+        file.delete();
+        throw e;
+        e;
+        file.delete();
+        throw e;
+        e;
+        LOGGER.warn(e.getMessage(), e);
+        file.delete();
+        flag = false;
+        if(wLock != null)
+            wLock.unlock();
+        return flag;
+        e;
+        file.delete();
+        throw new DataCacheException(e);
+        Exception exception4;
+        exception4;
+        if(wLock != null)
+            wLock.unlock();
+        throw exception4;
+    }
+
+    public OrdersChunkData readOrdersData(String accountId, Instrument instrument, long chunkStart)
+        throws DataCacheException
+    {
+        File file;
+        File lockFile;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        if(!$assertionsDisabled && chunkStart != DataCacheUtils.getOrdersChunkStart(chunkStart))
+            throw new AssertionError();
+        file = DataCacheUtils.getOrdersChunkFile(scheme, accountId, instrument, chunkStart, version);
+        lockFile = new File((new StringBuilder()).append(file.getPath()).append(".lock").toString());
+        if(!file.exists())
+            return null;
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        RandomAccessFile lockRaf = new RandomAccessFile(lockFile, "rw");
+        FileChannel channel = lockRaf.getChannel();
+        FileLock lock = tryLock(lockFile, channel, 10000L);
+        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        OrdersChunkData orderschunkdata;
+        byte buff[] = new byte[8192];
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        int i;
+        while((i = raf.read(buff)) != -1) 
+            baos.write(buff, 0, i);
+        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+        byte key[] = Hex.decodeHex(FeedDataProvider.getEncryptionKey().toCharArray());
+        SecretKeySpec skeySpec = new SecretKeySpec(key, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(2, skeySpec);
+        CipherInputStream cis = new CipherInputStream(bais, cipher);
+        OrdersChunkData chunkData = new OrdersChunkData();
+        chunkData.readObject(cis);
+        if(cis.read() != -1)
+            throw new IOException("Orders file corrupted, contains more bytes than expected");
+        cis.close();
+        orderschunkdata = chunkData;
+        raf.close();
+        if(lock.isValid())
+            lock.release();
+        channel.close();
+        lockRaf.close();
+        if(wLock != null)
+            wLock.unlock();
+        return orderschunkdata;
+        Exception exception;
+        exception;
+        raf.close();
+        throw exception;
+        Exception exception1;
+        exception1;
+        if(lock.isValid())
+            lock.release();
+        throw exception1;
+        Exception exception2;
+        exception2;
+        channel.close();
+        throw exception2;
+        Exception exception3;
+        exception3;
+        lockRaf.close();
+        throw exception3;
+        StreamCorruptedException e;
+        e;
+        LOGGER.debug(e.getMessage(), e);
+        file.delete();
+        channel = null;
+        if(wLock != null)
+            wLock.unlock();
+        return channel;
+        e;
+        file.delete();
+        channel = null;
+        if(wLock != null)
+            wLock.unlock();
+        return channel;
+        e;
+        throw e;
+        e;
+        throw e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception4;
+        exception4;
+        if(wLock != null)
+            wLock.unlock();
+        throw exception4;
+    }
+
+    public Collection readOrdersData(String accountId, Instrument instrument, long from, long to)
+        throws DataCacheException
+    {
+        long chunks[][] = DataCacheUtils.separateOrderChunksForCache(from, to);
+        Map result = new HashMap();
+        long arr$[][] = chunks;
+        int len$ = arr$.length;
+label0:
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            long chunk[] = arr$[i$];
+            OrdersChunkData chunkData = readOrdersData(accountId, instrument, chunk[0]);
+            if(chunkData == null)
+                throw new DataCacheException((new StringBuilder()).append("Failed to load orders chunk for accountId [").append(accountId).append("], instrument [").append(instrument).append("], time [").append(chunk[0]).append("], file [").append(DataCacheUtils.getOrdersChunkFile(scheme, accountId, instrument, chunk[0], version)).append("]").toString());
+            if(chunkData.orders == null)
+                continue;
+            Iterator i$ = chunkData.orders.iterator();
+            do
+            {
+                OrderHistoricalData data;
+                do
+                {
+                    if(!i$.hasNext())
+                        continue label0;
+                    data = (OrderHistoricalData)i$.next();
+                } while(data.getHistoryEnd() < from || data.getHistoryStart() > to);
+                result.put(data.getOrderGroupId(), data);
+            } while(true);
+        }
+
+        return new ArrayList(result.values());
+    }
+
+    public long getLastOrderUpdateTime(Instrument instrument)
+    {
+        return lastOrderUpdateTimes[instrument.ordinal()];
+    }
+
+    public void setLastOrderUpdateTime(Instrument instrument, long lastOrderUpdateTime)
+    {
+        if(lastOrderUpdateTimes[instrument.ordinal()] < lastOrderUpdateTime)
+            lastOrderUpdateTimes[instrument.ordinal()] = lastOrderUpdateTime;
+    }
+
+    public void resetLastOrderUpdateTimes()
+    {
+        for(int i = 0; i < lastOrderUpdateTimes.length; i++)
+            lastOrderUpdateTimes[i] = 0x8000000000000000L;
+
+    }
+
+    public void saveOrderData(String accountId, Instrument instrument, OrderHistoricalData order)
+        throws DataCacheException
+    {
+        long arr$[][];
+        int len$;
+        int i$;
+        long chunks[][] = DataCacheUtils.separateOrderChunksForCache(order.getHistoryStart(), order.getHistoryEnd());
+        arr$ = chunks;
+        len$ = arr$.length;
+        i$ = 0;
+_L3:
+        if(i$ >= len$) goto _L2; else goto _L1
+_L1:
+        long chunk[];
+        File file;
+        File lockFile;
+        java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock wLock;
+        chunk = arr$[i$];
+        file = DataCacheUtils.getOrdersChunkFile(scheme, accountId, instrument, chunk[0], version);
+        lockFile = new File((new StringBuilder()).append(file.getPath()).append(".lock").toString());
+        ReentrantReadWriteLock rwLock = getLock(file);
+        wLock = rwLock.writeLock();
+        wLock.lock();
+        RandomAccessFile lockRaf;
+        if(!file.getParentFile().mkdirs() && !file.getParentFile().exists())
+            throw new DataCacheException("Cannot create cache directory");
+        if(!file.exists())
+            break MISSING_BLOCK_LABEL_846;
+        lockRaf = new RandomAccessFile(lockFile, "rw");
+        FileChannel channel = lockRaf.getChannel();
+        FileLock lock = tryLock(lockFile, channel, 10000L);
+        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        byte buff[] = new byte[8192];
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        int i;
+        while((i = raf.read(buff)) != -1) 
+            baos.write(buff, 0, i);
+        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+        byte key[] = Hex.decodeHex(FeedDataProvider.getEncryptionKey().toCharArray());
+        SecretKeySpec skeySpec = new SecretKeySpec(key, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(2, skeySpec);
+        CipherInputStream cis = new CipherInputStream(bais, cipher);
+        OrdersChunkData chunkData = new OrdersChunkData();
+        chunkData.readObject(cis);
+        if(cis.read() != -1)
+            throw new IOException("Orders file corrupted, contains more bytes than expected");
+        cis.close();
+        if(chunkData.full || chunkData.to == getLastOrderUpdateTime(instrument))
+        {
+            setLastOrderUpdateTime(instrument, order.getHistoryEnd());
+            if(!chunkData.full)
+                if(order.getHistoryEnd() > chunk[1])
+                    chunkData.to = chunk[1];
+                else
+                    chunkData.to = order.getHistoryEnd();
+            boolean orderExists = false;
+            Iterator i$ = chunkData.orders.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                OrderHistoricalData savedOrder = (OrderHistoricalData)i$.next();
+                if(!savedOrder.getOrderGroupId().equals(order.getOrderGroupId()))
+                    continue;
+                orderExists = true;
+                break;
+            } while(true);
+            if(!orderExists)
+            {
+                chunkData.orders.add(order);
+                Collections.sort(chunkData.orders, new Comparator() {
+
+                    public int compare(OrderHistoricalData o1, OrderHistoricalData o2)
+                    {
+                        if(o1.getHistoryStart() > o2.getHistoryStart())
+                            return 1;
+                        return o1.getHistoryStart() >= o2.getHistoryStart() ? 0 : -1;
+                    }
+
+                    public volatile int compare(Object x0, Object x1)
+                    {
+                        return compare((OrderHistoricalData)x0, (OrderHistoricalData)x1);
+                    }
+
+                    final LocalCacheManager this$0;
+
+            
+            {
+                this$0 = LocalCacheManager.this;
+                super();
+            }
+                });
+                if(chunkData.openGroupsIds.contains(order.getOrderGroupId()))
+                    chunkData.openGroupsIds.remove(order.getOrderGroupId());
+                baos = new ByteArrayOutputStream();
+                cipher.init(1, skeySpec);
+                CipherOutputStream cos = new CipherOutputStream(baos, cipher);
+                chunkData.writeObject(cos);
+                cos.flush();
+                cos.close();
+                byte data[] = baos.toByteArray();
+                raf.setLength(0L);
+                raf.seek(0L);
+                raf.write(data);
+                if(assertionsEnabled())
+                {
+                    raf.seek(0L);
+                    baos = new ByteArrayOutputStream();
+                    while((i = raf.read(buff)) != -1) 
+                        baos.write(buff, 0, i);
+                    bais = new ByteArrayInputStream(baos.toByteArray());
+                    cipher.init(2, skeySpec);
+                    cis = new CipherInputStream(bais, cipher);
+                    OrdersChunkData checkData = new OrdersChunkData();
+                    checkData.readObject(cis);
+                    if(cis.read() != -1)
+                        throw new IOException("Orders file corrupted, contains more bytes than expected");
+                    cis.close();
+                    if(!chunkData.equals(checkData))
+                        throw new DataCacheException("Saved orders data not equal to restored orders data");
+                }
+            }
+        }
+        raf.close();
+        break MISSING_BLOCK_LABEL_776;
+        Exception exception;
+        exception;
+        raf.close();
+        throw exception;
+        if(lock.isValid())
+            lock.release();
+        break MISSING_BLOCK_LABEL_810;
+        Exception exception1;
+        exception1;
+        if(lock.isValid())
+            lock.release();
+        throw exception1;
+        channel.close();
+        break MISSING_BLOCK_LABEL_828;
+        Exception exception2;
+        exception2;
+        channel.close();
+        throw exception2;
+        lockRaf.close();
+        break MISSING_BLOCK_LABEL_846;
+        Exception exception3;
+        exception3;
+        lockRaf.close();
+        throw exception3;
+        if(wLock != null)
+            wLock.unlock();
+        continue; /* Loop/switch isn't completed */
+        StreamCorruptedException e;
+        e;
+        LOGGER.debug(e.getMessage(), e);
+        file.delete();
+        if(wLock != null)
+            wLock.unlock();
+        continue; /* Loop/switch isn't completed */
+        e;
+        throw e;
+        e;
+        throw e;
+        e;
+        throw new DataCacheException(e);
+        Exception exception4;
+        exception4;
+        if(wLock != null)
+            wLock.unlock();
+        throw exception4;
+        i$++;
+          goto _L3
+_L2:
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/LocalCacheManager);
+    private static final int NORMAL_NUMBER_OF_OPEN_FILES = 40;
+    private static final int MAX_NUMBER_OF_OPEN_FILES = 100;
+    private static List cacheManagers = Collections.synchronizedList(new ArrayList());
+    private final String scheme;
+    protected final Map fileHandles;
+    protected FileLock cacheLock;
+    long lastWrittenTickTimes[];
+    protected int intraperiodNum;
+    private final Map delayedWriteTasks;
+    private Timer timer;
+    private WriteDelayedTasks writeDelayedTasks;
+    private long lastOrderUpdateTimes[];
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/datacache/LocalCacheManager.desiredAssertionStatus();
+
+
+
+
+}

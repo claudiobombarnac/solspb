@@ -1,0 +1,41 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   SpinnerMouseWheelListener.java
+
+package com.dukascopy.dds2.greed.agent.strategy;
+
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
+import javax.swing.JSpinner;
+
+public class SpinnerMouseWheelListener
+    implements MouseWheelListener
+{
+
+    public SpinnerMouseWheelListener(JSpinner source)
+    {
+        this.source = source;
+    }
+
+    public void mouseWheelMoved(MouseWheelEvent e)
+    {
+        if(source.isEnabled())
+        {
+            int steps = e.getWheelRotation();
+            for(int i = 0; i < Math.abs(steps); i++)
+            {
+                Object value;
+                if(steps > 0)
+                    value = source.getNextValue();
+                else
+                    value = source.getPreviousValue();
+                if(value != null)
+                    source.setValue(value);
+            }
+
+        }
+    }
+
+    private final JSpinner source;
+}

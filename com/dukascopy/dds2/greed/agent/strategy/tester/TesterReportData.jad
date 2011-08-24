@@ -1,0 +1,361 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterReportData.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.util.ArrayList;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            InstrumentReportData, ITesterReport
+
+public class TesterReportData
+    implements ITesterReport
+{
+    public static class TesterEvent
+    {
+        public static final class CloseTrigger extends Enum
+        {
+
+            public static CloseTrigger[] values()
+            {
+                return (CloseTrigger[])$VALUES.clone();
+            }
+
+            public static CloseTrigger valueOf(String name)
+            {
+                return (CloseTrigger)Enum.valueOf(com/dukascopy/dds2/greed/agent/strategy/tester/TesterReportData$TesterEvent$CloseTrigger, name);
+            }
+
+            public static final CloseTrigger CLOSE_BY_STRATEGY;
+            public static final CloseTrigger CLOSE_BY_STOP_LOSS;
+            public static final CloseTrigger CLOSE_BY_TAKE_PROFIT;
+            public static final CloseTrigger CLOSE_BY_MC;
+            public static final CloseTrigger CANCEL_BY_NO_MARGIN;
+            public static final CloseTrigger CANCEL_BY_STRATEGY;
+            public static final CloseTrigger CANCEL_BY_TIMEOUT;
+            public static final CloseTrigger CANCEL_BY_MC;
+            public static final CloseTrigger CANCEL_BY_VALIDATION;
+            public static final CloseTrigger CANCEL_BY_NO_LIQUIDITY;
+            public static final CloseTrigger MERGE_BY_MC;
+            public static final CloseTrigger MERGE_BY_STRATEGY;
+            private static final CloseTrigger $VALUES[];
+
+            static 
+            {
+                CLOSE_BY_STRATEGY = new CloseTrigger("CLOSE_BY_STRATEGY", 0);
+                CLOSE_BY_STOP_LOSS = new CloseTrigger("CLOSE_BY_STOP_LOSS", 1);
+                CLOSE_BY_TAKE_PROFIT = new CloseTrigger("CLOSE_BY_TAKE_PROFIT", 2);
+                CLOSE_BY_MC = new CloseTrigger("CLOSE_BY_MC", 3);
+                CANCEL_BY_NO_MARGIN = new CloseTrigger("CANCEL_BY_NO_MARGIN", 4);
+                CANCEL_BY_STRATEGY = new CloseTrigger("CANCEL_BY_STRATEGY", 5);
+                CANCEL_BY_TIMEOUT = new CloseTrigger("CANCEL_BY_TIMEOUT", 6);
+                CANCEL_BY_MC = new CloseTrigger("CANCEL_BY_MC", 7);
+                CANCEL_BY_VALIDATION = new CloseTrigger("CANCEL_BY_VALIDATION", 8);
+                CANCEL_BY_NO_LIQUIDITY = new CloseTrigger("CANCEL_BY_NO_LIQUIDITY", 9);
+                MERGE_BY_MC = new CloseTrigger("MERGE_BY_MC", 10);
+                MERGE_BY_STRATEGY = new CloseTrigger("MERGE_BY_STRATEGY", 11);
+                $VALUES = (new CloseTrigger[] {
+                    CLOSE_BY_STRATEGY, CLOSE_BY_STOP_LOSS, CLOSE_BY_TAKE_PROFIT, CLOSE_BY_MC, CANCEL_BY_NO_MARGIN, CANCEL_BY_STRATEGY, CANCEL_BY_TIMEOUT, CANCEL_BY_MC, CANCEL_BY_VALIDATION, CANCEL_BY_NO_LIQUIDITY, 
+                    MERGE_BY_MC, MERGE_BY_STRATEGY
+                });
+            }
+
+            private CloseTrigger(String s, int i)
+            {
+                super(s, i);
+            }
+        }
+
+        public static final class OpenTrigger extends Enum
+        {
+
+            public static OpenTrigger[] values()
+            {
+                return (OpenTrigger[])$VALUES.clone();
+            }
+
+            public static OpenTrigger valueOf(String name)
+            {
+                return (OpenTrigger)Enum.valueOf(com/dukascopy/dds2/greed/agent/strategy/tester/TesterReportData$TesterEvent$OpenTrigger, name);
+            }
+
+            public static final OpenTrigger OPEN_BY_STRATEGY;
+            public static final OpenTrigger OPEN_BY_MC;
+            private static final OpenTrigger $VALUES[];
+
+            static 
+            {
+                OPEN_BY_STRATEGY = new OpenTrigger("OPEN_BY_STRATEGY", 0);
+                OPEN_BY_MC = new OpenTrigger("OPEN_BY_MC", 1);
+                $VALUES = (new OpenTrigger[] {
+                    OPEN_BY_STRATEGY, OPEN_BY_MC
+                });
+            }
+
+            private OpenTrigger(String s, int i)
+            {
+                super(s, i);
+            }
+        }
+
+        public static final class EventType extends Enum
+        {
+
+            public static EventType[] values()
+            {
+                return (EventType[])$VALUES.clone();
+            }
+
+            public static EventType valueOf(String name)
+            {
+                return (EventType)Enum.valueOf(com/dukascopy/dds2/greed/agent/strategy/tester/TesterReportData$TesterEvent$EventType, name);
+            }
+
+            public static final EventType ORDER_ENTRY;
+            public static final EventType ORDER_CHANGED;
+            public static final EventType ORDER_FILLED;
+            public static final EventType ORDER_CLOSE;
+            public static final EventType ORDER_CANCEL;
+            public static final EventType MESSAGE;
+            public static final EventType MARGIN_CALL;
+            public static final EventType MARGIN_CUT;
+            public static final EventType COMMISSIONS;
+            public static final EventType OVERNIGHTS;
+            public static final EventType ORDERS_MERGED;
+            public static final EventType EXCEPTION;
+            public static final EventType CANCELED_BY_USER;
+            private static final EventType $VALUES[];
+
+            static 
+            {
+                ORDER_ENTRY = new EventType("ORDER_ENTRY", 0);
+                ORDER_CHANGED = new EventType("ORDER_CHANGED", 1);
+                ORDER_FILLED = new EventType("ORDER_FILLED", 2);
+                ORDER_CLOSE = new EventType("ORDER_CLOSE", 3);
+                ORDER_CANCEL = new EventType("ORDER_CANCEL", 4);
+                MESSAGE = new EventType("MESSAGE", 5);
+                MARGIN_CALL = new EventType("MARGIN_CALL", 6);
+                MARGIN_CUT = new EventType("MARGIN_CUT", 7);
+                COMMISSIONS = new EventType("COMMISSIONS", 8);
+                OVERNIGHTS = new EventType("OVERNIGHTS", 9);
+                ORDERS_MERGED = new EventType("ORDERS_MERGED", 10);
+                EXCEPTION = new EventType("EXCEPTION", 11);
+                CANCELED_BY_USER = new EventType("CANCELED_BY_USER", 12);
+                $VALUES = (new EventType[] {
+                    ORDER_ENTRY, ORDER_CHANGED, ORDER_FILLED, ORDER_CLOSE, ORDER_CANCEL, MESSAGE, MARGIN_CALL, MARGIN_CUT, COMMISSIONS, OVERNIGHTS, 
+                    ORDERS_MERGED, EXCEPTION, CANCELED_BY_USER
+                });
+            }
+
+            private EventType(String s, int i)
+            {
+                super(s, i);
+            }
+        }
+
+
+        public EventType type;
+        public long time;
+        public String label;
+        public Instrument instrument;
+        public double amount;
+        public com.dukascopy.api.IEngine.OrderCommand orderCommand;
+        public double openPrice;
+        public OpenTrigger openTrigger;
+        public double closePrice;
+        public double closeAmount;
+        public CloseTrigger closeTrigger;
+        public String text;
+        public IOrder ordersMerged[];
+
+        public TesterEvent()
+        {
+        }
+    }
+
+
+    public TesterReportData()
+    {
+        instrumentReportData = new InstrumentReportData[Instrument.values().length];
+        eventLog = new ArrayList();
+        perfStackIndex = -1;
+        perfStack = new long[30];
+    }
+
+    public TesterReportData(String strategyName, long from, long to, double deposit, 
+            List parameterValues)
+    {
+        this(strategyName, from, to, deposit);
+        setParameterValues(parameterValues);
+    }
+
+    public TesterReportData(String strategyName, long from, long to, double deposit)
+    {
+        instrumentReportData = new InstrumentReportData[Instrument.values().length];
+        eventLog = new ArrayList();
+        perfStackIndex = -1;
+        perfStack = new long[30];
+        this.strategyName = strategyName;
+        this.from = from;
+        this.to = to;
+        initialDeposit = deposit;
+    }
+
+    public void setParameterValues(List parameterValues)
+    {
+        this.parameterValues = parameterValues;
+    }
+
+    public InstrumentReportData getInstrumentReportData(Instrument instr)
+    {
+        InstrumentReportData reportData = instrumentReportData[instr.ordinal()];
+        return reportData;
+    }
+
+    public InstrumentReportData getOrCreateInstrumentReportData(Instrument instr)
+    {
+        InstrumentReportData reportData = instrumentReportData[instr.ordinal()];
+        if(reportData == null)
+        {
+            reportData = new InstrumentReportData();
+            instrumentReportData[instr.ordinal()] = reportData;
+        }
+        return reportData;
+    }
+
+    public void setInstrumentReportData(Instrument instr, InstrumentReportData data)
+    {
+        instrumentReportData[instr.ordinal()] = data;
+    }
+
+    public void setLastTick(Instrument instr, ITick tick)
+    {
+        instrumentReportData[instr.ordinal()].lastTick = tick;
+    }
+
+    public void addEvent(TesterEvent event)
+    {
+        eventLog.add(event);
+    }
+
+    public List getEvents()
+    {
+        return eventLog;
+    }
+
+    public void addCommission(double value)
+    {
+        commission = StratUtils.roundHalfEven(commission + value, 2);
+    }
+
+    public void addTurnover(double value)
+    {
+        turnover = StratUtils.roundHalfEven(turnover + value, 2);
+    }
+
+    public String getStrategyName()
+    {
+        return strategyName;
+    }
+
+    public long getFrom()
+    {
+        return from;
+    }
+
+    public long getTo()
+    {
+        return to;
+    }
+
+    public List getParameterValues()
+    {
+        return parameterValues;
+    }
+
+    public double getCommission()
+    {
+        return commission;
+    }
+
+    public double getTurnover()
+    {
+        return turnover;
+    }
+
+    public double getFinishDeposit()
+    {
+        return finishDeposit;
+    }
+
+    public void setFinishDeposit(double value)
+    {
+        finishDeposit = value;
+    }
+
+    public double getInitialDeposit()
+    {
+        return initialDeposit;
+    }
+
+    public void perfInitiate()
+    {
+        perfStats = new long[ITesterReport.PerfStats.values().length];
+        perfStatCounts = new int[ITesterReport.PerfStats.values().length];
+    }
+
+    public void perfStart(long value)
+    {
+        perfStackIndex++;
+        if(perfStackIndex < perfStack.length)
+            perfStack[perfStackIndex] = 0L;
+    }
+
+    public long perfLast()
+    {
+        return perfStackIndex >= perfStack.length ? 0L : perfStack[perfStackIndex];
+    }
+
+    public void perfAdd(ITesterReport.PerfStats stats, long value)
+    {
+        perfStats[stats.ordinal()] += value;
+        perfStatCounts[stats.ordinal()]++;
+    }
+
+    public void perfStop(long value)
+    {
+        perfStackIndex--;
+        if(perfStackIndex >= 0 && perfStackIndex < perfStack.length)
+            perfStack[perfStackIndex] -= value;
+    }
+
+    public long[] getPerfStats()
+    {
+        return perfStats;
+    }
+
+    public int[] getPerfStatCounts()
+    {
+        return perfStatCounts;
+    }
+
+    public String strategyName;
+    public long from;
+    public long to;
+    public double initialDeposit;
+    public double finishDeposit;
+    public List parameterValues;
+    public double turnover;
+    public double commission;
+    public InstrumentReportData instrumentReportData[];
+    public List eventLog;
+    public long perfStats[];
+    public int perfStatCounts[];
+    public int perfStackIndex;
+    public long perfStack[];
+}

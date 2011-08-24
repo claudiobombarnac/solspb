@@ -1,0 +1,123 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   PlatformNewsMessageImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.util.EnumConverter;
+import java.util.Set;
+
+public class PlatformNewsMessageImpl
+    implements INewsMessage
+{
+
+    public PlatformNewsMessageImpl(String text, String copyright, String header, String newsId, long publishDate, boolean endOfStory, 
+            boolean isHot, Set currencies, Set geoRegions, Set marketSectors, Set stockIndicies)
+    {
+        this.text = text;
+        this.copyright = copyright;
+        this.header = header;
+        this.newsId = newsId;
+        this.publishDate = publishDate;
+        this.endOfStory = endOfStory;
+        this.isHot = isHot;
+        this.currencies = currencies;
+        this.geoRegions = geoRegions;
+        this.marketSectors = marketSectors;
+        this.stockIndicies = stockIndicies;
+    }
+
+    public IOrder getOrder()
+    {
+        return null;
+    }
+
+    public String getContent()
+    {
+        return text;
+    }
+
+    public String getCopyright()
+    {
+        return copyright;
+    }
+
+    public String getHeader()
+    {
+        return header;
+    }
+
+    public String getId()
+    {
+        return newsId;
+    }
+
+    public long getPublishDate()
+    {
+        return publishDate;
+    }
+
+    public boolean isEndOfStory()
+    {
+        return endOfStory;
+    }
+
+    public boolean isHot()
+    {
+        return isHot;
+    }
+
+    public com.dukascopy.api.INewsMessage.Action getAction()
+    {
+        return null;
+    }
+
+    public Set getCurrencies()
+    {
+        return EnumConverter.convert(currencies);
+    }
+
+    public Set getGeoRegions()
+    {
+        return EnumConverter.convert(geoRegions);
+    }
+
+    public Set getMarketSectors()
+    {
+        return EnumConverter.convert(marketSectors);
+    }
+
+    public Set getStockIndicies()
+    {
+        return EnumConverter.convert(stockIndicies);
+    }
+
+    public long getCreationTime()
+    {
+        return publishDate;
+    }
+
+    public com.dukascopy.api.IMessage.Type getType()
+    {
+        return com.dukascopy.api.IMessage.Type.NEWS;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("MessageType ").append(getType()).append(" Text ").append(getHeader()).toString();
+    }
+
+    private final String text;
+    private final String copyright;
+    private final String header;
+    private final String newsId;
+    private long publishDate;
+    private boolean endOfStory;
+    private boolean isHot;
+    private final Set currencies;
+    private final Set geoRegions;
+    private final Set marketSectors;
+    private final Set stockIndicies;
+}

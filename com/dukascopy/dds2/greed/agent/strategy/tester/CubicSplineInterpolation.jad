@@ -1,0 +1,305 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CubicSplineInterpolation.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import java.io.PrintStream;
+import java.util.Date;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class CubicSplineInterpolation
+{
+
+    public static void main(String arg[])
+    {
+        System.out.println((new Date()).getTime());
+        double wavelength[] = {
+            1.0D, 2D, 3D, 4D
+        };
+        double refrindex[] = {
+            1.0009999999999999D, 1.0029999999999999D, 1.0D, 1.002D
+        };
+        CubicSplineInterpolation cs = new CubicSplineInterpolation(wavelength, refrindex);
+        double x1 = 1.5D;
+        double y1 = cs.interpolate(x1);
+        System.out.println((new StringBuilder()).append("The refractive index of fused quartz at ").append(x1 * 1000000000D).append(" nm is ").append(y1).toString());
+        x1 = 2.5D;
+        y1 = cs.interpolate(x1);
+        System.out.println((new StringBuilder()).append("The refractive index of fused quartz at ").append(x1 * 1000000000D).append(" nm is ").append(y1).toString());
+    }
+
+    public CubicSplineInterpolation(double x[], double y[])
+    {
+        nPoints = 0;
+        this.y = null;
+        this.x = null;
+        d2ydx2 = null;
+        yp1 = (0.0D / 0.0D);
+        ypn = (0.0D / 0.0D);
+        derivCalculated = false;
+        nPoints = x.length;
+        if(nPoints != y.length)
+            throw new IllegalArgumentException((new StringBuilder()).append("Arrays x and y are of different length").append(nPoints).append(" ").append(y.length).toString());
+        if(nPoints < 3)
+            throw new IllegalArgumentException("A minimum of three data points is needed");
+        this.x = new double[nPoints];
+        this.y = new double[nPoints];
+        d2ydx2 = new double[nPoints];
+        for(int i = 0; i < nPoints; i++)
+        {
+            this.x[i] = x[i];
+            this.y[i] = y[i];
+        }
+
+        checkForIdenticalPoints();
+    }
+
+    public CubicSplineInterpolation(int nPoints)
+    {
+        this.nPoints = 0;
+        y = null;
+        x = null;
+        d2ydx2 = null;
+        yp1 = (0.0D / 0.0D);
+        ypn = (0.0D / 0.0D);
+        derivCalculated = false;
+        this.nPoints = nPoints;
+        if(this.nPoints < 3)
+        {
+            throw new IllegalArgumentException("A minimum of three data points is needed");
+        } else
+        {
+            x = new double[nPoints];
+            y = new double[nPoints];
+            d2ydx2 = new double[nPoints];
+            return;
+        }
+    }
+
+    public void resetData(double x[], double y[])
+    {
+        if(x.length != y.length)
+            throw new IllegalArgumentException("Arrays x and y are of different length");
+        if(nPoints != x.length)
+            throw new IllegalArgumentException("Original array length not matched by new array length");
+        for(int i = 0; i < nPoints; i++)
+        {
+            this.x[i] = x[i];
+            this.y[i] = y[i];
+        }
+
+        checkForIdenticalPoints();
+    }
+
+    public void checkForIdenticalPoints()
+    {
+        int nP = nPoints;
+        boolean test1 = true;
+        int ii = 0;
+        do
+        {
+            if(!test1)
+                break;
+            boolean test2 = true;
+            int jj = ii + 1;
+            do
+            {
+                if(!test2)
+                    break;
+                if(x[ii] == x[jj] && y[ii] == y[jj])
+                {
+                    LOGGER.debug((new StringBuilder()).append("Class CubicSplineInterpolation: Two identical points, ").append(x[ii]).append(", ").append(y[ii]).toString());
+                    LOGGER.debug((new StringBuilder()).append(", in data array at indices ").append(ii).append(" and ").append(jj).append(", one point removed").toString());
+                    for(int i = jj; i < nP; i++)
+                    {
+                        x[i - 1] = x[i];
+                        y[i - 1] = y[i];
+                    }
+
+                    if(--nP - 1 == ii)
+                        test2 = false;
+                } else
+                if(++jj >= nP)
+                    test2 = false;
+            } while(true);
+            if(++ii >= nP - 1)
+                test1 = false;
+        } while(true);
+        nPoints = nP;
+    }
+
+    public static CubicSplineInterpolation zero(int n)
+    {
+        if(n < 3)
+        {
+            throw new IllegalArgumentException("A minimum of three data points is needed");
+        } else
+        {
+            CubicSplineInterpolation aa = new CubicSplineInterpolation(n);
+            return aa;
+        }
+    }
+
+    public static CubicSplineInterpolation[] oneDarray(int n, int m)
+    {
+        if(m < 3)
+            throw new IllegalArgumentException("A minimum of three data points is needed");
+        CubicSplineInterpolation a[] = new CubicSplineInterpolation[n];
+        for(int i = 0; i < n; i++)
+            a[i] = zero(m);
+
+        return a;
+    }
+
+    public void setDerivLimits(double yp1, double ypn)
+    {
+        this.yp1 = yp1;
+        this.ypn = ypn;
+    }
+
+    public void setDerivLimits()
+    {
+        yp1 = (0.0D / 0.0D);
+        ypn = (0.0D / 0.0D);
+    }
+
+    public void setDeriv(double yp1, double ypn)
+    {
+        this.yp1 = yp1;
+        this.ypn = ypn;
+    }
+
+    public double[] getDeriv()
+    {
+        if(!derivCalculated)
+            calcDeriv();
+        return d2ydx2;
+    }
+
+    public void setDeriv(double deriv[])
+    {
+        d2ydx2 = deriv;
+        derivCalculated = true;
+    }
+
+    public void calcDeriv()
+    {
+        double p = 0.0D;
+        double qn = 0.0D;
+        double sig = 0.0D;
+        double un = 0.0D;
+        double u[] = new double[nPoints];
+        if(yp1 != yp1)
+        {
+            d2ydx2[0] = u[0] = 0.0D;
+        } else
+        {
+            d2ydx2[0] = -0.5D;
+            u[0] = (3D / (x[1] - x[0])) * ((y[1] - y[0]) / (x[1] - x[0]) - yp1);
+        }
+        for(int i = 1; i <= nPoints - 2; i++)
+        {
+            sig = (x[i] - x[i - 1]) / (x[i + 1] - x[i - 1]);
+            p = sig * d2ydx2[i - 1] + 2D;
+            d2ydx2[i] = (sig - 1.0D) / p;
+            u[i] = (y[i + 1] - y[i]) / (x[i + 1] - x[i]) - (y[i] - y[i - 1]) / (x[i] - x[i - 1]);
+            u[i] = ((6D * u[i]) / (x[i + 1] - x[i - 1]) - sig * u[i - 1]) / p;
+        }
+
+        if(ypn != ypn)
+        {
+            qn = un = 0.0D;
+        } else
+        {
+            qn = 0.5D;
+            un = (3D / (x[nPoints - 1] - x[nPoints - 2])) * (ypn - (y[nPoints - 1] - y[nPoints - 2]) / (x[nPoints - 1] - x[nPoints - 2]));
+        }
+        d2ydx2[nPoints - 1] = (un - qn * u[nPoints - 2]) / (qn * d2ydx2[nPoints - 2] + 1.0D);
+        for(int k = nPoints - 2; k >= 0; k--)
+            d2ydx2[k] = d2ydx2[k] * d2ydx2[k + 1] + u[k];
+
+        derivCalculated = true;
+    }
+
+    public double interpolate(double xx)
+    {
+        if(xx < x[0] || xx > x[nPoints - 1])
+            throw new IllegalArgumentException((new StringBuilder()).append("x (").append(xx).append(") is outside the range of data points (").append(x[0]).append(" to ").append(x[nPoints - 1]).toString());
+        if(!derivCalculated)
+            calcDeriv();
+        double h = 0.0D;
+        double b = 0.0D;
+        double a = 0.0D;
+        double yy = 0.0D;
+        int k = 0;
+        int klo = 0;
+        int khi;
+        for(khi = nPoints - 1; khi - klo > 1;)
+        {
+            k = khi + klo >> 1;
+            if(x[k] > xx)
+                khi = k;
+            else
+                klo = k;
+        }
+
+        h = x[khi] - x[klo];
+        if(h == 0.0D)
+        {
+            throw new IllegalArgumentException((new StringBuilder()).append("Two values of x are identical: point ").append(klo).append(" (").append(x[klo]).append(") and point ").append(khi).append(" (").append(x[khi]).append(")").toString());
+        } else
+        {
+            a = (x[khi] - xx) / h;
+            b = (xx - x[klo]) / h;
+            yy = a * y[klo] + b * y[khi] + (((a * a * a - a) * d2ydx2[klo] + (b * b * b - b) * d2ydx2[khi]) * (h * h)) / 6D;
+            return yy;
+        }
+    }
+
+    public static double interpolate(double xx, double x[], double y[], double deriv[])
+    {
+        if(x.length != y.length || x.length != deriv.length || y.length != deriv.length)
+            throw new IllegalArgumentException("array lengths are not all equal");
+        int n = x.length;
+        double h = 0.0D;
+        double b = 0.0D;
+        double a = 0.0D;
+        double yy = 0.0D;
+        int k = 0;
+        int klo = 0;
+        int khi;
+        for(khi = n - 1; khi - klo > 1;)
+        {
+            k = khi + klo >> 1;
+            if(x[k] > xx)
+                khi = k;
+            else
+                klo = k;
+        }
+
+        h = x[khi] - x[klo];
+        if(h == 0.0D)
+        {
+            throw new IllegalArgumentException("Two values of x are identical");
+        } else
+        {
+            a = (x[khi] - xx) / h;
+            b = (xx - x[klo]) / h;
+            yy = a * y[klo] + b * y[khi] + (((a * a * a - a) * deriv[klo] + (b * b * b - b) * deriv[khi]) * (h * h)) / 6D;
+            return yy;
+        }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/CubicSplineInterpolation);
+    private int nPoints;
+    private double y[];
+    private double x[];
+    private double d2ydx2[];
+    private double yp1;
+    private double ypn;
+    private boolean derivCalculated;
+
+}

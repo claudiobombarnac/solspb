@@ -1,0 +1,2527 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:22
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   History.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.Filter;
+import com.dukascopy.api.IBar;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IHistory;
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.LoadingDataListener;
+import com.dukascopy.api.LoadingOrdersListener;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.PriceRange;
+import com.dukascopy.api.ReversalAmount;
+import com.dukascopy.api.TickBarSize;
+import com.dukascopy.api.feed.IPointAndFigure;
+import com.dukascopy.api.feed.IPointAndFigureFeedListener;
+import com.dukascopy.api.feed.IRangeBar;
+import com.dukascopy.api.feed.IRangeBarFeedListener;
+import com.dukascopy.api.feed.ITickBar;
+import com.dukascopy.api.feed.ITickBarFeedListener;
+import com.dukascopy.api.impl.util.HistoryUtils;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.DataCacheException;
+import com.dukascopy.charts.data.datacache.DataCacheUtils;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.LiveFeedListener;
+import com.dukascopy.charts.data.datacache.LoadingProgressAdapter;
+import com.dukascopy.charts.data.datacache.LoadingProgressListener;
+import com.dukascopy.charts.data.datacache.OrderHistoricalData;
+import com.dukascopy.charts.data.datacache.OrdersListener;
+import com.dukascopy.charts.data.datacache.TickData;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureLiveFeedAdapter;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.data.datacache.rangebar.PriceRangeData;
+import com.dukascopy.charts.data.datacache.rangebar.PriceRangeLiveFeedAdapter;
+import com.dukascopy.charts.data.datacache.tickbar.TickBarData;
+import com.dukascopy.charts.data.datacache.tickbar.TickBarLiveFeedAdapter;
+import com.dukascopy.charts.data.orders.IOrdersProvider;
+import java.math.BigDecimal;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Currency;
+import java.util.Date;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl:
+//            HistoryOrder
+
+public class History
+    implements IHistory
+{
+    protected class LoadingProgressListenerWrapper
+        implements LoadingProgressListener
+    {
+
+        public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+        {
+            loadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+        }
+
+        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                Exception e)
+        {
+            if(e != null)
+                History.LOGGER.error(e.getMessage(), e);
+            loadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, currentTime);
+            if(ordersHistoryRequest)
+                ordersHistoryRequestSent.set(false);
+        }
+
+        public boolean stopJob()
+        {
+            return loadingProgressListener.stopJob();
+        }
+
+        private com.dukascopy.api.LoadingProgressListener loadingProgressListener;
+        private boolean ordersHistoryRequest;
+        final History this$0;
+
+        public LoadingProgressListenerWrapper(com.dukascopy.api.LoadingProgressListener loadingProgressListener, boolean ordersHistoryRequest)
+        {
+            this$0 = History.this;
+            super();
+            this.loadingProgressListener = loadingProgressListener;
+            this.ordersHistoryRequest = ordersHistoryRequest;
+        }
+    }
+
+    private static class LiveFeedListenerWrapper
+        implements LiveFeedListener
+    {
+
+        public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                double close, double low, double high, double vol)
+        {
+            loadingDataListener.newBar(instrument, period, side, time, open, close, low, high, vol);
+        }
+
+        public void newTick(Instrument instrument, long time, double ask, double bid, 
+                double askVol, double bidVol)
+        {
+            loadingDataListener.newTick(instrument, time, ask, bid, askVol, bidVol);
+        }
+
+        private LoadingDataListener loadingDataListener;
+
+        public LiveFeedListenerWrapper(LoadingDataListener loadingDataListener)
+        {
+            this.loadingDataListener = loadingDataListener;
+        }
+    }
+
+    protected class LoadingOrdersListenerWrapper
+        implements OrdersListener
+    {
+
+        public void newOrder(Instrument instrument, OrderHistoricalData orderData)
+        {
+            if(!orderData.isClosed())
+                return;
+            HistoryOrder order = processOrders(instrument, orderData, from, to);
+            if(order != null)
+                listener.newOrder(instrument, order);
+        }
+
+        public void orderChange(Instrument instrument1, OrderHistoricalData orderhistoricaldata)
+        {
+        }
+
+        public void orderMerge(Instrument instrument1, OrderHistoricalData orderhistoricaldata, List list)
+        {
+        }
+
+        public void ordersInvalidated(Instrument instrument1)
+        {
+        }
+
+        private LoadingOrdersListener listener;
+        private long from;
+        private long to;
+        final History this$0;
+
+        public LoadingOrdersListenerWrapper(LoadingOrdersListener listener, long from, long to)
+        {
+            this$0 = History.this;
+            super();
+            this.listener = listener;
+            this.from = from;
+            this.to = to;
+        }
+    }
+
+
+    public History(IOrdersProvider ordersProvider, Currency accountCurrency)
+    {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
+        ordersHistoryRequestSent = new AtomicBoolean();
+        feedDataProvider = FeedDataProvider.getDefaultInstance();
+        this.ordersProvider = ordersProvider;
+        this.accountCurrency = accountCurrency;
+    }
+
+    protected History(int noNeedToInitializeAnythingForTests)
+    {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
+        ordersHistoryRequestSent = new AtomicBoolean();
+        feedDataProvider = FeedDataProvider.getDefaultInstance();
+    }
+
+    public long getTimeOfLastTick(Instrument instrument)
+        throws JFException
+    {
+        if(!isInstrumentSubscribed(instrument))
+        {
+            throw new JFException((new StringBuilder()).append("Instrument [").append(instrument).append("] not opened").toString());
+        } else
+        {
+            long time = feedDataProvider.getLastTickTime(instrument);
+            return time != 0x8000000000000000L ? time : -1L;
+        }
+    }
+
+    public ITick getLastTick(Instrument instrument)
+        throws JFException
+    {
+        if(!isInstrumentSubscribed(instrument))
+            throw new JFException((new StringBuilder()).append("Instrument [").append(instrument).append("] not opened").toString());
+        TickData tick = feedDataProvider.getLastTick(instrument);
+        if(tick != null)
+            return new TickData(tick.time, tick.ask, tick.bid, tick.askVol, tick.bidVol, null, null, null, null);
+        else
+            return null;
+    }
+
+    protected long getCurrentTime(Instrument instrument)
+    {
+        return feedDataProvider.getCurrentTime(instrument);
+    }
+
+    protected long getCurrentTimeBlocking(Instrument instrument)
+    {
+        long timeout = 0x1d4c0L;
+        long currentTime = 0x8000000000000000L;
+        long start = System.currentTimeMillis();
+        do
+        {
+            if(start + timeout <= System.currentTimeMillis())
+                break;
+            currentTime = getCurrentTime(instrument);
+            if(currentTime != 0x8000000000000000L)
+                break;
+            try
+            {
+                Thread.sleep(500L);
+            }
+            catch(InterruptedException e) { }
+        } while(true);
+        return currentTime;
+    }
+
+    public long getStartTimeOfCurrentBar(Instrument instrument, Period period)
+        throws JFException
+    {
+        if(!isInstrumentSubscribed(instrument))
+        {
+            throw new JFException((new StringBuilder()).append("Instrument [").append(instrument).append("] not opened").toString());
+        } else
+        {
+            long timeOfCurrentCandle = getCurrentTime(instrument);
+            return timeOfCurrentCandle != 0x8000000000000000L ? DataCacheUtils.getCandleStartFast(period, timeOfCurrentCandle) : -1L;
+        }
+    }
+
+    public IBar getBar(Instrument instrument, Period period, OfferSide side, int shift)
+        throws JFException
+    {
+        if(!isInstrumentSubscribed(instrument))
+            throw new JFException((new StringBuilder()).append("Instrument [").append(instrument).append("] not opened").toString());
+        if(shift < 0)
+            throw new JFException("Parameter 'shift' is < 0");
+        if(shift == 0)
+            return getCurrentBar(instrument, period, side);
+        return getHistoryBarBlocking(instrument, period, side, shift);
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public IBar getCurrentBar(Instrument instrument, Period period, OfferSide side)
+        throws DataCacheException
+    {
+        CandleData candle = feedDataProvider.getInProgressCandleBlocking(instrument, period, side);
+        if(candle == null)
+            return null;
+        else
+            return new CandleData(candle.time, candle.open, candle.close, candle.low, candle.high, candle.vol);
+    }
+
+    public IBar getHistoryBarBlocking(Instrument instrument, Period period, OfferSide side, int shift)
+        throws JFException
+    {
+        long timeOfCurrentCandle;
+        if(shift <= 0)
+            throw new JFException("Parameter 'shift' must be > 0");
+        timeOfCurrentCandle = getCurrentTimeBlocking(instrument);
+        if(timeOfCurrentCandle == 0x8000000000000000L)
+            return null;
+        List bars;
+        long currentBarStartTime = DataCacheUtils.getCandleStart(period, timeOfCurrentCandle);
+        long requestedBarStartTime = DataCacheUtils.getTimeForNCandlesBack(period, DataCacheUtils.getPreviousCandleStart(period, currentBarStartTime), shift);
+        bars = getBars(instrument, period, side, requestedBarStartTime, requestedBarStartTime);
+        if(bars.isEmpty())
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            throw new JFException((new StringBuilder()).append("Could not load bar for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], start time [").append(dateFormat.format(new Date(requestedBarStartTime))).append("], current bar start time [").append(dateFormat.format(new Date(currentBarStartTime))).append("]").toString());
+        }
+        return (IBar)bars.get(0);
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public void readTicks(final Instrument instrument, final long from, final long to, final LoadingDataListener tickListener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        if(!isIntervalValid(Period.TICK, from, to))
+            throw new JFException((new StringBuilder()).append("Interval from [").append(DATE_FORMAT.format(new Date(from))).append("] to [").append(DATE_FORMAT.format(new Date(to))).append("] GMT is not valid").toString());
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfCurrentCandle = getCurrentTime(instrument);
+            if(timeOfCurrentCandle != 0x8000000000000000L && to > timeOfCurrentCandle)
+                throw new JFException("\"to\" parameter can't be greater than time of the last tick for this instrument");
+        }
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Object run()
+                    throws Exception
+                {
+                    readTicksSecured(instrument, from, to, tickListener, loadingProgress);
+                    return null;
+                }
+
+                final Instrument val$instrument;
+                final long val$from;
+                final long val$to;
+                final LoadingDataListener val$tickListener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                from = l;
+                to = l1;
+                tickListener = loadingdatalistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    private void readTicksSecured(Instrument instrument, long from, long to, LoadingDataListener tickListener, com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        try
+        {
+            feedDataProvider.loadTicksData(instrument, from, to, new LiveFeedListenerWrapper(tickListener), new LoadingProgressListenerWrapper(loadingProgress, false));
+        }
+        catch(DataCacheException e)
+        {
+            throw new JFException(e);
+        }
+    }
+
+    public void readBars(final Instrument instrument, final Period period, final OfferSide side, final long from, final long to, 
+            final LoadingDataListener barListener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        if(!isIntervalValid(period, from, to))
+            throw new JFException((new StringBuilder()).append("Interval from [").append(DATE_FORMAT.format(new Date(from))).append("] to [").append(DATE_FORMAT.format(new Date(to))).append("] GMT is not valid for period [").append(period).append("]").toString());
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfLastCandle = getCurrentTime(instrument);
+            if(timeOfLastCandle != 0x8000000000000000L)
+            {
+                timeOfLastCandle = DataCacheUtils.getCandleStartFast(period, timeOfLastCandle);
+                if(to >= timeOfLastCandle)
+                    throw new JFException("\"to\" parameter can't be greater than time of the last formed bar for this instrument");
+            }
+        }
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Object run()
+                    throws Exception
+                {
+                    readBarsSecured(instrument, period, side, from, to, barListener, loadingProgress);
+                    return null;
+                }
+
+                final Instrument val$instrument;
+                final Period val$period;
+                final OfferSide val$side;
+                final long val$from;
+                final long val$to;
+                final LoadingDataListener val$barListener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                period = period1;
+                side = offerside;
+                from = l;
+                to = l1;
+                barListener = loadingdatalistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    private void readBarsSecured(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingDataListener barListener, com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        try
+        {
+            feedDataProvider.loadCandlesData(instrument, period, side, from, to, new LiveFeedListenerWrapper(barListener), new LoadingProgressListenerWrapper(loadingProgress, false));
+        }
+        catch(DataCacheException e)
+        {
+            throw new JFException(e);
+        }
+    }
+
+    public void readBars(final Instrument instrument, final Period period, final OfferSide side, final Filter filter, final int numberOfCandlesBefore, final long time, 
+            final int numberOfCandlesAfter, final LoadingDataListener barListener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        if(!isIntervalValid(period, numberOfCandlesBefore, time, numberOfCandlesAfter))
+            throw new JFException("Number of bars to load = 0 or time is not correct time for the period specified");
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfLastCandle = getCurrentTime(instrument);
+            if(timeOfLastCandle != 0x8000000000000000L)
+            {
+                timeOfLastCandle = DataCacheUtils.getCandleStartFast(period, timeOfLastCandle);
+                if(time > timeOfLastCandle)
+                    throw new JFException("\"to\" parameter can't be greater than time of the last formed bar for this instrument");
+            }
+        }
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Object run()
+                    throws Exception
+                {
+                    readBarsSecured(instrument, period, side, filter, numberOfCandlesBefore, time, numberOfCandlesAfter, barListener, loadingProgress);
+                    return null;
+                }
+
+                final Instrument val$instrument;
+                final Period val$period;
+                final OfferSide val$side;
+                final Filter val$filter;
+                final int val$numberOfCandlesBefore;
+                final long val$time;
+                final int val$numberOfCandlesAfter;
+                final LoadingDataListener val$barListener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                period = period1;
+                side = offerside;
+                filter = filter1;
+                numberOfCandlesBefore = i;
+                time = l;
+                numberOfCandlesAfter = j;
+                barListener = loadingdatalistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    private void readBarsSecured(Instrument instrument, Period period, OfferSide side, Filter filter, int numberOfCandlesBefore, long time, 
+            int numberOfCandlesAfter, LoadingDataListener barListener, com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        try
+        {
+            feedDataProvider.loadCandlesDataBeforeAfter(instrument, period, side, numberOfCandlesBefore, numberOfCandlesAfter, time, filter, new LiveFeedListenerWrapper(barListener), new LoadingProgressListenerWrapper(loadingProgress, false));
+        }
+        catch(DataCacheException e)
+        {
+            throw new JFException(e);
+        }
+    }
+
+    public List getTicks(final Instrument instrument, final long from, final long to)
+        throws JFException
+    {
+        if(!isIntervalValid(Period.TICK, from, to))
+            throw new JFException((new StringBuilder()).append("Interval from [").append(DATE_FORMAT.format(new Date(from))).append("] to [").append(DATE_FORMAT.format(new Date(to))).append("] GMT is not valid").toString());
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfCurrentCandle = getCurrentTime(instrument);
+            if(timeOfCurrentCandle != 0x8000000000000000L && to > timeOfCurrentCandle)
+                throw new JFException("\"to\" parameter can't be greater than time of the last tick for this instrument");
+        }
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                return getTicksSecured(instrument, from, to);
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final long val$from;
+            final long val$to;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                from = l;
+                to = l1;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    protected List getTicksSecured(Instrument instrument, long from, long to)
+        throws JFException
+    {
+        final List ticks;
+        ticks = new ArrayList();
+        final int result[] = {
+            0
+        };
+        final Exception exceptions[] = new Exception[1];
+        LoadingProgressListener loadingProgressListener = new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception e)
+            {
+                result[0] = allDataLoaded ? 1 : 2;
+                exceptions[0] = e;
+            }
+
+            public boolean stopJob()
+            {
+                return false;
+            }
+
+            final int val$result[];
+            final Exception val$exceptions[];
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                result = ai;
+                exceptions = aexception;
+                super();
+            }
+        };
+        feedDataProvider.loadTicksDataSynched(instrument, from, to, new LiveFeedListener() {
+
+            public void newTick(Instrument instrument, long time, double ask, double bid, 
+                    double askVol, double bidVol)
+            {
+                ticks.add(new TickData(time, ask, bid, askVol, bidVol, null, null, null, null));
+            }
+
+            public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                    double d1, double d2, double d3, double d4)
+            {
+            }
+
+            final List val$ticks;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                ticks = list;
+                super();
+            }
+        }, loadingProgressListener);
+        if(result[0] == 2)
+            throw new JFException("Error while loading ticks", exceptions[0]);
+        return ticks;
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public ITick getLastTickBefore(final Instrument instrument, final long to)
+        throws JFException
+    {
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfCurrentCandle = getCurrentTime(instrument);
+            if(timeOfCurrentCandle != 0x8000000000000000L && to > timeOfCurrentCandle)
+                throw new JFException("\"to\" parameter can't be greater than time of the last tick for this instrument");
+        }
+        return (ITick)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public ITick run()
+                throws Exception
+            {
+                return getLastTickBeforeSecured(instrument, to);
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final long val$to;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                to = l;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    protected ITick getLastTickBeforeSecured(Instrument instrument, long to)
+        throws JFException
+    {
+        long interval;
+        long from;
+        final TickData tick[];
+        int daysAdded;
+        interval = 15000L;
+        from = to - interval;
+        tick = new TickData[1];
+        daysAdded = 0;
+_L1:
+        if(tick[0] != null || daysAdded >= 5)
+            break MISSING_BLOCK_LABEL_166;
+        final int result[] = {
+            0
+        };
+        final Exception exceptions[] = new Exception[1];
+        LoadingProgressListener loadingProgressListener = new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception e)
+            {
+                result[0] = allDataLoaded ? 1 : 2;
+                exceptions[0] = e;
+            }
+
+            public boolean stopJob()
+            {
+                return false;
+            }
+
+            final int val$result[];
+            final Exception val$exceptions[];
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                result = ai;
+                exceptions = aexception;
+                super();
+            }
+        };
+        feedDataProvider.loadTicksDataSynched(instrument, from, to, new LiveFeedListener() {
+
+            public void newTick(Instrument instrument, long time, double ask, double bid, 
+                    double askVol, double bidVol)
+            {
+                if(tick[0] == null)
+                {
+                    tick[0] = new TickData(time, ask, bid, askVol, bidVol, null, null, null, null);
+                } else
+                {
+                    tick[0].time = time;
+                    tick[0].ask = ask;
+                    tick[0].bid = bid;
+                    tick[0].askVol = askVol;
+                    tick[0].bidVol = bidVol;
+                }
+            }
+
+            public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                    double d1, double d2, double d3, double d4)
+            {
+            }
+
+            final TickData val$tick[];
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                tick = atickdata;
+                super();
+            }
+        }, loadingProgressListener);
+        if(result[0] == 2)
+            throw new JFException("Error while loading ticks", exceptions[0]);
+        if(from < FeedDataProvider.getTimeOfFirstOurCandle(instrument, Period.TICK))
+            return null;
+        if(interval * 2L > 0x5265c00L)
+        {
+            interval += 0x5265c00L;
+            daysAdded++;
+        } else
+        {
+            interval *= 2L;
+        }
+        from = to - interval;
+          goto _L1
+        return tick[0];
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public List getBars(final Instrument instrument, final Period period, final OfferSide side, final long from, final long to)
+        throws JFException
+    {
+        if(!isIntervalValid(period, from, to))
+            throw new JFException((new StringBuilder()).append("Interval from [").append(DATE_FORMAT.format(new Date(from))).append("] to [").append(DATE_FORMAT.format(new Date(to))).append("] GMT is not valid for period [").append(period).append("]").toString());
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfLastCandle = getCurrentTime(instrument);
+            if(timeOfLastCandle != 0x8000000000000000L)
+            {
+                timeOfLastCandle = DataCacheUtils.getCandleStartFast(period, timeOfLastCandle);
+                if(to > timeOfLastCandle)
+                    throw new JFException("\"to\" parameter can't be greater than the time of the last formed bar for this instrument");
+            }
+        }
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                return getBarsSecured(instrument, period, side, from, to);
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final Period val$period;
+            final OfferSide val$side;
+            final long val$from;
+            final long val$to;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                period = period1;
+                side = offerside;
+                from = l;
+                to = l1;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    protected List getBarsSecured(Instrument instrument, Period period, OfferSide side, long from, long to)
+        throws JFException
+    {
+        final List bars;
+        bars = new ArrayList();
+        final int result[] = {
+            0
+        };
+        final Exception exceptions[] = new Exception[1];
+        IBar currentBar = getCurrentBar(instrument, period, side);
+        LoadingProgressListener loadingProgressListener = new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception e)
+            {
+                result[0] = allDataLoaded ? 1 : 2;
+                exceptions[0] = e;
+            }
+
+            public boolean stopJob()
+            {
+                return false;
+            }
+
+            final int val$result[];
+            final Exception val$exceptions[];
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                result = ai;
+                exceptions = aexception;
+                super();
+            }
+        };
+        feedDataProvider.loadCandlesDataSynched(instrument, period, side, from, to, new LiveFeedListener() {
+
+            public void newTick(Instrument instrument1, long l, double d, double d1, 
+                    double d2, double d3)
+            {
+            }
+
+            public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                    double close, double low, double high, double vol)
+            {
+                bars.add(new CandleData(time, open, close, low, high, vol));
+            }
+
+            final List val$bars;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                bars = list;
+                super();
+            }
+        }, loadingProgressListener);
+        if(result[0] == 2)
+            throw new JFException("Error while loading bars", exceptions[0]);
+        if(currentBar != null && to == currentBar.getTime() && (bars.isEmpty() || ((IBar)bars.get(bars.size() - 1)).getTime() <= currentBar.getTime()))
+        {
+            if(bars.size() > 0 && ((IBar)bars.get(bars.size() - 1)).getTime() == currentBar.getTime())
+                bars.remove(bars.size() - 1);
+            bars.add(currentBar);
+        }
+        return bars;
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public List getBars(final Instrument instrument, final Period period, final OfferSide side, final Filter filter, final int numberOfCandlesBefore, final long time, 
+            final int numberOfCandlesAfter)
+        throws JFException
+    {
+        if(!isIntervalValid(period, numberOfCandlesBefore, time, numberOfCandlesAfter))
+            throw new JFException("Number of bars to load = 0 or time is not correct time for the period specified");
+        if(isInstrumentSubscribed(instrument))
+        {
+            long timeOfLastCandle = getCurrentTime(instrument);
+            if(timeOfLastCandle != 0x8000000000000000L)
+            {
+                timeOfLastCandle = DataCacheUtils.getCandleStartFast(period, timeOfLastCandle);
+                if(time > timeOfLastCandle)
+                    throw new JFException("\"to\" parameter can't be greater than time of the last formed bar for this instrument");
+            }
+        }
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                return getBarsSecured(instrument, period, side, filter, numberOfCandlesBefore, time, numberOfCandlesAfter);
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final Period val$period;
+            final OfferSide val$side;
+            final Filter val$filter;
+            final int val$numberOfCandlesBefore;
+            final long val$time;
+            final int val$numberOfCandlesAfter;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                period = period1;
+                side = offerside;
+                filter = filter1;
+                numberOfCandlesBefore = i;
+                time = l;
+                numberOfCandlesAfter = j;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        Exception ex = e.getException();
+        if(ex instanceof JFException)
+            throw (JFException)ex;
+        if(ex instanceof RuntimeException)
+        {
+            throw (RuntimeException)ex;
+        } else
+        {
+            LOGGER.error(ex.getMessage(), ex);
+            throw new JFException(ex);
+        }
+    }
+
+    protected List getBarsSecured(Instrument instrument, Period period, OfferSide side, Filter filter, int numberOfCandlesBefore, long time, 
+            int numberOfCandlesAfter)
+        throws JFException
+    {
+        final List bars;
+        IBar currentBar = getCurrentBar(instrument, period, side);
+        bars = new ArrayList();
+        final int result[] = {
+            0
+        };
+        final Exception exceptions[] = new Exception[1];
+        LoadingProgressListener loadingProgressListener = new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception e)
+            {
+                result[0] = allDataLoaded ? 1 : 2;
+                exceptions[0] = e;
+            }
+
+            public boolean stopJob()
+            {
+                return false;
+            }
+
+            final int val$result[];
+            final Exception val$exceptions[];
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                result = ai;
+                exceptions = aexception;
+                super();
+            }
+        };
+        feedDataProvider.loadCandlesDataBeforeAfterSynched(instrument, period, side, numberOfCandlesBefore, numberOfCandlesAfter, time, filter, new LiveFeedListener() {
+
+            public void newTick(Instrument instrument1, long l, double d, double d1, 
+                    double d2, double d3)
+            {
+            }
+
+            public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                    double close, double low, double high, double vol)
+            {
+                bars.add(new CandleData(time, open, close, low, high, vol));
+            }
+
+            final List val$bars;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                bars = list;
+                super();
+            }
+        }, loadingProgressListener);
+        if(currentBar != null && !bars.isEmpty())
+        {
+            if(((IBar)bars.get(bars.size() - 1)).getTime() > currentBar.getTime())
+            {
+                ListIterator iterator = bars.listIterator(bars.size());
+                do
+                {
+                    if(!iterator.hasPrevious())
+                        break;
+                    IBar bar = (IBar)iterator.previous();
+                    if(bar.getTime() <= currentBar.getTime())
+                        break;
+                    iterator.remove();
+                } while(true);
+            }
+            if(((IBar)bars.get(bars.size() - 1)).getTime() == currentBar.getTime())
+            {
+                bars.remove(bars.size() - 1);
+                bars.add(currentBar);
+            }
+        }
+        if(bars.size() < numberOfCandlesBefore + numberOfCandlesAfter)
+        {
+            if(currentBar != null)
+                if(time == currentBar.getTime() && numberOfCandlesBefore != 0 && (bars.isEmpty() || ((IBar)bars.get(bars.size() - 1)).getTime() < currentBar.getTime()))
+                    bars.add(currentBar);
+                else
+                if(time == currentBar.getTime() && numberOfCandlesBefore == 0 && numberOfCandlesAfter > 0 && bars.isEmpty())
+                    bars.add(currentBar);
+                else
+                if(time < currentBar.getTime() && numberOfCandlesAfter > 0 && (bars.isEmpty() || ((IBar)bars.get(bars.size() - 1)).getTime() < currentBar.getTime()) && ((IBar)bars.get(0)).getTime() != feedDataProvider.getTimeOfFirstCandle(instrument, period))
+                    bars.add(currentBar);
+        } else
+        if(currentBar != null && time == currentBar.getTime())
+        {
+            IBar lastBar = (IBar)bars.get(bars.size() - 1);
+            if(lastBar.getTime() != currentBar.getTime())
+            {
+                bars.remove(0);
+                bars.add(currentBar);
+            }
+        }
+        if(result[0] == 2)
+            throw new JFException("Error while loading bars", exceptions[0]);
+        return bars;
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public void readOrdersHistory(final Instrument instrument, final long from, final long to, final LoadingOrdersListener ordersListener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        if(from > to)
+            throw new JFException((new StringBuilder()).append("Interval from [").append(DATE_FORMAT.format(new Date(from))).append("] to [").append(DATE_FORMAT.format(new Date(to))).append("] GMT is not valid").toString());
+        if(!ordersHistoryRequestSent.compareAndSet(false, true))
+            break MISSING_BLOCK_LABEL_199;
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Object run()
+                    throws Exception
+                {
+                    readOrdersHistorySecured(instrument, from, to, ordersListener, loadingProgress);
+                    return null;
+                }
+
+                final Instrument val$instrument;
+                final long val$from;
+                final long val$to;
+                final LoadingOrdersListener val$ordersListener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                from = l;
+                to = l1;
+                ordersListener = loadingorderslistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            Exception ex = e.getException();
+            if(ex instanceof JFException)
+                throw (JFException)ex;
+            if(ex instanceof RuntimeException)
+            {
+                throw (RuntimeException)ex;
+            } else
+            {
+                LOGGER.error(ex.getMessage(), ex);
+                throw new JFException(ex);
+            }
+        }
+        ordersHistoryRequestSent.set(false);
+        break MISSING_BLOCK_LABEL_209;
+        Exception exception;
+        exception;
+        ordersHistoryRequestSent.set(false);
+        throw exception;
+        throw new JFException("Only one request for orders history can be sent at one time");
+    }
+
+    private void readOrdersHistorySecured(Instrument instrument, long from, long to, LoadingOrdersListener ordersListener, com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        try
+        {
+            feedDataProvider.loadOrdersHistoricalData(instrument, from, to, new LoadingOrdersListenerWrapper(ordersListener, from, to), new LoadingProgressListenerWrapper(loadingProgress, true));
+        }
+        catch(DataCacheException e)
+        {
+            throw new JFException(e);
+        }
+    }
+
+    public List getOrdersHistory(final Instrument instrument, final long from, final long to)
+        throws JFException
+    {
+        if(from > to)
+            throw new JFException((new StringBuilder()).append("Interval from [").append(DATE_FORMAT.format(new Date(from))).append("] to [").append(DATE_FORMAT.format(new Date(to))).append("] GMT is not valid").toString());
+        Exception exception;
+        if(ordersHistoryRequestSent.compareAndSet(false, true))
+        {
+            List list;
+            try
+            {
+                list = (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                    public List run()
+                        throws Exception
+                    {
+                        return getOrdersHistorySecured(instrument, from, to);
+                    }
+
+                    public volatile Object run()
+                        throws Exception
+                    {
+                        return run();
+                    }
+
+                    final Instrument val$instrument;
+                    final long val$from;
+                    final long val$to;
+                    final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                from = l;
+                to = l1;
+                super();
+            }
+                });
+            }
+            catch(PrivilegedActionException e)
+            {
+                Exception ex = e.getException();
+                if(ex instanceof JFException)
+                    throw (JFException)ex;
+                if(ex instanceof RuntimeException)
+                {
+                    throw (RuntimeException)ex;
+                } else
+                {
+                    LOGGER.error(ex.getMessage(), ex);
+                    throw new JFException(ex);
+                }
+            }
+            finally
+            {
+                ordersHistoryRequestSent.set(false);
+            }
+            ordersHistoryRequestSent.set(false);
+            return list;
+        } else
+        {
+            throw new JFException("Only one request for orders history can be sent at one time");
+        }
+        throw exception;
+    }
+
+    protected List getOrdersHistorySecured(Instrument instrument, final long from, final long to)
+        throws JFException
+    {
+        final List orders;
+        orders = new ArrayList();
+        final int result[] = {
+            0
+        };
+        final Exception exceptions[] = new Exception[1];
+        LoadingProgressListener loadingProgressListener = new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                    Exception e)
+            {
+                result[0] = allDataLoaded ? 1 : 2;
+                exceptions[0] = e;
+            }
+
+            public boolean stopJob()
+            {
+                return false;
+            }
+
+            final int val$result[];
+            final Exception val$exceptions[];
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                result = ai;
+                exceptions = aexception;
+                super();
+            }
+        };
+        feedDataProvider.loadOrdersHistoricalDataSynched(instrument, from, to, new OrdersListener() {
+
+            public void newOrder(Instrument instrument, OrderHistoricalData orderData)
+            {
+                if(!orderData.isClosed())
+                    return;
+                HistoryOrder order = processOrders(instrument, orderData, from, to);
+                if(order != null)
+                    orders.add(order);
+            }
+
+            public void orderChange(Instrument instrument1, OrderHistoricalData orderhistoricaldata)
+            {
+            }
+
+            public void orderMerge(Instrument instrument1, OrderHistoricalData orderhistoricaldata, List list)
+            {
+            }
+
+            public void ordersInvalidated(Instrument instrument1)
+            {
+            }
+
+            final long val$from;
+            final long val$to;
+            final List val$orders;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                from = l;
+                to = l1;
+                orders = list;
+                super();
+            }
+        }, loadingProgressListener);
+        if(result[0] == 2)
+            throw new JFException("Error while loading orders history", exceptions[0]);
+        return orders;
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    protected HistoryOrder processOrders(Instrument instrument, OrderHistoricalData orderData, long from, long to)
+    {
+        long openTime = orderData.getEntryOrder().getFillTime();
+        com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData closeDatas[] = (com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData[])orderData.getCloseDataMap().values().toArray(new com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData[orderData.getCloseDataMap().size()]);
+        BigDecimal closePriceMulAmount = BigDecimal.ZERO;
+        BigDecimal sumClosedAmounts = BigDecimal.ZERO;
+        long closeTime = orderData.getMergedToTime() != 0x8000000000000000L ? orderData.getMergedToTime() : orderData.getHistoryEnd();
+        com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData arr$[] = closeDatas;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            com.dukascopy.charts.data.datacache.OrderHistoricalData.CloseData closeData = arr$[i$];
+            closeTime = closeData.getCloseTime();
+            closePriceMulAmount = closePriceMulAmount.add(closeData.getClosePrice().multiply(closeData.getAmount()));
+            sumClosedAmounts = sumClosedAmounts.add(closeData.getAmount());
+        }
+
+        if(to >= openTime && from <= closeTime)
+        {
+            double closePrice = 0.0D;
+            if(sumClosedAmounts.compareTo(BigDecimal.ZERO) != 0)
+                closePrice = closePriceMulAmount.divide(sumClosedAmounts, 7, 6).doubleValue();
+            return createHistoryOrder(instrument, orderData, closeTime, closePrice);
+        } else
+        {
+            return null;
+        }
+    }
+
+    protected HistoryOrder createHistoryOrder(Instrument instrument, OrderHistoricalData orderData, long closeTime, double closePrice)
+    {
+        com.dukascopy.charts.data.datacache.OrderHistoricalData.OpenData entryOrder = orderData.getEntryOrder();
+        return new HistoryOrder(instrument, entryOrder.getLabel(), orderData.getOrderGroupId(), entryOrder.getFillTime(), closeTime, entryOrder.getSide(), entryOrder.getAmount().divide(ONE_MILLION).doubleValue(), entryOrder.getOpenPrice().doubleValue(), closePrice, entryOrder.getComment(), accountCurrency, orderData.getCommission().doubleValue());
+    }
+
+    public boolean isIntervalValid(Period period, long from, long to)
+    {
+        boolean ret = from <= to;
+        if(ret && period != Period.TICK)
+            try
+            {
+                ret = ret && DataCacheUtils.isIntervalValid(period, from, to);
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.debug(e.getMessage(), e);
+                ret = false;
+            }
+        return ret;
+    }
+
+    protected boolean isIntervalValid(Period period, int before, long time, int after)
+        throws JFException
+    {
+        return period != Period.TICK && DataCacheUtils.getCandleStartFast(period, time) == time && (before > 0 || after > 0);
+    }
+
+    public long getBarStart(Period period, long time)
+        throws JFException
+    {
+        return DataCacheUtils.getCandleStart(period, time);
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public long getNextBarStart(Period period, long barTime)
+        throws JFException
+    {
+        return DataCacheUtils.getNextCandleStart(period, barTime);
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public long getPreviousBarStart(Period period, long barTime)
+        throws JFException
+    {
+        return DataCacheUtils.getPreviousCandleStart(period, barTime);
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public long getTimeForNBarsBack(Period period, long to, int numberOfBars)
+        throws JFException
+    {
+        return DataCacheUtils.getTimeForNCandlesBack(period, to, numberOfBars);
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public long getTimeForNBarsForward(Period period, long from, int numberOfBars)
+        throws JFException
+    {
+        return DataCacheUtils.getTimeForNCandlesForward(period, from, numberOfBars);
+        DataCacheException e;
+        e;
+        throw new JFException(e);
+    }
+
+    public boolean isInstrumentSubscribed(Instrument instrument)
+    {
+        return feedDataProvider.isSubscribedToInstrument(instrument);
+    }
+
+    public double getEquity()
+    {
+        return ordersProvider.recalculateEquity();
+    }
+
+    public List getPointAndFigures(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final ReversalAmount reversalAmount, long from, long to)
+        throws JFException
+    {
+        final long correctedFrom;
+        final long correctedTo;
+        HistoryUtils.validatePointAndFigureParams(instrument, offerSide, priceRange, reversalAmount);
+        HistoryUtils.validateTimeInterval(feedDataProvider, instrument, from, to);
+        HistoryUtils.checkInProgressPointAndFigureIsLoaded(feedDataProvider, instrument, offerSide, priceRange, reversalAmount);
+        correctedFrom = HistoryUtils.correctRequestTime(from, priceRange, reversalAmount);
+        correctedTo = HistoryUtils.correctRequestTime(to, priceRange, reversalAmount);
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                List data = feedDataProvider.loadPointAndFigureTimeInterval(instrument, offerSide, priceRange, reversalAmount, correctedFrom, correctedTo);
+                List result = HistoryUtils.convert(data);
+                return result;
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final PriceRange val$priceRange;
+            final ReversalAmount val$reversalAmount;
+            final long val$correctedFrom;
+            final long val$correctedTo;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                reversalAmount = reversalamount;
+                correctedFrom = l;
+                correctedTo = l1;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public List getTickBars(final Instrument instrument, final OfferSide offerSide, final TickBarSize tickBarSize, final long from, final long to)
+        throws JFException
+    {
+        HistoryUtils.validateTickBarParams(instrument, offerSide, tickBarSize);
+        HistoryUtils.validateTimeInterval(feedDataProvider, instrument, from, to);
+        HistoryUtils.checkInProgressTickBarIsLoaded(feedDataProvider, instrument, offerSide, tickBarSize);
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                List data = feedDataProvider.loadTickBarTimeInterval(instrument, offerSide, tickBarSize, from, to);
+                List result = HistoryUtils.convert(data);
+                return result;
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final TickBarSize val$tickBarSize;
+            final long val$from;
+            final long val$to;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                tickBarSize = tickbarsize;
+                from = l;
+                to = l1;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public List getRangeBars(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, long from, long to)
+        throws JFException
+    {
+        final long correctedFrom;
+        final long correctedTo;
+        HistoryUtils.validateRangeBarParams(instrument, offerSide, priceRange);
+        HistoryUtils.validateTimeInterval(feedDataProvider, instrument, from, to);
+        HistoryUtils.checkInProgressRangeBarIsLoaded(feedDataProvider, instrument, offerSide, priceRange);
+        correctedFrom = HistoryUtils.correctRequestTime(from, priceRange);
+        correctedTo = HistoryUtils.correctRequestTime(to, priceRange);
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                List data = feedDataProvider.loadPriceRangeTimeInterval(instrument, offerSide, priceRange, correctedFrom, correctedTo);
+                List result = HistoryUtils.convert(data);
+                return result;
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final PriceRange val$priceRange;
+            final long val$correctedFrom;
+            final long val$correctedTo;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                correctedFrom = l;
+                correctedTo = l1;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public List getPointAndFigures(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final ReversalAmount reversalAmount, final int numberOfBarsBefore, final long time, 
+            final int numberOfBarsAfter)
+        throws JFException
+    {
+        HistoryUtils.validatePointAndFigureParams(instrument, offerSide, priceRange, reversalAmount);
+        HistoryUtils.validateBeforeTimeAfter(feedDataProvider, instrument, numberOfBarsBefore, time, numberOfBarsAfter);
+        HistoryUtils.checkInProgressPointAndFigureIsLoaded(feedDataProvider, instrument, offerSide, priceRange, reversalAmount);
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                List data = feedDataProvider.loadPointAndFigureData(instrument, offerSide, time, numberOfBarsBefore, numberOfBarsAfter, priceRange, reversalAmount);
+                List result = HistoryUtils.convert(data);
+                return result;
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final long val$time;
+            final int val$numberOfBarsBefore;
+            final int val$numberOfBarsAfter;
+            final PriceRange val$priceRange;
+            final ReversalAmount val$reversalAmount;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                time = l;
+                numberOfBarsBefore = i;
+                numberOfBarsAfter = j;
+                priceRange = pricerange;
+                reversalAmount = reversalamount;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public List getRangeBars(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final int numberOfBarsBefore, final long time, final int numberOfBarsAfter)
+        throws JFException
+    {
+        HistoryUtils.validateRangeBarParams(instrument, offerSide, priceRange);
+        HistoryUtils.validateBeforeTimeAfter(feedDataProvider, instrument, numberOfBarsBefore, time, numberOfBarsAfter);
+        HistoryUtils.checkInProgressRangeBarIsLoaded(feedDataProvider, instrument, offerSide, priceRange);
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                List data = feedDataProvider.loadPriceRangeData(instrument, offerSide, numberOfBarsBefore, time, numberOfBarsAfter, priceRange);
+                List result = HistoryUtils.convert(data);
+                return result;
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final int val$numberOfBarsBefore;
+            final long val$time;
+            final int val$numberOfBarsAfter;
+            final PriceRange val$priceRange;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                numberOfBarsBefore = i;
+                time = l;
+                numberOfBarsAfter = j;
+                priceRange = pricerange;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public List getTickBars(final Instrument instrument, final OfferSide offerSide, final TickBarSize tickBarSize, final int numberOfBarsBefore, final long time, final int numberOfBarsAfter)
+        throws JFException
+    {
+        HistoryUtils.validateTickBarParams(instrument, offerSide, tickBarSize);
+        HistoryUtils.validateBeforeTimeAfter(feedDataProvider, instrument, numberOfBarsBefore, time, numberOfBarsAfter);
+        HistoryUtils.checkInProgressTickBarIsLoaded(feedDataProvider, instrument, offerSide, tickBarSize);
+        return (List)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public List run()
+                throws Exception
+            {
+                List data = feedDataProvider.loadTickBarData(instrument, offerSide, numberOfBarsBefore, time, numberOfBarsAfter, tickBarSize);
+                List result = HistoryUtils.convert(data);
+                return result;
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final int val$numberOfBarsBefore;
+            final long val$time;
+            final int val$numberOfBarsAfter;
+            final TickBarSize val$tickBarSize;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                numberOfBarsBefore = i;
+                time = l;
+                numberOfBarsAfter = j;
+                tickBarSize = tickbarsize;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public void readPointAndFigures(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final ReversalAmount reversalAmount, long from, long to, final IPointAndFigureFeedListener listener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        HistoryUtils.validatePointAndFigureParams(instrument, offerSide, priceRange, reversalAmount, listener, loadingProgress);
+        HistoryUtils.validateTimeInterval(feedDataProvider, instrument, from, to);
+        HistoryUtils.checkInProgressPointAndFigureIsLoaded(feedDataProvider, instrument, offerSide, priceRange, reversalAmount);
+        final long correctedFrom = HistoryUtils.correctRequestTime(from, priceRange, reversalAmount);
+        final long correctedTo = HistoryUtils.correctRequestTime(to, priceRange, reversalAmount);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Void run()
+                    throws Exception
+                {
+                    feedDataProvider.loadPointAndFigureTimeInterval(instrument, offerSide, priceRange, reversalAmount, correctedFrom, correctedTo, new PointAndFigureLiveFeedAdapter() {
+
+                        public void newPriceData(PointAndFigureData pointAndFigure)
+                        {
+                            listener.onBar(instrument, offerSide, priceRange, reversalAmount, pointAndFigure);
+                        }
+
+                        public volatile void newPriceData(AbstractPriceAggregationData x0)
+                        {
+                            newPriceData((PointAndFigureData)x0);
+                        }
+
+                        final _cls26 this$1;
+
+                    
+                    {
+                        this$1 = _cls26.this;
+                        super();
+                    }
+                    }, new LoadingProgressListenerWrapper(loadingProgress, false));
+                    return null;
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final Instrument val$instrument;
+                final OfferSide val$offerSide;
+                final PriceRange val$priceRange;
+                final ReversalAmount val$reversalAmount;
+                final long val$correctedFrom;
+                final long val$correctedTo;
+                final IPointAndFigureFeedListener val$listener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                reversalAmount = reversalamount;
+                correctedFrom = l;
+                correctedTo = l1;
+                listener = ipointandfigurefeedlistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    public void readPointAndFigures(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final ReversalAmount reversalAmount, final int numberOfBarsBefore, final long time, 
+            final int numberOfBarsAfter, final IPointAndFigureFeedListener listener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        HistoryUtils.validatePointAndFigureParams(instrument, offerSide, priceRange, reversalAmount, listener, loadingProgress);
+        HistoryUtils.validateBeforeTimeAfter(feedDataProvider, instrument, numberOfBarsBefore, time, numberOfBarsAfter);
+        HistoryUtils.checkInProgressPointAndFigureIsLoaded(feedDataProvider, instrument, offerSide, priceRange, reversalAmount);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Void run()
+                    throws Exception
+                {
+                    feedDataProvider.loadPointAndFigureData(instrument, offerSide, numberOfBarsBefore, time, numberOfBarsAfter, priceRange, reversalAmount, new PointAndFigureLiveFeedAdapter() {
+
+                        public void newPriceData(PointAndFigureData pointAndFigure)
+                        {
+                            listener.onBar(instrument, offerSide, priceRange, reversalAmount, pointAndFigure);
+                        }
+
+                        public volatile void newPriceData(AbstractPriceAggregationData x0)
+                        {
+                            newPriceData((PointAndFigureData)x0);
+                        }
+
+                        final _cls27 this$1;
+
+                    
+                    {
+                        this$1 = _cls27.this;
+                        super();
+                    }
+                    }, new LoadingProgressListenerWrapper(loadingProgress, false));
+                    return null;
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final Instrument val$instrument;
+                final OfferSide val$offerSide;
+                final int val$numberOfBarsBefore;
+                final long val$time;
+                final int val$numberOfBarsAfter;
+                final PriceRange val$priceRange;
+                final ReversalAmount val$reversalAmount;
+                final IPointAndFigureFeedListener val$listener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                numberOfBarsBefore = i;
+                time = l;
+                numberOfBarsAfter = j;
+                priceRange = pricerange;
+                reversalAmount = reversalamount;
+                listener = ipointandfigurefeedlistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    public void readTickBars(final Instrument instrument, final OfferSide offerSide, final TickBarSize tickBarSize, final long from, final long to, 
+            final ITickBarFeedListener listener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        HistoryUtils.validateTickBarParams(instrument, offerSide, tickBarSize, listener, loadingProgress);
+        HistoryUtils.validateTimeInterval(feedDataProvider, instrument, from, to);
+        HistoryUtils.checkInProgressTickBarIsLoaded(feedDataProvider, instrument, offerSide, tickBarSize);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Void run()
+                    throws Exception
+                {
+                    feedDataProvider.loadTickBarTimeInterval(instrument, offerSide, tickBarSize, from, to, new TickBarLiveFeedAdapter() {
+
+                        public void newPriceData(TickBarData tickBar)
+                        {
+                            listener.onBar(instrument, offerSide, tickBarSize, tickBar);
+                        }
+
+                        public volatile void newPriceData(AbstractPriceAggregationData x0)
+                        {
+                            newPriceData((TickBarData)x0);
+                        }
+
+                        final _cls28 this$1;
+
+                    
+                    {
+                        this$1 = _cls28.this;
+                        super();
+                    }
+                    }, new LoadingProgressListenerWrapper(loadingProgress, false));
+                    return null;
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final Instrument val$instrument;
+                final OfferSide val$offerSide;
+                final TickBarSize val$tickBarSize;
+                final long val$from;
+                final long val$to;
+                final ITickBarFeedListener val$listener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                tickBarSize = tickbarsize;
+                from = l;
+                to = l1;
+                listener = itickbarfeedlistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    public void readTickBars(final Instrument instrument, final OfferSide offerSide, final TickBarSize tickBarSize, final int numberOfBarsBefore, final long time, final int numberOfBarsAfter, 
+            final ITickBarFeedListener listener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        HistoryUtils.validateTickBarParams(instrument, offerSide, tickBarSize, listener, loadingProgress);
+        HistoryUtils.validateBeforeTimeAfter(feedDataProvider, instrument, numberOfBarsBefore, time, numberOfBarsAfter);
+        HistoryUtils.checkInProgressTickBarIsLoaded(feedDataProvider, instrument, offerSide, tickBarSize);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Void run()
+                    throws Exception
+                {
+                    feedDataProvider.loadTickBarData(instrument, offerSide, numberOfBarsBefore, time, numberOfBarsAfter, tickBarSize, new TickBarLiveFeedAdapter() {
+
+                        public void newPriceData(TickBarData bar)
+                        {
+                            listener.onBar(instrument, offerSide, tickBarSize, bar);
+                        }
+
+                        public volatile void newPriceData(AbstractPriceAggregationData x0)
+                        {
+                            newPriceData((TickBarData)x0);
+                        }
+
+                        final _cls29 this$1;
+
+                    
+                    {
+                        this$1 = _cls29.this;
+                        super();
+                    }
+                    }, new LoadingProgressListenerWrapper(loadingProgress, false));
+                    return null;
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final Instrument val$instrument;
+                final OfferSide val$offerSide;
+                final int val$numberOfBarsBefore;
+                final long val$time;
+                final int val$numberOfBarsAfter;
+                final TickBarSize val$tickBarSize;
+                final ITickBarFeedListener val$listener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                numberOfBarsBefore = i;
+                time = l;
+                numberOfBarsAfter = j;
+                tickBarSize = tickbarsize;
+                listener = itickbarfeedlistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    public void readRangeBars(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, long from, long to, 
+            final IRangeBarFeedListener listener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        HistoryUtils.validateRangeBarParams(instrument, offerSide, priceRange, listener, loadingProgress);
+        HistoryUtils.validateTimeInterval(feedDataProvider, instrument, from, to);
+        HistoryUtils.checkInProgressRangeBarIsLoaded(feedDataProvider, instrument, offerSide, priceRange);
+        final long correctedFrom = HistoryUtils.correctRequestTime(from, priceRange);
+        final long correctedTo = HistoryUtils.correctRequestTime(to, priceRange);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Void run()
+                    throws Exception
+                {
+                    feedDataProvider.loadPriceRangeTimeInterval(instrument, offerSide, priceRange, correctedFrom, correctedTo, new PriceRangeLiveFeedAdapter() {
+
+                        public void newPriceData(PriceRangeData bar)
+                        {
+                            listener.onBar(instrument, offerSide, priceRange, bar);
+                        }
+
+                        public volatile void newPriceData(AbstractPriceAggregationData x0)
+                        {
+                            newPriceData((PriceRangeData)x0);
+                        }
+
+                        final _cls30 this$1;
+
+                    
+                    {
+                        this$1 = _cls30.this;
+                        super();
+                    }
+                    }, new LoadingProgressListenerWrapper(loadingProgress, false));
+                    return null;
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final Instrument val$instrument;
+                final OfferSide val$offerSide;
+                final PriceRange val$priceRange;
+                final long val$correctedFrom;
+                final long val$correctedTo;
+                final IRangeBarFeedListener val$listener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                correctedFrom = l;
+                correctedTo = l1;
+                listener = irangebarfeedlistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    public void readRangeBars(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final int numberOfBarsBefore, final long time, final int numberOfBarsAfter, 
+            final IRangeBarFeedListener listener, final com.dukascopy.api.LoadingProgressListener loadingProgress)
+        throws JFException
+    {
+        HistoryUtils.validateRangeBarParams(instrument, offerSide, priceRange, listener, loadingProgress);
+        HistoryUtils.validateBeforeTimeAfter(feedDataProvider, instrument, numberOfBarsBefore, time, numberOfBarsAfter);
+        HistoryUtils.checkInProgressRangeBarIsLoaded(feedDataProvider, instrument, offerSide, priceRange);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Void run()
+                    throws Exception
+                {
+                    feedDataProvider.loadPriceRangeData(instrument, offerSide, numberOfBarsBefore, time, numberOfBarsAfter, priceRange, new PriceRangeLiveFeedAdapter() {
+
+                        public void newPriceData(PriceRangeData bar)
+                        {
+                            listener.onBar(instrument, offerSide, priceRange, bar);
+                        }
+
+                        public volatile void newPriceData(AbstractPriceAggregationData x0)
+                        {
+                            newPriceData((PriceRangeData)x0);
+                        }
+
+                        final _cls31 this$1;
+
+                    
+                    {
+                        this$1 = _cls31.this;
+                        super();
+                    }
+                    }, new LoadingProgressListenerWrapper(loadingProgress, false));
+                    return null;
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final Instrument val$instrument;
+                final OfferSide val$offerSide;
+                final int val$numberOfBarsBefore;
+                final long val$time;
+                final int val$numberOfBarsAfter;
+                final PriceRange val$priceRange;
+                final IRangeBarFeedListener val$listener;
+                final com.dukascopy.api.LoadingProgressListener val$loadingProgress;
+                final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                numberOfBarsBefore = i;
+                time = l;
+                numberOfBarsAfter = j;
+                priceRange = pricerange;
+                listener = irangebarfeedlistener;
+                loadingProgress = loadingprogresslistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            HistoryUtils.throwJFException(e);
+        }
+    }
+
+    private ITick getTickSecured(final Instrument instrument, int shift)
+        throws JFException
+    {
+        ITick lastTick;
+        lastTick = feedDataProvider.getLastTick(instrument);
+        if(lastTick == null)
+            return null;
+        if(shift == 0)
+            return lastTick;
+        com.dukascopy.api.impl.util.HistoryUtils.Loadable loadable = new com.dukascopy.api.impl.util.HistoryUtils.Loadable() {
+
+            public List load(long from, long to)
+                throws Exception
+            {
+                final List bars = new ArrayList(3600);
+                feedDataProvider.loadTicksDataSynched(instrument, from, to, new LiveFeedListener() {
+
+                    public void newTick(Instrument instrument, long time, double ask, double bid, 
+                            double askVol, double bidVol)
+                    {
+                        bars.add(new TickData(time, ask, bid, askVol, bidVol));
+                    }
+
+                    public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                            double d1, double d2, double d3, double d4)
+                    {
+                    }
+
+                    final List val$bars;
+                    final _cls32 this$1;
+
+                    
+                    {
+                        this$1 = _cls32.this;
+                        bars = list;
+                        super();
+                    }
+                }, new LoadingProgressAdapter() {
+
+                    final _cls32 this$1;
+
+                    
+                    {
+                        this$1 = _cls32.this;
+                        super();
+                    }
+                });
+                return bars;
+            }
+
+            public long correctTime(long time)
+            {
+                return time;
+            }
+
+            public long getStep()
+            {
+                return 0x36ee80L;
+            }
+
+            final Instrument val$instrument;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                super();
+            }
+        };
+        return (ITick)HistoryUtils.getByShift(loadable, lastTick.getTime(), shift);
+        Throwable t;
+        t;
+        throw new JFException(t);
+    }
+
+    public ITick getTick(final Instrument instrument, final int shift)
+        throws JFException
+    {
+        if(instrument == null)
+            throw new JFException("Instrument is null");
+        HistoryUtils.validateShift(shift);
+        return (ITick)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public ITick run()
+                throws Exception
+            {
+                ITick tick = getTickSecured(instrument, shift);
+                return tick;
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final int val$shift;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                shift = i;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public IPointAndFigure getPointAndFigure(final Instrument instrument, final OfferSide offerSide, final PriceRange boxSize, final ReversalAmount reversalAmount, final int shift)
+        throws JFException
+    {
+        HistoryUtils.validatePointAndFigureParams(instrument, offerSide, boxSize, reversalAmount);
+        HistoryUtils.validateShift(shift);
+        HistoryUtils.checkInProgressPointAndFigureIsLoaded(feedDataProvider, instrument, offerSide, boxSize, reversalAmount);
+        return (IPointAndFigure)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public IPointAndFigure run()
+                throws Exception
+            {
+                IPointAndFigure inProgressBar = feedDataProvider.getInProgressPointAndFigure(instrument, offerSide, boxSize, reversalAmount);
+                if(inProgressBar == null)
+                    return null;
+                if(shift == 0)
+                {
+                    return inProgressBar;
+                } else
+                {
+                    com.dukascopy.api.impl.util.HistoryUtils.Loadable loadable = new com.dukascopy.api.impl.util.HistoryUtils.Loadable() {
+
+                        public List load(long from, long to)
+                            throws Exception
+                        {
+                            List result = feedDataProvider.loadPointAndFigureTimeInterval(instrument, offerSide, boxSize, reversalAmount, from, to);
+                            return result;
+                        }
+
+                        public long correctTime(long time)
+                        {
+                            return HistoryUtils.correctRequestTime(time, boxSize, reversalAmount);
+                        }
+
+                        public long getStep()
+                        {
+                            return 0x5265c00L;
+                        }
+
+                        final _cls34 this$1;
+
+                    
+                    {
+                        this$1 = _cls34.this;
+                        super();
+                    }
+                    };
+                    return (IPointAndFigure)HistoryUtils.getByShift(loadable, inProgressBar.getTime(), shift);
+                }
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final PriceRange val$boxSize;
+            final ReversalAmount val$reversalAmount;
+            final int val$shift;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                boxSize = pricerange;
+                reversalAmount = reversalamount;
+                shift = i;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public ITickBar getTickBar(final Instrument instrument, final OfferSide offerSide, final TickBarSize tickBarSize, final int shift)
+        throws JFException
+    {
+        HistoryUtils.validateTickBarParams(instrument, offerSide, tickBarSize);
+        HistoryUtils.validateShift(shift);
+        HistoryUtils.checkInProgressTickBarIsLoaded(feedDataProvider, instrument, offerSide, tickBarSize);
+        return (ITickBar)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public ITickBar run()
+                throws Exception
+            {
+                ITickBar inProgressBar = feedDataProvider.getInProgressTickBar(instrument, offerSide, tickBarSize);
+                if(inProgressBar == null)
+                    return null;
+                if(shift == 0)
+                {
+                    return inProgressBar;
+                } else
+                {
+                    com.dukascopy.api.impl.util.HistoryUtils.Loadable loadable = new com.dukascopy.api.impl.util.HistoryUtils.Loadable() {
+
+                        public List load(long from, long to)
+                            throws Exception
+                        {
+                            List result = feedDataProvider.loadTickBarTimeInterval(instrument, offerSide, tickBarSize, from, to);
+                            return result;
+                        }
+
+                        public long correctTime(long time)
+                        {
+                            return time;
+                        }
+
+                        public long getStep()
+                        {
+                            return (long)(tickBarSize.getSize() * 60 * 60 * 1000);
+                        }
+
+                        final _cls35 this$1;
+
+                    
+                    {
+                        this$1 = _cls35.this;
+                        super();
+                    }
+                    };
+                    return (ITickBar)HistoryUtils.getByShift(loadable, inProgressBar.getTime(), shift);
+                }
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final TickBarSize val$tickBarSize;
+            final int val$shift;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                tickBarSize = tickbarsize;
+                shift = i;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public IRangeBar getRangeBar(final Instrument instrument, final OfferSide offerSide, final PriceRange priceRange, final int shift)
+        throws JFException
+    {
+        HistoryUtils.validateRangeBarParams(instrument, offerSide, priceRange);
+        HistoryUtils.validateShift(shift);
+        HistoryUtils.checkInProgressRangeBarIsLoaded(feedDataProvider, instrument, offerSide, priceRange);
+        return (IRangeBar)AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+            public IRangeBar run()
+                throws Exception
+            {
+                IRangeBar inProgressBar = feedDataProvider.getInProgressPriceRange(instrument, offerSide, priceRange);
+                if(inProgressBar == null)
+                    return null;
+                if(shift == 0)
+                {
+                    return inProgressBar;
+                } else
+                {
+                    com.dukascopy.api.impl.util.HistoryUtils.Loadable loadable = new com.dukascopy.api.impl.util.HistoryUtils.Loadable() {
+
+                        public List load(long from, long to)
+                            throws Exception
+                        {
+                            List result = feedDataProvider.loadPriceRangeTimeInterval(instrument, offerSide, priceRange, from, to);
+                            return result;
+                        }
+
+                        public long correctTime(long time)
+                        {
+                            return HistoryUtils.correctRequestTime(time, priceRange);
+                        }
+
+                        public long getStep()
+                        {
+                            return 0x5265c00L;
+                        }
+
+                        final _cls36 this$1;
+
+                    
+                    {
+                        this$1 = _cls36.this;
+                        super();
+                    }
+                    };
+                    return (IRangeBar)HistoryUtils.getByShift(loadable, inProgressBar.getTime(), shift);
+                }
+            }
+
+            public volatile Object run()
+                throws Exception
+            {
+                return run();
+            }
+
+            final Instrument val$instrument;
+            final OfferSide val$offerSide;
+            final PriceRange val$priceRange;
+            final int val$shift;
+            final History this$0;
+
+            
+            {
+                this$0 = History.this;
+                instrument = instrument1;
+                offerSide = offerside;
+                priceRange = pricerange;
+                shift = i;
+                super();
+            }
+        });
+        PrivilegedActionException e;
+        e;
+        HistoryUtils.throwJFException(e);
+        return null;
+    }
+
+    public void validateTimeInterval(Instrument instrument, long from, long to)
+        throws JFException
+    {
+        HistoryUtils.validateTimeInterval(feedDataProvider, instrument, from, to);
+    }
+
+    public void validateBeforeTimeAfter(Instrument instrument, int numberOfBarsBefore, long time, int numberOfBarsAfter)
+        throws JFException
+    {
+        HistoryUtils.validateBeforeTimeAfter(feedDataProvider, instrument, numberOfBarsBefore, time, numberOfBarsAfter);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/History);
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+    protected static final BigDecimal ONE_MILLION = BigDecimal.valueOf(0xf4240L);
+    protected AtomicBoolean ordersHistoryRequestSent;
+    protected IOrdersProvider ordersProvider;
+    protected Currency accountCurrency;
+    protected FeedDataProvider feedDataProvider;
+
+
+
+
+
+
+
+}

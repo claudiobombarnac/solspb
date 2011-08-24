@@ -1,0 +1,50 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   StratTickData.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.charts.data.datacache.TickData;
+
+public class StratTickData extends TickData
+{
+
+    public StratTickData(TickData tickData, double totalAskVolume, double totalBidVolume)
+    {
+        time = tickData.time;
+        ask = tickData.ask;
+        bid = tickData.bid;
+        askVol = tickData.askVol;
+        bidVol = tickData.bidVol;
+        asks = tickData.asks;
+        bids = tickData.bids;
+        askVolumes = tickData.askVolumes;
+        bidVolumes = tickData.bidVolumes;
+        this.totalAskVolume = totalAskVolume;
+        this.totalBidVolume = totalBidVolume;
+    }
+
+    public void setTotalAskVolume(double totalAskVolume)
+    {
+        this.totalAskVolume = totalAskVolume;
+    }
+
+    public void setTotalBidVolume(double totalBidVolume)
+    {
+        this.totalBidVolume = totalBidVolume;
+    }
+
+    public double getTotalAskVolume()
+    {
+        return totalAskVolume;
+    }
+
+    public double getTotalBidVolume()
+    {
+        return totalBidVolume;
+    }
+
+    private double totalAskVolume;
+    private double totalBidVolume;
+}

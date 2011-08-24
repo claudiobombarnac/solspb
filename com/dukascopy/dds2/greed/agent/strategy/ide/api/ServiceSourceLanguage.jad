@@ -1,0 +1,49 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ServiceSourceLanguage.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.api;
+
+
+public final class ServiceSourceLanguage extends Enum
+{
+
+    public static ServiceSourceLanguage[] values()
+    {
+        return (ServiceSourceLanguage[])$VALUES.clone();
+    }
+
+    public static ServiceSourceLanguage valueOf(String name)
+    {
+        return (ServiceSourceLanguage)Enum.valueOf(com/dukascopy/dds2/greed/agent/strategy/ide/api/ServiceSourceLanguage, name);
+    }
+
+    private ServiceSourceLanguage(String s, int i)
+    {
+        super(s, i);
+    }
+
+    public static final ServiceSourceLanguage JAVA;
+    public static final ServiceSourceLanguage JFX;
+    public static final ServiceSourceLanguage MQ4;
+    public static final ServiceSourceLanguage MQ5;
+    public static final ServiceSourceLanguage C;
+    public static final ServiceSourceLanguage DOT_NET;
+    public static final ServiceSourceLanguage ALL;
+    private static final ServiceSourceLanguage $VALUES[];
+
+    static 
+    {
+        JAVA = new ServiceSourceLanguage("JAVA", 0);
+        JFX = new ServiceSourceLanguage("JFX", 1);
+        MQ4 = new ServiceSourceLanguage("MQ4", 2);
+        MQ5 = new ServiceSourceLanguage("MQ5", 3);
+        C = new ServiceSourceLanguage("C", 4);
+        DOT_NET = new ServiceSourceLanguage("DOT_NET", 5);
+        ALL = new ServiceSourceLanguage("ALL", 6);
+        $VALUES = (new ServiceSourceLanguage[] {
+            JAVA, JFX, MQ4, MQ5, C, DOT_NET, ALL
+        });
+    }
+}

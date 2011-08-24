@@ -1,0 +1,186 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadCustomPeriodNumberOfLastAvailableDataAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.customperiod.candle.CustomPeriodCandleLiveFeedListener;
+import com.dukascopy.charts.data.datacache.customperiod.candle.CustomPeriodFromCandlesCreator;
+import com.dukascopy.charts.data.datacache.customperiod.tick.CustomPeriodFromTicksCreator;
+import com.dukascopy.charts.data.datacache.customperiod.tick.CustomPeriodTickLiveFeedListener;
+import com.dukascopy.charts.data.datacache.priceaggregation.TimeDataUtils;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, CandleData, LoadNumberOfLastAvailableDataAction, FeedDataProvider, 
+//            LiveFeedListener, LoadingProgressListener, DataCacheException, NoDataForPeriodException, 
+//            DataCacheUtils, CurvesDataLoader
+
+public class LoadCustomPeriodNumberOfLastAvailableDataAction extends LoadProgressingAction
+    implements Runnable
+{
+
+    public LoadCustomPeriodNumberOfLastAvailableDataAction(FeedDataProvider feedDataProvider, Instrument instrument, Period desiredPeriod, OfferSide side, int numberOfCandles, long to, 
+            Filter filter, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, LiveFeedListener candleListener, LoadingProgressListener loadingProgress, StackTraceElement stackTrace[])
+        throws DataCacheException
+    {
+        this.instrument = instrument;
+        this.desiredPeriod = desiredPeriod;
+        this.side = side;
+        this.numberOfCandles = numberOfCandles;
+        this.to = to;
+        originalLiveFeedListener = candleListener;
+        this.stackTrace = stackTrace;
+        this.feedDataProvider = feedDataProvider;
+        this.filter = filter;
+        originalLoadingProgress = loadingProgress;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        if(Period.isPeriodBasic(desiredPeriod) != null)
+            throw new IllegalArgumentException((new StringBuilder()).append("Passed period '").append(desiredPeriod).append("' is basic period, ").append(getClass().getSimpleName()).append(" can work only with NOT basic periods").toString());
+        if(!Period.isPeriodCompliant(desiredPeriod))
+        {
+            throw new IllegalArgumentException((new StringBuilder()).append("Passed period '").append(desiredPeriod).append("' is not compliant").toString());
+        } else
+        {
+            basicPeriod = Period.getBasicPeriodForCustom(desiredPeriod);
+            loadNumberOfLastAvailableDataAction = createLoadNumberOfLastAvailableDataAction();
+            return;
+        }
+    }
+
+    public void run()
+    {
+        if(getOriginalLoadingProgress().stopJob())
+        {
+            getOriginalLoadingProgress().loadingFinished(false, 0L, 0L, 0L, null);
+            return;
+        }
+        getLoadNumberOfLastAvailableDataAction().run();
+        if(Period.TICK.equals(basicPeriod))
+        {
+            getTickLiveFeedListener().reverseCollectedDatas();
+            getTickLiveFeedListener().analyseTickDataPortion();
+            CandleData result[] = getTickLiveFeedListener().getCustomPeriodFromTicksCreator().getResult();
+            CandleData reversedResult[] = new CandleData[result.length];
+            TimeDataUtils.reverseArray(result, reversedResult);
+            CandleData arr$[] = reversedResult;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                CandleData data = arr$[i$];
+                if(data != null)
+                    getOriginalLiveFeedListener().newCandle(getInstrument(), getDesiredPeriod(), getSide(), data.getTime(), data.getOpen(), data.getClose(), data.getLow(), data.getHigh(), data.getVolume());
+            }
+
+        }
+    }
+
+    private Runnable createLoadNumberOfLastAvailableDataAction()
+        throws NoDataForPeriodException, DataCacheException
+    {
+        LoadNumberOfLastAvailableDataAction loadLastAvailableDataAction = null;
+        if(Period.TICK.equals(basicPeriod))
+        {
+            List weekends = null;
+            if(Filter.WEEKENDS.equals(getFilter()))
+                weekends = feedDataProvider.calculateWeekends(getDesiredPeriod(), getNumberOfCandles(), DataCacheUtils.getCandleStartFast(getDesiredPeriod(), getTo() - (long)getNumberOfCandles() * getDesiredPeriod().getInterval()), getTo(), getOriginalLoadingProgress());
+            CustomPeriodFromTicksCreator customPeriodFromTicksCreator = new CustomPeriodFromTicksCreator(getInstrument(), getSide(), getNumberOfCandles(), getDesiredPeriod(), getFilter(), false, null, null, weekends);
+            tickLiveFeedListener = new CustomPeriodTickLiveFeedListener(customPeriodFromTicksCreator);
+            loadLastAvailableDataAction = new LoadNumberOfLastAvailableDataAction(getFeedDataProvider(), getInstrument(), getNumberOfCandles(), getTo(), getFilter(), intraperiodExistsPolicy, tickLiveFeedListener, getOriginalLoadingProgress(), getStackTrace());
+        } else
+        {
+            CustomPeriodFromCandlesCreator customPeriodFromCandlesCreator = new CustomPeriodFromCandlesCreator(getInstrument(), getDesiredPeriod(), getBasicPeriod(), getSide());
+            candleLiveFeedListener = new CustomPeriodCandleLiveFeedListener(getInstrument(), getSide(), customPeriodFromCandlesCreator, getOriginalLiveFeedListener(), getFeedDataProvider(), getNumberOfCandles(), 0, getTo());
+            loadLastAvailableDataAction = new LoadNumberOfLastAvailableDataAction(getFeedDataProvider(), getInstrument(), getBasicPeriod(), getSide(), getNumberOfCandles(), getTo(), getFilter(), intraperiodExistsPolicy, candleLiveFeedListener, getOriginalLoadingProgress(), getStackTrace());
+        }
+        return loadLastAvailableDataAction;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public Period getDesiredPeriod()
+    {
+        return desiredPeriod;
+    }
+
+    public OfferSide getSide()
+    {
+        return side;
+    }
+
+    public int getNumberOfCandles()
+    {
+        return numberOfCandles;
+    }
+
+    public long getTo()
+    {
+        return to;
+    }
+
+    public LiveFeedListener getOriginalLiveFeedListener()
+    {
+        return originalLiveFeedListener;
+    }
+
+    public StackTraceElement[] getStackTrace()
+    {
+        return stackTrace;
+    }
+
+    public FeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    public Filter getFilter()
+    {
+        return filter;
+    }
+
+    public Period getBasicPeriod()
+    {
+        return basicPeriod;
+    }
+
+    public Runnable getLoadNumberOfLastAvailableDataAction()
+    {
+        return loadNumberOfLastAvailableDataAction;
+    }
+
+    public LoadingProgressListener getOriginalLoadingProgress()
+    {
+        return originalLoadingProgress;
+    }
+
+    public CustomPeriodTickLiveFeedListener getTickLiveFeedListener()
+    {
+        return tickLiveFeedListener;
+    }
+
+    public CustomPeriodCandleLiveFeedListener getCandleLiveFeedListener()
+    {
+        return candleLiveFeedListener;
+    }
+
+    private final Instrument instrument;
+    private final Period desiredPeriod;
+    private final Period basicPeriod;
+    private final OfferSide side;
+    private final int numberOfCandles;
+    private final long to;
+    private final StackTraceElement stackTrace[];
+    private final FeedDataProvider feedDataProvider;
+    private final Filter filter;
+    private final CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    private final Runnable loadNumberOfLastAvailableDataAction;
+    private final LoadingProgressListener originalLoadingProgress;
+    private final LiveFeedListener originalLiveFeedListener;
+    private CustomPeriodTickLiveFeedListener tickLiveFeedListener;
+    private CustomPeriodCandleLiveFeedListener candleLiveFeedListener;
+}

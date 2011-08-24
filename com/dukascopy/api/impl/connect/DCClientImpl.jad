@@ -1,0 +1,1283 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:24
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   DCClientImpl.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.Configurable;
+import com.dukascopy.api.IConsole;
+import com.dukascopy.api.INewsFilter;
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.api.IStrategyListener;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.system.IClient;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.api.system.ISystemListener;
+import com.dukascopy.api.system.JFAuthenticationException;
+import com.dukascopy.api.system.JFVersionException;
+import com.dukascopy.charts.data.datacache.DataCacheException;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
+import com.dukascopy.charts.data.datacache.IFeedInfo;
+import com.dukascopy.charts.data.datacache.InstrumentSubscriptionListener;
+import com.dukascopy.charts.data.datacache.LiveFeedListener;
+import com.dukascopy.charts.data.datacache.LoadingProgressListener;
+import com.dukascopy.charts.data.datacache.TickData;
+import com.dukascopy.charts.data.orders.OrdersProvider;
+import com.dukascopy.charts.math.indicators.IndicatorsProvider;
+import com.dukascopy.dds2.greed.agent.compiler.JFXPack;
+import com.dukascopy.dds2.greed.util.AbstractCurrencyConverter;
+import com.dukascopy.dds2.greed.util.EnumConverter;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import com.dukascopy.transport.client.ClientListener;
+import com.dukascopy.transport.client.SecurityExceptionHandler;
+import com.dukascopy.transport.client.TransportClient;
+import com.dukascopy.transport.client.events.DisconnectedEvent;
+import com.dukascopy.transport.common.model.type.Money;
+import com.dukascopy.transport.common.model.type.OfferSide;
+import com.dukascopy.transport.common.msg.ProtocolMessage;
+import com.dukascopy.transport.common.msg.group.MarketNewsMessageGroup;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import com.dukascopy.transport.common.msg.group.OrderMessage;
+import com.dukascopy.transport.common.msg.group.OrderSyncMessage;
+import com.dukascopy.transport.common.msg.news.CalendarEvent;
+import com.dukascopy.transport.common.msg.news.Currency;
+import com.dukascopy.transport.common.msg.news.GeoRegion;
+import com.dukascopy.transport.common.msg.news.MarketSector;
+import com.dukascopy.transport.common.msg.news.NewsRequestType;
+import com.dukascopy.transport.common.msg.news.NewsSource;
+import com.dukascopy.transport.common.msg.news.NewsStoryMessage;
+import com.dukascopy.transport.common.msg.news.NewsSubscribeRequest;
+import com.dukascopy.transport.common.msg.news.StockIndex;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import com.dukascopy.transport.common.msg.request.CurrencyMarket;
+import com.dukascopy.transport.common.msg.request.CurrencyOffer;
+import com.dukascopy.transport.common.msg.request.InitRequestMessage;
+import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
+import com.dukascopy.transport.common.msg.request.QuoteSubscribeRequestMessage;
+import com.dukascopy.transport.common.msg.response.InstrumentStatusUpdateMessage;
+import com.dukascopy.transport.common.msg.response.NotificationMessage;
+import com.dukascopy.transport.common.msg.response.OkResponseMessage;
+import com.dukascopy.transport.common.msg.strategy.StrategyBroadcastMessage;
+import com.dukascopy.transport.util.Hex;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.UnknownHostException;
+import java.security.AccessController;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            PrintStreamNotificationUtils, IndicatorsSettingsStorage, JForexTaskManager, FacelessUserInterface, 
+//            StrategyBroadcastMessageImpl, AuthorizationClient, ActivityLogger, PlatformAccountImpl, 
+//            ISystemListenerExtended
+
+public class DCClientImpl
+    implements IClient, ClientListener
+{
+    private static class FeedInfo
+        implements IFeedInfo
+    {
+
+        public void setFeedCommission(BigDecimal feedCommission)
+        {
+            this.feedCommission = feedCommission;
+        }
+
+        public BigDecimal getFeedCommission()
+        {
+            return feedCommission;
+        }
+
+        private volatile BigDecimal feedCommission;
+
+        private FeedInfo()
+        {
+        }
+
+    }
+
+    private static class DefaultStrategyExceptionHandler
+        implements IStrategyExceptionHandler
+    {
+
+        public void setTaskManager(JForexTaskManager taskManager)
+        {
+            this.taskManager = taskManager;
+        }
+
+        public void onException(long strategyId, com.dukascopy.api.system.IStrategyExceptionHandler.Source source, Throwable t)
+        {
+            LOGGER.error((new StringBuilder()).append("Exception thrown while running ").append(source).append(" method: ").append(t.getMessage()).toString(), t);
+            taskManager.stopStrategy();
+        }
+
+        private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/DCClientImpl$DefaultStrategyExceptionHandler);
+        private JForexTaskManager taskManager;
+
+
+        private DefaultStrategyExceptionHandler()
+        {
+        }
+
+    }
+
+
+    public DCClientImpl()
+    {
+        initialized = false;
+        instruments = new HashSet();
+        temporaryKeys = -1L;
+        runningStrategies = new HashMap();
+        strategyEngines = new HashMap();
+        newsFilters = new HashMap();
+        console = new IConsole() {
+
+            public PrintStream getOut()
+            {
+                return out;
+            }
+
+            public PrintStream getErr()
+            {
+                return err;
+            }
+
+            final DCClientImpl this$0;
+
+            
+            {
+                this$0 = DCClientImpl.this;
+                super();
+            }
+        };
+        ThreadFactory threadFactory = new ThreadFactory() {
+
+            public Thread newThread(Runnable r)
+            {
+                Thread thread = new Thread(r, (new StringBuilder()).append("Mina_Thread_").append(threadNumber.getAndIncrement()).toString());
+                if(!thread.isDaemon())
+                    thread.setDaemon(true);
+                return thread;
+            }
+
+            final AtomicInteger threadNumber = new AtomicInteger(1);
+            final DCClientImpl this$0;
+
+            
+            {
+                this$0 = DCClientImpl.this;
+                super();
+            }
+        };
+        minaExecutor = new ThreadPoolExecutor(1, 5, 5L, TimeUnit.SECONDS, new LinkedBlockingQueue(), threadFactory);
+        out = System.out;
+        err = System.err;
+        NotificationUtilsProvider.setNotificationUtils(new PrintStreamNotificationUtils(out, err));
+        version = getClass().getPackage().getImplementationVersion();
+        if(version == null || "SNAPSHOT".equals(version))
+            version = "99.99.99";
+    }
+
+    public synchronized void connect(String jnlpUrl, String username, String password)
+        throws Exception
+    {
+        connect(jnlpUrl, username, password, null);
+    }
+
+    public synchronized void connect(String jnlpUrl, String username, String password, String pin)
+        throws Exception
+    {
+        if(transportClient == null)
+        {
+            String authServersCsv = getAuthServers(jnlpUrl);
+            sessionID = UUID.randomUUID().toString();
+            String urlList[] = authServersCsv.split(",");
+            java.util.List authServers = Arrays.asList(urlList);
+            String ticket = authenticate(authServers, sessionID, username, password, true, pin);
+            accountName = username;
+            FilePathManager fmanager = FilePathManager.getInstance();
+            fmanager.setStrategiesFolderPath(fmanager.getDefaultStrategiesFolderPath());
+            OrdersProvider.createInstance(null);
+            String servicesUrl = (new StringBuilder()).append(serverProperties.getProperty("services1.url", "")).append(serverProperties.getProperty("tradelog_sfx.url", "")).toString();
+            ActivityLogger.init(servicesUrl, username);
+            feedInfo = new FeedInfo();
+            FeedDataProvider.createFeedDataProvider("SINGLEJAR", feedInfo);
+            FeedDataProvider.setPlatformTicket(ticket);
+            FeedDataProvider.getDefaultInstance().connectToHistoryServer(authServers, username, sessionID, serverProperties.getProperty("history.server.url", null), serverProperties.getProperty("encryptionKey", null), version);
+            FeedDataProvider.getDefaultInstance().addInstrumentSubscriptionListener(new InstrumentSubscriptionListener() {
+
+                public void subscribedToInstrument(Instrument instrument)
+                {
+                    fakeTickOnWeekends(instrument);
+                }
+
+                public void unsubscribedFromInstrument(Instrument instrument1)
+                {
+                }
+
+                final DCClientImpl this$0;
+
+            
+            {
+                this$0 = DCClientImpl.this;
+                super();
+            }
+            });
+            FeedDataProvider.getDefaultInstance().setInstrumentsSubscribed(instruments);
+            IndicatorsProvider.createInstance(new IndicatorsSettingsStorage(username));
+            transportClient.connect();
+        } else
+        if(!transportClient.isOnline())
+        {
+            lastAccountInfoMessage = null;
+            initialized = false;
+            String authServersCsv = getAuthServers(jnlpUrl);
+            sessionID = UUID.randomUUID().toString();
+            String urlList[] = authServersCsv.split(",");
+            java.util.List authServerUrls = Arrays.asList(urlList);
+            String ticket = authenticate(authServerUrls, sessionID, username, password, true, pin);
+            String servicesUrl = (new StringBuilder()).append(serverProperties.getProperty("services1.url", "")).append(serverProperties.getProperty("tradelog_sfx.url", "")).toString();
+            ActivityLogger.init(servicesUrl, username);
+            FeedDataProvider.setPlatformTicket(ticket);
+            feedInfo.setFeedCommission(null);
+            FeedDataProvider.getDefaultInstance().connectToHistoryServer(authServerUrls, username, sessionID, serverProperties.getProperty("history.server.url", null), serverProperties.getProperty("encryptionKey", null), version);
+            transportClient.connect();
+        }
+    }
+
+    public synchronized void connect(Collection authServerUrls, boolean live, String username, String password, boolean encodePassword)
+        throws Exception
+    {
+        connect(authServerUrls, live, username, password, encodePassword, null);
+    }
+
+    public synchronized void connect(Collection authServerUrls, boolean live, String username, String password, boolean encodePassword, String pin)
+        throws Exception
+    {
+        this.live = live;
+        if(transportClient == null)
+        {
+            String session = UUID.randomUUID().toString();
+            String ticket = authenticate(authServerUrls, session, username, password, encodePassword, pin);
+            accountName = username;
+            OrdersProvider.createInstance(null);
+            String servicesUrl = (new StringBuilder()).append(serverProperties.getProperty("services1.url", "")).append(serverProperties.getProperty("tradelog_sfx.url", "")).toString();
+            ActivityLogger.init(servicesUrl, username);
+            feedInfo = new FeedInfo();
+            FeedDataProvider.createFeedDataProvider("SINGLEJAR", feedInfo);
+            FeedDataProvider.setPlatformTicket(ticket);
+            FeedDataProvider.getDefaultInstance().connectToHistoryServer(authServerUrls, username, session, serverProperties.getProperty("history.server.url", null), serverProperties.getProperty("encryptionKey", null), version);
+            FeedDataProvider.getDefaultInstance().addInstrumentSubscriptionListener(new InstrumentSubscriptionListener() {
+
+                public void subscribedToInstrument(Instrument instrument)
+                {
+                    fakeTickOnWeekends(instrument);
+                }
+
+                public void unsubscribedFromInstrument(Instrument instrument1)
+                {
+                }
+
+                final DCClientImpl this$0;
+
+            
+            {
+                this$0 = DCClientImpl.this;
+                super();
+            }
+            });
+            FeedDataProvider.getDefaultInstance().setInstrumentsSubscribed(instruments);
+            IndicatorsProvider.createInstance(new IndicatorsSettingsStorage(username));
+            transportClient.connect();
+        } else
+        if(!transportClient.isOnline())
+        {
+            lastAccountInfoMessage = null;
+            initialized = false;
+            sessionID = UUID.randomUUID().toString();
+            String ticket = authenticate(authServerUrls, sessionID, username, password, encodePassword, pin);
+            String servicesUrl = (new StringBuilder()).append(serverProperties.getProperty("services1.url", "")).append(serverProperties.getProperty("tradelog_sfx.url", "")).toString();
+            ActivityLogger.init(servicesUrl, username);
+            feedInfo.setFeedCommission(null);
+            FeedDataProvider.setPlatformTicket(ticket);
+            FeedDataProvider.getDefaultInstance().connectToHistoryServer(authServerUrls, username, sessionID, serverProperties.getProperty("history.server.url", null), serverProperties.getProperty("encryptionKey", null), version);
+            transportClient.connect();
+        }
+    }
+
+    private String getAuthServers(String jnlp)
+        throws Exception
+    {
+        InputStream jnlpIs;
+        URL jnlpUrl = new URL(jnlp);
+        jnlpIs = jnlpUrl.openConnection().getInputStream();
+        Document doc;
+        DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+        doc = builder.parse(jnlpIs);
+        jnlpIs.close();
+        break MISSING_BLOCK_LABEL_52;
+        Exception exception;
+        exception;
+        jnlpIs.close();
+        throw exception;
+        String authServersCsv = null;
+        NodeList jnlpNodes = doc.getElementsByTagName("jnlp");
+        if(jnlpNodes.getLength() < 1)
+            throw new Exception("Can't find jnlp element");
+        Element jnlpNode = (Element)jnlpNodes.item(0);
+        NodeList resourcesNodes = jnlpNode.getElementsByTagName("resources");
+        if(resourcesNodes.getLength() < 1)
+            throw new Exception("Can't find resources element");
+        Element resourcesNode = (Element)resourcesNodes.item(0);
+        NodeList propertyNodes = resourcesNode.getElementsByTagName("property");
+        for(int i = 0; i < propertyNodes.getLength(); i++)
+        {
+            Element propertyElement = (Element)propertyNodes.item(i);
+            String nameAttribute = propertyElement.getAttribute("name");
+            if(nameAttribute != null && nameAttribute.trim().equals("jnlp.client.mode"))
+            {
+                String clientMode = propertyElement.getAttribute("value").trim();
+                live = clientMode != null && clientMode.equals("LIVE");
+                continue;
+            }
+            if(nameAttribute != null && nameAttribute.trim().equals("jnlp.login.url"))
+                authServersCsv = propertyElement.getAttribute("value").trim();
+        }
+
+        if(authServersCsv == null)
+            throw new Exception("Can't find property with name attribute equals to jnlp.login.url");
+        else
+            return authServersCsv;
+    }
+
+    public BufferedImage getCaptchaImage(String jnlp)
+        throws Exception
+    {
+        String authServersCsv = getAuthServers(jnlp);
+        String urlList[] = authServersCsv.split(",");
+        java.util.List authServers = Arrays.asList(urlList);
+        AuthorizationClient authorizationClient = AuthorizationClient.getInstance(authServers, version);
+        Map imageCaptchaMap = authorizationClient.getImageCaptcha();
+        if(!imageCaptchaMap.isEmpty())
+        {
+            java.util.Map.Entry imageCaptchaEntry = (java.util.Map.Entry)imageCaptchaMap.entrySet().iterator().next();
+            captchaId = (String)imageCaptchaEntry.getKey();
+            return (BufferedImage)imageCaptchaEntry.getValue();
+        } else
+        {
+            return null;
+        }
+    }
+
+    private String authenticate(Collection authServerUrls, String session, String username, String password, boolean encodePassword, String pin)
+        throws Exception
+    {
+        AuthorizationClient authorizationClient = AuthorizationClient.getInstance(authServerUrls, version);
+        if(!encodePassword && pin != null)
+            throw new Exception("(EncodePassword == false && pin != null) == NOT SUPPORTED");
+        String authResponse;
+        if(!encodePassword || pin == null)
+            authResponse = authorizationClient.getUrlAndTicket(username, password, session, encodePassword);
+        else
+            authResponse = authorizationClient.getUrlAndTicket(username, password, captchaId, pin, session);
+        LOGGER.debug(authResponse);
+        if("-1".equals(authResponse))
+            throw new JFAuthenticationException("Incorrect username or password");
+        if("-2".equals(authResponse))
+            throw new JFVersionException("Incorrect version");
+        if("-3".equals(authResponse))
+            throw new JFVersionException("System offline");
+        if("-500".equals(authResponse))
+            throw new JFVersionException("System error");
+        if(authResponse == null)
+            throw new IOException("Authentication failed");
+        Matcher matcher = AuthorizationClient.RESULT_PATTERN.matcher(authResponse);
+        if(!matcher.matches())
+            throw new IOException((new StringBuilder()).append("Authentication procedure returned unexpected result [").append(authResponse).append("]").toString());
+        String url = matcher.group(1);
+        int semicolonIndex = url.indexOf(':');
+        String host;
+        int port;
+        if(semicolonIndex != -1)
+        {
+            host = url.substring(0, semicolonIndex);
+            if(semicolonIndex + 1 >= url.length())
+            {
+                LOGGER.warn("port not set, using default 443");
+                port = 443;
+            } else
+            {
+                port = Integer.parseInt(url.substring(semicolonIndex + 1));
+            }
+        } else
+        {
+            host = url;
+            port = 443;
+        }
+        InetSocketAddress address = new InetSocketAddress(InetAddress.getByName(host), port);
+        String ticket = matcher.group(2);
+        serverProperties = authorizationClient.getAllProperties(username, ticket, session);
+        try
+        {
+            InetAddress localhost = InetAddress.getLocalHost();
+            internalIP = localhost == null ? null : localhost.getHostAddress();
+        }
+        catch(UnknownHostException e)
+        {
+            LOGGER.error((new StringBuilder()).append("Can't detect local IP : ").append(e.getMessage()).toString());
+            internalIP = "";
+        }
+        if(transportClient == null)
+        {
+            transportClient = new TransportClient(address, null, null, this, minaExecutor);
+            String userAgent = getUserAgent(version);
+            LOGGER.debug((new StringBuilder()).append("UserAgent: ").append(userAgent).toString());
+            transportClient.setUserAgent(userAgent);
+            transportClient.setPingConnection(true);
+            transportClient.setPingTimeout(Long.valueOf(TRANSPORT_PING_TIMEOUT));
+            transportClient.setPoolSize(2);
+            transportClient.setUseSsl(true);
+            transportClient.setSecurityExceptionHandler(new SecurityExceptionHandler() {
+
+                public boolean isIgnoreSecurityException(X509Certificate chain[], String authType, CertificateException ex)
+                {
+                    DCClientImpl.LOGGER.warn((new StringBuilder()).append("Security exception : ").append(ex).toString());
+                    return true;
+                }
+
+                final DCClientImpl this$0;
+
+            
+            {
+                this$0 = DCClientImpl.this;
+                super();
+            }
+            });
+        } else
+        {
+            transportClient.setAddress(address);
+        }
+        transportClient.setLogin((new StringBuilder()).append(username).append(" ").append(session).toString());
+        transportClient.setPassword(ticket);
+        return ticket;
+    }
+
+    public static String getUserAgent(String version)
+    {
+        String javaVersion = System.getProperty("java.vm.version");
+        String osName = System.getProperty("os.name");
+        String stratString = " Strategy Enabled";
+        String stratBuildVersionNr = com/dukascopy/api/IStrategy.getPackage().getImplementationVersion();
+        if(stratBuildVersionNr == null)
+            stratBuildVersionNr = "0";
+        stratBuildVersionNr = (new StringBuilder()).append(".").append(stratBuildVersionNr).toString();
+        String minaString = "";
+        try
+        {
+            Class.forName("org.apache.mina.common.IoSession");
+            minaString = " Mina ";
+        }
+        catch(ClassNotFoundException e) { }
+        return (new StringBuilder()).append("DCClientImpl/").append(version).append(stratBuildVersionNr).append(" (JVM/").append(javaVersion).append("; ").append(osName).append(") ").append(stratString).append(minaString).toString();
+    }
+
+    public synchronized void reconnect()
+    {
+        if(!transportClient.isOnline())
+            transportClient.connect();
+    }
+
+    public boolean isConnected()
+    {
+        return transportClient != null && transportClient.isOnline() && initialized;
+    }
+
+    private void connectedInit()
+    {
+        InitRequestMessage initRequestMessage = new InitRequestMessage();
+        initRequestMessage.setSendGroups(true);
+        transportClient.controlRequest(initRequestMessage);
+        setSubscribedInstruments(instruments);
+        NewsSubscribeRequest newsSubscribeRequest;
+        for(Iterator i$ = newsFilters.values().iterator(); i$.hasNext(); transportClient.controlRequest(newsSubscribeRequest))
+        {
+            INewsFilter newsFilter = (INewsFilter)i$.next();
+            newsSubscribeRequest = new NewsSubscribeRequest();
+            newsSubscribeRequest.setNewsSource(com.dukascopy.transport.common.msg.news.NewsSource.valueOf(newsFilter.getNewsSource().name()));
+            newsSubscribeRequest.setHot(newsFilter.isOnlyHot());
+            newsSubscribeRequest.setGeoRegions(EnumConverter.convert(newsFilter.getCountries(), com/dukascopy/transport/common/msg/news/GeoRegion));
+            newsSubscribeRequest.setMarketSectors(EnumConverter.convert(newsFilter.getMarketSectors(), com/dukascopy/transport/common/msg/news/MarketSector));
+            newsSubscribeRequest.setIndicies(EnumConverter.convert(newsFilter.getStockIndicies(), com/dukascopy/transport/common/msg/news/StockIndex));
+            newsSubscribeRequest.setCurrencies(EnumConverter.convert(newsFilter.getCurrencies(), com/dukascopy/transport/common/msg/news/Currency));
+            newsSubscribeRequest.setKeywords(newsFilter.getKeywords());
+            newsSubscribeRequest.setFromDate(newsFilter.getFrom());
+            newsSubscribeRequest.setToDate(newsFilter.getTo());
+            newsSubscribeRequest.setCalendarType((com.dukascopy.transport.common.msg.news.CalendarEvent.CalendarType)EnumConverter.convert(newsFilter.getType(), com/dukascopy/transport/common/msg/news/CalendarEvent$CalendarType));
+            LOGGER.debug((new StringBuilder()).append("Subscribing : ").append(newsSubscribeRequest).toString());
+        }
+
+    }
+
+    public synchronized void setSystemListener(final ISystemListener userSystemListener)
+    {
+        systemListener = new ISystemListenerExtended() {
+
+            public void onStart(long processId)
+            {
+                userSystemListener.onStart(processId);
+            }
+
+            public void onStop(long processId)
+            {
+                synchronized(DCClientImpl.this)
+                {
+                    strategyEngines.remove(Long.valueOf(processId));
+                    runningStrategies.remove(Long.valueOf(processId));
+                }
+                userSystemListener.onStop(processId);
+                ActivityLogger.getInstance().flush();
+            }
+
+            public void onConnect()
+            {
+                userSystemListener.onConnect();
+            }
+
+            public void onDisconnect()
+            {
+                userSystemListener.onDisconnect();
+            }
+
+            public void subscribeToInstruments(Set instruments)
+            {
+                Set combinedInstruments = new HashSet(DCClientImpl.this.instruments);
+                combinedInstruments.addAll(instruments);
+                setSubscribedInstruments(instruments);
+            }
+
+            public Set getSubscribedInstruments()
+            {
+                DCClientImpl dcclientimpl = DCClientImpl.this;
+                JVM INSTR monitorenter ;
+                return new HashSet(instruments);
+                Exception exception;
+                exception;
+                throw exception;
+            }
+
+            public long startStrategy(File jfxFile, IStrategyListener listener, Map configurables, boolean fullAccess)
+                throws JFException
+            {
+                if(!jfxFile.exists())
+                    throw new JFException((new StringBuilder()).append("File [").append(jfxFile).append("] does not exist").toString());
+                IStrategy iStrategy;
+                try
+                {
+                    iStrategy = loadStrategy(jfxFile);
+                }
+                catch(Exception e)
+                {
+                    throw new JFException(e);
+                }
+                if(configurables != null)
+                {
+                    Field fields[] = iStrategy.getClass().getFields();
+                    Field arr$[] = fields;
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        Field field = arr$[i$];
+                        Configurable configurable = (Configurable)field.getAnnotation(com/dukascopy/api/Configurable);
+                        if(configurable == null)
+                            continue;
+                        try
+                        {
+                            if(configurables.containsKey(field.getName()))
+                                field.set(iStrategy, configurables.get(field.getName()));
+                        }
+                        catch(Exception e)
+                        {
+                            throw new JFException((new StringBuilder()).append("Error while setting value for the field [").append(field.getName()).append("]").toString(), e);
+                        }
+                    }
+
+                }
+                if(System.getSecurityManager() == null && !fullAccess)
+                    throw new JFException("Strategy tries to start another strategy with fullAccess disabled, this will not work without security manager. Either start the strategy with full access or set up security manager");
+                else
+                    return DCClientImpl.this.startStrategy(iStrategy, listener, null, JForexTaskManager.Environment.LOCAL_EMBEDDED, true, null);
+            }
+
+            public long startStrategy(IStrategy strategy, IStrategyListener listener, boolean fullAccess)
+                throws JFException
+            {
+                if(System.getSecurityManager() == null && !fullAccess)
+                    throw new JFException("Strategy tries to start another strategy with fullAccess disabled, this will not work without security manager. Either start the strategy with full access or set up security manager");
+                else
+                    return DCClientImpl.this.startStrategy(strategy, listener, null, JForexTaskManager.Environment.LOCAL_EMBEDDED, fullAccess, null);
+            }
+
+            public void stopStrategy(long strategyId)
+            {
+                DCClientImpl.this.stopStrategy(strategyId);
+            }
+
+            final ISystemListener val$userSystemListener;
+            final DCClientImpl this$0;
+
+            
+            {
+                this$0 = DCClientImpl.this;
+                userSystemListener = isystemlistener;
+                super();
+            }
+        };
+        JForexTaskManager taskManager;
+        for(Iterator i$ = strategyEngines.values().iterator(); i$.hasNext(); taskManager.setSystemListener(systemListener))
+            taskManager = (JForexTaskManager)i$.next();
+
+    }
+
+    public synchronized void feedbackMessageReceived(TransportClient client, ProtocolMessage message)
+    {
+label0:
+        {
+            if(message instanceof AccountInfoMessage)
+            {
+                PlatformAccountImpl.updateStaticValues((AccountInfoMessage)message);
+                FeedDataProvider.getDefaultInstance().setCurrentTime(message.getTimestamp().getTime());
+                OrdersProvider.getInstance().updateAccountInfoData((AccountInfoMessage)message);
+                lastAccountInfoMessage = (AccountInfoMessage)message;
+                BigDecimal feedCommssion = lastAccountInfoMessage.getFeedCommssion();
+                if(feedCommssion != null)
+                    feedInfo.setFeedCommission(feedCommssion);
+                if(!initialized)
+                {
+                    setSubscribedInstruments(instruments);
+                    initialized = true;
+                    fireConnected();
+                }
+            } else
+            if(message instanceof OrderGroupMessage)
+            {
+                OrderGroupMessage orderGroupMessage = (OrderGroupMessage)message;
+                OrdersProvider.getInstance().updateOrderGroup(orderGroupMessage);
+                String instrumentStr = orderGroupMessage.getInstrument();
+                if(instrumentStr != null)
+                {
+                    Instrument instrument = Instrument.fromString(instrumentStr);
+                    if(!instruments.contains(instrument))
+                    {
+                        LOGGER.info((new StringBuilder()).append("Order group received for instrument [").append(instrument).append("], adding instrument to the list of the subscribed instruments").toString());
+                        setSubscribedInstruments(instruments);
+                    }
+                } else
+                {
+                    OrderMessage openingOrder = orderGroupMessage.getOpeningOrder();
+                    instrumentStr = openingOrder != null ? openingOrder.getInstrument() : null;
+                    if(instrumentStr != null)
+                    {
+                        Instrument instrument = Instrument.fromString(instrumentStr);
+                        if(!instruments.contains(instrument))
+                        {
+                            LOGGER.info((new StringBuilder()).append("Order group received for instrument [").append(instrument).append("], adding instrument to the list of the subscribed instruments").toString());
+                            setSubscribedInstruments(instruments);
+                        }
+                    }
+                }
+            } else
+            if(message instanceof OrderMessage)
+            {
+                OrdersProvider.getInstance().updateOrder((OrderMessage)message);
+                String instrumentStr = ((OrderMessage)message).getInstrument();
+                if(instrumentStr != null)
+                {
+                    Instrument instrument = Instrument.fromString(instrumentStr);
+                    if(!instruments.contains(instrument))
+                    {
+                        LOGGER.info((new StringBuilder()).append("Order received for instrument [").append(instrument).append("], adding instrument to the list of the subscribed instruments").toString());
+                        setSubscribedInstruments(instruments);
+                    }
+                }
+            } else
+            if(message instanceof MergePositionsMessage)
+                OrdersProvider.getInstance().groupsMerged((MergePositionsMessage)message);
+            else
+            if((message instanceof CurrencyMarket) && lastAccountInfoMessage != null && instruments.contains(Instrument.fromString(((CurrencyMarket)message).getInstrument())))
+                FeedDataProvider.getDefaultInstance().tickReceived((CurrencyMarket)message);
+label1:
+            do
+            {
+                for(Iterator i$ = strategyEngines.values().iterator(); i$.hasNext();)
+                {
+                    JForexTaskManager taskManager = (JForexTaskManager)i$.next();
+                    if(message instanceof CurrencyMarket)
+                    {
+                        if(lastAccountInfoMessage != null && instruments.contains(Instrument.fromString(((CurrencyMarket)message).getInstrument())))
+                            taskManager.onMarketState((CurrencyMarket)message);
+                    } else
+                    if(message instanceof OrderGroupMessage)
+                        taskManager.onOrderGroupReceived((OrderGroupMessage)message);
+                    else
+                    if(message instanceof OrderMessage)
+                        taskManager.onOrderReceived((OrderMessage)message);
+                    else
+                    if(message instanceof NotificationMessage)
+                    {
+                        NotificationMessage notificationMessage = (NotificationMessage)message;
+                        if(notificationMessage.getLevel() == null || notificationMessage.getLevel().equals("INFO"))
+                            NotificationUtilsProvider.getNotificationUtils().postInfoMessage(notificationMessage.getText());
+                        else
+                        if(notificationMessage.getLevel().equals("WARNING"))
+                            NotificationUtilsProvider.getNotificationUtils().postWarningMessage(notificationMessage.getText());
+                        else
+                        if(notificationMessage.getLevel().equals("ERROR"))
+                            NotificationUtilsProvider.getNotificationUtils().postErrorMessage(notificationMessage.getText());
+                        else
+                            NotificationUtilsProvider.getNotificationUtils().postErrorMessage(notificationMessage.getText());
+                        taskManager.onNotifyMessage(notificationMessage);
+                    } else
+                    if(message instanceof AccountInfoMessage)
+                        taskManager.updateAccountInfo((AccountInfoMessage)message);
+                    else
+                    if(message instanceof MergePositionsMessage)
+                        taskManager.onOrdersMergedMessage((MergePositionsMessage)message);
+                    else
+                    if(message instanceof OrderSyncMessage)
+                    {
+                        OrdersProvider.getInstance().orderSynch((OrderSyncMessage)message);
+                        taskManager.orderSynch((OrderSyncMessage)message);
+                        taskManager.onConnect(true);
+                    } else
+                    if(message instanceof InstrumentStatusUpdateMessage)
+                    {
+                        Instrument instrument = Instrument.fromString(((InstrumentStatusUpdateMessage)message).getInstrument());
+                        boolean tradable = ((InstrumentStatusUpdateMessage)message).getTradable() == 0;
+                        taskManager.onIntrumentUpdate(instrument, tradable, message.getTimestamp() != null ? message.getTimestamp().getTime() : FeedDataProvider.getDefaultInstance().getCurrentTime());
+                    } else
+                    if(message instanceof NewsStoryMessage)
+                    {
+                        taskManager.onNewsMessage((NewsStoryMessage)message);
+                    } else
+                    {
+                        if(!(message instanceof StrategyBroadcastMessage))
+                            continue label1;
+                        onStrategyBroadcast(taskManager, (StrategyBroadcastMessage)message);
+                    }
+                }
+
+                break label0;
+            } while((message instanceof OkResponseMessage) || (message instanceof MarketNewsMessageGroup));
+            LOGGER.debug((new StringBuilder()).append("Unrecognized protocol message : ").append(message.getClass()).append(" / ").append(message).toString());
+            return;
+        }
+    }
+
+    public synchronized void authorized(TransportClient client)
+    {
+        connectedInit();
+        if(initialized)
+            fireConnected();
+    }
+
+    private void fireConnected()
+    {
+        ISystemListener systemListener = this.systemListener;
+        if(systemListener != null)
+            systemListener.onConnect();
+        FeedDataProvider.getDefaultInstance().connected();
+    }
+
+    public synchronized void disconnected(DisconnectedEvent event)
+    {
+        FeedDataProvider.getDefaultInstance().disconnected();
+        ISystemListener systemListener = this.systemListener;
+        if(systemListener != null)
+            systemListener.onDisconnect();
+        JForexTaskManager taskManager;
+        for(Iterator i$ = strategyEngines.values().iterator(); i$.hasNext(); taskManager.onConnect(false))
+            taskManager = (JForexTaskManager)i$.next();
+
+    }
+
+    public long startStrategy(IStrategy strategy)
+        throws IllegalStateException, NullPointerException
+    {
+        return startStrategy(strategy, null, null, JForexTaskManager.Environment.LOCAL_EMBEDDED, true, null);
+    }
+
+    public long startStrategy(IStrategy strategy, IStrategyExceptionHandler exceptionHandler)
+    {
+        return startStrategy(strategy, null, exceptionHandler, JForexTaskManager.Environment.LOCAL_EMBEDDED, true, null);
+    }
+
+    public long startStrategy(IStrategy strategy, IStrategyListener strategyListener, IStrategyExceptionHandler exceptionHandler, JForexTaskManager.Environment taskManagerEnvironment, boolean fullAccessGranted, String strategyHash)
+        throws IllegalStateException, NullPointerException
+    {
+        JForexTaskManager taskManager;
+        long temporaryProcessId;
+        String strategyKey;
+        synchronized(this)
+        {
+            if(!transportClient.isOnline())
+                throw new IllegalStateException("Not connected");
+            if(!initialized)
+                throw new IllegalStateException("Not initialized");
+            if(strategy == null)
+                throw new NullPointerException("Strategy is null");
+            if(exceptionHandler == null)
+                exceptionHandler = new DefaultStrategyExceptionHandler();
+            taskManager = new JForexTaskManager(taskManagerEnvironment, live, accountName, console, transportClient, null, new FacelessUserInterface(), exceptionHandler, lastAccountInfoMessage, serverProperties.getProperty("external_ip"), internalIP, sessionID);
+            taskManager.setSystemListener(systemListener);
+            if(exceptionHandler instanceof DefaultStrategyExceptionHandler)
+                ((DefaultStrategyExceptionHandler)exceptionHandler).setTaskManager(taskManager);
+            temporaryProcessId = temporaryKeys;
+            temporaryKeys--;
+            strategyEngines.put(Long.valueOf(temporaryProcessId), taskManager);
+            runningStrategies.put(Long.valueOf(temporaryProcessId), strategy);
+        }
+        strategyKey = strategy.getClass().getSimpleName();
+        if(strategyHash == null)
+        {
+            String classMD5 = getClassMD5(strategy);
+            strategyKey = (new StringBuilder()).append(strategyKey).append(".class").append(classMD5 != null ? (new StringBuilder()).append(" ").append(classMD5).toString() : "").toString();
+        } else
+        {
+            strategyKey = (new StringBuilder()).append(strategyKey).append(".jfx ").append(strategyHash).toString();
+        }
+        long processId = taskManager.startStrategy(strategy, strategyListener, strategyKey, fullAccessGranted);
+        DCClientImpl dcclientimpl1 = this;
+        JVM INSTR monitorenter ;
+        if(processId == 0L)
+        {
+            strategyEngines.remove(Long.valueOf(temporaryProcessId));
+            runningStrategies.remove(Long.valueOf(temporaryProcessId));
+        } else
+        {
+            FeedDataProvider.getDefaultInstance().subscribeToAllCandlePeriods(taskManager);
+            strategyEngines.remove(Long.valueOf(temporaryProcessId));
+            runningStrategies.remove(Long.valueOf(temporaryProcessId));
+            strategyEngines.put(Long.valueOf(processId), taskManager);
+            runningStrategies.put(Long.valueOf(processId), strategy);
+        }
+        return processId;
+        Exception exception1;
+        exception1;
+        throw exception1;
+    }
+
+    public String getClassMD5(IStrategy strategy)
+    {
+        MessageDigest md;
+        String className = (new StringBuilder()).append(strategy.getClass().getName().replace('.', '/')).append(".class").toString();
+        md = MessageDigest.getInstance("MD5");
+        InputStream is = strategy.getClass().getClassLoader().getResourceAsStream(className);
+        if(is == null)
+            break MISSING_BLOCK_LABEL_103;
+        byte buff[] = new byte[16384];
+        int i;
+        while((i = is.read(buff)) != -1) 
+            md.update(buff, 0, i);
+        return Hex.encodeHexString(md.digest()).toUpperCase();
+        return null;
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return null;
+    }
+
+    public IStrategy loadStrategy(File strategyBinaryFile)
+        throws IOException, GeneralSecurityException
+    {
+        JFXPack jfxPack = JFXPack.loadFromPack(strategyBinaryFile);
+        return (IStrategy)jfxPack.getTarget();
+    }
+
+    public synchronized void stopStrategy(long processId)
+    {
+        if(!runningStrategies.containsKey(Long.valueOf(processId)))
+        {
+            return;
+        } else
+        {
+            JForexTaskManager taskManager = (JForexTaskManager)strategyEngines.remove(Long.valueOf(processId));
+            taskManager.stopStrategy();
+            runningStrategies.remove(Long.valueOf(processId));
+            return;
+        }
+    }
+
+    public synchronized ISystemListener getSystemListener()
+    {
+        return systemListener;
+    }
+
+    public synchronized Map getStartedStrategies()
+    {
+        return new HashMap(runningStrategies);
+    }
+
+    public synchronized void setSubscribedInstruments(final Set instruments)
+    {
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Void run()
+                    throws Exception
+                {
+                    JForexTaskManager engine;
+                    for(Iterator i$ = strategyEngines.values().iterator(); i$.hasNext(); instruments.addAll(engine.getRequiredInstruments()))
+                        engine = (JForexTaskManager)i$.next();
+
+                    if(transportClient != null)
+                        instruments.addAll(OrdersProvider.getInstance().getOrderInstruments());
+                    Instrument instrument;
+                    for(Iterator i$ = (new HashSet(instruments)).iterator(); i$.hasNext(); instruments.addAll(AbstractCurrencyConverter.getConversionDeps(instrument.getSecondaryCurrency(), Instrument.EURUSD.getSecondaryCurrency())))
+                        instrument = (Instrument)i$.next();
+
+                    if(lastAccountInfoMessage != null)
+                        instruments.addAll(AbstractCurrencyConverter.getConversionDeps(Instrument.EURUSD.getSecondaryCurrency(), lastAccountInfoMessage.getCurrency()));
+                    if(transportClient != null)
+                    {
+                        QuoteSubscribeRequestMessage quoteSubscribeRequestMessage = new QuoteSubscribeRequestMessage();
+                        quoteSubscribeRequestMessage.setInstruments(new ArrayList(Instrument.toStringSet(instruments)));
+                        quoteSubscribeRequestMessage.setQuotesOnly(Boolean.valueOf(true));
+                        transportClient.controlRequest(quoteSubscribeRequestMessage);
+                    }
+                    if(FeedDataProvider.getDefaultInstance() != null)
+                        FeedDataProvider.getDefaultInstance().setInstrumentsSubscribed(instruments);
+                    DCClientImpl.this.instruments = new HashSet(instruments);
+                    return null;
+                }
+
+                public volatile Object run()
+                    throws Exception
+                {
+                    return run();
+                }
+
+                final Set val$instruments;
+                final DCClientImpl this$0;
+
+            
+            {
+                this$0 = DCClientImpl.this;
+                instruments = set;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException ex)
+        {
+            throw new RuntimeException("Instruments subscription error", ex.getException());
+        }
+    }
+
+    public synchronized INewsFilter getNewsFilter(com.dukascopy.api.INewsFilter.NewsSource newsSource)
+    {
+        return (INewsFilter)newsFilters.get(newsSource);
+    }
+
+    public synchronized INewsFilter removeNewsFilter(com.dukascopy.api.INewsFilter.NewsSource newsSource)
+    {
+        NewsSubscribeRequest newsUnsubscribeRequest = new NewsSubscribeRequest();
+        newsUnsubscribeRequest.setRequestType(NewsRequestType.UNSUBSCRIBE);
+        newsUnsubscribeRequest.setNewsSource(com.dukascopy.transport.common.msg.news.NewsSource.valueOf(newsSource.name()));
+        LOGGER.debug((new StringBuilder()).append("Unsubscribing : ").append(newsUnsubscribeRequest).toString());
+        transportClient.controlRequest(newsUnsubscribeRequest);
+        return (INewsFilter)newsFilters.remove(newsSource);
+    }
+
+    public synchronized Set getSubscribedInstruments()
+    {
+        return new HashSet(instruments);
+    }
+
+    public synchronized void addNewsFilter(INewsFilter newsFilter)
+    {
+        newsFilters.put(newsFilter.getNewsSource(), newsFilter);
+        NewsSubscribeRequest newsSubscribeRequest = new NewsSubscribeRequest();
+        newsSubscribeRequest.setRequestType(NewsRequestType.SUBSCRIBE);
+        newsSubscribeRequest.setNewsSource(com.dukascopy.transport.common.msg.news.NewsSource.valueOf(newsFilter.getNewsSource().name()));
+        newsSubscribeRequest.setHot(newsFilter.isOnlyHot());
+        newsSubscribeRequest.setGeoRegions(EnumConverter.convert(newsFilter.getCountries(), com/dukascopy/transport/common/msg/news/GeoRegion));
+        newsSubscribeRequest.setMarketSectors(EnumConverter.convert(newsFilter.getMarketSectors(), com/dukascopy/transport/common/msg/news/MarketSector));
+        newsSubscribeRequest.setIndicies(EnumConverter.convert(newsFilter.getStockIndicies(), com/dukascopy/transport/common/msg/news/StockIndex));
+        newsSubscribeRequest.setCurrencies(EnumConverter.convert(newsFilter.getCurrencies(), com/dukascopy/transport/common/msg/news/Currency));
+        newsSubscribeRequest.setKeywords(newsFilter.getKeywords());
+        newsSubscribeRequest.setFromDate(newsFilter.getFrom());
+        newsSubscribeRequest.setToDate(newsFilter.getTo());
+        newsSubscribeRequest.setCalendarType((com.dukascopy.transport.common.msg.news.CalendarEvent.CalendarType)EnumConverter.convert(newsFilter.getType(), com/dukascopy/transport/common/msg/news/CalendarEvent$CalendarType));
+        LOGGER.debug((new StringBuilder()).append("Subscribing : ").append(newsSubscribeRequest).toString());
+        transportClient.controlRequest(newsSubscribeRequest);
+    }
+
+    public synchronized void setOut(PrintStream out)
+    {
+        this.out = out;
+        NotificationUtilsProvider.setNotificationUtils(new PrintStreamNotificationUtils(out, err));
+    }
+
+    public synchronized void setErr(PrintStream err)
+    {
+        this.err = err;
+        NotificationUtilsProvider.setNotificationUtils(new PrintStreamNotificationUtils(out, err));
+    }
+
+    public void setCacheDirectory(File cacheDirectory)
+    {
+        if(!cacheDirectory.exists())
+        {
+            LOGGER.warn((new StringBuilder()).append("Cache directory [").append(cacheDirectory).append("] doesn't exist, trying to create").toString());
+            if(!cacheDirectory.mkdirs())
+            {
+                LOGGER.error((new StringBuilder()).append("Cannot create cache directory [").append(cacheDirectory).append("], default cache directory will be used").toString());
+                return;
+            }
+        }
+        FilePathManager.getInstance().setCacheFolderPath(cacheDirectory.getAbsolutePath());
+    }
+
+    private void fakeTickOnWeekends(Instrument instrument)
+    {
+        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+        calendar.setFirstDayOfWeek(2);
+        calendar.set(7, 6);
+        calendar.set(11, 21);
+        calendar.set(12, 0);
+        calendar.set(13, 0);
+        calendar.set(14, 0);
+        long weekendStart = calendar.getTimeInMillis();
+        calendar.set(7, 1);
+        calendar.set(11, 22);
+        long weekendEnd = calendar.getTimeInMillis();
+        long currentTime = System.currentTimeMillis();
+        if(currentTime > weekendStart && currentTime < weekendEnd)
+        {
+            Thread fakeTickThread = new Thread(weekendStart) {
+
+                public void run()
+                {
+                    try
+                    {
+                        Thread.sleep(10000L);
+                    }
+                    catch(InterruptedException e)
+                    {
+                        DCClientImpl.LOGGER.error(e.getMessage(), e);
+                    }
+                    final TickData lastTick[] = {
+                        FeedDataProvider.getDefaultInstance().getLastTick(instrument)
+                    };
+                    final boolean loadedSuccessfully[] = new boolean[1];
+                    final Exception loadingException[] = new Exception[1];
+                    if(lastTick[0] == null)
+                    {
+                        try
+                        {
+                            FeedDataProvider.getDefaultInstance().loadTicksDataSynched(instrument, weekendStart - 0x927c0L, weekendStart + 0x44aa20L, new LiveFeedListener() {
+
+                                public void newTick(Instrument instrument, long time, double ask, double bid, 
+                                        double askVol, double bidVol)
+                                {
+                                    lastTick[0] = new TickData(time, ask, bid, askVol, bidVol);
+                                }
+
+                                public void newCandle(Instrument instrument1, Period period1, com.dukascopy.api.OfferSide offerside, long l, double d, 
+                                        double d1, double d2, double d3, double d4)
+                                {
+                                }
+
+                                final TickData val$lastTick[];
+                                final _cls8 this$1;
+
+                    
+                    {
+                        this$1 = _cls8.this;
+                        lastTick = atickdata;
+                        super();
+                    }
+                            }, new LoadingProgressListener() {
+
+                                public void dataLoaded(long l, long l1, long l2, String s)
+                                {
+                                }
+
+                                public void loadingFinished(boolean allDataLoaded, long start, long end, long currentPosition, 
+                                        Exception e)
+                                {
+                                    loadedSuccessfully[0] = allDataLoaded;
+                                    loadingException[0] = e;
+                                }
+
+                                public boolean stopJob()
+                                {
+                                    return false;
+                                }
+
+                                final boolean val$loadedSuccessfully[];
+                                final Exception val$loadingException[];
+                                final _cls8 this$1;
+
+                    
+                    {
+                        this$1 = _cls8.this;
+                        loadedSuccessfully = aflag;
+                        loadingException = aexception;
+                        super();
+                    }
+                            });
+                        }
+                        catch(DataCacheException e)
+                        {
+                            loadedSuccessfully[0] = false;
+                            loadingException[0] = e;
+                        }
+                        if(loadedSuccessfully[0] && lastTick[0] != null)
+                        {
+                            if(FeedDataProvider.getDefaultInstance().isSubscribedToInstrument(instrument))
+                            {
+                                TickData maybeLastTick = FeedDataProvider.getDefaultInstance().getLastTick(instrument);
+                                if(maybeLastTick == null)
+                                {
+                                    String currencyPrimary = instrument.getPrimaryCurrency().getCurrencyCode();
+                                    String currencySecondary = instrument.getSecondaryCurrency().getCurrencyCode();
+                                    java.util.List bids = new ArrayList(1);
+                                    java.util.List asks = new ArrayList(1);
+                                    bids.add(new CurrencyOffer(currencyPrimary, currencySecondary, OfferSide.BID, new Money(BigDecimal.valueOf(lastTick[0].bidVol), instrument.getPrimaryCurrency()), new Money(BigDecimal.valueOf(lastTick[0].bid), instrument.getPrimaryCurrency())));
+                                    asks.add(new CurrencyOffer(currencyPrimary, currencySecondary, OfferSide.ASK, new Money(BigDecimal.valueOf(lastTick[0].askVol), instrument.getPrimaryCurrency()), new Money(BigDecimal.valueOf(lastTick[0].ask), instrument.getPrimaryCurrency())));
+                                    CurrencyMarket currencyMarket = new CurrencyMarket(currencyPrimary, currencySecondary, bids, asks);
+                                    currencyMarket.setCreationTimestamp(Long.valueOf(lastTick[0].getTime()));
+                                    currencyMarket.setIsBackup(true);
+                                    feedbackMessageReceived(null, currencyMarket);
+                                }
+                            }
+                        } else
+                        {
+                            DCClientImpl.LOGGER.error((new StringBuilder()).append("Error while loading last tick for instrument [").append(instrument).append("]").toString());
+                            if(loadingException[0] != null)
+                                DCClientImpl.LOGGER.error(loadingException[0].getMessage(), loadingException[0]);
+                        }
+                    }
+                }
+
+                final Instrument val$instrument;
+                final long val$weekendStart;
+                final DCClientImpl this$0;
+
+            
+            {
+                this$0 = DCClientImpl.this;
+                instrument = instrument1;
+                weekendStart = l;
+                super(x0);
+            }
+            };
+            fakeTickThread.start();
+        }
+    }
+
+    private void onStrategyBroadcast(JForexTaskManager taskManager, StrategyBroadcastMessage message)
+    {
+        taskManager.onBroadcastMessage(message.getTransactionId(), new StrategyBroadcastMessageImpl(message.getTopic(), message.getMessage(), System.currentTimeMillis()));
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/DCClientImpl);
+    private static final long TRANSPORT_PING_TIMEOUT;
+    private static final String SNAPSHOT = "SNAPSHOT";
+    private static final String DEFAULT_VERSION = "99.99.99";
+    private static final String MD5 = "MD5";
+    private static final String EXTENSION_JFX = ".jfx";
+    private static final String EXTENSION_CLASS = ".class";
+    private static final String HISTORY_SERVER_URL = "history.server.url";
+    private static final String ENCRYPTION_KEY = "encryptionKey";
+    private static final String SERVICES1_URL = "services1.url";
+    private static final String TRADELOG_SFX = "tradelog_sfx.url";
+    private static final String EXTERNAL_IP_ADDRESS = "external_ip";
+    private static final String INFO = "INFO";
+    private static final String WARNING = "WARNING";
+    private static final String ERROR = "ERROR";
+    private volatile ISystemListenerExtended systemListener;
+    private TransportClient transportClient;
+    private boolean initialized;
+    private boolean live;
+    private String accountName;
+    private String version;
+    private Executor minaExecutor;
+    private Set instruments;
+    private PrintStream out;
+    private PrintStream err;
+    private Properties serverProperties;
+    private String internalIP;
+    private String sessionID;
+    private String captchaId;
+    private long temporaryKeys;
+    private Map runningStrategies;
+    private Map strategyEngines;
+    private Map newsFilters;
+    private AccountInfoMessage lastAccountInfoMessage;
+    private FeedInfo feedInfo;
+    private IConsole console;
+
+    static 
+    {
+        TRANSPORT_PING_TIMEOUT = TimeUnit.SECONDS.toMillis(10L);
+    }
+
+
+
+
+
+
+
+
+
+
+}

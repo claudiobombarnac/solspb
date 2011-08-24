@@ -1,0 +1,616 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractStrategyRunner.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.feed.*;
+import com.dukascopy.api.impl.TimedData;
+import com.dukascopy.api.system.ITesterClient;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.agent.strategy.notification.IStrategyRateDataNotificationFactory;
+import com.dukascopy.dds2.greed.agent.strategy.notification.StrategyRateDataNotificationFactory;
+import com.dukascopy.dds2.greed.agent.strategy.notification.candle.IStrategyCandleNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.pnf.IStrategyPointAndFigureNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.pr.IStrategyPriceRangeNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.tickbar.IStrategyTickBarNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.CandleDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.DifferentPriceTickDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.IDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.PivotTickDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.TickDataFromCandlesLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.dataload.TickDataLoadingThread;
+import com.dukascopy.dds2.greed.agent.strategy.tester.listener.LastTickLiveFeedListener;
+import com.dukascopy.dds2.greed.agent.strategy.tester.listener.LastTickProgressListener;
+import com.dukascopy.dds2.greed.agent.strategy.tester.util.SortedDataItem;
+import java.text.*;
+import java.util.*;
+import java.util.concurrent.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            DataLoadingThreadsContainer, IStrategyRunner, TesterFeedDataProvider, TesterHistory, 
+//            TesterCustodian, ITesterReport
+
+public abstract class AbstractStrategyRunner
+    implements Runnable, IStrategyRunner
+{
+
+    public AbstractStrategyRunner(Period period, OfferSide offerSide, com.dukascopy.api.system.ITesterClient.InterpolationMethod interpolationMethod, com.dukascopy.api.system.ITesterClient.DataLoadingMethod dataLoadingMethod, long from, long to, IFeedDataProvider feedDataProvider, Set instruments, LoadingProgressListener progressListener, Set instrumentsForConversion)
+    {
+        canceled = false;
+        locale = Locale.ENGLISH;
+        shortWeekdays = null;
+        this.period = period;
+        this.offerSide = offerSide;
+        this.interpolationMethod = interpolationMethod;
+        this.dataLoadingMethod = dataLoadingMethod;
+        this.from = from;
+        lastTickTime = from;
+        this.to = to;
+        if(feedDataProvider == null)
+            this.feedDataProvider = FeedDataProvider.getDefaultInstance();
+        else
+            this.feedDataProvider = feedDataProvider;
+        this.instruments = instruments;
+        this.progressListener = progressListener;
+        this.instrumentsForConversion = instrumentsForConversion;
+        if(this.instrumentsForConversion == null)
+            this.instrumentsForConversion = new HashSet();
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        decimalFormatSymbols.setDecimalSeparator('.');
+        decimalFormatSymbols.setGroupingSeparator(',');
+        decFormat = new DecimalFormat("###,###.00", decimalFormatSymbols);
+        DateFormatSymbols dateFormatSymbols = new DateFormatSymbols(locale);
+        shortWeekdays = dateFormatSymbols.getShortWeekdays();
+    }
+
+    protected abstract void setupTicksForInstrumentReportData(ITick itick, ITick itick1, Instrument instrument);
+
+    protected abstract void handleException(Throwable throwable, String s);
+
+    public IFeedDataProvider getFeedDataProvider()
+    {
+        return feedDataProvider;
+    }
+
+    public long getFrom()
+    {
+        return from;
+    }
+
+    public com.dukascopy.api.system.ITesterClient.DataLoadingMethod getDataLoadingMethod()
+    {
+        return dataLoadingMethod;
+    }
+
+    public long getTo()
+    {
+        return to;
+    }
+
+    private void addDataLoadingThreadsContainer(DataLoadingThreadsContainer dataLoadingThreadsContainer)
+    {
+        synchronized(dataLoadingThreadsLock)
+        {
+            if(dataLoadingThreads == null)
+            {
+                dataLoadingThreads = new DataLoadingThreadsContainer[1];
+                dataLoadingThreads[0] = dataLoadingThreadsContainer;
+            } else
+            {
+                dataLoadingThreads = (DataLoadingThreadsContainer[])Arrays.copyOf(dataLoadingThreads, dataLoadingThreads.length + 1);
+                dataLoadingThreads[dataLoadingThreads.length - 1] = dataLoadingThreadsContainer;
+            }
+        }
+    }
+
+    public void addDataLoadingThread(IDataLoadingThread dataLoadingThread)
+    {
+        DataLoadingThreadsContainer container = new DataLoadingThreadsContainer(null);
+        if(OfferSide.ASK.equals(dataLoadingThread.getOfferSide()))
+        {
+            container.askThread = dataLoadingThread;
+            container.askThreadTimedData = new ArrayDeque(505);
+            container.bidThread = null;
+            container.bidThreadTimedData = null;
+        } else
+        {
+            container.askThread = null;
+            container.askThreadTimedData = null;
+            container.bidThread = dataLoadingThread;
+            container.bidThreadTimedData = new ArrayDeque(505);
+        }
+        addDataLoadingThreadsContainer(container);
+    }
+
+    public void removeDataLoadingThread(IDataLoadingThread dataLoadingThread)
+    {
+        synchronized(dataLoadingThreadsLock)
+        {
+            if(dataLoadingThreads != null && dataLoadingThread != null)
+            {
+                int index = -1;
+                int i = 0;
+                do
+                {
+                    if(i >= dataLoadingThreads.length)
+                        break;
+                    DataLoadingThreadsContainer threadContainer = dataLoadingThreads[i];
+                    if(containsDataThread(threadContainer, dataLoadingThread))
+                    {
+                        index = i;
+                        break;
+                    }
+                    i++;
+                } while(true);
+                if(index > -1)
+                    dataLoadingThreads = removeElementByIndex((DataLoadingThreadsContainer[])dataLoadingThreads, index);
+            }
+        }
+    }
+
+    private boolean containsDataThread(DataLoadingThreadsContainer threadContainer, IDataLoadingThread dataLoadingThread)
+    {
+        return threadContainer.askThread != null && threadContainer.askThread.equals(dataLoadingThread) || threadContainer.bidThread != null && threadContainer.bidThread.equals(dataLoadingThread);
+    }
+
+    public boolean containsDataLoadingThread(Instrument instrument, JForexPeriod jForexPeriod, OfferSide offerSide)
+    {
+        Object obj = dataLoadingThreadsLock;
+        JVM INSTR monitorenter ;
+        int i = 0;
+_L1:
+        DataLoadingThreadsContainer threadContainer;
+        if(i >= dataLoadingThreads.length)
+            break MISSING_BLOCK_LABEL_145;
+        threadContainer = dataLoadingThreads[i];
+        if(threadContainer.askThread != null && threadContainer.askThread.getInstrument().equals(instrument) && threadContainer.askThread.getJForexPeriod().equals(jForexPeriod) && OfferSide.ASK.equals(offerSide) || threadContainer.bidThread != null && threadContainer.bidThread.getInstrument().equals(instrument) && threadContainer.bidThread.getJForexPeriod().equals(jForexPeriod) && OfferSide.BID.equals(offerSide))
+            return true;
+        i++;
+          goto _L1
+        false;
+        obj;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    protected Map getFirstTicks()
+    {
+        Map firstTicks = new HashMap();
+        Iterator i$ = instruments.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Instrument instrument = (Instrument)i$.next();
+            LastTickLiveFeedListener lastTickLiveFeedListener = new LastTickLiveFeedListener();
+            LastTickProgressListener lastTickProgressListener = new LastTickProgressListener(progressListener);
+            try
+            {
+                feedDataProvider.loadTicksDataBeforeSynched(instrument, 1, from, Filter.NO_FILTER, lastTickLiveFeedListener, lastTickProgressListener);
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+                continue;
+            }
+            if(lastTickProgressListener.allDataLoaded && (lastTickLiveFeedListener.lastAskBar != null || lastTickLiveFeedListener.lastBidBar != null))
+            {
+                TickData lastTick = new TickData(from - 1L, 0.0D, 0.0D, 0.0D, 0.0D, null, null, new double[] {
+                    0.0D
+                }, new double[] {
+                    0.0D
+                });
+                if(lastTickLiveFeedListener.lastAskBar != null)
+                    lastTick.ask = lastTickLiveFeedListener.lastAskBar.getClose();
+                else
+                    lastTick.ask = StratUtils.round(lastTickLiveFeedListener.lastBidBar.getClose() + 2D * instrument.getPipValue(), 5);
+                lastTick.asks = (new double[] {
+                    lastTick.ask
+                });
+                if(lastTickLiveFeedListener.lastBidBar != null)
+                    lastTick.bid = lastTickLiveFeedListener.lastBidBar.getClose();
+                else
+                    lastTick.bid = StratUtils.round(lastTickLiveFeedListener.lastAskBar.getClose() - 2D * instrument.getPipValue(), 5);
+                lastTick.bids = (new double[] {
+                    lastTick.bid
+                });
+                if(!instrumentsForConversion.contains(instrument))
+                    setupTicksForInstrumentReportData(lastTick, lastTick, instrument);
+                firstTicks.put(instrument, lastTick);
+            } else
+            if(!lastTickProgressListener.allDataLoaded && lastTickProgressListener.exception != null)
+                LOGGER.error(lastTickProgressListener.exception.getMessage(), lastTickProgressListener.exception);
+        } while(true);
+        return firstTicks;
+    }
+
+    protected List createDataLoadingThreads()
+    {
+        List result = new ArrayList();
+        for(Iterator i$ = instruments.iterator(); i$.hasNext();)
+        {
+            Instrument instrument = (Instrument)i$.next();
+            ArrayBlockingQueue queue = new ArrayBlockingQueue(500, true);
+            String name = (new StringBuilder()).append("Strategy tester data loading thread - ").append(instrument.toString()).toString();
+            IDataLoadingThread dataLoadThread = null;
+            if(interpolationMethod != null && dataLoadingMethod != null)
+                throw new IllegalArgumentException("interpolationMethod and dataLoadingMethod are both not null");
+            if(interpolationMethod == null && dataLoadingMethod == null)
+                throw new IllegalArgumentException("interpolationMethod and dataLoadingMethod are both null");
+            if(interpolationMethod != null)
+                dataLoadThread = new TickDataFromCandlesLoadingThread(name, instrument, new JForexPeriod(DataType.TIME_PERIOD_AGGREGATION, this.period), offerSide, queue, from, to, feedDataProvider, interpolationMethod);
+            static class _cls1
+            {
+
+                static final int $SwitchMap$com$dukascopy$api$system$ITesterClient$DataLoadingMethod[];
+
+                static 
+                {
+                    $SwitchMap$com$dukascopy$api$system$ITesterClient$DataLoadingMethod = new int[com.dukascopy.api.system.ITesterClient.DataLoadingMethod.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$system$ITesterClient$DataLoadingMethod[com.dukascopy.api.system.ITesterClient.DataLoadingMethod.ALL_TICKS.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$system$ITesterClient$DataLoadingMethod[com.dukascopy.api.system.ITesterClient.DataLoadingMethod.DIFFERENT_PRICE_TICKS.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$api$system$ITesterClient$DataLoadingMethod[com.dukascopy.api.system.ITesterClient.DataLoadingMethod.PIVOT_TICKS.ordinal()] = 3;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                }
+            }
+
+            if(dataLoadingMethod != null)
+                switch(_cls1..SwitchMap.com.dukascopy.api.system.ITesterClient.DataLoadingMethod[dataLoadingMethod.ordinal()])
+                {
+                case 1: // '\001'
+                    dataLoadThread = new TickDataLoadingThread(name, instrument, queue, from, to, feedDataProvider);
+                    break;
+
+                case 2: // '\002'
+                    dataLoadThread = new DifferentPriceTickDataLoadingThread(name, instrument, queue, from, to, feedDataProvider);
+                    break;
+
+                case 3: // '\003'
+                    dataLoadThread = new PivotTickDataLoadingThread(name, instrument, queue, from, to, feedDataProvider);
+                    break;
+
+                default:
+                    throw new IllegalArgumentException((new StringBuilder()).append("Unsupported dataLoadingMethod ").append(dataLoadingMethod).toString());
+                }
+            result.add(new DataLoadingThreadsContainer(dataLoadThread));
+            launch(dataLoadThread);
+            List periods = DataCacheUtils.getOldBasicPeriods();
+            Iterator i$ = periods.iterator();
+            while(i$.hasNext()) 
+            {
+                Period period = (Period)i$.next();
+                IDataLoadingThread askCandleDataLoadThread = createCandleDataLoadingThread(instrument, period, OfferSide.ASK);
+                IDataLoadingThread bidCandleDataLoadThread = createCandleDataLoadingThread(instrument, period, OfferSide.BID);
+                result.add(new DataLoadingThreadsContainer(askCandleDataLoadThread, bidCandleDataLoadThread));
+                launch(askCandleDataLoadThread);
+                launch(bidCandleDataLoadThread);
+            }
+        }
+
+        return result;
+    }
+
+    private IDataLoadingThread createCandleDataLoadingThread(Instrument instrument, Period period, OfferSide offerSide)
+    {
+        ArrayBlockingQueue candleDataQueue = new ArrayBlockingQueue(100, true);
+        String name = (new StringBuilder()).append("Strategy tester data loading thread - ").append(instrument.toString()).append(", ").append(period).append(", ").append(offerSide).toString();
+        IDataLoadingThread dataLoadThread = new CandleDataLoadingThread(name, instrument, new JForexPeriod(DataType.TIME_PERIOD_AGGREGATION, period), offerSide, candleDataQueue, from, to, feedDataProvider);
+        return dataLoadThread;
+    }
+
+    private void launch(Runnable runnable)
+    {
+        (new Thread(runnable)).start();
+    }
+
+    protected Map updateFirstTicks(Map firstTicks)
+    {
+        DataLoadingThreadsContainer arr$[];
+        int len$;
+        int i$;
+        arr$ = dataLoadingThreads;
+        len$ = arr$.length;
+        i$ = 0;
+_L3:
+        if(i$ >= len$) goto _L2; else goto _L1
+_L1:
+        DataLoadingThreadsContainer dataLoadingThread;
+        Instrument instrument;
+        BlockingQueue blockingQueue;
+        dataLoadingThread = arr$[i$];
+        instrument = dataLoadingThread.askThread.getInstrument();
+        if(firstTicks.get(instrument) != null)
+            continue; /* Loop/switch isn't completed */
+        blockingQueue = dataLoadingThread.askThread.getQueue();
+        TimedData queueTick;
+        if(!DataType.TICKS.equals(dataLoadingThread.askThread.getJForexPeriod().getDataType()))
+            continue; /* Loop/switch isn't completed */
+        for(queueTick = null; queueTick == null && !progressListener.stopJob(); queueTick = (TimedData)blockingQueue.poll(20L, TimeUnit.MILLISECONDS));
+        if(!progressListener.stopJob())
+            break MISSING_BLOCK_LABEL_162;
+        progressListener.loadingFinished(true, from, to, from, null);
+        stopThreads();
+        return null;
+        try
+        {
+            dataLoadingThread.askThreadTimedData.offer(queueTick);
+            if(queueTick.getTime() == 0x8000000000000000L)
+                continue; /* Loop/switch isn't completed */
+            if(!instrumentsForConversion.contains(instrument))
+                setupTicksForInstrumentReportData((ITick)queueTick, (ITick)queueTick, instrument);
+            firstTicks.put(instrument, (ITick)queueTick);
+            continue; /* Loop/switch isn't completed */
+        }
+        catch(InterruptedException e)
+        {
+            handleException(e, "Error while launching strategy");
+            progressListener.loadingFinished(false, from, to, from, e);
+            stopThreads();
+            return null;
+        }
+        i$++;
+          goto _L3
+_L2:
+        return firstTicks;
+    }
+
+    protected void stopThreads()
+    {
+        DataLoadingThreadsContainer arr$[] = dataLoadingThreads;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            DataLoadingThreadsContainer dataLoadingThread = arr$[i$];
+            if(dataLoadingThread.askThread != null)
+            {
+                dataLoadingThread.askThread.stopThread();
+                dataLoadingThread.askThread = null;
+            }
+            if(dataLoadingThread.bidThread != null)
+            {
+                dataLoadingThread.bidThread.stopThread();
+                dataLoadingThread.bidThread = null;
+            }
+        }
+
+    }
+
+    public boolean isStrategyThread()
+    {
+        return strategyThread == Thread.currentThread();
+    }
+
+    public void startSynched()
+    {
+        String oldName = Thread.currentThread().getName();
+        strategyThread = Thread.currentThread();
+        strategyThread.setName("StrategyRunner Thread");
+        run();
+        strategyThread.setName(oldName);
+    }
+
+    public void start()
+    {
+        strategyThread = new Thread(this, "StrategyRunner Thread");
+        strategyThread.start();
+    }
+
+    public Set getInstruments()
+    {
+        return instruments;
+    }
+
+    public boolean wasCanceled()
+    {
+        return canceled;
+    }
+
+    protected DataLoadingThreadsContainer[] removeElementByIndex(DataLoadingThreadsContainer array[], int index)
+    {
+        DataLoadingThreadsContainer dataLoadingThreadsNew[] = new DataLoadingThreadsContainer[array.length - 1];
+        System.arraycopy(array, 0, dataLoadingThreadsNew, 0, index);
+        System.arraycopy(array, index + 1, dataLoadingThreadsNew, index, array.length - index - 1);
+        array = dataLoadingThreadsNew;
+        return array;
+    }
+
+    public long getLastTickTime()
+    {
+        return lastTickTime;
+    }
+
+    protected void historicalTickReceived(SortedDataItem dataItem, IStrategy strategy, TesterFeedDataProvider testerFeedDataProvider, TesterHistory history, TesterCustodian engine, ITesterReport testerReportData, Set instrumentsForConversion, 
+            boolean postTickToStrategy)
+        throws JFException
+    {
+        Instrument instrument;
+        ITick tick;
+        long perfStatTimeStart;
+        instrument = dataItem.getInstrument();
+        tick = (ITick)dataItem.getAskBar();
+        if(!instrumentsForConversion.contains(instrument))
+            testerReportData.setLastTick(instrument, tick);
+        if(testerFeedDataProvider == null)
+            break MISSING_BLOCK_LABEL_115;
+        perfStatTimeStart = perfStartTime();
+        testerFeedDataProvider.tickReceived(instrument, tick.getTime(), tick.getAsk(), tick.getBid(), tick.getAskVolume(), tick.getBidVolume());
+        perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.WRITE_DATA);
+        break MISSING_BLOCK_LABEL_115;
+        Exception exception;
+        exception;
+        perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.WRITE_DATA);
+        throw exception;
+        history.addTick(instrument, tick);
+        engine.onTick(instrument, tick);
+        if(postTickToStrategy && !instrumentsForConversion.contains(instrument))
+            strategy.onTick(instrument, tick);
+        return;
+    }
+
+    protected void historicalCandleReceived(SortedDataItem dataItem, IStrategy strategy, TesterFeedDataProvider testerFeedDataProvider, TesterHistory history, TesterCustodian engine, Set instrumentsForConversion, boolean implementsOnBar, 
+            boolean postCandleToStrategy)
+        throws JFException
+    {
+        IntraPeriodCandleData askBar;
+        IntraPeriodCandleData bidBar;
+        Period period;
+        Instrument instrument;
+        long perfStatTimeStart;
+        askBar = (IntraPeriodCandleData)dataItem.getAskBar();
+        bidBar = (IntraPeriodCandleData)dataItem.getBidBar();
+        period = dataItem.getJForexPeriod().getPeriod();
+        instrument = dataItem.getInstrument();
+        if(testerFeedDataProvider == null)
+            break MISSING_BLOCK_LABEL_81;
+        perfStatTimeStart = perfStartTime();
+        testerFeedDataProvider.barsReceived(instrument, period, askBar, bidBar);
+        perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.WRITE_DATA);
+        break MISSING_BLOCK_LABEL_81;
+        Exception exception;
+        exception;
+        perfStopTime(perfStatTimeStart, ITesterReport.PerfStats.WRITE_DATA);
+        throw exception;
+        long currentCandleTime = DataCacheUtils.getNextCandleStartFast(dataItem.getJForexPeriod().getPeriod(), dataItem.getAskOrBidBarTime());
+        engine.addCurrentTime(currentCandleTime);
+        if(askBar != null)
+            history.addCandle(instrument, period, OfferSide.ASK, askBar);
+        if(bidBar != null)
+            history.addCandle(instrument, period, OfferSide.BID, bidBar);
+        if(postCandleToStrategy && !instrumentsForConversion.contains(instrument))
+        {
+            if(implementsOnBar && askBar != null && bidBar != null)
+                strategy.onBar(instrument, period, askBar, bidBar);
+            if(askBar == null || bidBar == null)
+                if(askBar != null)
+                    StrategyRateDataNotificationFactory.getIsntance().getCandleNotificationManager().historicalBarReceived(strategy, instrument, new JForexPeriod(DataType.TIME_PERIOD_AGGREGATION, period), OfferSide.ASK, askBar);
+                else
+                if(bidBar != null)
+                    StrategyRateDataNotificationFactory.getIsntance().getCandleNotificationManager().historicalBarReceived(strategy, instrument, new JForexPeriod(DataType.TIME_PERIOD_AGGREGATION, period), OfferSide.BID, bidBar);
+                else
+                    throw new NullPointerException("Both Ask and Bid bars could not be nulls!");
+        }
+        return;
+    }
+
+    protected void historicalPriceRangeReceived(SortedDataItem dataItem, IStrategy strategy, Set instrumentsForConversion, boolean postBarToStrategy)
+    {
+        IRangeBar askBar = (IRangeBar)dataItem.getAskBar();
+        IRangeBar bidBar = (IRangeBar)dataItem.getBidBar();
+        Instrument instrument = dataItem.getInstrument();
+        if(postBarToStrategy && !instrumentsForConversion.contains(instrument))
+        {
+            if(askBar != null)
+                StrategyRateDataNotificationFactory.getIsntance().getPriceRangeNotificationManager().historicalBarReceived(strategy, instrument, dataItem.getJForexPeriod(), OfferSide.ASK, askBar);
+            if(bidBar != null)
+                StrategyRateDataNotificationFactory.getIsntance().getPriceRangeNotificationManager().historicalBarReceived(strategy, instrument, dataItem.getJForexPeriod(), OfferSide.BID, bidBar);
+            if(askBar == null && bidBar == null)
+                throw new NullPointerException("Both Ask and Bid bars could not be nulls!");
+        }
+    }
+
+    protected void historicalPointAndFigureReceived(SortedDataItem dataItem, IStrategy strategy, Set instrumentsForConversion, boolean postBarToStrategy)
+    {
+        IPointAndFigure askBar = (IPointAndFigure)dataItem.getAskBar();
+        IPointAndFigure bidBar = (IPointAndFigure)dataItem.getBidBar();
+        Instrument instrument = dataItem.getInstrument();
+        if(postBarToStrategy && !instrumentsForConversion.contains(instrument))
+        {
+            if(askBar != null)
+                StrategyRateDataNotificationFactory.getIsntance().getPointAndFigureNotificationManager().historicalBarReceived(strategy, instrument, dataItem.getJForexPeriod(), OfferSide.ASK, askBar);
+            if(bidBar != null)
+                StrategyRateDataNotificationFactory.getIsntance().getPointAndFigureNotificationManager().historicalBarReceived(strategy, instrument, dataItem.getJForexPeriod(), OfferSide.BID, bidBar);
+            if(askBar == null && bidBar == null)
+                throw new NullPointerException("Both Ask and Bid bars could not be nulls!");
+        }
+    }
+
+    protected void historicalTickBarReceived(SortedDataItem dataItem, IStrategy strategy, Set instrumentsForConversion, boolean postBarToStrategy)
+    {
+        ITickBar askBar = (ITickBar)dataItem.getAskBar();
+        ITickBar bidBar = (ITickBar)dataItem.getBidBar();
+        Instrument instrument = dataItem.getInstrument();
+        if(postBarToStrategy && !instrumentsForConversion.contains(instrument))
+        {
+            if(askBar != null)
+                StrategyRateDataNotificationFactory.getIsntance().getTickBarNotificationManager().historicalBarReceived(strategy, instrument, dataItem.getJForexPeriod(), OfferSide.ASK, askBar);
+            if(bidBar != null)
+                StrategyRateDataNotificationFactory.getIsntance().getTickBarNotificationManager().historicalBarReceived(strategy, instrument, dataItem.getJForexPeriod(), OfferSide.BID, bidBar);
+            if(askBar == null && bidBar == null)
+                throw new NullPointerException("Both Ask and Bid bars could not be nulls!");
+        }
+    }
+
+    protected String getShortWeekDayName(long time)
+    {
+        String shortWeekDayName = "";
+        try
+        {
+            Calendar calendar = Calendar.getInstance();
+            Date dateOfLastTickTime = new Date(time);
+            calendar.setTime(dateOfLastTickTime);
+            int weekDay = calendar.get(7);
+            shortWeekDayName = shortWeekdays[weekDay];
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        return shortWeekDayName;
+    }
+
+    protected long getNextTime(TimedData data, JForexPeriod jForexPeriod)
+    {
+        long result = data.getTime();
+        if(DataType.TIME_PERIOD_AGGREGATION.equals(jForexPeriod.getDataType()))
+            result = DataCacheUtils.getNextCandleStartFast(jForexPeriod.getPeriod(), result);
+        else
+        if(data instanceof AbstractPriceAggregationData)
+            result = ((AbstractPriceAggregationData)data).getEndTime();
+        return result;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/tester/AbstractStrategyRunner);
+    private static final int SPREAD_IN_PIPS = 2;
+    private Period period;
+    private OfferSide offerSide;
+    private com.dukascopy.api.system.ITesterClient.InterpolationMethod interpolationMethod;
+    protected com.dukascopy.api.system.ITesterClient.DataLoadingMethod dataLoadingMethod;
+    protected long from;
+    protected long to;
+    protected IFeedDataProvider feedDataProvider;
+    protected Set instruments;
+    protected LoadingProgressListener progressListener;
+    protected Set instrumentsForConversion;
+    private Thread strategyThread;
+    protected boolean canceled;
+    protected final DateFormat format = new SimpleDateFormat("yyyy.MM.dd HH:mm");
+    protected final DecimalFormat decFormat;
+    protected final DecimalFormatSymbols decimalFormatSymbols = new DecimalFormatSymbols();
+    protected long lastTickTime;
+    protected Locale locale;
+    String shortWeekdays[];
+    protected final Object dataLoadingThreadsLock = new Object();
+    protected DataLoadingThreadsContainer dataLoadingThreads[];
+
+}

@@ -1,0 +1,678 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   Parser.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.function.AFunction;
+import com.dukascopy.calculator.function.Add;
+import com.dukascopy.calculator.function.BoolFunction;
+import com.dukascopy.calculator.function.Combination;
+import com.dukascopy.calculator.function.Container;
+import com.dukascopy.calculator.function.Cube;
+import com.dukascopy.calculator.function.DFunction;
+import com.dukascopy.calculator.function.E;
+import com.dukascopy.calculator.function.I;
+import com.dukascopy.calculator.function.LFunction;
+import com.dukascopy.calculator.function.LParen;
+import com.dukascopy.calculator.function.MFunction;
+import com.dukascopy.calculator.function.Multiply;
+import com.dukascopy.calculator.function.Numeral;
+import com.dukascopy.calculator.function.PObject;
+import com.dukascopy.calculator.function.RFunction;
+import com.dukascopy.calculator.function.RParen;
+import com.dukascopy.calculator.function.Subtract;
+import com.dukascopy.calculator.function.Trig;
+import com.dukascopy.calculator.function.Uminus;
+import com.dukascopy.calculator.function.Uplus;
+import com.dukascopy.calculator.function.Variable;
+import java.io.PrintStream;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Vector;
+import javax.swing.JOptionPane;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            GObject, OObject, Error, Base, 
+//            ParseBase, AngleType
+
+public class Parser
+{
+
+    public Parser()
+    {
+        list = new LinkedList();
+        base = Base.DECIMAL;
+    }
+
+    private void convertExponentsToNumerals(List list)
+    {
+        ListIterator i = list.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            GObject o = (GObject)i.next();
+            if(o instanceof E)
+            {
+                i.set(new Numeral('e'));
+                boolean negative = false;
+                for(o = (GObject)i.next(); (o instanceof Add) || (o instanceof Subtract); o = (GObject)i.next())
+                {
+                    if(o instanceof Subtract)
+                        negative = !negative;
+                    i.remove();
+                }
+
+                i.previous();
+                if(negative)
+                {
+                    i.previous();
+                    i.next();
+                    i.add(new Numeral('-'));
+                }
+            }
+        } while(true);
+    }
+
+    private void convertNumerals(List list)
+    {
+        convertExponentsToNumerals(list);
+        ListIterator i = list.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            GObject o = (GObject)i.next();
+            if(o instanceof Numeral)
+            {
+                i.remove();
+                Numeral numeral = (Numeral)o;
+                String number;
+                boolean flag;
+                for(number = numeral.name(); (flag = i.hasNext()) && ((o = (GObject)i.next()) instanceof Numeral); number = number.concat(numeral.name()))
+                {
+                    i.remove();
+                    numeral = (Numeral)o;
+                }
+
+                if(flag)
+                    i.previous();
+                i.add(ParseBase.parseString(number, base));
+            }
+        } while(true);
+    }
+
+    private void convertContainers(List list)
+    {
+        convertNumerals(list);
+        ListIterator i = list.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            GObject o = (GObject)i.next();
+            if(o instanceof Container)
+            {
+                if(((Container)o).error())
+                    throw new RuntimeException("Stat Error");
+                i.set(((Container)o).value());
+            }
+        } while(true);
+    }
+
+    private void convertIs(List list)
+    {
+        convertContainers(list);
+        ListIterator i = list.listIterator(0);
+        do
+        {
+            if(!i.hasNext())
+                break;
+            Object o = i.next();
+            if(o instanceof I)
+            {
+                i.set(Complex.I);
+                if(i.hasNext())
+                {
+                    o = i.next();
+                    if((o instanceof I) || (o instanceof Complex))
+                    {
+                        i.previous();
+                        i.add(new Multiply());
+                        i.previous();
+                    } else
+                    {
+                        i.previous();
+                    }
+                }
+                i.previous();
+                if(i.hasPrevious())
+                {
+                    o = i.previous();
+                    if(o instanceof Complex)
+                    {
+                        i.next();
+                        i.add(new Multiply());
+                        i.next();
+                    }
+                }
+            }
+        } while(true);
+    }
+
+    private void convertVariables(List list)
+    {
+        convertIs(list);
+        ListIterator i = list.listIterator(0);
+        do
+        {
+            if(!i.hasNext())
+                break;
+            Object o = i.next();
+            if(o instanceof Variable)
+            {
+                i.set(new com.dukascopy.calculator.expression.Variable((Variable)o));
+                if(i.hasNext())
+                {
+                    o = i.next();
+                    if((o instanceof Complex) || (o instanceof Variable))
+                    {
+                        i.previous();
+                        i.add(new Multiply());
+                        i.previous();
+                    } else
+                    {
+                        i.previous();
+                    }
+                }
+                i.previous();
+                if(i.hasPrevious())
+                {
+                    o = i.previous();
+                    if(o instanceof Complex)
+                    {
+                        i.next();
+                        i.add(new Multiply());
+                        i.next();
+                    }
+                }
+            }
+        } while(true);
+    }
+
+    private void convertARFunctions(List list)
+    {
+        convertVariables(list);
+        ListIterator i = list.listIterator(list.size());
+        do
+        {
+            if(!i.hasPrevious())
+                break;
+            GObject o = (GObject)i.previous();
+            if(o instanceof AFunction)
+            {
+                AFunction a = (AFunction)o;
+                boolean flag;
+                if((flag = !i.hasPrevious()) || !((o = (GObject)i.previous()) instanceof OObject) && !(o instanceof LFunction))
+                {
+                    if(!flag)
+                        i.next();
+                    i.next();
+                    if(a instanceof Add)
+                        i.set(new Uplus());
+                    else
+                    if(a instanceof Subtract)
+                        i.set(new Uminus());
+                    else
+                        throw new RuntimeException("+/- Error");
+                }
+            }
+        } while(true);
+    }
+
+    private void convertLFunctions(List list)
+    {
+        convertARFunctions(list);
+        ListIterator i = list.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            GObject o = (GObject)i.next();
+            if(o instanceof LFunction)
+            {
+                i.remove();
+                LFunction l = (LFunction)o;
+                OObject x = (OObject)i.previous();
+                i.set(l.function(x));
+            }
+        } while(true);
+    }
+
+    private void convertDFunctions(List list)
+    {
+        convertLFunctions(list);
+        ListIterator i = list.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            GObject o = (GObject)i.next();
+            if(o instanceof DFunction)
+            {
+                i.remove();
+                DFunction d = (DFunction)o;
+                o = (GObject)i.next();
+                boolean sign = true;
+                for(; (o instanceof Uplus) || (o instanceof Uminus); o = (GObject)i.next())
+                {
+                    sign ^= o instanceof Uminus;
+                    i.remove();
+                }
+
+                OObject y = (OObject)o;
+                i.remove();
+                OObject x = (OObject)i.previous();
+                i.set(sign ? ((Object) (d.function(x, y))) : ((Object) (d.function(x, y.negate()))));
+            }
+        } while(true);
+    }
+
+    private void convertRFunctions(List list)
+    {
+        convertDFunctions(list);
+        ListIterator i = list.listIterator(list.size());
+        do
+        {
+            if(!i.hasPrevious())
+                break;
+            GObject o = (GObject)i.previous();
+            if(o instanceof RFunction)
+            {
+                i.remove();
+                RFunction r = (RFunction)o;
+                OObject x = (OObject)(OObject)i.next();
+                i.set(r.function(x));
+            }
+        } while(true);
+    }
+
+    private void convertMFunctions(List list)
+    {
+        convertRFunctions(list);
+        ListIterator i = list.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            GObject o = (GObject)i.next();
+            if(o instanceof MFunction)
+            {
+                i.remove();
+                MFunction m = (MFunction)o;
+                OObject y = (OObject)i.next();
+                i.remove();
+                OObject x = (OObject)i.previous();
+                i.set(m.function(x, y));
+            }
+        } while(true);
+    }
+
+    private void convertAFunctions(List list)
+    {
+        convertMFunctions(list);
+        ListIterator i = list.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            GObject o = (GObject)i.next();
+            if(o instanceof AFunction)
+            {
+                i.remove();
+                AFunction a = (AFunction)o;
+                OObject y = (OObject)i.next();
+                i.remove();
+                OObject x = (OObject)i.previous();
+                OObject q = a.function(x, y);
+                i.set(q);
+            }
+        } while(true);
+    }
+
+    private void convertBoolFunctions(List list)
+    {
+        convertAFunctions(list);
+        ListIterator i = list.listIterator();
+        do
+        {
+            if(!i.hasNext())
+                break;
+            GObject o = (GObject)i.next();
+            if(o instanceof BoolFunction)
+            {
+                i.remove();
+                BoolFunction b = (BoolFunction)o;
+                OObject y = (OObject)i.next();
+                i.remove();
+                OObject x = (OObject)i.previous();
+                i.set(b.function(x, y));
+            }
+        } while(true);
+    }
+
+    private void convertToProduct(List list)
+    {
+        convertBoolFunctions(list);
+        OObject c;
+        for(; list.size() > 1; list.set(0, c.multiply((OObject)(OObject)list.get(0))))
+        {
+            OObject z = (OObject)(OObject)list.get(0);
+            c = (OObject)(OObject)list.remove(1);
+        }
+
+    }
+
+    private boolean stripParenthesis(List list)
+    {
+        int lparen = -1;
+        int rparen = -1;
+        for(int i = 0; i < list.size(); i++)
+        {
+            GObject o = (GObject)list.get(i);
+            if(o instanceof LParen)
+            {
+                lparen = i;
+                continue;
+            }
+            if(!(o instanceof RParen))
+                continue;
+            rparen = i;
+            break;
+        }
+
+        if(lparen == -1 && rparen == -1)
+            return false;
+        if(lparen == -1 || rparen == -1)
+        {
+            throw new RuntimeException("Parenthesis Error");
+        } else
+        {
+            list.remove(rparen);
+            list.remove(lparen);
+            convertToProduct(list.subList(lparen, rparen - 1));
+            return true;
+        }
+    }
+
+    public OObject evaluate(AngleType angleType)
+    {
+        Exception e;
+        Iterator i$ = list.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            GObject o = (GObject)i$.next();
+            if(o instanceof Trig)
+                ((Trig)o).setScale(angleType);
+        } while(true);
+        try
+        {
+            while(stripParenthesis(list)) ;
+            convertToProduct(list);
+        }
+        // Misplaced declaration of an exception variable
+        catch(Exception e)
+        {
+            System.out.println(e.getMessage());
+            return new Error("Error");
+        }
+        if(list.size() != 1)
+        {
+            System.out.println(list.size());
+            return new Error("Error");
+        }
+        OObject c = (OObject)(OObject)list.remove(0);
+        return c.auto_simplify();
+        c;
+        System.out.println(c.getMessage());
+        return new Error("Error");
+    }
+
+    public int size()
+    {
+        return list.size();
+    }
+
+    public void add(GObject o)
+    {
+        list.add(o);
+    }
+
+    public void add(int index, GObject o)
+    {
+        if(index < list.size())
+            list.add(index, o);
+        else
+        if(index == list.size())
+            list.add(o);
+        else
+            throw new RuntimeException("Parser.add(): index out of range");
+    }
+
+    public PObject del(int index)
+    {
+        if(index > 0 && index < list.size())
+        {
+            GObject o = (GObject)list.remove(index - 1);
+            if(o instanceof PObject)
+                return (PObject)o;
+            else
+                return null;
+        }
+        if(index == list.size())
+        {
+            if(list.isEmpty())
+                return null;
+            GObject o = (GObject)list.remove(index - 1);
+            if(o instanceof PObject)
+                return (PObject)o;
+            else
+                return null;
+        }
+        if(index == 0)
+            return null;
+        else
+            throw new RuntimeException("Parser.del(): index out of range");
+    }
+
+    private Vector getStringVector(int q)
+    {
+        Vector c = new Vector();
+        int i = 0;
+        Iterator i$ = list.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            GObject o = (GObject)i$.next();
+            if(o instanceof PObject)
+            {
+                PObject p = (PObject)o;
+                String arr$[] = p.name_array();
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    String s = arr$[i$];
+                    c.add(s);
+                }
+
+            }
+        } while(++i < Math.min(q, list.size()));
+        return c;
+    }
+
+    private Vector getListAsStringVector()
+    {
+        Vector c = new Vector();
+        Iterator i$ = list.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Object o = (GObject)i$.next();
+            if(o instanceof PObject)
+            {
+                PObject p = (PObject)o;
+                String arr$[] = p.name_array();
+                int len$ = arr$.length;
+                int i$ = 0;
+                while(i$ < len$) 
+                {
+                    String s = arr$[i$];
+                    c.add(s);
+                    i$++;
+                }
+            } else
+            if(o instanceof Complex)
+            {
+                Complex z = (Complex)o;
+                String s = (new StringBuilder()).append(Double.toString(z.real())).append("+i").append(Double.toString(z.imaginary())).toString();
+                c.add(s);
+            } else
+            if(o instanceof Double)
+            {
+                Double d = (Double)o;
+                c.add(d.toString());
+            }
+        } while(true);
+        return c;
+    }
+
+    public String getExpression()
+    {
+        Vector c = getStringVector(list.size());
+        StringBuilder s = new StringBuilder();
+        for(int i = 0; i < c.size(); i++)
+            s.append((String)c.elementAt(i));
+
+        return s.toString();
+    }
+
+    public String getExpression(int n)
+    {
+        Vector c = getStringVector(list.size());
+        StringBuilder s = new StringBuilder();
+        int start = Math.max(c.size() - n, 0);
+        for(int i = start; i < start + Math.min(c.size(), n); i++)
+            s.append((String)c.elementAt(i));
+
+        return s.toString();
+    }
+
+    public void clearExpression()
+    {
+        list.clear();
+    }
+
+    public boolean isEmpty()
+    {
+        return list.isEmpty();
+    }
+
+    public final PObject getLast()
+    {
+        if(list.isEmpty())
+            return null;
+        GObject o = (GObject)list.getLast();
+        if(o instanceof PObject)
+            return (PObject)o;
+        else
+            return null;
+    }
+
+    public boolean del()
+    {
+        if(list.isEmpty())
+        {
+            return false;
+        } else
+        {
+            ListIterator i = list.listIterator(list.size());
+            i.previous();
+            i.remove();
+            return true;
+        }
+    }
+
+    public LinkedList getList()
+    {
+        LinkedList result = new LinkedList();
+        Iterator i$ = list.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            GObject object = (GObject)i$.next();
+            if(object instanceof PObject)
+                result.add((PObject)object);
+        } while(true);
+        return result;
+    }
+
+    public void setList(LinkedList newlist)
+    {
+        list.clear();
+        PObject object;
+        for(Iterator i$ = newlist.iterator(); i$.hasNext(); list.add(object))
+            object = (PObject)i$.next();
+
+    }
+
+    public final Base base()
+    {
+        return base;
+    }
+
+    public void base(Base base)
+    {
+        this.base = base;
+    }
+
+    public static String font_size(float fontSize)
+    {
+        String s = (new StringBuilder()).append("style=\"font-size: ").append(Float.toString(fontSize)).append("\"").toString();
+        return s;
+    }
+
+    public static void main(String args[])
+    {
+        Parser parser = new Parser();
+        parser.add(new Numeral('3'));
+        parser.add(new Numeral('.'));
+        parser.add(new Numeral('1'));
+        parser.add(new Numeral('4'));
+        parser.add(new Multiply());
+        parser.add(new LParen());
+        parser.add(new Numeral('4'));
+        parser.add(new Add());
+        parser.add(new Numeral('5'));
+        parser.add(new Cube());
+        parser.add(new Subtract());
+        parser.add(new Numeral('5'));
+        parser.add(new Combination());
+        parser.add(new Numeral('2'));
+        parser.add(new RParen());
+        JOptionPane.showMessageDialog(null, parser.getExpression());
+        System.out.println(parser.evaluate(AngleType.DEGREES));
+    }
+
+    private LinkedList list;
+    private Base base;
+}

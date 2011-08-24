@@ -1,0 +1,27 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AFunction.java
+
+package com.dukascopy.calculator.function;
+
+import com.dukascopy.calculator.OObject;
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            PObject
+
+public abstract class AFunction extends PObject
+{
+
+    public AFunction()
+    {
+    }
+
+    public abstract double function(double d, double d1);
+
+    public abstract double function(double d);
+
+    public abstract OObject function(OObject oobject, OObject oobject1);
+
+    public abstract OObject function(OObject oobject);
+}

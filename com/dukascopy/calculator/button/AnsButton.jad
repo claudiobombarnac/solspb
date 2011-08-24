@@ -1,0 +1,64 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:30
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   AnsButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.Error;
+import com.dukascopy.calculator.MainCalculatorPanel;
+import com.dukascopy.calculator.function.Ans;
+import java.awt.event.ActionEvent;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            CalculatorButton
+
+public class AnsButton extends CalculatorButton
+{
+
+    public AnsButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new Ans());
+        setText();
+        setTextSize();
+        addActionListener(this);
+        setShortcut('a');
+        setToolTipKey("sc.calculator.use.to.calculate.with.the.last.result.you.found");
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+label0:
+        {
+            synchronized(mainCalculatorPanel)
+            {
+                if(getMainCalculatorPanel().getMode() == 0)
+                    break label0;
+                getMainCalculatorPanel().setMode(getPobject());
+                getMainCalculatorPanel().requestFocusInWindow();
+            }
+            return;
+        }
+        if(!(getMainCalculatorPanel().getValue() instanceof Error))
+            ((Ans)getPobject()).setValue(getMainCalculatorPanel().getValue());
+        if(getPobject() != null)
+            break MISSING_BLOCK_LABEL_79;
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+        return;
+        add(getPobject());
+        getMainCalculatorPanel().updateDisplay(true, true);
+        if(getMainCalculatorPanel().getShift())
+            getMainCalculatorPanel().setShift(false);
+        getMainCalculatorPanel().requestFocusInWindow();
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    private static final long serialVersionUID = 1L;
+}

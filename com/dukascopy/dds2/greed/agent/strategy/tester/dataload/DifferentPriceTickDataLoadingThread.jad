@@ -1,0 +1,36 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   DifferentPriceTickDataLoadingThread.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.dataload;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.charts.data.datacache.IFeedDataProvider;
+import com.dukascopy.charts.data.datacache.TickData;
+import java.util.concurrent.BlockingQueue;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester.dataload:
+//            TickDataLoadingThread
+
+public class DifferentPriceTickDataLoadingThread extends TickDataLoadingThread
+{
+
+    public DifferentPriceTickDataLoadingThread(String name, Instrument instrument, BlockingQueue queue, long from, long to, 
+            IFeedDataProvider feedDataProvider)
+    {
+        super(name, instrument, queue, from, to, feedDataProvider);
+    }
+
+    protected void tickReceived(Instrument instrument, TickData tickData)
+    {
+        if(previousTick == null)
+            putTickToQueue(tickData);
+        else
+        if(previousTick.getAsk() != tickData.getAsk() || previousTick.getBid() != tickData.getBid())
+            putTickToQueue(tickData);
+        previousTick = tickData;
+    }
+
+    private TickData previousTick;
+}

@@ -1,0 +1,78 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   HTick.java
+
+package com.dukascopy.dds2.greed.agent.history;
+
+import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+public class HTick
+{
+
+    public HTick()
+    {
+    }
+
+    public static HTick make(long time, double bid, double ask)
+    {
+        return make(time, bid, ask, 0.0D, 0.0D);
+    }
+
+    public static HTick make(long time, double bid, double ask, double bidVolume, 
+            double askVolume)
+    {
+        HTick tick = new HTick();
+        tick.time = time;
+        tick.ask = ask;
+        tick.bid = bid;
+        tick.askVol = askVolume;
+        tick.bidVol = bidVolume;
+        return tick;
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append(time).append(" ").append(bid).append("/").append(ask).append(" ").append(dateFormat.format(new Date(time))).toString();
+    }
+
+    public HTick instance()
+    {
+        return new HTick();
+    }
+
+    public long key(HTick t)
+    {
+        return t.time;
+    }
+
+    public HTick read(ByteBuffer buffer)
+    {
+        HTick t = instance();
+        t.time = buffer.getLong();
+        t.bid = buffer.getDouble();
+        t.ask = buffer.getDouble();
+        t.bidVol = buffer.getDouble();
+        t.askVol = buffer.getDouble();
+        return t;
+    }
+
+    public void write(ByteBuffer buffer, HTick t)
+    {
+        buffer.putLong(t.time);
+        buffer.putDouble(t.bid);
+        buffer.putDouble(t.ask);
+        buffer.putDouble(t.bidVol);
+        buffer.putDouble(t.askVol);
+    }
+
+    private static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+    public long time;
+    public double ask;
+    public double bid;
+    public double askVol;
+    public double bidVol;
+
+}

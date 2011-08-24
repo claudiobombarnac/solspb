@@ -1,0 +1,71 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Axis.java
+
+package com.dukascopy.calculator.graph;
+
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            Element
+
+public abstract class Axis extends Element
+{
+
+    public Axis()
+    {
+        numberFormat = NumberFormat.getNumberInstance();
+        if(numberFormat instanceof DecimalFormat)
+        {
+            DecimalFormat df = (DecimalFormat)numberFormat;
+            df.setNegativePrefix("\u2212");
+        }
+        majorUnitTick = 5;
+        minorUnitTick = 2;
+        setShowMajorUnit(true);
+        setShowMinorUnit(true);
+    }
+
+    public void setShowMajorUnit(boolean value)
+    {
+        showMajorUnit = value;
+    }
+
+    public void setShowMinorUnit(boolean value)
+    {
+        showMinorUnit = value;
+    }
+
+    public boolean getShowMajorUnit()
+    {
+        return showMajorUnit;
+    }
+
+    public boolean getShowMinorUnit()
+    {
+        return showMinorUnit;
+    }
+
+    public int getMajorUnitTickLength()
+    {
+        return majorUnitTick;
+    }
+
+    public int getMinorUnitTickLength()
+    {
+        return minorUnitTick;
+    }
+
+    public String convertDouble(double d)
+    {
+        return numberFormat.format(d);
+    }
+
+    protected boolean showMajorUnit;
+    protected boolean showMinorUnit;
+    protected int majorUnitTick;
+    protected int minorUnitTick;
+    NumberFormat numberFormat;
+}

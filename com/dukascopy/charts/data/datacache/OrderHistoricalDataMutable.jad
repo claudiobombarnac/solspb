@@ -1,0 +1,311 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OrderHistoricalDataMutable.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.IEngine;
+import java.math.BigDecimal;
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            OrderHistoricalData
+
+public class OrderHistoricalDataMutable extends OrderHistoricalData
+{
+    public static class OpenData extends OrderHistoricalData.OpenData
+    {
+
+        public boolean isRollovered()
+        {
+            return rollovered;
+        }
+
+        public void setRollovered(boolean rollovered)
+        {
+            this.rollovered = rollovered;
+        }
+
+        public boolean isFromMerges()
+        {
+            return fromMerges;
+        }
+
+        public void setFromMerges(boolean fromMerges)
+        {
+            this.fromMerges = fromMerges;
+        }
+
+        public void setOrderId(String orderId)
+        {
+            super.setOrderId(orderId);
+        }
+
+        public void setOpenPrice(BigDecimal openPrice)
+        {
+            super.setOpenPrice(openPrice);
+        }
+
+        public void setCreationTime(long creationTime)
+        {
+            super.setCreationTime(creationTime);
+        }
+
+        public void setFillTime(long fillTime)
+        {
+            super.setFillTime(fillTime);
+        }
+
+        public void setOpenSlippage(BigDecimal openSlippage)
+        {
+            super.setOpenSlippage(openSlippage);
+        }
+
+        public void setSide(com.dukascopy.api.IEngine.OrderCommand side)
+        {
+            super.setSide(side);
+        }
+
+        public void setStopLossPrice(BigDecimal stopLossPrice)
+        {
+            super.setStopLossPrice(stopLossPrice);
+        }
+
+        public void setStopLossSlippage(BigDecimal stopLossSlippage)
+        {
+            super.setStopLossSlippage(stopLossSlippage);
+        }
+
+        public void setStopLossOrderId(String stopLossOrderId)
+        {
+            super.setStopLossOrderId(stopLossOrderId);
+        }
+
+        public void setStopLossByBid(boolean stopLossByBid)
+        {
+            super.setStopLossByBid(stopLossByBid);
+        }
+
+        public void setTrailingStep(BigDecimal trailingStep)
+        {
+            super.setTrailingStep(trailingStep);
+        }
+
+        public void setTakeProfitPrice(BigDecimal takeProfitPrice)
+        {
+            super.setTakeProfitPrice(takeProfitPrice);
+        }
+
+        public void setTakeProfitSlippage(BigDecimal takeProfitSlippage)
+        {
+            super.setTakeProfitSlippage(takeProfitSlippage);
+        }
+
+        public void setTakeProfitOrderId(String takeProfitOrderId)
+        {
+            super.setTakeProfitOrderId(takeProfitOrderId);
+        }
+
+        public void setGoodTillTime(long goodTillTime)
+        {
+            super.setGoodTillTime(goodTillTime);
+        }
+
+        public void setExecuting(boolean executing)
+        {
+            super.setExecuting(executing);
+        }
+
+        public void setLabel(String label)
+        {
+            super.setLabel(label);
+        }
+
+        public void setComment(String comment)
+        {
+            super.setComment(comment);
+        }
+
+        public void setAmount(BigDecimal amount)
+        {
+            super.setAmount(amount);
+        }
+
+        public void setMergedFrom(String mergedFrom[])
+        {
+            super.setMergedFrom(mergedFrom);
+        }
+
+        private boolean rollovered;
+        private transient boolean fromMerges;
+
+        public OpenData()
+        {
+        }
+
+        public OpenData(OrderHistoricalData.OpenData openData)
+        {
+            super(openData);
+        }
+    }
+
+    public static class CloseData extends OrderHistoricalData.CloseData
+    {
+
+        public void setCloseTime(long closeTime)
+        {
+            super.setCloseTime(closeTime);
+        }
+
+        public void setClosePrice(BigDecimal closePrice)
+        {
+            super.setClosePrice(closePrice);
+        }
+
+        public void setAmount(BigDecimal amount)
+        {
+            super.setAmount(amount);
+        }
+
+        private static final String HEADER = "OHD.CD";
+
+        public CloseData()
+        {
+        }
+
+        public CloseData(OrderHistoricalData.CloseData closeData)
+        {
+            super(closeData);
+        }
+    }
+
+
+    public OrderHistoricalDataMutable()
+    {
+    }
+
+    public OrderHistoricalDataMutable(OrderHistoricalData orderHistoricalData)
+    {
+        super(orderHistoricalData);
+    }
+
+    public void setMergedToGroupId(String mergedToGroupId)
+    {
+        super.setMergedToGroupId(mergedToGroupId);
+    }
+
+    public void setMergedToTime(long mergedToTime)
+    {
+        super.setMergedToTime(mergedToTime);
+    }
+
+    public void setOrderGroupId(String orderGroupId)
+    {
+        super.setOrderGroupId(orderGroupId);
+    }
+
+    public void setCloseDataMap(Map closeDataMap)
+    {
+        LinkedHashMap closeDatas = new LinkedHashMap(closeDataMap.size());
+        for(Iterator i$ = closeDataMap.entrySet().iterator(); i$.hasNext();)
+        {
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            OrderHistoricalData.CloseData closeData = (OrderHistoricalData.CloseData)entry.getValue();
+            if(closeData.getClass().equals(com/dukascopy/charts/data/datacache/OrderHistoricalDataMutable$CloseData))
+                closeDatas.put(entry.getKey(), (CloseData)closeData);
+            else
+                closeDatas.put(entry.getKey(), new CloseData(closeData));
+        }
+
+        this.closeDataMap = closeDatas;
+    }
+
+    public void setEntryOrder(OrderHistoricalData.OpenData entryOrder)
+    {
+        if(entryOrder == null || (entryOrder instanceof OpenData))
+            this.entryOrder = entryOrder;
+        else
+            this.entryOrder = new OpenData(entryOrder);
+    }
+
+    public void setPendingOrders(List pendingOrders)
+    {
+        ArrayList orders = new ArrayList(pendingOrders.size());
+        for(Iterator i$ = pendingOrders.iterator(); i$.hasNext();)
+        {
+            OrderHistoricalData.OpenData openData = (OrderHistoricalData.OpenData)i$.next();
+            if(openData.getClass().equals(com/dukascopy/charts/data/datacache/OrderHistoricalDataMutable$OpenData))
+                orders.add((OpenData)openData);
+            else
+                orders.add(new OpenData(openData));
+        }
+
+        this.pendingOrders = orders;
+    }
+
+    public void setOpened(boolean opened)
+    {
+        super.setOpened(opened);
+    }
+
+    public void setClosed(boolean closed)
+    {
+        super.setClosed(closed);
+    }
+
+    public void setOco(boolean oco)
+    {
+        super.setOco(oco);
+    }
+
+    public void setHistoryStart(long historyStart)
+    {
+        super.setHistoryStart(historyStart);
+    }
+
+    public void setHistoryEnd(long historyEnd)
+    {
+        super.setHistoryEnd(historyEnd);
+    }
+
+    public OpenData getEntryOrder()
+    {
+        return (OpenData)super.getEntryOrder();
+    }
+
+    public void putCloseData(String closeDataId, CloseData closeData)
+    {
+        closeDataMap.put(closeDataId, closeData);
+    }
+
+    public CloseData removeCloseData(String closeDataId)
+    {
+        return (CloseData)closeDataMap.remove(closeDataId);
+    }
+
+    public void addPendingOrder(OpenData openData)
+    {
+        pendingOrders.add(openData);
+    }
+
+    public OpenData removePendingOrder(int index)
+    {
+        return (OpenData)pendingOrders.remove(index);
+    }
+
+    public void clearPendingOrders()
+    {
+        pendingOrders.clear();
+    }
+
+    public void setCommission(BigDecimal commission)
+    {
+        super.setCommission(commission);
+    }
+
+    public volatile OrderHistoricalData.OpenData getEntryOrder()
+    {
+        return getEntryOrder();
+    }
+}

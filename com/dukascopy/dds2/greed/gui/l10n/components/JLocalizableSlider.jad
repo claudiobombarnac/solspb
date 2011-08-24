@@ -1,0 +1,69 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JLocalizableSlider.java
+
+package com.dukascopy.dds2.greed.gui.l10n.components;
+
+import com.dukascopy.dds2.greed.gui.l10n.Localizable;
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import java.awt.Font;
+import javax.swing.BoundedRangeModel;
+import javax.swing.JSlider;
+
+public class JLocalizableSlider extends JSlider
+    implements Localizable
+{
+
+    public JLocalizableSlider()
+    {
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableSlider(int orientation)
+    {
+        super(orientation);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableSlider(int min, int max)
+    {
+        super(min, max);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableSlider(int min, int max, int value)
+    {
+        super(min, max, value);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableSlider(int orientation, int min, int max, int value)
+    {
+        super(orientation, min, max, value);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public JLocalizableSlider(BoundedRangeModel borderRangeModel)
+    {
+        super(borderRangeModel);
+        LocalizationManager.addLocalizable(this);
+    }
+
+    public void localize()
+    {
+        if(toolTipKey != null)
+        {
+            setFont(LocalizationManager.getDefaultFont(getFont().getSize()));
+            setToolTipText(toolTipKey);
+        }
+    }
+
+    public void setToolTipText(String toolTipKey)
+    {
+        this.toolTipKey = toolTipKey;
+        super.setToolTipText(LocalizationManager.getText(toolTipKey));
+    }
+
+    private String toolTipKey;
+}

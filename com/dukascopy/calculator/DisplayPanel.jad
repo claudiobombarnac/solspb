@@ -1,0 +1,286 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   DisplayPanel.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.function.PObject;
+import java.awt.*;
+import javax.swing.*;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            EntryLabel, DisplayLabel, ExtraPanel, MiniPanel, 
+//            ReadOnlyDisplayPanel, LeftOrRight, ReadOnlyCalculatorApplet, ScrollableLabel, 
+//            MainCalculatorPanel, Parser
+
+public class DisplayPanel extends JPanel
+    implements ReadOnlyDisplayPanel
+{
+
+    public DisplayPanel(MainCalculatorPanel applet)
+    {
+        this.applet = applet;
+        entryLabel = new EntryLabel(this);
+        displayLabel = new DisplayLabel(this);
+        extraPanel = new ExtraPanel(this);
+        leftPanel = new MiniPanel(true);
+        rightPanel = new MiniPanel(false);
+        add(entryLabel);
+        add(displayLabel);
+        setCaretToEntry();
+        add(extraPanel);
+    }
+
+    public void setUp()
+    {
+        Insets insets = getInsets();
+        int ib = insets.bottom;
+        int il = insets.left;
+        int ir = insets.right;
+        int it = insets.top;
+        int b = getApplet().strutSize() + 4 * getApplet().minSize() + 6 * getApplet().buttonWidth();
+        int c = getApplet().displayHeight();
+        int d = (int)(0.089999999999999997D * (double)b + 0.5D);
+        int v = (int)(0.125D * (double)getApplet().extraTextSize() + 0.5D);
+        int h = 2 * v;
+        int dh = (int)(0.57999999999999996D * (double)(c - 3 * v) + 0.5D);
+        int m = (int)(0.10000000000000001D * (double)dh + 0.5D);
+        Spring vSpring = Spring.constant(v, v, v);
+        Spring hSpring = Spring.sum(vSpring, vSpring);
+        Spring eSpring = Spring.constant(d);
+        Spring dSpring = Spring.constant(dh);
+        Spring mSpring = Spring.constant(m);
+        Spring rSpring = Spring.sum(mSpring, hSpring);
+        Spring zSpring = Spring.constant(0, 0, 2);
+        SpringLayout layout = new SpringLayout();
+        setLayout(layout);
+        javax.swing.SpringLayout.Constraints constraints = null;
+        constraints = layout.getConstraints(entryLabel);
+        constraints.setWidth(Spring.constant(b - 2 * h - m));
+        constraints.setHeight(Spring.constant(c - 2 * v - dh - ib - it));
+        layout.putConstraint("North", entryLabel, vSpring, "North", this);
+        layout.putConstraint("West", entryLabel, hSpring, "West", this);
+        layout.putConstraint("East", entryLabel, Spring.minus(rSpring), "East", this);
+        constraints = layout.getConstraints(extraPanel);
+        constraints.setWidth(eSpring);
+        constraints.setHeight(dSpring);
+        layout.putConstraint("North", extraPanel, zSpring, "South", entryLabel);
+        layout.putConstraint("South", extraPanel, Spring.minus(vSpring), "South", this);
+        layout.putConstraint("West", extraPanel, hSpring, "West", this);
+        constraints = layout.getConstraints(leftPanel);
+        constraints.setWidth(mSpring);
+        constraints.setHeight(dSpring);
+        layout.putConstraint("North", leftPanel, zSpring, "South", entryLabel);
+        layout.putConstraint("South", leftPanel, Spring.minus(vSpring), "South", this);
+        layout.putConstraint("West", leftPanel, zSpring, "East", extraPanel);
+        constraints = layout.getConstraints(displayLabel);
+        constraints.setHeight(dSpring);
+        constraints.setWidth(Spring.constant(b - d - 2 * m - 2 * h - il - ir));
+        layout.putConstraint("North", displayLabel, zSpring, "South", entryLabel);
+        layout.putConstraint("South", displayLabel, Spring.minus(vSpring), "South", this);
+        layout.putConstraint("West", displayLabel, zSpring, "East", leftPanel);
+        constraints = layout.getConstraints(displayLabel);
+        constraints.setHeight(dSpring);
+        constraints = layout.getConstraints(rightPanel);
+        constraints.setWidth(mSpring);
+        constraints.setHeight(dSpring);
+        layout.putConstraint("North", rightPanel, zSpring, "South", entryLabel);
+        layout.putConstraint("South", rightPanel, Spring.minus(vSpring), "South", this);
+        layout.putConstraint("West", rightPanel, zSpring, "East", displayLabel);
+        layout.putConstraint("East", rightPanel, Spring.minus(hSpring), "East", this);
+    }
+
+    public void paintComponent(Graphics graphics)
+    {
+        graphics.setColor(Color.WHITE);
+        graphics.fillRect(0, 0, getWidth(), getHeight());
+    }
+
+    public void left()
+    {
+        labelWithCaret.left();
+    }
+
+    public void right()
+    {
+        labelWithCaret.right();
+    }
+
+    public void update(boolean entry, boolean extra)
+    {
+        if(entry)
+            entryLabel.update(on);
+        displayLabel.update(on);
+        extraPanel.repaint();
+        LeftOrRight leftOrRight = LeftOrRight.NEITHER;
+        if(displayLabelHasCaret())
+            leftOrRight = displayLabel.getScrollDirections();
+        static class _cls1
+        {
+
+            static final int $SwitchMap$com$dukascopy$calculator$LeftOrRight[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$calculator$LeftOrRight = new int[LeftOrRight.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$LeftOrRight[LeftOrRight.LEFT.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$LeftOrRight[LeftOrRight.RIGHT.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$LeftOrRight[LeftOrRight.BOTH.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$LeftOrRight[LeftOrRight.NEITHER.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls1..SwitchMap.com.dukascopy.calculator.LeftOrRight[leftOrRight.ordinal()])
+        {
+        case 1: // '\001'
+            leftPanel.setIlluminated(true);
+            rightPanel.setIlluminated(false);
+            break;
+
+        case 2: // '\002'
+            leftPanel.setIlluminated(false);
+            rightPanel.setIlluminated(true);
+            break;
+
+        case 3: // '\003'
+            leftPanel.setIlluminated(true);
+            rightPanel.setIlluminated(true);
+            break;
+
+        case 4: // '\004'
+            leftPanel.setIlluminated(false);
+            rightPanel.setIlluminated(false);
+            break;
+
+        default:
+            leftPanel.setIlluminated(false);
+            rightPanel.setIlluminated(false);
+            break;
+        }
+        leftPanel.repaint();
+        rightPanel.repaint();
+    }
+
+    final boolean displayLabelScrollable()
+    {
+        return displayLabel.getScrollDirections() != LeftOrRight.NEITHER;
+    }
+
+    public Action backward()
+    {
+        return entryLabel.backward();
+    }
+
+    public void setExpression(Parser parser)
+    {
+        entryLabel.setExpression(parser);
+    }
+
+    public void newExpression()
+    {
+        entryLabel.newExpression();
+    }
+
+    public void clear(Parser parser)
+    {
+        entryLabel.clear(parser);
+    }
+
+    public void delete(Parser parser)
+    {
+        entryLabel.delete(parser);
+    }
+
+    public void insert(PObject p, Parser parser)
+    {
+        entryLabel.insert(p, parser);
+    }
+
+    public void setOn(boolean value)
+    {
+        on = value;
+    }
+
+    public boolean getOn()
+    {
+        return on;
+    }
+
+    public void setValue()
+    {
+        displayLabel.setNewExpression();
+    }
+
+    public ReadOnlyCalculatorApplet getApplet()
+    {
+        return applet;
+    }
+
+    public final DisplayLabel getDisplayLabel()
+    {
+        return displayLabel;
+    }
+
+    public void setCaretToEntry()
+    {
+        labelWithCaret = entryLabel;
+        displayLabel.updateCaretVisibility();
+        entryLabel.updateCaretVisibility();
+    }
+
+    public void setCaretToDisplay()
+    {
+        setCaretToDisplay(true);
+    }
+
+    public void setCaretToDisplay(boolean display)
+    {
+        if(display)
+        {
+            labelWithCaret = displayLabel;
+            entryLabel.updateCaretVisibility();
+            displayLabel.updateCaretVisibility();
+        } else
+        {
+            entryLabel.setCaretVisible(false);
+            displayLabel.setCaretVisible(false);
+        }
+    }
+
+    public boolean hasCaret(ScrollableLabel scrollableLabel)
+    {
+        return labelWithCaret == scrollableLabel;
+    }
+
+    public boolean displayLabelHasCaret()
+    {
+        return hasCaret(displayLabel);
+    }
+
+    private ScrollableLabel labelWithCaret;
+    private EntryLabel entryLabel;
+    private DisplayLabel displayLabel;
+    private ExtraPanel extraPanel;
+    private MiniPanel leftPanel;
+    private MiniPanel rightPanel;
+    private final MainCalculatorPanel applet;
+    private boolean on;
+    private static final long serialVersionUID = 1L;
+}

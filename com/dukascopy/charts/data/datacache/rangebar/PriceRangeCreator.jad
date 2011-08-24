@@ -1,0 +1,452 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PriceRangeCreator.java
+
+package com.dukascopy.charts.data.datacache.rangebar;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationCreator;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.rangebar:
+//            PriceRangeData, IPriceRangeLiveFeedListener
+
+public class PriceRangeCreator extends AbstractPriceAggregationCreator
+{
+
+    public PriceRangeCreator(Instrument instrument, OfferSide offerSide, int desiredPriceRangesCount, PriceRange priceRange, boolean inverseOrder, IPriceRangeLiveFeedListener priceRangeLiveFeedListener, boolean livePriceRangesCreation)
+    {
+        super(priceRangeLiveFeedListener, desiredPriceRangesCount);
+        this.instrument = instrument;
+        this.offerSide = offerSide;
+        this.priceRange = priceRange;
+        this.inverseOrder = inverseOrder;
+        this.livePriceRangesCreation = livePriceRangesCreation;
+        reset();
+    }
+
+    public void reset()
+    {
+        resetResulArray();
+        lastElementIndex = -1;
+        analysedTicksCount = 0L;
+        loadedPriceRangeCount = 0;
+        range = getRangeValue(getPriceRange(), getInstrument());
+    }
+
+    protected void resetResulArray()
+    {
+        result = new PriceRangeData[getDesiredDatasCount()];
+    }
+
+    public boolean checkPriceMatch(PriceRangeData currentPriceRange, double price, double range)
+    {
+        return Math.abs(currentPriceRange.getLow() - price) <= range && Math.abs(currentPriceRange.getHigh() - price) <= range;
+    }
+
+    private boolean canContinueCurrentDataConstruction(PriceRangeData currentPriceRange, double price, long nextTickTime)
+    {
+        boolean canContinueByPrice = checkPriceMatch(currentPriceRange, price, getRange());
+        if(!canContinueByPrice)
+            return false;
+        else
+            return DataCacheUtils.isTheSameTradingSession(currentPriceRange.getTime(), nextTickTime);
+    }
+
+    public boolean canContinueCurrentDataConstruction(PriceRangeData currentPriceRange, TickData tickData)
+    {
+        if(currentPriceRange == null)
+        {
+            return false;
+        } else
+        {
+            double price = getPrice(tickData, getOfferSide());
+            return canContinueCurrentDataConstruction(currentPriceRange, price, tickData.getTime());
+        }
+    }
+
+    public boolean analyse(TickData tickData)
+    {
+        analysedTicksCount++;
+        if(tickData == null)
+            return false;
+        PriceRangeData currentPriceRange = getLastElementIndex() >= 0 ? ((PriceRangeData[])result)[getLastElementIndex()] : null;
+        double price = getPrice(tickData, getOfferSide());
+        double volume = getVolume(tickData, getOfferSide());
+        long time = tickData.getTime();
+        if(currentPriceRange == null)
+        {
+            currentPriceRange = createPriceRange(price, volume, time);
+            setLastElementIndex(0);
+            ((PriceRangeData[])result)[getLastElementIndex()] = currentPriceRange;
+        } else
+        if(canContinueCurrentDataConstruction(currentPriceRange, price, time))
+        {
+            currentPriceRange = continuePriceRange(currentPriceRange, price, volume, time);
+        } else
+        {
+            PriceRangeData phantomPriceRanges[] = checkAndCreatePhantomPriceRanges(currentPriceRange, tickData);
+            PriceRangeData arr$[] = phantomPriceRanges;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                PriceRangeData prd = arr$[i$];
+                if(prd == null)
+                    continue;
+                if(prd != currentPriceRange)
+                {
+                    setLastElementIndex(getLastElementIndex() + 1);
+                    ((PriceRangeData[])result)[getLastElementIndex()] = prd;
+                }
+                loadedPriceRangeCount++;
+                fireNewBarCreated(prd);
+                if(isAllDesiredDataLoaded())
+                {
+                    analysedTicksCount--;
+                    return true;
+                }
+            }
+
+            PriceRangeData lastData = (PriceRangeData)getLastData();
+            if(lastData != null)
+                currentPriceRange = createPriceRange(price, volume, time);
+            else
+                currentPriceRange = createPriceRange(price, volume, time);
+            setLastElementIndex(getLastElementIndex() + 1);
+            ((PriceRangeData[])result)[getLastElementIndex()] = currentPriceRange;
+        }
+        return false;
+    }
+
+    private PriceRangeData[] checkAndCreatePhantomPriceRanges(PriceRangeData previousPriceRange, TickData tickData)
+    {
+        double tickPrice = getPrice(tickData, getOfferSide());
+        previousPriceRange = fillIncompleteBarWithPhantomPrice(previousPriceRange, tickPrice, tickData.getTime());
+        double openPrice = getOpenPrice(previousPriceRange);
+        double closePrice = getClosePrice(previousPriceRange);
+        double phantomOpenPrice = getPhantomOpenPrice(openPrice, closePrice, tickPrice, getRange());
+        double difference = Math.abs(phantomOpenPrice - tickPrice);
+        if(previousPriceRange.getTime() == previousPriceRange.getEndTime())
+            previousPriceRange = setCloseTime(previousPriceRange, appendTime(getCloseTime(previousPriceRange), 1L));
+        if(difference < getRange())
+            return (new PriceRangeData[] {
+                previousPriceRange
+            });
+        long phantomCount = Math.round(difference / getRange() - 0.5D) + 1L;
+        PriceRangeData result[] = new PriceRangeData[(int)phantomCount];
+        result[0] = previousPriceRange;
+        long time = getCloseTime(previousPriceRange);
+        int sign = tickPrice <= phantomOpenPrice ? -1 : 1;
+        int i = 1;
+        do
+        {
+            if((long)i >= phantomCount)
+                break;
+            time = appendTime(time, 1L);
+            if(time == tickData.getTime())
+                break;
+            phantomOpenPrice = round(phantomOpenPrice);
+            PriceRangeData prd = createPriceRange(phantomOpenPrice, 0.0D, time, 0L);
+            phantomOpenPrice += (double)sign * getRange();
+            phantomOpenPrice = round(phantomOpenPrice);
+            time = appendTime(time, 1L);
+            prd = continuePriceRange(prd, phantomOpenPrice, new Double(0.0D), new Long(time), 0L);
+            result[i] = prd;
+            i++;
+        } while(true);
+        return result;
+    }
+
+    private double getPhantomOpenPrice(double openPrice, double closePrice, double tickPrice, double range)
+    {
+        double priceDiff = Math.abs(openPrice - closePrice);
+        double rangeCorrection = 0.0D;
+        if(priceDiff < range)
+            rangeCorrection = range - priceDiff;
+        if(openPrice > closePrice)
+            if(closePrice < tickPrice)
+                return openPrice + rangeCorrection;
+            else
+                return closePrice - rangeCorrection;
+        if(closePrice < tickPrice)
+            return closePrice + rangeCorrection;
+        else
+            return openPrice - rangeCorrection;
+    }
+
+    private long appendTime(long time, long timeToAppend)
+    {
+        return getInverseOrder() ? time - timeToAppend : time + timeToAppend;
+    }
+
+    private PriceRangeData fillIncompleteBarWithPhantomPrice(PriceRangeData previousPriceRange, double price, long time)
+    {
+        Double phantomPrice = null;
+        if(previousPriceRange.getLow() == previousPriceRange.getHigh())
+        {
+            if(previousPriceRange.getLow() > price)
+                phantomPrice = new Double(Math.max(previousPriceRange.getLow() - getRange(), price));
+            else
+                phantomPrice = new Double(Math.min(previousPriceRange.getLow() + getRange(), price));
+        } else
+        if(Math.abs(previousPriceRange.getLow() - previousPriceRange.getHigh()) < getRange())
+            if(previousPriceRange.getLow() > price)
+                phantomPrice = new Double(previousPriceRange.getHigh() - getRange());
+            else
+                phantomPrice = new Double(previousPriceRange.getLow() + getRange());
+        if(phantomPrice != null)
+        {
+            double roundedPhantomPrice = round(phantomPrice.doubleValue());
+            boolean theSameTradingSession = DataCacheUtils.isTheSameTradingSession(previousPriceRange.getTime(), time);
+            if(theSameTradingSession)
+                previousPriceRange = continuePriceRange(previousPriceRange, roundedPhantomPrice, null, null, 0L);
+        }
+        return previousPriceRange;
+    }
+
+    private double getClosePrice(PriceRangeData previousPriceRange)
+    {
+        return getInverseOrder() ? previousPriceRange.getOpen() : previousPriceRange.getClose();
+    }
+
+    private double getOpenPrice(PriceRangeData previousPriceRange)
+    {
+        return getInverseOrder() ? previousPriceRange.getClose() : previousPriceRange.getOpen();
+    }
+
+    private long getCloseTime(PriceRangeData previousPriceRange)
+    {
+        return getInverseOrder() ? previousPriceRange.getTime() : previousPriceRange.getEndTime();
+    }
+
+    private PriceRangeData setCloseTime(PriceRangeData previousPriceRange, long time)
+    {
+        if(getInverseOrder())
+            previousPriceRange.setTime(time);
+        else
+            previousPriceRange.setEndTime(time);
+        return previousPriceRange;
+    }
+
+    public void fireNewBarCreated(PriceRangeData currentPriceRange)
+    {
+        if(getLivePriceRangesCreation())
+            super.fireNewBarCreated(currentPriceRange);
+    }
+
+    private double getRangeValue(PriceRange priceRange, Instrument instrument)
+    {
+        double result = instrument.getPipValue() * (double)priceRange.getPipCount();
+        return round(result);
+    }
+
+    private PriceRangeData continuePriceRange(PriceRangeData priceRange, double price, double volume, long time)
+    {
+        return continuePriceRange(priceRange, price, new Double(volume), new Long(time), 1L);
+    }
+
+    private PriceRangeData continuePriceRange(PriceRangeData priceRange, double price, Double volume, Long time, long incTicksCount)
+    {
+        if(price > priceRange.getHigh())
+            priceRange.setHigh(price);
+        if(price < priceRange.getLow())
+            priceRange.setLow(price);
+        if(volume != null)
+            priceRange.setVolume(round(priceRange.getVolume() + volume.doubleValue()));
+        priceRange.setFormedElementsCount(priceRange.getFormedElementsCount() + incTicksCount);
+        if(getInverseOrder())
+        {
+            if(time != null)
+            {
+                priceRange.time = time.longValue();
+                priceRange.setTime(time.longValue());
+            }
+            priceRange.setOpen(price);
+        } else
+        {
+            if(time != null)
+                priceRange.setEndTime(time.longValue());
+            priceRange.setClose(price);
+        }
+        return priceRange;
+    }
+
+    private PriceRangeData createPriceRange(double price, double volume, long time)
+    {
+        long ticksCount = 1L;
+        return createPriceRange(price, volume, time, ticksCount);
+    }
+
+    private PriceRangeData createPriceRange(double price, double volume, long time, long ticksCount)
+    {
+        PriceRangeData priceRange = new PriceRangeData();
+        priceRange.setOpen(price);
+        priceRange.setHigh(price);
+        priceRange.setLow(price);
+        priceRange.setClose(price);
+        priceRange.setVolume(volume);
+        priceRange.setTime(time);
+        priceRange.setEndTime(time);
+        priceRange.setFormedElementsCount(ticksCount);
+        return priceRange;
+    }
+
+    private double getVolume(TickData tickData, OfferSide offerSide)
+    {
+        if(tickData == null)
+            return 4.9406564584124654E-324D;
+        if(OfferSide.ASK.equals(offerSide))
+            return tickData.getAskVolume();
+        if(OfferSide.BID.equals(offerSide))
+            return tickData.getBidVolume();
+        else
+            return 4.9406564584124654E-324D;
+    }
+
+    private double getPrice(TickData tickData, OfferSide offerSide)
+    {
+        if(tickData == null)
+            return 4.9406564584124654E-324D;
+        if(OfferSide.ASK.equals(offerSide))
+            return tickData.getAsk();
+        if(OfferSide.BID.equals(offerSide))
+            return tickData.getBid();
+        else
+            return 4.9406564584124654E-324D;
+    }
+
+    public OfferSide getOfferSide()
+    {
+        return offerSide;
+    }
+
+    public void setOfferSide(OfferSide offerSide)
+    {
+        this.offerSide = offerSide;
+    }
+
+    public long getAnalysedTicksCount()
+    {
+        return analysedTicksCount;
+    }
+
+    public boolean isAllDesiredDataLoaded()
+    {
+        return getLoadedPriceRangeCount() >= getDesiredDatasCount();
+    }
+
+    public int getLoadedPriceRangeCount()
+    {
+        return loadedPriceRangeCount;
+    }
+
+    public boolean getInverseOrder()
+    {
+        return inverseOrder;
+    }
+
+    public void setInverseOrder(boolean inverseOrder)
+    {
+        this.inverseOrder = inverseOrder;
+    }
+
+    public PriceRange getPriceRange()
+    {
+        return priceRange;
+    }
+
+    public void setPriceRange(PriceRange priceRange)
+    {
+        this.priceRange = priceRange;
+    }
+
+    public Instrument getInstrument()
+    {
+        return instrument;
+    }
+
+    public void setInstrument(Instrument instrument)
+    {
+        this.instrument = instrument;
+    }
+
+    protected void setLastElementIndex(int lastElementIndex)
+    {
+        this.lastElementIndex = lastElementIndex;
+    }
+
+    protected boolean getLivePriceRangesCreation()
+    {
+        return livePriceRangesCreation;
+    }
+
+    protected void setAnalysedTicksCount(long analysedTicksCount)
+    {
+        this.analysedTicksCount = analysedTicksCount;
+    }
+
+    protected void setLoadedPriceRangeCount(int loadedPriceRangeCount)
+    {
+        this.loadedPriceRangeCount = loadedPriceRangeCount;
+    }
+
+    public double getRange()
+    {
+        return range;
+    }
+
+    public void setRange(double range)
+    {
+        this.range = range;
+    }
+
+    public boolean isDirectOrder()
+    {
+        return !getInverseOrder();
+    }
+
+    public void setupLastData(PriceRangeData pricerangedata)
+    {
+    }
+
+    public PriceRangeData getLastCompletedData()
+    {
+        return (PriceRangeData)getLastData();
+    }
+
+    public volatile void fireNewBarCreated(AbstractPriceAggregationData x0)
+    {
+        fireNewBarCreated((PriceRangeData)x0);
+    }
+
+    public volatile boolean canContinueCurrentDataConstruction(AbstractPriceAggregationData x0, Data x1)
+    {
+        return canContinueCurrentDataConstruction((PriceRangeData)x0, (TickData)x1);
+    }
+
+    public volatile void setupLastData(AbstractPriceAggregationData x0)
+    {
+        setupLastData((PriceRangeData)x0);
+    }
+
+    public volatile AbstractPriceAggregationData getLastCompletedData()
+    {
+        return getLastCompletedData();
+    }
+
+    public volatile boolean analyse(Data x0)
+    {
+        return analyse((TickData)x0);
+    }
+
+    private Instrument instrument;
+    private OfferSide offerSide;
+    private PriceRange priceRange;
+    private boolean inverseOrder;
+    private final boolean livePriceRangesCreation;
+    private long analysedTicksCount;
+    private int loadedPriceRangeCount;
+    private double range;
+}

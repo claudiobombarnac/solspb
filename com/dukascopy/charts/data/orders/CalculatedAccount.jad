@@ -1,0 +1,206 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CalculatedAccount.java
+
+package com.dukascopy.charts.data.orders;
+
+import com.dukascopy.api.IAccount;
+import java.util.*;
+
+public class CalculatedAccount
+    implements IAccount
+{
+
+    public CalculatedAccount()
+    {
+        marginCutLevel = 200;
+        overTheWeekendLeverage = 30;
+    }
+
+    public void setCurrency(Currency currency)
+    {
+        this.currency = currency;
+    }
+
+    public void setLeverage(double leverage)
+    {
+        this.leverage = leverage;
+    }
+
+    public void setBaseEquity(double baseEquity)
+    {
+        this.baseEquity = baseEquity;
+    }
+
+    public void setBalance(double balance)
+    {
+        this.balance = balance;
+    }
+
+    public void setMarginCutLevel(int marginCutLevel)
+    {
+        this.marginCutLevel = marginCutLevel;
+    }
+
+    public void setOverTheWeekendLeverage(int overTheWeekendLeverage)
+    {
+        this.overTheWeekendLeverage = overTheWeekendLeverage;
+    }
+
+    public void setAccountInfoCreditLine(double accountInfoCreditLine)
+    {
+        this.accountInfoCreditLine = accountInfoCreditLine;
+    }
+
+    public void setAccountInfoEquity(double accountInfoEquity)
+    {
+        this.accountInfoEquity = accountInfoEquity;
+    }
+
+    public void setAccountInfoUseOfLeverage(double accountInfoUseOfLeverage)
+    {
+        this.accountInfoUseOfLeverage = accountInfoUseOfLeverage;
+    }
+
+    public double getCalculationTime()
+    {
+        return calculationTime;
+    }
+
+    public void setCalculationTime(double calculationTime)
+    {
+        this.calculationTime = calculationTime;
+    }
+
+    public double getCalculatedEquity()
+    {
+        return calculatedEquity;
+    }
+
+    public void setCalculatedEquity(double calculatedEquity)
+    {
+        this.calculatedEquity = calculatedEquity;
+    }
+
+    public double getCalculatedUseOfLeverage()
+    {
+        return calculatedUseOfLeverage;
+    }
+
+    public void setCalculatedUseOfLeverage(double calculatedUseOfLeverage)
+    {
+        this.calculatedUseOfLeverage = calculatedUseOfLeverage;
+    }
+
+    public double getCalculatedCreditLine()
+    {
+        return calculatedCreditLine;
+    }
+
+    public void setCalculatedCreditLine(double calculatedCreditLine)
+    {
+        this.calculatedCreditLine = calculatedCreditLine;
+    }
+
+    public double getBaseEquity()
+    {
+        return baseEquity;
+    }
+
+    public double getAccountInfoCreditLine()
+    {
+        return accountInfoCreditLine;
+    }
+
+    public double getAccountInfoEquity()
+    {
+        return accountInfoEquity;
+    }
+
+    public double getAccountInfoUseOfLeverage()
+    {
+        return accountInfoUseOfLeverage;
+    }
+
+    public void setGlobal(boolean global)
+    {
+        this.global = global;
+    }
+
+    public void setAccountId(String accountId)
+    {
+        this.accountId = accountId;
+    }
+
+    public Currency getCurrency()
+    {
+        return currency;
+    }
+
+    public double getEquity()
+    {
+        return calculatedEquity;
+    }
+
+    public double getBalance()
+    {
+        return balance;
+    }
+
+    public double getLeverage()
+    {
+        return leverage;
+    }
+
+    public double getUseOfLeverage()
+    {
+        return calculatedUseOfLeverage;
+    }
+
+    public double getCreditLine()
+    {
+        return calculatedCreditLine;
+    }
+
+    public int getMarginCutLevel()
+    {
+        return marginCutLevel;
+    }
+
+    public int getOverWeekEndLeverage()
+    {
+        return overTheWeekendLeverage;
+    }
+
+    public boolean isGlobal()
+    {
+        return global;
+    }
+
+    public String getAccountId()
+    {
+        return accountId;
+    }
+
+    public Set getClientIds()
+    {
+        return new HashSet();
+    }
+
+    private Currency currency;
+    private double leverage;
+    private double baseEquity;
+    private double balance;
+    private int marginCutLevel;
+    private int overTheWeekendLeverage;
+    private double accountInfoCreditLine;
+    private double accountInfoEquity;
+    private double accountInfoUseOfLeverage;
+    private double calculationTime;
+    private double calculatedEquity;
+    private double calculatedUseOfLeverage;
+    private double calculatedCreditLine;
+    private boolean global;
+    private String accountId;
+}

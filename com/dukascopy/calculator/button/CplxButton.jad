@@ -1,0 +1,56 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:31
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   CplxButton.java
+
+package com.dukascopy.calculator.button;
+
+import com.dukascopy.calculator.MainCalculatorPanel;
+import com.dukascopy.calculator.Notation;
+import com.dukascopy.calculator.function.Cplx;
+import com.dukascopy.calculator.function.PObject;
+import java.awt.event.ActionEvent;
+
+// Referenced classes of package com.dukascopy.calculator.button:
+//            CalculatorButton
+
+public class CplxButton extends CalculatorButton
+{
+
+    public CplxButton(MainCalculatorPanel mainCalculatorPanel)
+    {
+        this.mainCalculatorPanel = mainCalculatorPanel;
+        setPobject(new Cplx());
+        setText();
+        setShortcut(getPobject().shortcut());
+        setTextSize();
+        addActionListener(this);
+        setToolTipKey(getPobject().tooltip());
+    }
+
+    public void actionPerformed(ActionEvent actionEvent)
+    {
+label0:
+        {
+            synchronized(mainCalculatorPanel)
+            {
+                if(getMainCalculatorPanel().getMode() == 0)
+                    break label0;
+                getMainCalculatorPanel().setMode(getPobject());
+                getMainCalculatorPanel().requestFocusInWindow();
+            }
+            return;
+        }
+        getMainCalculatorPanel().getNotation().toggle(4);
+        getMainCalculatorPanel().setShift(false);
+        getMainCalculatorPanel().updateDisplay(false, true);
+        maincalculatorpanel;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+    }
+
+    private static final long serialVersionUID = 1L;
+}

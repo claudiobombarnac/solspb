@@ -1,0 +1,29 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TickLiveFeedListenerForPointAndFigure.java
+
+package com.dukascopy.charts.data.datacache.pnf;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.charts.data.datacache.TickData;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationLiveFeedListener;
+import java.util.List;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.pnf:
+//            PointAndFigureCreator
+
+public class TickLiveFeedListenerForPointAndFigure extends AbstractPriceAggregationLiveFeedListener
+{
+
+    public TickLiveFeedListenerForPointAndFigure(PointAndFigureCreator creator)
+    {
+        super(creator);
+    }
+
+    public void newTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        collectedDatas.add(new TickData(time, ask, bid, askVol, bidVol));
+    }
+}

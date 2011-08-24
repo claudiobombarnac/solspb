@@ -1,0 +1,1864 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CandlesDataProvider.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.api.indicators.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider:
+//            AbstractDataProvider, CandleDataSequence, ISynchronizeIndicators, IDataSequence
+
+public class CandlesDataProvider extends AbstractDataProvider
+{
+    protected static class LoadDataListener
+        implements LiveFeedListener
+    {
+
+        public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                double close, double low, double high, double vol)
+        {
+            if(!dataCacheRequestData.cancel)
+            {
+                if(!fromEnd && prevTime > time || fromEnd && prevTime < time)
+                    throw new RuntimeException("Received candles from data cache are not in ascending order");
+                if(!fromEnd)
+                    dataCacheRequestData.dataLoaded.add(new CandleData(time, open, close, low, high, vol));
+                else
+                    dataCacheRequestData.dataLoaded.add(0, new CandleData(time, open, close, low, high, vol));
+                prevTime = time;
+            } else
+            {
+                dataCacheRequestData.dataLoaded = null;
+                dataCacheRequestData.progressListener = null;
+            }
+        }
+
+        public void newTick(Instrument instrument1, long l, double d, double d1, 
+                double d2, double d3)
+        {
+        }
+
+        private DataCacheRequestData dataCacheRequestData;
+        long prevTime;
+        private boolean fromEnd;
+
+        public LoadDataListener(DataCacheRequestData dataCacheRequestData, boolean fromEnd)
+        {
+            prevTime = 0x8000000000000000L;
+            this.dataCacheRequestData = dataCacheRequestData;
+            this.fromEnd = fromEnd;
+            if(fromEnd)
+                prevTime = 0x7fffffffffffffffL;
+        }
+    }
+
+    protected static class DataCacheRequestData extends AbstractDataProvider.AbstractDataCacheRequestData
+    {
+
+        public String toString()
+        {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+            format.setTimeZone(TimeZone.getTimeZone("GMT"));
+            StringBuilder stamp = new StringBuilder();
+            stamp.append(numberOfCandlesBefore).append(" - ").append(format.format(Long.valueOf(time))).append(" - ");
+            stamp.append(numberOfCandlesAfter).append(" loadedSize - ").append(dataLoaded.size());
+            return stamp.toString();
+        }
+
+        public List dataLoaded;
+
+        protected DataCacheRequestData()
+        {
+            dataLoaded = new ArrayList();
+        }
+    }
+
+
+    public CandlesDataProvider(Instrument instrument, Period period, OfferSide side, int maxNumberOfCandles, int bufferSizeMultiplier, boolean requestAtFirstTick, Filter filter, 
+            IFeedDataProvider feedDataProvider)
+    {
+        super(instrument, period, side, maxNumberOfCandles, bufferSizeMultiplier, filter, feedDataProvider);
+        lastIndex = -1;
+        gaps = new long[0][];
+        firstTickTime = 0x8000000000000000L;
+        weekendStart = 0x8000000000000000L;
+        weekendStartCandle = 0x8000000000000000L;
+        weekendEnd = 0x8000000000000000L;
+        weekendEndCandle = 0x8000000000000000L;
+        LOGGER.debug((new StringBuilder()).append("Creating data provider for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("], maxNumberOfCandles [").append(maxNumberOfCandles).append("]").toString());
+        this.requestAtFirstTick = requestAtFirstTick;
+        buffer = new CandleData[maxNumberOfCandles * bufferSizeMultiplier];
+    }
+
+    public void start()
+    {
+        try
+        {
+            if(assertionsEnabled() && !feedDataProvider.isSubscribedToInstrument(instrument))
+                throw new RuntimeException("Trying to create data provider for instrument, that is not subscribed");
+            firstDataListener = new LiveFeedListener() {
+
+                public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                        double close, double low, double high, double vol)
+                {
+                    boolean dataChanged;
+                    long dataChangedFrom;
+                    long dataChangedTo;
+label0:
+                    {
+                        dataChanged = false;
+                        dataChangedFrom = 0x7fffffffffffffffL;
+                        dataChangedTo = 0x8000000000000000L;
+                        synchronized(CandlesDataProvider.this)
+                        {
+                            if(period.equals(CandlesDataProvider.this.period) && side == CandlesDataProvider.this.side)
+                                break label0;
+                        }
+                        return;
+                    }
+                    boolean add;
+                    add = true;
+                    if(firstData == null || firstData.time <= time)
+                        break MISSING_BLOCK_LABEL_174;
+                    if(open != close || close != low || low != high || vol != 0.0D)
+                    {
+                        Exception notThrownException = new Exception((new StringBuilder()).append("[").append(firstData.time - time).append("] Received candle has older time than pervious candle, ignoring").toString());
+                        CandlesDataProvider.LOGGER.error(notThrownException.getMessage(), notThrownException);
+                    }
+                    candlesdataprovider1;
+                    JVM INSTR monitorexit ;
+                    return;
+                    CandleData candleData = new CandleData(time, open, close, low, high, vol);
+                    if(tickListener != null)
+                    {
+                        feedDataProvider.unsubscribeToLiveFeed(instrument, tickListener);
+                        tickListener = null;
+                        firstTickTime = 0x8000000000000000L;
+                    }
+                    if(period == Period.DAILY && dailyFilterPeriod != Period.DAILY)
+                    {
+                        cal.setTimeInMillis(time);
+                        if(cal.get(7) == 1)
+                            lastSundayCandle = candleData.clone();
+                    }
+                    if(filter != Filter.NO_FILTER && period.getInterval() <= Period.DAILY.getInterval())
+                    {
+                        if(weekendEndCandle == 0x8000000000000000L || time > weekendEndCandle)
+                        {
+                            cal.setTimeInMillis(time);
+                            cal.set(7, 6);
+                            cal.set(11, 22);
+                            cal.set(12, 0);
+                            cal.set(13, 0);
+                            cal.set(14, 0);
+                            weekendStart = cal.getTimeInMillis();
+                            cal.set(7, 1);
+                            cal.set(11, 21);
+                            weekendEnd = cal.getTimeInMillis();
+                            weekendStartCandle = DataCacheUtils.getCandleStartFast(period, weekendStart);
+                            if(weekendStartCandle < weekendStart)
+                                weekendStartCandle = DataCacheUtils.getNextCandleStartFast(period, weekendStartCandle);
+                            if(period == Period.DAILY && dailyFilterPeriod != Period.DAILY)
+                                weekendEndCandle = DataCacheUtils.getCandleStartFast(period, weekendEnd);
+                            else
+                                weekendEndCandle = DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, weekendEnd));
+                        }
+                        if(time >= weekendStartCandle && time <= weekendEndCandle)
+                            add = false;
+                        else
+                        if(filter == Filter.ALL_FLATS && open == close && close == high && high == low && (lastData == null || lastData.close == open))
+                            add = false;
+                    }
+                    lastData = candleData;
+                    if(add)
+                    {
+                        Data oldFirstData = firstData;
+                        if(firstData != null && firstData.time == candleData.time)
+                        {
+                            CandleData firstDataCandle = (CandleData)firstData;
+                            firstDataCandle.open = candleData.open;
+                            firstDataCandle.close = candleData.close;
+                            firstDataCandle.high = candleData.high;
+                            firstDataCandle.low = candleData.low;
+                            firstDataCandle.vol = candleData.vol;
+                            CandleData inProgressCandle = feedDataProvider.getInProgressCandle(instrument, period, side);
+                            if(inProgressCandle != null && DataCacheUtils.getNextCandleStartFast(period, firstData.time) == inProgressCandle.time)
+                            {
+                                firstData = inProgressCandle;
+                                if(addFirstDataIfNeeded(oldFirstData.time))
+                                {
+                                    dataChanged = true;
+                                    dataChangedFrom = Math.min(dataChangedFrom, oldFirstData.time);
+                                    dataChangedTo = Math.max(dataChangedTo, firstData.time);
+                                }
+                            }
+                        } else
+                        {
+                            firstData = candleData;
+                            if(addFirstDataIfNeeded(oldFirstData != null ? oldFirstData.time : 0x8000000000000000L))
+                            {
+                                dataChanged = true;
+                                dataChangedFrom = Math.min(dataChangedFrom, oldFirstData != null ? oldFirstData.time : firstData.time);
+                                dataChangedTo = Math.max(dataChangedTo, firstData.time);
+                            }
+                            oldFirstData = firstData;
+                            CandleData inProgressCandle = feedDataProvider.getInProgressCandle(instrument, period, side);
+                            if(inProgressCandle != null && DataCacheUtils.getNextCandleStartFast(period, firstData.time) == inProgressCandle.time)
+                            {
+                                firstData = inProgressCandle;
+                                if(addFirstDataIfNeeded(oldFirstData != null ? oldFirstData.time : 0x8000000000000000L))
+                                {
+                                    dataChanged = true;
+                                    dataChangedFrom = Math.min(dataChangedFrom, oldFirstData != null ? oldFirstData.time : firstData.time);
+                                    dataChangedTo = Math.max(dataChangedTo, firstData.time);
+                                }
+                            }
+                        }
+                    } else
+                    if(lastIndex != -1 && buffer[lastIndex].time == candleData.time)
+                    {
+                        lastIndex--;
+                        loadedNumberOfCandles--;
+                        if(lastIndex != -1)
+                            firstData = buffer[lastIndex];
+                        else
+                            firstData = null;
+                        Data oldFirstData = firstData;
+                        CandleData inProgressCandle = feedDataProvider.getInProgressCandle(instrument, period, side);
+                        if(inProgressCandle != null && (firstData == null || DataCacheUtils.getNextCandleStartFast(period, firstData.time) == inProgressCandle.time))
+                        {
+                            firstData = inProgressCandle;
+                            addFirstDataIfNeeded(oldFirstData != null ? oldFirstData.time : 0x8000000000000000L);
+                        } else
+                        if(lastIndex != -1)
+                        {
+                            if(gaps.length > 0 && gaps[gaps.length - 1][0] >= buffer[lastIndex].time)
+                                gaps = (long[][])Arrays.copyOf(gaps, gaps.length - 1);
+                            recalculateIndicators(lastIndex, lastIndex);
+                            checkConsistency();
+                        }
+                        long to = firstData != null ? firstData.time : loadedTo;
+                        dataChanged = true;
+                        dataChangedFrom = Math.min(dataChangedFrom, candleData.time <= to ? candleData.time : to);
+                        dataChangedTo = Math.max(dataChangedTo, to);
+                    }
+                    if(filter != Filter.NO_FILTER && period.getInterval() <= Period.DAILY.getInterval())
+                    {
+                        long weekendEndNextHourTime = weekendEnd + 0x36ee80L;
+                        long firstCandleAfterWeekendEnd = DataCacheUtils.getCandleStartFast(period, weekendEndNextHourTime);
+                        if(firstCandleAfterWeekendEnd == time)
+                            setFilter(filter);
+                    }
+                    if(period == Period.DAILY && dailyFilterPeriod != Period.DAILY)
+                    {
+                        cal.setTimeInMillis(time);
+                        if(cal.get(7) == 1 || cal.get(7) == 2 && dailyFilterPeriod == Period.DAILY_SUNDAY_IN_MONDAY)
+                            setFilter(filter);
+                    }
+                    candlesdataprovider1;
+                    JVM INSTR monitorexit ;
+                      goto _L1
+                    exception1;
+                    throw exception1;
+_L1:
+                    if(dataChanged)
+                    {
+                        if(sparceIndicatorAttached())
+                        {
+                            dataChangedFrom = buffer[0].time;
+                            dataChangedTo = buffer[lastIndex].time;
+                        } else
+                        if(formulasMinShift != 0)
+                            dataChangedFrom = DataCacheUtils.getTimeForNCandlesBackFast(period, dataChangedFrom, -formulasMinShift + 1);
+                        fireDataChanged(dataChangedFrom, dataChangedTo, true);
+                    }
+                    return;
+                }
+
+                public void newTick(Instrument instrument1, long l, double d, double d1, 
+                        double d2, double d3)
+                {
+                }
+
+                final CandlesDataProvider this$0;
+
+            
+            {
+                this$0 = CandlesDataProvider.this;
+                super();
+            }
+            };
+            firstTickTime = getLatestDataTime();
+            if(firstTickTime != 0x8000000000000000L)
+                synchronized(this)
+                {
+                    if(requestAtFirstTick)
+                    {
+                        requestAtFirstTick = false;
+                        long firstCandleTime = DataCacheUtils.getCandleStartFast(period, firstTickTime);
+                        int numberOfCandles = maxNumberOfCandles * bufferSizeMultiplier;
+                        long to = firstCandleTime;
+                        if(feedDataProvider != null)
+                        {
+                            DataCacheRequestData requestData = new DataCacheRequestData();
+                            requestData.numberOfCandlesBefore = 0;
+                            requestData.numberOfCandlesAfter = 0;
+                            requestData.time = to;
+                            requestData.mode = AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING;
+                            requestData.cancel = false;
+                            if(assertionsEnabled())
+                            {
+                                requestData.requestState = new HashMap();
+                                requestData.requestState.put("lastIndex", Integer.valueOf(lastIndex));
+                                CandleData bufferCopy[] = new CandleData[buffer.length];
+                                System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+                                requestData.requestState.put("buffer", bufferCopy);
+                                requestData.requestState.put("firstData", firstData);
+                            }
+                            try
+                            {
+                                AbstractDataProvider.LoadDataProgressListener loadDataProgressListener = new AbstractDataProvider.LoadDataProgressListener(this, requestData);
+                                if(LOGGER.isDebugEnabled())
+                                {
+                                    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                                    dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                                    LOGGER.debug((new StringBuilder()).append("Requesting last available candles for instrument [").append(instrument).append("] period [").append(period).append("] side [").append(side).append("] numberOfCandles [").append(numberOfCandles).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+                                }
+                                feedDataProvider.loadLastAvailableNumberOfCandlesDataSynched(instrument, getFilteredPeriod(), side, numberOfCandles, to, filter, new LoadDataListener(requestData, true), loadDataProgressListener);
+                            }
+                            catch(DataCacheException e)
+                            {
+                                LOGGER.error(e.getMessage(), e);
+                            }
+                            if(lastIndex != -1)
+                            {
+                                numberOfCandles -= lastIndex;
+                                loadedNumberOfCandles = lastIndex + 1;
+                                to = DataCacheUtils.getPreviousCandleStartFast(period, buffer[0].time);
+                            }
+                        }
+                        if(lastIndex == -1 || lastIndex + 1 < maxNumberOfCandles * bufferSizeMultiplier)
+                            requestHistoryData(numberOfCandles, 0, to, AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING, maxNumberOfCandles * bufferSizeMultiplier, firstCandleTime, 0);
+                    }
+                }
+            feedDataProvider.subscribeToPeriodNotifications(instrument, period, side, firstDataListener);
+            tickListener = new LiveFeedListener() {
+
+                public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                        double d1, double d2, double d3, double d4)
+                {
+                }
+
+                public void newTick(Instrument instrument, long time, double ask, double bid, 
+                        double askVol, double bidVol)
+                {
+                    if(parentDataProvider != null)
+                        synchronized(parentDataProvider)
+                        {
+                            synchronized(CandlesDataProvider.this)
+                            {
+                                processNewTick(instrument, time);
+                            }
+                        }
+                }
+
+                final CandlesDataProvider this$0;
+
+            
+            {
+                this$0 = CandlesDataProvider.this;
+                super();
+            }
+            };
+            feedDataProvider.subscribeToLiveFeed(instrument, tickListener);
+            candleInProgressListener = new LiveFeedListener() {
+
+                public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                        double close, double low, double high, double vol)
+                {
+                    boolean dataChanged;
+                    long dataChangedFrom;
+                    long dataChangedTo;
+label0:
+                    {
+                        dataChanged = false;
+                        dataChangedFrom = 0x7fffffffffffffffL;
+                        dataChangedTo = 0x8000000000000000L;
+                        synchronized(CandlesDataProvider.this)
+                        {
+                            if(period == CandlesDataProvider.this.period && side == CandlesDataProvider.this.side)
+                                break label0;
+                        }
+                        return;
+                    }
+                    if(time < weekendStartCandle || time > weekendEndCandle)
+                        if(firstData == null)
+                        {
+                            firstData = new CandleData(time, open, close, low, high, vol);
+                            applyDailyFilterCorrection(null, firstData);
+                            if(addFirstDataIfNeeded(0x8000000000000000L))
+                            {
+                                dataChanged = true;
+                                dataChangedFrom = Math.min(dataChangedFrom, firstData.time);
+                                dataChangedTo = Math.max(dataChangedTo, firstData.time);
+                            }
+                        } else
+                        if(firstData.time != time)
+                        {
+                            Data oldFirstData = firstData;
+                            firstData = new CandleData(time, open, close, low, high, vol);
+                            applyDailyFilterCorrection(oldFirstData, firstData);
+                            if(addFirstDataIfNeeded(oldFirstData.time))
+                            {
+                                dataChanged = true;
+                                dataChangedFrom = Math.min(dataChangedFrom, oldFirstData.time);
+                                dataChangedTo = Math.max(dataChangedTo, firstData.time);
+                            }
+                        } else
+                        if(lastIndex != -1 && buffer[lastIndex].time == firstData.time)
+                        {
+                            CandleData firstCandleData = (CandleData)firstData;
+                            firstCandleData.open = open;
+                            firstCandleData.close = close;
+                            firstCandleData.low = low;
+                            firstCandleData.high = high;
+                            firstCandleData.vol = vol;
+                            applyDailyFilterCorrection(lastIndex <= 0 ? null : ((Data) (buffer[lastIndex - 1])), firstData);
+                            recalculateIndicators(lastIndex, lastIndex);
+                            dataChanged = true;
+                            dataChangedFrom = Math.min(dataChangedFrom, time);
+                            dataChangedTo = Math.max(dataChangedTo, time);
+                        }
+                    candlesdataprovider1;
+                    JVM INSTR monitorexit ;
+                      goto _L1
+                    exception1;
+                    throw exception1;
+_L1:
+                    if(dataChanged)
+                    {
+                        if(sparceIndicatorAttached())
+                        {
+                            dataChangedFrom = buffer[0].time;
+                            dataChangedTo = buffer[lastIndex].time;
+                        } else
+                        if(formulasMinShift != 0)
+                            dataChangedFrom = DataCacheUtils.getTimeForNCandlesBackFast(period, dataChangedFrom, -formulasMinShift + 1);
+                        fireDataChanged(dataChangedFrom, dataChangedTo, true);
+                    }
+                    return;
+                }
+
+                public void newTick(Instrument instrument1, long l, double d, double d1, 
+                        double d2, double d3)
+                {
+                }
+
+                final CandlesDataProvider this$0;
+
+            
+            {
+                this$0 = CandlesDataProvider.this;
+                super();
+            }
+            };
+            feedDataProvider.addInProgressCandleListener(instrument, period, side, candleInProgressListener);
+            cacheDataUpdatedListener = new AbstractDataProvider.CacheDataUpdatedListener(this);
+            feedDataProvider.addCacheDataUpdatedListener(instrument, cacheDataUpdatedListener);
+        }
+        catch(DataCacheException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private void applyDailyFilterCorrection(Data previousCandleData, Data newCandleData)
+    {
+        if(period == Period.DAILY && dailyFilterPeriod != Period.DAILY)
+        {
+            CandleData previousCandle = (CandleData)previousCandleData;
+            CandleData newCandle = (CandleData)newCandleData;
+            cal.setTimeInMillis(newCandle.time);
+            if(cal.get(7) == 1)
+                if(previousCandle != null)
+                {
+                    newCandle.open = previousCandle.close;
+                    newCandle.high = previousCandle.close;
+                    newCandle.low = previousCandle.close;
+                    newCandle.close = previousCandle.close;
+                    newCandle.vol = 0.0D;
+                } else
+                {
+                    newCandle.high = newCandle.open;
+                    newCandle.low = newCandle.open;
+                    newCandle.close = newCandle.open;
+                    newCandle.vol = 0.0D;
+                }
+            if(cal.get(7) == 2)
+            {
+                long sundayCandleTime = DataCacheUtils.getPreviousCandleStartFast(Period.DAILY, newCandleData.time);
+                if(lastSundayCandle != null && lastSundayCandle.time == sundayCandleTime && lastSundayCandle.open != 0.0D)
+                {
+                    newCandle.open = lastSundayCandle.open;
+                    newCandle.high = Math.max(lastSundayCandle.high, newCandle.high);
+                    newCandle.low = Math.min(lastSundayCandle.low, newCandle.low);
+                    newCandle.vol = StratUtils.roundHalfEven(newCandle.vol + lastSundayCandle.vol, 7);
+                } else
+                if(lastSundayCandle == null || lastSundayCandle.time != sundayCandleTime)
+                {
+                    lastSundayCandle = new CandleData(sundayCandleTime, 0.0D, 0.0D, 0.0D, 0.0D, 0.0D);
+                    try
+                    {
+                        feedDataProvider.loadCandlesData(instrument, Period.DAILY, side, sundayCandleTime, sundayCandleTime, new LiveFeedListener() {
+
+                            public void newTick(Instrument instrument1, long l, double d, double d1, 
+                                    double d2, double d3)
+                            {
+                            }
+
+                            public void newCandle(Instrument instrument, Period period, OfferSide side, long time, double open, 
+                                    double close, double low, double high, double vol)
+                            {
+                                synchronized(CandlesDataProvider.this)
+                                {
+                                    if(lastSundayCandle.time == time)
+                                    {
+                                        lastSundayCandle.open = open;
+                                        lastSundayCandle.close = close;
+                                        lastSundayCandle.low = low;
+                                        lastSundayCandle.high = high;
+                                        lastSundayCandle.vol = vol;
+                                    }
+                                }
+                            }
+
+                            final CandlesDataProvider this$0;
+
+            
+            {
+                this$0 = CandlesDataProvider.this;
+                super();
+            }
+                        }, new LoadingProgressListener() {
+
+                            public void dataLoaded(long l, long l1, long l2, String s)
+                            {
+                            }
+
+                            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                                    Exception e)
+                            {
+                                boolean dataChanged = false;
+                                long from = 0L;
+                                long to = 0L;
+                                synchronized(CandlesDataProvider.this)
+                                {
+                                    if(lastSundayCandle.time == startTime && (!allDataLoaded || lastSundayCandle.open == 0.0D))
+                                    {
+                                        CandlesDataProvider.LOGGER.error("Failed to load last sunday candle");
+                                        lastSundayCandle = null;
+                                    } else
+                                    {
+                                        applyDailyFilterCorrection(null, firstData);
+                                        dataChanged = true;
+                                        from = to = firstData.getTime();
+                                    }
+                                }
+                                if(dataChanged)
+                                    fireDataChanged(from, to, true);
+                            }
+
+                            public boolean stopJob()
+                            {
+                                return false;
+                            }
+
+                            final CandlesDataProvider this$0;
+
+            
+            {
+                this$0 = CandlesDataProvider.this;
+                super();
+            }
+                        });
+                    }
+                    catch(DataCacheException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                        lastSundayCandle = null;
+                    }
+                }
+            }
+        }
+    }
+
+    private void processNewTick(Instrument instrument, long time)
+    {
+        if(firstTickTime == 0x8000000000000000L)
+        {
+            firstTickTime = time;
+            if(requestAtFirstTick)
+            {
+                requestAtFirstTick = false;
+                if(firstData == null)
+                {
+                    long firstCandleTime = DataCacheUtils.getCandleStartFast(period, getLatestDataTime());
+                    int numberOfCandles = maxNumberOfCandles * bufferSizeMultiplier;
+                    long to = firstCandleTime;
+                    DataCacheRequestData requestData = new DataCacheRequestData();
+                    requestData.numberOfCandlesBefore = 0;
+                    requestData.numberOfCandlesAfter = 0;
+                    requestData.time = to;
+                    requestData.mode = AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING;
+                    requestData.cancel = false;
+                    if(assertionsEnabled())
+                    {
+                        requestData.requestState = new HashMap();
+                        requestData.requestState.put("lastIndex", Integer.valueOf(lastIndex));
+                        CandleData bufferCopy[] = new CandleData[buffer.length];
+                        System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+                        requestData.requestState.put("buffer", bufferCopy);
+                        requestData.requestState.put("firstData", firstData);
+                    }
+                    try
+                    {
+                        AbstractDataProvider.LoadDataProgressListener loadDataProgressListener = new AbstractDataProvider.LoadDataProgressListener(this, requestData);
+                        if(LOGGER.isDebugEnabled())
+                        {
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                            LOGGER.debug((new StringBuilder()).append("Requesting last available candles for instrument [").append(instrument).append("] period [").append(period).append("] side [").append(side).append("] numberOfCandles [").append(numberOfCandles).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+                        }
+                        feedDataProvider.loadLastAvailableNumberOfCandlesDataSynched(instrument, getFilteredPeriod(), side, numberOfCandles, to, filter, new LoadDataListener(requestData, true), loadDataProgressListener);
+                    }
+                    catch(DataCacheException e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                    if(lastIndex != -1)
+                    {
+                        numberOfCandles -= lastIndex;
+                        loadedNumberOfCandles = lastIndex + 1;
+                        to = DataCacheUtils.getPreviousCandleStartFast(period, buffer[0].time);
+                    }
+                    if(lastIndex == -1 || lastIndex + 1 < maxNumberOfCandles * bufferSizeMultiplier)
+                        requestHistoryData(numberOfCandles, 0, to, AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING, maxNumberOfCandles * bufferSizeMultiplier, firstCandleTime, 0);
+                }
+                if(tickListener != null)
+                {
+                    feedDataProvider.unsubscribeToLiveFeed(instrument, tickListener);
+                    tickListener = null;
+                }
+            }
+        }
+    }
+
+    public synchronized IDataSequence getDataSequence(int numberOfCandlesBefore, long to, int numberOfCandlesAfter)
+    {
+        if(parentDataProvider == null && numberOfCandlesBefore + numberOfCandlesAfter > maxNumberOfCandles)
+            throw new IllegalArgumentException((new StringBuilder()).append("Requested items count: ").append(numberOfCandlesBefore + numberOfCandlesAfter).append(" is bigger than maxNumberOfCandles[").append(maxNumberOfCandles).append("] specified in constructor").toString());
+        if(numberOfCandlesBefore <= 0 && numberOfCandlesAfter <= 0)
+            throw new IllegalArgumentException((new StringBuilder()).append("Negative or zero number of candles requested [").append(numberOfCandlesBefore).append("],[").append(numberOfCandlesAfter).append("]").toString());
+        if(!active)
+            throw new IllegalStateException("DataProvider is not active, activate it first");
+        if(assertionsEnabled())
+        {
+            if(to == 0x8000000000000000L || to == 0x7fffffffffffffffL)
+                throw new IllegalStateException((new StringBuilder()).append("DataProvider is not ready yet, waiting for first tick. Requested time [").append(to).append("]").toString());
+            if(to > getLatestDataTime())
+                throw new IllegalStateException((new StringBuilder()).append("Time is greater than latest data time for this DataProvider. Requested time [").append(to).append("], latestDataTime [").append(getLatestDataTime()).append("]").toString());
+            if(to != DataCacheUtils.getCandleStartFast(period, to))
+            {
+                SimpleDateFormat df = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                df.setTimeZone(TimeZone.getTimeZone("GMT"));
+                throw new IllegalStateException((new StringBuilder()).append("to time [").append(df.format(Long.valueOf(to))).append("] is not a start of a candle with period [").append(period).append("]").toString());
+            }
+        }
+        int intervals[] = {
+            0x80000000, 0x80000000, 0, 0
+        };
+        boolean dataExists = calculateInterval(numberOfCandlesBefore, to, numberOfCandlesAfter, intervals, buffer, lastIndex);
+        CandleData timeData[];
+        if(dataExists)
+        {
+            timeData = new CandleData[(intervals[1] - intervals[0]) + 1];
+            System.arraycopy(buffer, intervals[0], timeData, 0, (intervals[1] - intervals[0]) + 1);
+        } else
+        {
+            timeData = new CandleData[0];
+        }
+        Map formulaOutputs = null;
+        Map indicators = null;
+        Iterator i$ = formulas.entrySet().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            AbstractDataProvider.IndicatorData formulaData = (AbstractDataProvider.IndicatorData)entry.getValue();
+            if(!formulaData.disabledIndicator)
+            {
+                IIndicator indicator = formulaData.indicatorWrapper.getIndicator();
+                if(formulaOutputs == null)
+                {
+                    formulaOutputs = new HashMap();
+                    indicators = new HashMap();
+                }
+                indicators.put(entry.getKey(), formulaData.indicatorWrapper);
+                Object outputs[] = new Object[formulaData.outputDataInt.length];
+                formulaOutputs.put(entry.getKey(), ((Object) (outputs)));
+                for(int i = 0; i < outputs.length; i++)
+                {
+                    static class _cls6
+                    {
+
+                        static final int $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[];
+
+                        static 
+                        {
+                            $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type = new int[com.dukascopy.api.indicators.OutputParameterInfo.Type.values().length];
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.INT.ordinal()] = 1;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.DOUBLE.ordinal()] = 2;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.OBJECT.ordinal()] = 3;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                        }
+                    }
+
+                    switch(_cls6..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[indicator.getOutputParameterInfo(i).getType().ordinal()])
+                    {
+                    default:
+                        break;
+
+                    case 1: // '\001'
+                        if(dataExists)
+                        {
+                            outputs[i] = new int[(intervals[1] - intervals[0]) + 1];
+                            System.arraycopy(formulaData.outputDataInt[i], intervals[0], outputs[i], 0, (intervals[1] - intervals[0]) + 1);
+                        } else
+                        {
+                            outputs[i] = new int[0];
+                        }
+                        break;
+
+                    case 2: // '\002'
+                        if(dataExists)
+                        {
+                            outputs[i] = new double[(intervals[1] - intervals[0]) + 1];
+                            System.arraycopy(formulaData.outputDataDouble[i], intervals[0], outputs[i], 0, (intervals[1] - intervals[0]) + 1);
+                        } else
+                        {
+                            outputs[i] = new double[0];
+                        }
+                        break;
+
+                    case 3: // '\003'
+                        if(dataExists)
+                        {
+                            outputs[i] = ((Object) (new Object[(intervals[1] - intervals[0]) + 1]));
+                            System.arraycopy(((Object) (formulaData.outputDataObject[i])), intervals[0], outputs[i], 0, (intervals[1] - intervals[0]) + 1);
+                        } else
+                        {
+                            outputs[i] = ((Object) (new Object[0]));
+                        }
+                        break;
+                    }
+                }
+
+                if(formulaData.inputDataProviders != null)
+                {
+                    AbstractDataProvider arr$[] = formulaData.inputDataProviders;
+                    int len$ = arr$.length;
+                    int i$ = 0;
+                    while(i$ < len$) 
+                    {
+                        AbstractDataProvider indicatorDataProvider = arr$[i$];
+                        if(indicatorDataProvider != null)
+                        {
+                            Period indicatorPeriod = indicatorDataProvider.period != Period.TICK ? indicatorDataProvider.period : Period.ONE_SEC;
+                            long indicatorTo = DataCacheUtils.getCandleStartFast(indicatorPeriod, to);
+                            int indicatorBefore = 1;
+                            int indicatorAfter = numberOfCandlesAfter <= 0 ? 0 : 1;
+                            if(dataExists)
+                            {
+                                long indicatorFrom = DataCacheUtils.getCandleStartFast(indicatorPeriod, timeData[intervals[2]].time);
+                                indicatorBefore = DataCacheUtils.getCandlesCountBetweenFast(indicatorPeriod, indicatorFrom, indicatorTo);
+                                if(indicatorBefore < 0)
+                                    indicatorBefore = 1;
+                                long indicatorAfterTo = DataCacheUtils.getCandleStartFast(indicatorPeriod, timeData[timeData.length - intervals[3] - 1].time);
+                                indicatorAfter = DataCacheUtils.getCandlesCountBetweenFast(indicatorPeriod, DataCacheUtils.getNextCandleStartFast(indicatorPeriod, indicatorTo), indicatorAfterTo);
+                                if(indicatorAfter < 0)
+                                    indicatorAfter = 0;
+                            }
+                            synchronized(indicatorDataProvider)
+                            {
+                                indicatorDataProvider.doHistoryRequests(indicatorBefore, indicatorTo, indicatorAfter);
+                            }
+                        }
+                        i$++;
+                    }
+                }
+            }
+        } while(true);
+        if(parentDataProvider == null)
+            doHistoryRequests(numberOfCandlesBefore, to, numberOfCandlesAfter);
+        CandleDataSequence seq = new CandleDataSequence(period, dataExists ? timeData[intervals[2]].time : to, dataExists ? timeData[timeData.length - intervals[3] - 1].time : to, intervals[2], intervals[3], timeData, gaps, formulaOutputs, indicators, timeData.length > 0 && firstData != null && intervals[3] == 0 && timeData[timeData.length - 1].time == firstData.time, timeData.length > 0 && firstData != null && timeData[timeData.length - 1].time == firstData.time);
+        return seq;
+    }
+
+    public void setFilter(Filter filter)
+    {
+        setParams(instrument, period, filter, side);
+    }
+
+    public void setPeriod(Period period)
+    {
+        setParams(instrument, period, filter, side);
+    }
+
+    public void setOfferSide(OfferSide offerSide)
+    {
+        setParams(instrument, period, filter, offerSide);
+    }
+
+    public Filter getFilter()
+    {
+        return filter;
+    }
+
+    public void setInstrument(Instrument instrument)
+    {
+        setParams(instrument, period, filter, side);
+    }
+
+    public void setParams(Instrument instrument, Period period, Filter filter, OfferSide offerSide)
+    {
+        setParams(instrument, period, filter, offerSide, null);
+    }
+
+    public void setParams(Instrument instrument, Period period, Filter filter, OfferSide offerSide, ISynchronizeIndicators synchronizeIndicators)
+    {
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Setting filter ").append(filter).append(" for [").append(instrument).append("] [").append(period).append("] [").append(offerSide).append("] provider").toString());
+        if(parentDataProvider != null)
+            synchronized(parentDataProvider)
+            {
+                synchronized(this)
+                {
+                    setParamsSynchronized(instrument, period, filter, offerSide, synchronizeIndicators);
+                }
+            }
+        else
+            synchronized(this)
+            {
+                setParamsSynchronized(instrument, period, filter, offerSide, synchronizeIndicators);
+            }
+    }
+
+    protected void setParamsSynchronized(Instrument instrument, Period period, Filter filter, OfferSide side)
+    {
+        setParamsSynchronized(instrument, period, filter, side, null);
+    }
+
+    protected void setParamsSynchronized(Instrument instrument, Period period, Filter filter, OfferSide side, ISynchronizeIndicators synchronizeIndicators)
+    {
+        if(period == Period.TICK)
+            throw new IllegalArgumentException("Incorrect period set for candles provider");
+        if(dataCacheRequestData != null)
+        {
+            dataCacheRequestData.cancel = true;
+            if(LOGGER.isDebugEnabled())
+            {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                LOGGER.debug((new StringBuilder()).append("Canceling request for instrument [").append(this.instrument).append("], period [").append(this.period).append("], side [").append(this.side).append("] numberOfCandlesBefore [").append(dataCacheRequestData.numberOfCandlesBefore).append("], numberOfCandlesAfter [").append(dataCacheRequestData.numberOfCandlesAfter).append("] time [").append(dateFormat.format(new Date(dataCacheRequestData.time))).append("] as a result for request to change instrument/period/side/filter").toString());
+            }
+        }
+        feedDataProvider.unsubscribeToPeriodNotifications(this.instrument, this.period, this.side, firstDataListener);
+        feedDataProvider.removeInProgressCandleListener(this.instrument, this.period, this.side, candleInProgressListener);
+        this.period = period;
+        this.side = side;
+        this.filter = filter;
+        this.instrument = instrument;
+        lastSundayCandle = null;
+        firstData = null;
+        lastIndex = -1;
+        loadedNumberOfCandles = 0L;
+        loadedTo = 0x8000000000000000L;
+        weekendStartCandle = 0x8000000000000000L;
+        weekendEndCandle = 0x8000000000000000L;
+        Iterator i$ = formulas.values().iterator();
+label0:
+        do
+        {
+            if(i$.hasNext())
+            {
+                AbstractDataProvider.IndicatorData indicatorData = (AbstractDataProvider.IndicatorData)i$.next();
+                IIndicator indicator = indicatorData.indicatorWrapper.getIndicator();
+                int i = 0;
+                int j = indicator.getIndicatorInfo().getNumberOfInputs();
+                do
+                {
+                    if(i >= j)
+                        continue label0;
+                    InputParameterInfo inputParameterInfo = indicator.getInputParameterInfo(i);
+                    if(inputParameterInfo.getOfferSide() != null || inputParameterInfo.getPeriod() != null || inputParameterInfo.getInstrument() != null)
+                    {
+                        initIndicatorInputs(indicatorData);
+                        continue label0;
+                    }
+                    i++;
+                } while(true);
+            }
+            try
+            {
+                feedDataProvider.subscribeToPeriodNotifications(instrument, period, side, firstDataListener);
+                feedDataProvider.addInProgressCandleListener(instrument, period, side, candleInProgressListener);
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            long firstTickTime = getLatestDataTime();
+            if(firstTickTime != 0x8000000000000000L)
+            {
+                if(requestAtFirstTick)
+                    requestAtFirstTick = false;
+                long firstCandleTime = DataCacheUtils.getCandleStartFast(period, firstTickTime);
+                int numberOfCandles = maxNumberOfCandles * bufferSizeMultiplier;
+                long to = firstCandleTime;
+                DataCacheRequestData requestData = new DataCacheRequestData();
+                requestData.numberOfCandlesBefore = 0;
+                requestData.numberOfCandlesAfter = 0;
+                requestData.time = to;
+                requestData.mode = AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING;
+                requestData.cancel = false;
+                if(assertionsEnabled())
+                {
+                    requestData.requestState = new HashMap();
+                    requestData.requestState.put("lastIndex", Integer.valueOf(lastIndex));
+                    CandleData bufferCopy[] = new CandleData[buffer.length];
+                    System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+                    requestData.requestState.put("buffer", bufferCopy);
+                    requestData.requestState.put("firstData", firstData);
+                }
+                try
+                {
+                    AbstractDataProvider.LoadDataProgressListener loadDataProgressListener = new AbstractDataProvider.LoadDataProgressListener(this, requestData, synchronizeIndicators);
+                    if(LOGGER.isDebugEnabled())
+                    {
+                        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                        dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                        LOGGER.debug((new StringBuilder()).append("Requesting last available candles for instrument [").append(instrument).append("] period [").append(period).append("] side [").append(side).append("] numberOfCandles [").append(numberOfCandles).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+                    }
+                    feedDataProvider.loadLastAvailableNumberOfCandlesDataSynched(instrument, getFilteredPeriod(), side, numberOfCandles, to, filter, new LoadDataListener(requestData, true), loadDataProgressListener);
+                }
+                catch(DataCacheException e)
+                {
+                    LOGGER.error(e.getMessage(), e);
+                }
+                if(lastIndex != -1)
+                {
+                    numberOfCandles -= lastIndex;
+                    loadedNumberOfCandles = lastIndex + 1;
+                    to = DataCacheUtils.getPreviousCandleStartFast(period, buffer[0].time);
+                }
+                if(lastIndex == -1 || lastIndex + 1 < maxNumberOfCandles)
+                    requestHistoryData(numberOfCandles, 0, to, AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING, maxNumberOfCandles * bufferSizeMultiplier, firstCandleTime, 0, synchronizeIndicators);
+            }
+            return;
+        } while(true);
+    }
+
+    protected void initIndicatorDataOutputBuffers(AbstractDataProvider.IndicatorData formulaData)
+    {
+        IndicatorInfo indicatorInfo = formulaData.indicatorWrapper.getIndicator().getIndicatorInfo();
+        for(int i = 0; i < indicatorInfo.getNumberOfOutputs(); i++)
+        {
+            OutputParameterInfo outputParameterInfo = formulaData.indicatorWrapper.getIndicator().getOutputParameterInfo(i);
+            switch(_cls6..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[outputParameterInfo.getType().ordinal()])
+            {
+            case 1: // '\001'
+                formulaData.outputDataInt[i] = new int[buffer.length];
+                break;
+
+            case 2: // '\002'
+                formulaData.outputDataDouble[i] = new double[buffer.length];
+                break;
+
+            case 3: // '\003'
+                formulaData.outputDataObject[i] = new Object[buffer.length];
+                break;
+            }
+        }
+
+    }
+
+    protected void recalculateIndicators()
+    {
+        recalculateIndicators(0, lastIndex);
+    }
+
+    protected void recalculateIndicator(AbstractDataProvider.IndicatorData indicatorData)
+    {
+        Collection indicators = new ArrayList(1);
+        indicators.add(indicatorData);
+        recalculateIndicators(0, lastIndex, indicators, lastIndex, buffer, null);
+    }
+
+    protected void recalculateIndicators(int from, int to)
+    {
+        if(!active)
+            return;
+        boolean split = false;
+        Iterator i$ = formulas.values().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            AbstractDataProvider.IndicatorData formulaData = (AbstractDataProvider.IndicatorData)i$.next();
+            if(!formulaData.indicatorWrapper.getIndicator().getIndicatorInfo().isRecalculateAll())
+                continue;
+            split = true;
+            break;
+        } while(true);
+        if(split)
+        {
+            Collection recalculateAllFormulas = new ArrayList(formulas.size());
+            Collection restOfTheFormulas = new ArrayList(formulas.size());
+            for(Iterator i$ = formulas.values().iterator(); i$.hasNext();)
+            {
+                AbstractDataProvider.IndicatorData formulaData = (AbstractDataProvider.IndicatorData)i$.next();
+                if(formulaData.indicatorWrapper.getIndicator().getIndicatorInfo().isRecalculateAll())
+                    recalculateAllFormulas.add(formulaData);
+                else
+                    restOfTheFormulas.add(formulaData);
+            }
+
+            if(!recalculateAllFormulas.isEmpty())
+                recalculateIndicators(0, lastIndex, recalculateAllFormulas, lastIndex, buffer, null);
+            if(!restOfTheFormulas.isEmpty())
+                recalculateIndicators(from, to, restOfTheFormulas, lastIndex, buffer, null);
+        } else
+        if(!formulas.isEmpty())
+            recalculateIndicators(from, to, formulas.values(), lastIndex, buffer, null);
+    }
+
+    protected boolean loadingNeeded(int numberOfCandlesBefore, long to, int numberOfCandlesAfter)
+    {
+        if(lastIndex == -1)
+            return numberOfCandlesBefore > 0 || numberOfCandlesAfter > 0;
+        int safeCandlesAmountBefore = (maxNumberOfCandles * bufferSizeMultiplier - maxNumberOfCandles) / 4;
+        int safeCandlesAmountAfter = safeCandlesAmountBefore;
+        if(firstData != null)
+        {
+            if(to > firstData.time)
+            {
+                to = firstData.time;
+                numberOfCandlesAfter = 0;
+            }
+            int maxCandlesAfter = DataCacheUtils.getCandlesCountBetweenFast(period, DataCacheUtils.getNextCandleStartFast(period, to), firstData.time);
+            if(numberOfCandlesAfter > maxCandlesAfter)
+                numberOfCandlesAfter = maxCandlesAfter;
+            if(numberOfCandlesAfter + safeCandlesAmountAfter > maxCandlesAfter)
+                safeCandlesAmountAfter = maxCandlesAfter - numberOfCandlesAfter;
+        } else
+        if(firstTickTime != 0x8000000000000000L)
+        {
+            long firstDataTime = DataCacheUtils.getCandleStartFast(period, firstTickTime);
+            if(to > firstDataTime)
+            {
+                to = firstDataTime;
+                numberOfCandlesAfter = 0;
+            }
+            int maxCandlesAfter = DataCacheUtils.getCandlesCountBetweenFast(period, DataCacheUtils.getNextCandleStartFast(period, to), firstDataTime);
+            if(numberOfCandlesAfter > maxCandlesAfter)
+                numberOfCandlesAfter = maxCandlesAfter;
+            if(numberOfCandlesAfter + safeCandlesAmountAfter > maxCandlesAfter)
+                safeCandlesAmountAfter = maxCandlesAfter - numberOfCandlesAfter;
+        }
+        if(to <= loadedTo)
+        {
+            int numberOfCandlesBetweenTimes = DataCacheUtils.getCandlesCountBetweenFast(period, to, loadedTo) - 1;
+            if(numberOfCandlesAfter + safeCandlesAmountAfter <= numberOfCandlesBetweenTimes && (long)(numberOfCandlesBefore + safeCandlesAmountBefore) < loadedNumberOfCandles - (long)numberOfCandlesBetweenTimes)
+                return false;
+        }
+        int numberOfCandlesBetweenStartAndTo = 0;
+        int numberOfCandlesBetweenToAndEnd = 0;
+        int ei = lastIndex;
+        int toIndex = findStart(to, 0, ei, buffer);
+        numberOfCandlesBetweenToAndEnd += ei - toIndex;
+        if(toIndex >= 0 && toIndex <= ei && buffer[0].time == to)
+            toIndex++;
+        numberOfCandlesBetweenStartAndTo = (int)((long)numberOfCandlesBetweenStartAndTo + ((long)(toIndex + 1) + ((long)(lastIndex + 1) - loadedNumberOfCandles)));
+        if(firstData != null && buffer[lastIndex].time != firstData.time && numberOfCandlesBetweenToAndEnd < safeCandlesAmountAfter + numberOfCandlesAfter)
+            return true;
+        else
+            return numberOfCandlesBetweenStartAndTo < safeCandlesAmountBefore + numberOfCandlesBefore;
+    }
+
+    public AbstractDataProvider.LoadDataProgressListener doHistoryRequests(int numOfCandlesBefore, long time, int numOfCandlesAfter)
+    {
+        if(loadingNeeded(numOfCandlesBefore, time, numOfCandlesAfter))
+        {
+            int numberOfCandlesBefore = (maxNumberOfCandles * bufferSizeMultiplier) / 2 + (numOfCandlesBefore + numOfCandlesAfter) / 2;
+            int numberOfCandlesAfter = (maxNumberOfCandles * bufferSizeMultiplier) / 2 - (numOfCandlesBefore + numOfCandlesAfter) / 2;
+            AbstractDataProvider.RequestMode mode = AbstractDataProvider.RequestMode.OVERWRITE;
+            long firstDataTime = 0x8000000000000000L;
+            if(firstData != null)
+                firstDataTime = firstData.time;
+            else
+            if(firstTickTime != 0x8000000000000000L)
+                firstDataTime = DataCacheUtils.getCandleStartFast(period, firstTickTime);
+            else
+                firstDataTime = getLatestDataTime();
+            if(firstDataTime != 0x8000000000000000L)
+            {
+                if(time >= firstDataTime)
+                {
+                    time = DataCacheUtils.getCandleStartFast(period, firstDataTime);
+                    numberOfCandlesAfter = 0;
+                    numberOfCandlesBefore = maxNumberOfCandles * bufferSizeMultiplier;
+                    mode = AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING;
+                    if(lastIndex != -1 && firstData != null && buffer[lastIndex].time != firstData.time)
+                    {
+                        lastIndex = 0;
+                        buffer[lastIndex] = (CandleData)firstData;
+                        gaps = new long[0][];
+                        loadedNumberOfCandles = 1L;
+                        loadedTo = firstData.time;
+                        recalculateIndicators();
+                        checkConsistency();
+                    } else
+                    if(lastIndex != -1 && firstData == null && firstTickTime != 0x8000000000000000L && buffer[lastIndex].time != DataCacheUtils.getPreviousCandleStartFast(period, firstDataTime) && buffer[lastIndex].time != firstDataTime)
+                    {
+                        lastIndex = -1;
+                        gaps = new long[0][];
+                        loadedNumberOfCandles = 0L;
+                        loadedTo = 0L;
+                        checkConsistency();
+                    } else
+                    if(lastIndex != -1)
+                    {
+                        time = buffer[0].time;
+                        numberOfCandlesBefore -= lastIndex;
+                    }
+                } else
+                if(lastIndex != -1 && firstData != null && buffer[lastIndex].time == firstData.time && DataCacheUtils.getTimeForNCandlesForwardFast(period, time, numberOfCandlesAfter + 2) >= firstData.time)
+                {
+                    mode = AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING;
+                    time = buffer[0].time;
+                    numberOfCandlesAfter = 0;
+                    numberOfCandlesBefore = maxNumberOfCandles * bufferSizeMultiplier - lastIndex;
+                } else
+                {
+                    long expectedLastCandleTime = DataCacheUtils.getTimeForNCandlesForwardFast(period, time, numberOfCandlesAfter + 1);
+                    if(expectedLastCandleTime > firstDataTime)
+                    {
+                        int numberOfCandlesBetween = DataCacheUtils.getCandlesCountBetweenFast(period, firstDataTime, expectedLastCandleTime) - 1;
+                        numberOfCandlesAfter -= numberOfCandlesBetween;
+                        numberOfCandlesBefore += numberOfCandlesBetween;
+                    }
+                }
+            } else
+            if(assertionsEnabled())
+                throw new RuntimeException("There is no first data time known to the provider, but still we got the request for data... something is completely wrong");
+            return requestHistoryData(numberOfCandlesBefore, numberOfCandlesAfter, time, mode, numOfCandlesBefore, time, numOfCandlesAfter);
+        }
+        if(dataCacheRequestData != null)
+        {
+            if(LOGGER.isDebugEnabled())
+            {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                LOGGER.debug((new StringBuilder()).append("Canceling request for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] number of candles before [").append(dataCacheRequestData.numberOfCandlesBefore).append("] number of candles after [").append(dataCacheRequestData.numberOfCandlesAfter).append("] to [").append(dateFormat.format(new Date(dataCacheRequestData.time))).append("], buffer already has the required data").toString());
+            }
+            dataCacheRequestData.cancel = true;
+            dataCacheRequestData = null;
+            fireLoadingFinished();
+        }
+        return null;
+    }
+
+    protected void shiftLeft(int numberOfElements)
+    {
+label0:
+        {
+label1:
+            {
+                if(numberOfElements >= lastIndex + 1)
+                    break label1;
+                int ind;
+                for(ind = 0; ind < gaps.length && gaps[ind][0] <= buffer[numberOfElements].time; ind++);
+                if(ind > 0)
+                {
+                    long newGaps[][] = new long[gaps.length - ind][];
+                    if(newGaps.length > 0)
+                        System.arraycopy(gaps, ind, newGaps, 0, gaps.length - ind);
+                    gaps = newGaps;
+                }
+                System.arraycopy(buffer, numberOfElements, buffer, 0, (lastIndex + 1) - numberOfElements);
+                Iterator i$ = formulas.values().iterator();
+                do
+                {
+                    if(!i$.hasNext())
+                        break;
+                    AbstractDataProvider.IndicatorData indicatorData = (AbstractDataProvider.IndicatorData)i$.next();
+                    IIndicator indicator = indicatorData.indicatorWrapper.getIndicator();
+                    int i = 0;
+                    int j = indicator.getIndicatorInfo().getNumberOfOutputs();
+label2:
+                    do
+                    {
+label3:
+                        {
+                            if(i >= j)
+                                break label2;
+                            Object array;
+                            switch(_cls6..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[indicator.getOutputParameterInfo(i).getType().ordinal()])
+                            {
+                            default:
+                                break label3;
+
+                            case 2: // '\002'
+                                array = indicatorData.outputDataDouble[i];
+                                break;
+
+                            case 1: // '\001'
+                                array = indicatorData.outputDataInt[i];
+                                break;
+
+                            case 3: // '\003'
+                                array = ((Object) (indicatorData.outputDataObject[i]));
+                                break;
+                            }
+                            System.arraycopy(array, numberOfElements, array, 0, (lastIndex + 1) - numberOfElements);
+                        }
+                        i++;
+                    } while(true);
+                } while(true);
+                lastIndex = lastIndex - numberOfElements;
+                loadedNumberOfCandles = lastIndex + 1;
+                loadedTo = buffer[lastIndex].time;
+                break label0;
+            }
+            if(numberOfElements >= lastIndex + 1)
+            {
+                lastIndex = -1;
+                loadedNumberOfCandles = 0L;
+                loadedTo = 0x8000000000000000L;
+                gaps = new long[0][];
+            }
+        }
+    }
+
+    protected AbstractDataProvider.LoadDataProgressListener requestHistoryData(int numberOfCandlesBefore, int numberOfCandlesAfter, long time, AbstractDataProvider.RequestMode mode, int requestedNumberOfCandlesBefore, long requestedTo, int requestedNumberOfCandlesAfter)
+    {
+        return requestHistoryData(numberOfCandlesBefore, numberOfCandlesAfter, time, mode, requestedNumberOfCandlesBefore, requestedTo, requestedNumberOfCandlesAfter, null);
+    }
+
+    protected AbstractDataProvider.LoadDataProgressListener requestHistoryData(int numberOfCandlesBefore, int numberOfCandlesAfter, long time, AbstractDataProvider.RequestMode mode, int requestedNumberOfCandlesBefore, long requestedTo, int requestedNumberOfCandlesAfter, ISynchronizeIndicators synchronizeIndicators)
+    {
+        if(feedDataProvider != null && time < feedDataProvider.getTimeOfFirstCandle(instrument, period))
+            return null;
+        if(mode != AbstractDataProvider.RequestMode.OVERWRITE && mode != AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING)
+            throw new RuntimeException((new StringBuilder()).append("Request mode [").append(mode).append("] not supported").toString());
+        if(mode == AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING && lastIndex != -1 && firstData != null && time > buffer[0].time)
+            throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        if(numberOfCandlesBefore + numberOfCandlesAfter == 0)
+            throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        if(dataCacheRequestData != null && !dataCacheRequestData.cancel)
+        {
+            if(dataCacheRequestData.time == time && dataCacheRequestData.numberOfCandlesBefore == numberOfCandlesBefore && dataCacheRequestData.numberOfCandlesAfter == numberOfCandlesAfter && dataCacheRequestData.mode == mode)
+                return null;
+            long firstDataTime = 0x8000000000000000L;
+            if(firstData != null)
+                firstDataTime = firstData.time;
+            else
+            if(firstTickTime != 0x8000000000000000L)
+                firstDataTime = DataCacheUtils.getCandleStartFast(period, firstTickTime);
+            long expectedBufferTimeStart;
+            long expectedBufferTimeEnd;
+            if(dataCacheRequestData.mode == AbstractDataProvider.RequestMode.OVERWRITE)
+            {
+                expectedBufferTimeStart = DataCacheUtils.getTimeForNCandlesBackFast(period, dataCacheRequestData.time, dataCacheRequestData.numberOfCandlesBefore);
+                expectedBufferTimeEnd = DataCacheUtils.getTimeForNCandlesForwardFast(period, DataCacheUtils.getNextCandleStartFast(period, dataCacheRequestData.time), dataCacheRequestData.numberOfCandlesAfter);
+            } else
+            if(dataCacheRequestData.mode == AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING)
+            {
+                expectedBufferTimeEnd = firstDataTime;
+                expectedBufferTimeStart = DataCacheUtils.getTimeForNCandlesBackFast(period, dataCacheRequestData.time, dataCacheRequestData.numberOfCandlesBefore + (DataCacheUtils.getCandlesCountBetweenFast(period, time, firstDataTime) - 1));
+            } else
+            {
+                throw new RuntimeException((new StringBuilder()).append("Request mode [").append(dataCacheRequestData.mode).append("] not supported").toString());
+            }
+            long requestedFrom = DataCacheUtils.getTimeForNCandlesBackFast(period, requestedTo, requestedNumberOfCandlesBefore + (maxNumberOfCandles * bufferSizeMultiplier - maxNumberOfCandles) / 4);
+            long requestedToCorrected = requestedTo + DataCacheUtils.getTimeForNCandlesForwardFast(period, DataCacheUtils.getNextCandleStartFast(period, requestedTo), requestedNumberOfCandlesAfter + (maxNumberOfCandles * bufferSizeMultiplier - maxNumberOfCandles) / 4);
+            if(requestedToCorrected > firstDataTime)
+                requestedToCorrected = firstDataTime;
+            if(requestedFrom >= expectedBufferTimeStart && requestedToCorrected <= expectedBufferTimeEnd)
+                return null;
+            if(LOGGER.isDebugEnabled())
+            {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+                dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                LOGGER.debug((new StringBuilder()).append("Canceling request for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] numberOfCandlesBefore [").append(dataCacheRequestData.numberOfCandlesBefore).append("], numberOfCandlesAfter [").append(dataCacheRequestData.numberOfCandlesAfter).append("] time [").append(dateFormat.format(new Date(dataCacheRequestData.time))).append("], request no longer contain required data").toString());
+            }
+            dataCacheRequestData.cancel = true;
+            dataCacheRequestData = null;
+        }
+        fireLoadingStarted();
+        dataCacheRequestData = new DataCacheRequestData();
+        dataCacheRequestData.numberOfCandlesBefore = numberOfCandlesBefore;
+        dataCacheRequestData.numberOfCandlesAfter = numberOfCandlesAfter;
+        dataCacheRequestData.time = time;
+        dataCacheRequestData.mode = mode;
+        dataCacheRequestData.cancel = false;
+        if(assertionsEnabled())
+        {
+            dataCacheRequestData.requestState = new HashMap();
+            dataCacheRequestData.requestState.put("lastIndex", Integer.valueOf(lastIndex));
+            CandleData bufferCopy[] = new CandleData[buffer.length];
+            System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+            dataCacheRequestData.requestState.put("buffer", bufferCopy);
+            dataCacheRequestData.requestState.put("firstData", firstData);
+            if(numberOfCandlesBefore + numberOfCandlesAfter <= 0)
+                throw new RuntimeException("Trying to send empty request");
+            if(!feedDataProvider.isSubscribedToInstrument(instrument))
+                throw new RuntimeException("Requesting data to instrument, that is not subscribed");
+        }
+        if(feedDataProvider == null)
+            break MISSING_BLOCK_LABEL_1182;
+        AbstractDataProvider.LoadDataProgressListener loadDataProgressListener;
+        loadDataProgressListener = new AbstractDataProvider.LoadDataProgressListener(this, dataCacheRequestData, synchronizeIndicators);
+        if(LOGGER.isDebugEnabled())
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Requesting candles for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] loading [").append(numberOfCandlesBefore).append("] candles before and [").append(numberOfCandlesAfter).append("] after time [").append(dateFormat.format(new Date(time))).append("] as a result to request for [").append(requestedNumberOfCandlesBefore).append("] candles before time [").append(dateFormat.format(new Date(requestedTo))).append("] and [").append(requestedNumberOfCandlesAfter).append("] candles after time. FirstData time is - ").append(firstData != null ? dateFormat.format(Long.valueOf(firstData.time)) : "null").append(", mode - ").append(mode).toString());
+        }
+        feedDataProvider.loadCandlesDataBeforeAfter(instrument, getFilteredPeriod(), side, numberOfCandlesBefore, numberOfCandlesAfter, time, filter, new LoadDataListener(dataCacheRequestData, false), loadDataProgressListener);
+        return loadDataProgressListener;
+        DataCacheException e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return null;
+        return null;
+    }
+
+    protected void dataLoaded(boolean allDataLoaded, AbstractDataProvider.AbstractDataCacheRequestData abstractRequestData, Exception e)
+    {
+        dataLoaded(allDataLoaded, abstractRequestData, e, null);
+    }
+
+    protected void dataLoaded(boolean allDataLoaded, AbstractDataProvider.AbstractDataCacheRequestData abstractRequestData, Exception e, ISynchronizeIndicators synchronizeIndicators)
+    {
+        boolean dataChanged;
+        boolean loadingFinished;
+        long dataChangedFrom;
+        long dataChangedTo;
+        dataChanged = false;
+        loadingFinished = false;
+        dataChangedFrom = 0x7fffffffffffffffL;
+        dataChangedTo = 0x8000000000000000L;
+        boolean dataChangedFirstData = true;
+        CandlesDataProvider candlesdataprovider = this;
+        JVM INSTR monitorenter ;
+        DataCacheRequestData requestData;
+        boolean breakInterrupted;
+        int ignoreFirst;
+        int sizeToCopy;
+        Iterator i$;
+        requestData = (DataCacheRequestData)abstractRequestData;
+        if(LOGGER.isTraceEnabled())
+            LOGGER.trace((new StringBuilder()).append("dataLoaded, period [").append(period).append("], success [").append(allDataLoaded).append("]").toString());
+        if(dataCacheRequestData == requestData)
+        {
+            loadingFinished = true;
+            dataCacheRequestData = null;
+            fireLoadingFinished();
+        }
+        if(requestData.cancel || !allDataLoaded)
+            break MISSING_BLOCK_LABEL_2925;
+        if(LOGGER.isDebugEnabled())
+        {
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.debug((new StringBuilder()).append("Loaded [").append(requestData.dataLoaded.size()).append("] data for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] requestedCandlesBefore [").append(requestData.numberOfCandlesBefore).append("], time [").append(dateFormat.format(new Date(requestData.time))).append("], requestedCandlesAfter [").append(requestData.numberOfCandlesAfter).append("]").toString());
+        }
+        if(assertionsEnabled())
+        {
+            requestData.requestState = new HashMap();
+            requestData.requestState.put("lastIndex", Integer.valueOf(lastIndex));
+            CandleData bufferCopy[] = new CandleData[buffer.length];
+            System.arraycopy(buffer, 0, bufferCopy, 0, buffer.length);
+            requestData.requestState.put("buffer", bufferCopy);
+            requestData.requestState.put("firstData", firstData);
+        }
+        if(requestData.mode == AbstractDataProvider.RequestMode.OVERWRITE)
+        {
+            if(!requestData.dataLoaded.isEmpty())
+            {
+                int i = -1;
+                buffer[0] = null;
+                long prevTime = 0x8000000000000000L;
+                List gapsList = new ArrayList();
+                for(Iterator i$ = requestData.dataLoaded.iterator(); i$.hasNext();)
+                {
+                    CandleData dataElement = (CandleData)i$.next();
+                    if(prevTime != 0x8000000000000000L && DataCacheUtils.getNextCandleStartFast(period, prevTime) != dataElement.time)
+                    {
+                        long firstGapCandleTime = DataCacheUtils.getNextCandleStartFast(period, prevTime);
+                        long lastGapCandleTime = DataCacheUtils.getPreviousCandleStartFast(period, dataElement.time);
+                        gapsList.add(new long[] {
+                            firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(period, firstGapCandleTime, lastGapCandleTime)
+                        });
+                    }
+                    prevTime = dataElement.time;
+                    if(i < buffer.length - 1)
+                    {
+                        i++;
+                        buffer[i] = dataElement;
+                    } else
+                    {
+                        throw new RuntimeException("Loaded data has size bigger than maximum size of the data provider");
+                    }
+                }
+
+                lastIndex = i;
+                loadedTo = buffer[lastIndex].time <= requestData.time ? requestData.time : buffer[lastIndex].time;
+                loadedNumberOfCandles = requestData.numberOfCandlesBefore + requestData.numberOfCandlesAfter;
+                gaps = (long[][])gapsList.toArray(new long[gapsList.size()][]);
+                CandleData lastElement = (CandleData)requestData.dataLoaded.get(requestData.dataLoaded.size() - 1);
+                CandleData inProgressCandle = feedDataProvider.getInProgressCandle(instrument, period, side);
+                if(inProgressCandle != null && firstData != null && DataCacheUtils.getNextCandleStartFast(period, lastElement.time) == inProgressCandle.time && inProgressCandle.time == firstData.time || firstData != null && requestData.dataLoaded.size() < requestData.numberOfCandlesBefore + requestData.numberOfCandlesAfter && ((CandleData)requestData.dataLoaded.get(0)).time > feedDataProvider.getTimeOfFirstCandle(instrument, period) || firstData != null && requestData.time == DataCacheUtils.getPreviousCandleStartFast(period, firstData.time))
+                {
+                    if(lastIndex + 1 >= buffer.length)
+                    {
+                        shiftLeft(1);
+                        loadedNumberOfCandles--;
+                    }
+                    lastIndex++;
+                    loadedNumberOfCandles++;
+                    loadedTo = firstData.time;
+                    buffer[lastIndex] = (CandleData)firstData;
+                    long firstGapCandleTime = DataCacheUtils.getNextCandleStartFast(period, buffer[lastIndex - 1].time);
+                    if(firstGapCandleTime != buffer[lastIndex].time)
+                    {
+                        gaps = (long[][])Arrays.copyOf(gaps, gaps.length + 1);
+                        long lastGapCandleTime = DataCacheUtils.getPreviousCandleStartFast(period, buffer[lastIndex].time);
+                        gaps[gaps.length - 1] = (new long[] {
+                            firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(period, firstGapCandleTime, lastGapCandleTime)
+                        });
+                    }
+                }
+                recalculateIndicators();
+                dataChanged = true;
+                dataChangedFrom = Math.min(dataChangedFrom, buffer[0].time);
+                dataChangedTo = Math.max(dataChangedTo, buffer[lastIndex].time);
+                dataChangedFirstData = false;
+            } else
+            {
+                lastIndex = -1;
+                gaps = new long[0][];
+                loadedNumberOfCandles = requestData.numberOfCandlesBefore + requestData.numberOfCandlesAfter;
+                if(requestData.numberOfCandlesBefore == 0)
+                    loadedTo = DataCacheUtils.getNextCandleStartFast(period, requestData.time);
+                if(requestData.numberOfCandlesAfter > 0)
+                    loadedTo = DataCacheUtils.getTimeForNCandlesForwardFast(period, requestData.time, requestData.numberOfCandlesAfter);
+                dataChanged = true;
+                dataChangedFrom = Math.min(dataChangedFrom, DataCacheUtils.getTimeForNCandlesBackFast(period, requestData.time, requestData.numberOfCandlesBefore));
+                dataChangedTo = Math.max(dataChangedTo, requestData.time);
+                dataChangedFirstData = false;
+            }
+            break MISSING_BLOCK_LABEL_2918;
+        }
+        if(requestData.mode != AbstractDataProvider.RequestMode.APPEND_AT_START_NOT_OVERWRITING)
+            break MISSING_BLOCK_LABEL_2901;
+        breakInterrupted = false;
+        if(requestData.dataLoaded.isEmpty())
+            break MISSING_BLOCK_LABEL_2779;
+        if(firstData == null)
+        {
+            firstData = (Data)requestData.dataLoaded.remove(requestData.dataLoaded.size() - 1);
+            if(tickListener != null)
+            {
+                feedDataProvider.unsubscribeToLiveFeed(instrument, tickListener);
+                tickListener = null;
+                firstTickTime = 0x8000000000000000L;
+            }
+            lastIndex = 0;
+            loadedNumberOfCandles = 1L;
+            loadedTo = firstData.time;
+            buffer[lastIndex] = (CandleData)firstData;
+            gaps = new long[0][];
+            CandleData inProgressCandle = feedDataProvider.getInProgressCandle(instrument, period, side);
+            if(inProgressCandle != null && DataCacheUtils.getNextCandleStartFast(period, firstData.time) == inProgressCandle.time)
+            {
+                firstData = inProgressCandle;
+                lastIndex = 1;
+                loadedNumberOfCandles = 2L;
+                loadedTo = firstData.time;
+                buffer[lastIndex] = (CandleData)firstData;
+                long firstGapCandleTime = DataCacheUtils.getNextCandleStartFast(period, buffer[lastIndex - 1].time);
+                if(firstGapCandleTime != buffer[lastIndex].time)
+                {
+                    gaps = (long[][])Arrays.copyOf(gaps, gaps.length + 1);
+                    long lastGapCandleTime = DataCacheUtils.getPreviousCandleStartFast(period, buffer[lastIndex].time);
+                    gaps[gaps.length - 1] = (new long[] {
+                        firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(period, firstGapCandleTime, lastGapCandleTime)
+                    });
+                }
+            }
+        } else
+        if(filter == Filter.NO_FILTER && lastIndex >= 0 && !requestData.dataLoaded.isEmpty() && DataCacheUtils.getNextCandleStartFast(period, ((CandleData)requestData.dataLoaded.get(requestData.dataLoaded.size() - 1)).time) < buffer[0].time)
+        {
+            if(assertionsEnabled())
+            {
+                SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+                format.setTimeZone(TimeZone.getTimeZone("GMT"));
+                throw new RuntimeException((new StringBuilder()).append("Data loaded not up to last data in buffer, instrument [").append(instrument).append("], period [").append(period).append("], requested number before [").append(requestData.numberOfCandlesBefore).append("] time [").append(requestData.time).append("](").append(format.format(Long.valueOf(requestData.time))).append(") number after [").append(requestData.numberOfCandlesAfter).append("], returned last data time [").append(((CandleData)requestData.dataLoaded.get(requestData.dataLoaded.size() - 1)).time).append("](").append(format.format(Long.valueOf(((CandleData)requestData.dataLoaded.get(requestData.dataLoaded.size() - 1)).time))).append("), expected data time [").append(DataCacheUtils.getPreviousCandleStartFast(period, buffer[0].time)).append("](").append(format.format(Long.valueOf(DataCacheUtils.getPreviousCandleStartFast(period, buffer[0].time)))).append(")").toString());
+            }
+            for(long nextCandleTime = DataCacheUtils.getNextCandleStartFast(period, ((CandleData)requestData.dataLoaded.get(requestData.dataLoaded.size() - 1)).time); nextCandleTime < buffer[0].time; nextCandleTime = DataCacheUtils.getNextCandleStartFast(period, nextCandleTime))
+            {
+                double price = ((CandleData)requestData.dataLoaded.get(requestData.dataLoaded.size() - 1)).close;
+                requestData.dataLoaded.add(new CandleData(nextCandleTime, price, price, price, price, 0.0D));
+            }
+
+        }
+        if(requestData.dataLoaded.isEmpty())
+            break MISSING_BLOCK_LABEL_2779;
+        loadedNumberOfCandles = lastIndex + 1;
+        ignoreFirst = 0;
+        if(buffer[0].time == ((CandleData)requestData.dataLoaded.get(requestData.dataLoaded.size() - 1)).time)
+            ignoreFirst = 1;
+        if(requestData.dataLoaded.size() - ignoreFirst > buffer.length - (lastIndex + 1))
+        {
+            requestData.dataLoaded = requestData.dataLoaded.subList(requestData.dataLoaded.size() - (buffer.length - ignoreFirst - (lastIndex + 1)), requestData.dataLoaded.size());
+            breakInterrupted = true;
+        }
+        if(requestData.dataLoaded.isEmpty() || buffer.length - (lastIndex + 1) == 0)
+        {
+            recalculateIndicators();
+            break MISSING_BLOCK_LABEL_2779;
+        }
+        sizeToCopy = buffer.length - requestData.dataLoaded.size() < (lastIndex + 1) - ignoreFirst ? buffer.length - requestData.dataLoaded.size() : (lastIndex + 1) - ignoreFirst;
+        System.arraycopy(buffer, ignoreFirst, buffer, requestData.dataLoaded.size(), sizeToCopy);
+        i$ = formulas.values().iterator();
+_L8:
+        AbstractDataProvider.IndicatorData indicatorData;
+        IIndicator indicator;
+        int i;
+        int j;
+        if(!i$.hasNext())
+            break; /* Loop/switch isn't completed */
+        indicatorData = (AbstractDataProvider.IndicatorData)i$.next();
+        indicator = indicatorData.indicatorWrapper.getIndicator();
+        i = 0;
+        j = indicator.getIndicatorInfo().getNumberOfOutputs();
+_L6:
+        if(i >= j)
+            break; /* Loop/switch isn't completed */
+        _cls6..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[indicator.getOutputParameterInfo(i).getType().ordinal()];
+        JVM INSTR tableswitch 1 3: default 2523
+    //                   1 2497
+    //                   2 2484
+    //                   3 2510;
+           goto _L1 _L2 _L3 _L4
+_L3:
+        Object array;
+        array = indicatorData.outputDataDouble[i];
+        break; /* Loop/switch isn't completed */
+_L2:
+        array = indicatorData.outputDataInt[i];
+        break; /* Loop/switch isn't completed */
+_L4:
+        array = ((Object) (indicatorData.outputDataObject[i]));
+        System.arraycopy(array, ignoreFirst, array, requestData.dataLoaded.size(), sizeToCopy);
+_L1:
+        i++;
+        if(true) goto _L6; else goto _L5
+_L5:
+        if(true) goto _L8; else goto _L7
+_L7:
+        lastIndex = (requestData.dataLoaded.size() - 1) + sizeToCopy;
+        loadedTo = buffer[lastIndex].time;
+        System.arraycopy(((Object) (requestData.dataLoaded.toArray())), 0, buffer, 0, requestData.dataLoaded.size());
+        long prevTime = 0x8000000000000000L;
+        List gapsList = new ArrayList();
+        for(i = 0; i <= lastIndex; i++)
+        {
+            CandleData dataElement = buffer[i];
+            if(prevTime != 0x8000000000000000L && DataCacheUtils.getNextCandleStartFast(period, prevTime) != dataElement.time)
+            {
+                long firstGapCandleTime = DataCacheUtils.getNextCandleStartFast(period, prevTime);
+                long lastGapCandleTime = DataCacheUtils.getPreviousCandleStartFast(period, dataElement.time);
+                gapsList.add(new long[] {
+                    firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(period, firstGapCandleTime, lastGapCandleTime)
+                });
+            }
+            prevTime = dataElement.time;
+        }
+
+        gaps = (long[][])gapsList.toArray(new long[gapsList.size()][]);
+        recalculateIndicators();
+        if(!breakInterrupted)
+        {
+            loadedNumberOfCandles = loadedNumberOfCandles + (long)requestData.numberOfCandlesBefore + (long)requestData.numberOfCandlesAfter;
+            if(loadedNumberOfCandles > (long)buffer.length)
+                loadedNumberOfCandles = buffer.length;
+        } else
+        {
+            loadedNumberOfCandles = lastIndex + 1;
+        }
+        if(!requestData.dataLoaded.isEmpty())
+        {
+            dataChanged = true;
+            dataChangedFrom = Math.min(dataChangedFrom, buffer[0].time);
+            dataChangedTo = Math.max(dataChangedTo, buffer[lastIndex].time);
+            dataChangedFirstData = false;
+        }
+        break MISSING_BLOCK_LABEL_2918;
+        if(!$assertionsDisabled)
+            throw new AssertionError("unknown request mode");
+        checkConsistency();
+        break MISSING_BLOCK_LABEL_2946;
+        if(!allDataLoaded && e != null)
+            LOGGER.error(e.getMessage(), e);
+        break MISSING_BLOCK_LABEL_2960;
+        Exception exception;
+        exception;
+        throw exception;
+        if(dataChanged)
+        {
+            if(dataChangedFirstData && sparceIndicatorAttached())
+            {
+                dataChangedFrom = buffer[0].time;
+                dataChangedTo = buffer[lastIndex].time;
+            }
+            fireDataChanged(dataChangedFrom, dataChangedTo, dataChangedFirstData);
+        }
+        if(synchronizeIndicators != null && loadingFinished)
+            synchronizeIndicators.synchronizeIndicators();
+        return;
+    }
+
+    private void checkConsistency()
+    {
+        if(assertionsEnabled())
+        {
+            if(lastIndex == -1)
+                return;
+            if(lastIndex >= buffer.length)
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            long firstCandleStart = buffer[0].time;
+            checkConsistency(firstCandleStart);
+        }
+    }
+
+    private void checkConsistency(long candleStart)
+    {
+        long prevTime = 0x8000000000000000L;
+        List gapsList = new ArrayList();
+        for(int i = 0; i <= lastIndex; i++)
+        {
+            Data dataElement = buffer[i];
+            if(dataElement == null)
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            if(prevTime != 0x8000000000000000L && DataCacheUtils.getNextCandleStartFast(period, prevTime) != dataElement.time)
+            {
+                long firstGapCandleTime = DataCacheUtils.getNextCandleStartFast(period, prevTime);
+                long lastGapCandleTime = DataCacheUtils.getPreviousCandleStartFast(period, dataElement.time);
+                gapsList.add(new long[] {
+                    firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(period, firstGapCandleTime, lastGapCandleTime)
+                });
+            }
+            prevTime = dataElement.time;
+            if(filter == Filter.NO_FILTER)
+            {
+                if(dataElement.time != candleStart)
+                    throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+                candleStart = DataCacheUtils.getNextCandleStartFast(period, candleStart);
+                continue;
+            }
+            if(dataElement.time < candleStart)
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            candleStart = DataCacheUtils.getNextCandleStartFast(period, dataElement.time);
+        }
+
+        if(gaps.length != gapsList.size())
+            throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        for(int i = 0; i < gaps.length; i++)
+        {
+            long gap[] = (long[])gapsList.get(i);
+            if(gaps[i][0] != gap[0] || gaps[i][1] != gap[1])
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+            if(filter == Filter.WEEKENDS && period.getInterval() < Period.DAILY.getInterval() && gaps[i][1] <= 1L)
+                throw new RuntimeException("DataProviderImpl consistency check failed!!!");
+        }
+
+    }
+
+    protected boolean addFirstDataIfNeeded(long oldTime)
+    {
+        long firstDataTime = firstData.time;
+        if(oldTime == 0x8000000000000000L)
+        {
+            lastIndex = 0;
+            loadedNumberOfCandles = 1L;
+            loadedTo = firstDataTime;
+            buffer[lastIndex] = (CandleData)firstData;
+            gaps = new long[0][];
+            recalculateIndicators();
+            checkConsistency();
+            return true;
+        }
+        if(lastIndex != -1 && buffer[lastIndex].time == oldTime)
+        {
+            long lastElementTime = buffer[lastIndex].time;
+            if(DataCacheUtils.getNextCandleStartFast(period, lastElementTime) < firstDataTime && (filter == Filter.NO_FILTER || filter == Filter.WEEKENDS && !isWeekendsBetween(lastElementTime, firstDataTime)))
+            {
+                for(long nextCandleTime = DataCacheUtils.getNextCandleStartFast(period, lastElementTime); nextCandleTime < firstDataTime; nextCandleTime = DataCacheUtils.getNextCandleStartFast(period, nextCandleTime))
+                {
+                    double price = buffer[lastIndex].close;
+                    if(lastIndex + 1 >= buffer.length)
+                        shiftLeft(5);
+                    lastIndex++;
+                    buffer[lastIndex] = new CandleData(nextCandleTime, price, price, price, price, 0.0D);
+                    loadedTo = nextCandleTime;
+                    loadedNumberOfCandles = lastIndex + 1;
+                }
+
+            }
+            if(lastIndex + 1 >= buffer.length)
+                shiftLeft(5);
+            lastIndex++;
+            buffer[lastIndex] = (CandleData)firstData;
+            loadedTo = firstDataTime;
+            loadedNumberOfCandles = lastIndex + 1;
+            if(gaps.length > 0 && gaps[gaps.length - 1][0] >= lastElementTime)
+                gaps = (long[][])Arrays.copyOf(gaps, gaps.length - 1);
+            long firstGapCandleTime = DataCacheUtils.getNextCandleStartFast(period, buffer[lastIndex - 1].time);
+            if(firstGapCandleTime != buffer[lastIndex].time)
+            {
+                gaps = (long[][])Arrays.copyOf(gaps, gaps.length + 1);
+                long lastGapCandleTime = DataCacheUtils.getPreviousCandleStartFast(period, buffer[lastIndex].time);
+                gaps[gaps.length - 1] = (new long[] {
+                    firstGapCandleTime, (long)DataCacheUtils.getCandlesCountBetweenFast(period, firstGapCandleTime, lastGapCandleTime)
+                });
+            }
+            recalculateIndicators(lastIndex, lastIndex);
+            checkConsistency();
+            return true;
+        } else
+        {
+            return false;
+        }
+    }
+
+    public synchronized long getLastLoadedDataTime()
+    {
+        if(lastIndex == -1)
+            return 0x8000000000000000L;
+        else
+            return buffer[lastIndex].time;
+    }
+
+    public Period getFilteredPeriod()
+    {
+        if(period == Period.DAILY)
+            return dailyFilterPeriod;
+        else
+            return period;
+    }
+
+    public void dispose()
+    {
+        if(tickListener != null)
+        {
+            feedDataProvider.unsubscribeToLiveFeed(instrument, tickListener);
+            tickListener = null;
+            firstTickTime = 0x8000000000000000L;
+        }
+        if(firstDataListener != null)
+            feedDataProvider.unsubscribeToPeriodNotifications(instrument, period, side, firstDataListener);
+        if(candleInProgressListener != null)
+            feedDataProvider.removeInProgressCandleListener(instrument, period, side, candleInProgressListener);
+        if(dataCacheRequestData != null)
+        {
+            dataCacheRequestData.cancel = true;
+            dataCacheRequestData = null;
+        }
+        super.dispose();
+    }
+
+    public String toString()
+    {
+        return (new StringBuilder()).append("CandlesDataProvider(").append(instrument).append(", ").append(period).append(", ").append(side).append(")").toString();
+    }
+
+    public DataType getDataType()
+    {
+        return DataType.TIME_PERIOD_AGGREGATION;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/math/dataprovider/CandlesDataProvider);
+    private static final int MIN_SHIFT = 5;
+    protected CandleData buffer[];
+    protected int lastIndex;
+    protected long gaps[][];
+    protected long loadedNumberOfCandles;
+    protected long loadedTo;
+    protected DataCacheRequestData dataCacheRequestData;
+    private boolean requestAtFirstTick;
+    private CandleData lastData;
+    protected long firstTickTime;
+    private CandleData lastSundayCandle;
+    private long weekendStart;
+    private long weekendStartCandle;
+    private long weekendEnd;
+    private long weekendEndCandle;
+    private LiveFeedListener firstDataListener;
+    private LiveFeedListener tickListener;
+    private LiveFeedListener candleInProgressListener;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/math/dataprovider/CandlesDataProvider.desiredAssertionStatus();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}

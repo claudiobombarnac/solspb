@@ -1,0 +1,96 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractPriceAggregationLiveFeedListener.java
+
+package com.dukascopy.charts.data.datacache.priceaggregation;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import java.util.*;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.priceaggregation:
+//            IPriceAggregationCreator
+
+public abstract class AbstractPriceAggregationLiveFeedListener
+    implements LiveFeedListener
+{
+
+    public AbstractPriceAggregationLiveFeedListener(IPriceAggregationCreator creator)
+    {
+        collectedDatas = new LinkedList();
+        this.creator = creator;
+    }
+
+    public void analyseCollectedDataPortion()
+    {
+        if(!getCreator().isDirectOrder())
+            Collections.reverse(collectedDatas);
+        Iterator i$ = collectedDatas.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            Data data = (Data)i$.next();
+            if(priceRangesCreationFinished)
+                break;
+            priceRangesCreationFinished = getCreator().analyse(data);
+        } while(true);
+        collectedDatas.clear();
+    }
+
+    public boolean isPriceDatasCreationFinished()
+    {
+        return priceRangesCreationFinished;
+    }
+
+    public int getDesiredBoxCount()
+    {
+        return getCreator().getDesiredDatasCount();
+    }
+
+    public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+            double d1, double d2, double d3, double d4)
+    {
+    }
+
+    public void newTick(Instrument instrument1, long l, double d, double d1, 
+            double d2, double d3)
+    {
+    }
+
+    public IPriceAggregationCreator getCreator()
+    {
+        return creator;
+    }
+
+    protected TickData[] splitCandle(Period period, long time, double open, double close, 
+            double low, double high, double vol)
+    {
+        int TICKS_COUNT = 4;
+        double firstTickPrice = open;
+        double secondTickPrice = Math.abs(open - low) <= Math.abs(open - high) ? low : high;
+        double thirdTickPrice = Math.abs(open - low) >= Math.abs(open - high) ? low : high;
+        double fourthTickPrice = close;
+        long interval = period.getInterval();
+        TickData tick0 = createTick(time + (0L * interval) / 4L, firstTickPrice, (1.0D * vol) / 4D);
+        TickData tick1 = createTick(time + (1L * interval) / 4L, secondTickPrice, (2D * vol) / 4D);
+        TickData tick2 = createTick(time + (2L * interval) / 4L, thirdTickPrice, (3D * vol) / 4D);
+        TickData tick3 = createTick(time + (3L * interval) / 4L, fourthTickPrice, (4D * vol) / 4D);
+        TickData ticks[] = new TickData[4];
+        ticks[0] = tick0;
+        ticks[1] = tick1;
+        ticks[2] = tick2;
+        ticks[3] = tick3;
+        return ticks;
+    }
+
+    private TickData createTick(long time, double price, double vol)
+    {
+        return new TickData(time, price, price, vol, vol);
+    }
+
+    private final IPriceAggregationCreator creator;
+    protected List collectedDatas;
+    private boolean priceRangesCreationFinished;
+}

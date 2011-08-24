@@ -1,0 +1,59 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Dyadic.java
+
+package com.dukascopy.calculator.expression;
+
+import com.dukascopy.calculator.*;
+import com.dukascopy.calculator.function.DFunction;
+import com.dukascopy.calculator.function.PObject;
+
+// Referenced classes of package com.dukascopy.calculator.expression:
+//            Expression
+
+public abstract class Dyadic extends Expression
+{
+
+    public Dyadic(PObject function, OObject expression1, OObject expression2)
+    {
+        this.function = function;
+        this.expression1 = expression1;
+        this.expression2 = expression2;
+    }
+
+    public StringArray toHTMLSubString(int maxChars, int precision, Base base, Notation notation, double polarFactor)
+    {
+        StringArray s = new StringArray();
+        s.addAll(expression1.toHTMLParenString(maxChars, precision, base, notation, polarFactor));
+        s.add(function.name_array());
+        s.addAll(expression2.toHTMLParenString(maxChars, precision, base, notation, polarFactor));
+        return s;
+    }
+
+    public OObject auto_simplify()
+    {
+        expression1 = expression1.auto_simplify();
+        expression2 = expression2.auto_simplify();
+        if((expression1 instanceof Error) || (expression1 instanceof Error))
+            return new Error("Function auto_simplify() error");
+        else
+            return this;
+    }
+
+    public OObject substitute(Substitution substitution)
+    {
+        if(function instanceof DFunction)
+        {
+            DFunction d = (DFunction)function;
+            return d.function(expression1.substitute(substitution), expression2.substitute(substitution));
+        } else
+        {
+            return new Error("Dyadic.substitute Error");
+        }
+    }
+
+    protected PObject function;
+    protected OObject expression1;
+    protected OObject expression2;
+}

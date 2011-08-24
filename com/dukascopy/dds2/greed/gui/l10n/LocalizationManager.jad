@@ -1,0 +1,281 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LocalizationManager.java
+
+package com.dukascopy.dds2.greed.gui.l10n;
+
+import com.dukascopy.dds2.greed.gui.l10n.utils.LocalizationPropertyResourceBundle;
+import com.dukascopy.dds2.greed.gui.resizing.components.ResizableIcon;
+import java.awt.Component;
+import java.awt.Font;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.lang.ref.WeakReference;
+import java.math.BigDecimal;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.MissingResourceException;
+import java.util.ResourceBundle;
+import java.util.prefs.Preferences;
+import javax.swing.Icon;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+import javax.swing.UIDefaults;
+import javax.swing.UIManager;
+import javax.swing.plaf.FontUIResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.gui.l10n:
+//            Localizable
+
+public class LocalizationManager
+{
+    public static final class Language extends Enum
+    {
+
+        public static Language[] values()
+        {
+            return (Language[])$VALUES.clone();
+        }
+
+        public static Language valueOf(String name)
+        {
+            return (Language)Enum.valueOf(com/dukascopy/dds2/greed/gui/l10n/LocalizationManager$Language, name);
+        }
+
+        public String toString()
+        {
+            return LocalizationManager.getText(shortKey);
+        }
+
+        public Icon getIcon()
+        {
+            return icon;
+        }
+
+        public static final Language ARABIC;
+        public static final Language BULGARIAN;
+        public static final Language CHINESE;
+        public static final Language ENGLISH;
+        public static final Language FRENCH;
+        public static final Language GERMAN;
+        public static final Language ITALIAN;
+        public static final Language JAPANESE;
+        public static final Language PORTUGUESE;
+        public static final Language RUSSIAN;
+        public static final Language SPANISH;
+        public final Locale locale;
+        public final String shortKey;
+        public final String longKey;
+        public final Icon icon;
+        private static final Language $VALUES[];
+
+        static 
+        {
+            ARABIC = new Language("ARABIC", 0, new Locale("ar"), "short.menu.item.lang.arabic", "menu.item.lang.arabic", new ResizableIcon("menu_flag_al.png"));
+            BULGARIAN = new Language("BULGARIAN", 1, new Locale("bg"), "short.menu.item.lang.bulgarian", "menu.item.lang.bulgarian", new ResizableIcon("menu_flag_bg.png"));
+            CHINESE = new Language("CHINESE", 2, new Locale("cn"), "short.menu.item.lang.china", "menu.item.lang.china", new ResizableIcon("menu_flag_cn.png"));
+            ENGLISH = new Language("ENGLISH", 3, Locale.ENGLISH, "short.menu.item.lang.english", "menu.item.lang.english", new ResizableIcon("menu_flag_gb.png"));
+            FRENCH = new Language("FRENCH", 4, Locale.FRENCH, "short.menu.item.lang.french", "menu.item.lang.french", new ResizableIcon("menu_flag_fr.png"));
+            GERMAN = new Language("GERMAN", 5, Locale.GERMAN, "short.menu.item.lang.german", "menu.item.lang.german", new ResizableIcon("menu_flag_de.png"));
+            ITALIAN = new Language("ITALIAN", 6, Locale.ITALIAN, "short.menu.item.lang.italian", "menu.item.lang.italian", new ResizableIcon("menu_flag_it.png"));
+            JAPANESE = new Language("JAPANESE", 7, Locale.JAPANESE, "short.menu.item.lang.japanese", "menu.item.lang.japanese", new ResizableIcon("menu_flag_jp.png"));
+            PORTUGUESE = new Language("PORTUGUESE", 8, new Locale("pt"), "short.menu.item.lang.portuguese", "menu.item.lang.portuguese", new ResizableIcon("menu_flag_pt.png"));
+            RUSSIAN = new Language("RUSSIAN", 9, new Locale("ru"), "short.menu.item.lang.russian", "menu.item.lang.russian", new ResizableIcon("menu_flag_ru.png"));
+            SPANISH = new Language("SPANISH", 10, new Locale("es"), "short.menu.item.lang.spanish", "menu.item.lang.spanish", new ResizableIcon("menu_flag_es.png"));
+            $VALUES = (new Language[] {
+                ARABIC, BULGARIAN, CHINESE, ENGLISH, FRENCH, GERMAN, ITALIAN, JAPANESE, PORTUGUESE, RUSSIAN, 
+                SPANISH
+            });
+        }
+
+        private Language(String s, int i, Locale locale, String shortKey, String longKey, Icon icon)
+        {
+            super(s, i);
+            this.locale = locale;
+            this.shortKey = shortKey;
+            this.longKey = longKey;
+            this.icon = icon;
+        }
+    }
+
+
+    public LocalizationManager()
+    {
+    }
+
+    public static synchronized void addLocalizable(Localizable localizable)
+    {
+        CACHE.add(new WeakReference(localizable));
+        localizable.localize();
+    }
+
+    public static Language getLanguage()
+    {
+        return currentLanguage;
+    }
+
+    private static synchronized void setLanguage(Language language)
+    {
+        currentLanguage = language;
+        Locale.setDefault(language.locale);
+        JOptionPane.setDefaultLocale(language.locale);
+    }
+
+    public static void changeLanguage(Language language)
+    {
+        SwingUtilities.invokeLater(new Runnable(language) {
+
+            public void run()
+            {
+                LocalizationManager.setLanguage(language);
+                LocalizationManager.saveSelectedLocale(language.locale);
+                LocalizationManager.loadBundle();
+                LocalizationManager.fireLanguageChanged();
+            }
+
+            final Language val$language;
+
+            
+            {
+                language = language1;
+                super();
+            }
+        });
+    }
+
+    private static synchronized void loadBundle()
+    {
+        try
+        {
+            InputStream inputStream = com/dukascopy/dds2/greed/gui/l10n/LocalizationManager.getClassLoader().getResourceAsStream((new StringBuilder()).append("rc/languages/").append(currentLanguage.locale.getLanguage()).append(".properties").toString());
+            if(inputStream == null)
+                throw new MissingResourceException("Localization file not found", com/dukascopy/dds2/greed/gui/l10n/LocalizationManager.getSimpleName(), currentLanguage.locale.getLanguage());
+            bundle = new LocalizationPropertyResourceBundle(new InputStreamReader(inputStream, "UTF-8"));
+        }
+        catch(Exception ex)
+        {
+            LOGGER.warn((new StringBuilder()).append("Unable to load resource bundle for [").append(currentLanguage.locale).append("] due : ").append(ex.getMessage()).toString());
+        }
+    }
+
+    private static synchronized void fireLanguageChanged()
+    {
+        Iterator i$ = CACHE.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            WeakReference weakReference = (WeakReference)i$.next();
+            Localizable localizable = (Localizable)weakReference.get();
+            if(localizable instanceof Component)
+                ((Component)localizable).setLocale(currentLanguage.locale);
+            if(localizable != null)
+                localizable.localize();
+        } while(true);
+    }
+
+    public static String getText(String key)
+    {
+        if(key == null)
+            return "";
+        return bundle.getString(key);
+        MissingResourceException ex;
+        ex;
+        LOGGER.warn(ex.getMessage());
+        return key;
+    }
+
+    public static transient String getTextWithArguments(String key, Object arguments[])
+    {
+        if(key == null)
+            return "";
+        String pattern = bundle.getString(key);
+        return MessageFormat.format(pattern, arguments);
+        MissingResourceException ex;
+        ex;
+        LOGGER.warn(ex.getMessage());
+        return key;
+    }
+
+    public static transient String getTextWithArgumentKeys(String key, Object argumentKeys[])
+    {
+        if(key == null)
+            return "";
+        String pattern;
+        Object paramsArray[];
+        pattern = bundle.getString(key);
+        paramsArray = new Object[argumentKeys.length];
+        for(int i = 0; i < argumentKeys.length; i++)
+            try
+            {
+                paramsArray[i] = bundle.getString((String)argumentKeys[i]);
+            }
+            catch(MissingResourceException ex)
+            {
+                paramsArray[i] = argumentKeys[i];
+            }
+
+        return MessageFormat.format(pattern, paramsArray);
+        MissingResourceException ex;
+        ex;
+        LOGGER.warn(ex.getMessage());
+        return key;
+    }
+
+    public static Locale getSelectedLocale()
+    {
+        Preferences node = Preferences.systemRoot().node("common");
+        String locale = node.get("selectedLocale", null);
+        if(locale != null)
+            return new Locale(locale);
+        else
+            return Locale.ENGLISH;
+    }
+
+    public static void saveSelectedLocale(Locale locale)
+    {
+        if(locale == null)
+        {
+            return;
+        } else
+        {
+            Preferences node = Preferences.systemRoot().node("common");
+            node.put("selectedLocale", locale.toString());
+            return;
+        }
+    }
+
+    public static void clearCache()
+    {
+        CACHE.clear();
+    }
+
+    public static Font getDefaultFont(int fontSize)
+    {
+        if(Language.JAPANESE.equals(getLanguage()))
+            return new FontUIResource("MS UI Gothic", 0, fontSize);
+        else
+            return ((FontUIResource)UIManager.getDefaults().get("Label.font")).deriveFont((new BigDecimal(fontSize)).floatValue());
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/gui/l10n/LocalizationManager);
+    private static final String RESOURCE_BUNDLE_PATH = "rc/languages/";
+    private static final java.util.List CACHE = new ArrayList();
+    private static Language currentLanguage;
+    private static ResourceBundle bundle = null;
+    public static final String SELECTED_LOCALE = "selectedLocale";
+
+    static 
+    {
+        currentLanguage = Language.ENGLISH;
+        loadBundle();
+    }
+
+
+
+}

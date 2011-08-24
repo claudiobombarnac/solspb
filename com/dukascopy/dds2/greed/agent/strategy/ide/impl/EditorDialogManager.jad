@@ -1,0 +1,112 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EditorDialogManager.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.impl;
+
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.ServiceSourceLanguage;
+import com.dukascopy.dds2.greed.agent.strategy.ide.api.ServiceSourceType;
+import com.dukascopy.dds2.greed.gui.component.filechooser.ChooserSelectionWrapper;
+import com.dukascopy.dds2.greed.gui.component.filechooser.TransportFileChooser;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import com.dukascopy.transport.common.datafeed.FileType;
+import java.awt.*;
+import java.io.File;
+import javax.swing.*;
+import javax.swing.text.JTextComponent;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.ide.impl:
+//            JavaFileFilter, JfsFileView, FindReplaceDialog
+
+public class EditorDialogManager
+{
+
+    public EditorDialogManager(Component parent, JTextComponent textComponent, ServiceSourceType serviceSourceType, ServiceSourceLanguage serviceSourceLanguage)
+    {
+        this.textComponent = textComponent;
+        this.parent = parent;
+        if(serviceSourceType == ServiceSourceType.STRATEGY)
+            currDir = FilePathManager.getInstance().getStrategiesFolder();
+        else
+        if(serviceSourceType == ServiceSourceType.INDICATOR)
+            currDir = FilePathManager.getInstance().getIndicatorsFolder();
+        else
+            throw new IllegalArgumentException((new StringBuilder()).append("Unsupported service source type : ").append(serviceSourceType).toString());
+        javaFileFilter = new JavaFileFilter(serviceSourceLanguage);
+    }
+
+    public EditorDialogManager(Component parent, JTextComponent textComponent, ServiceSourceType serviceSourceType)
+    {
+        this(parent, textComponent, serviceSourceType, ServiceSourceLanguage.JAVA);
+    }
+
+    public void showFind()
+    {
+        FindReplaceDialog findReplaceDialog = FindReplaceDialog.getSharedInstance(null);
+        findReplaceDialog.showFind(textComponent);
+    }
+
+    public void showReplace()
+    {
+        FindReplaceDialog findReplaceDialog = FindReplaceDialog.getSharedInstance(null);
+        findReplaceDialog.showReplace(textComponent);
+    }
+
+    public int showRefreshTextArea()
+    {
+        JOptionPane jop = new JOptionPane("This file was modified outside the editor. Do you want to refresh the editor?", 2, 0, null);
+        Point location = textComponent.getLocationOnScreen();
+        int x = location.x;
+        int y = location.y >= 0 ? location.y : -location.y;
+        x += textComponent.getBounds().width / 2;
+        y += textComponent.getBounds().height / 2;
+        Object options[] = {
+            "Yes", "No"
+        };
+        jop.setOptions(options);
+        jop.setInitialValue(options[0]);
+        JDialog dialog = jop.createDialog(parent, "File modification!");
+        dialog.setIconImage(null);
+        dialog.setIconImages(null);
+        dialog.setVisible(true);
+        Object selectedValue = jop.getValue();
+        int counter = 0;
+        for(int maxCounter = options.length; counter < maxCounter; counter++)
+            if(options[counter].equals(selectedValue))
+                return counter;
+
+        return 1;
+    }
+
+    public ChooserSelectionWrapper showSaveAsDialog(String fileName, ServiceSourceLanguage serviceSourceLanguage, FileType fileType, String clientMode)
+    {
+        String prefFileName = "*";
+        if(fileName != null)
+            prefFileName = fileName;
+        fileChooser = new JFileChooser();
+        fileChooser.setFileSelectionMode(0);
+        fileChooser.setMultiSelectionEnabled(false);
+        fileChooser.setDialogTitle("Save file as...");
+        fileChooser.setFileView(new JfsFileView());
+        fileChooser.setCurrentDirectory(currDir);
+        fileChooser.removeChoosableFileFilter(javaFileFilter);
+        javaFileFilter = new JavaFileFilter(serviceSourceLanguage);
+        fileChooser.setFileFilter(javaFileFilter);
+        if(serviceSourceLanguage == ServiceSourceLanguage.MQ4)
+            fileChooser.setSelectedFile(new File((new StringBuilder()).append(prefFileName).append(".mq4").toString()));
+        else
+        if(serviceSourceLanguage == ServiceSourceLanguage.MQ5)
+            fileChooser.setSelectedFile(new File((new StringBuilder()).append(prefFileName).append(".mq5").toString()));
+        else
+            fileChooser.setSelectedFile(new File((new StringBuilder()).append(prefFileName).append(".java").toString()));
+        ChooserSelectionWrapper wrapper = TransportFileChooser.showSaveDialog(fileType, fileChooser, parent, fileName);
+        return wrapper;
+    }
+
+    private JavaFileFilter javaFileFilter;
+    JTextComponent textComponent;
+    JFileChooser fileChooser;
+    Component parent;
+    File currDir;
+}

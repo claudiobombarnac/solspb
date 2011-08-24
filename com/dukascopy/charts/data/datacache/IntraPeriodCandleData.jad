@@ -1,0 +1,87 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IntraPeriodCandleData.java
+
+package com.dukascopy.charts.data.datacache;
+
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            CandleData
+
+public class IntraPeriodCandleData extends CandleData
+{
+
+    public IntraPeriodCandleData()
+    {
+        flat = true;
+    }
+
+    public IntraPeriodCandleData(boolean empty, long time, double open, double close, 
+            double low, double high, double vol)
+    {
+        super(time, open, close, low, high, vol);
+        flat = true;
+        this.empty = empty;
+    }
+
+    public int getBytesCount(int version)
+    {
+        return version > 4 ? 25 : 49;
+    }
+
+    public static int getLength(int version)
+    {
+        return version > 4 ? 25 : 49;
+    }
+
+    public void fromBytes(int version, long firstChunkCandle, double pipValue, byte bytes[], int off)
+    {
+        empty = bytes[off] == 1;
+        if(!empty)
+            super.fromBytes(version, firstChunkCandle, pipValue, bytes, off + 1);
+    }
+
+    public void toBytes(int version, long firstChunkCandle, double pipValue, byte buff[], int off)
+    {
+        if(buff.length < off + getLength(version))
+            throw new ArrayIndexOutOfBoundsException("Buffer too short");
+        buff[off] = ((byte)(empty ? 1 : 0));
+        if(!empty)
+            super.toBytes(version, firstChunkCandle, pipValue, buff, off + 1);
+    }
+
+    public int hashCode()
+    {
+        int prime = 31;
+        int result = super.hashCode();
+        result = 31 * result + (empty ? 1231 : '\u04D5');
+        return result;
+    }
+
+    public boolean equals(Object obj)
+    {
+        if(this == obj)
+            return true;
+        if(!super.equals(obj))
+            return false;
+        if(getClass() != obj.getClass())
+            return false;
+        IntraPeriodCandleData other = (IntraPeriodCandleData)obj;
+        return empty == other.empty;
+    }
+
+    public String toString()
+    {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+        format.setTimeZone(TimeZone.getTimeZone("GMT"));
+        return (new StringBuilder()).append("{T:").append(time).append("(").append(format.format(Long.valueOf(time))).append(")E:").append(empty).append("O:").append(open).append("C:").append(close).append("L:").append(low).append("H:").append(high).append("V").append(vol).append("}").toString();
+    }
+
+    private static final int BYTES_COUNT4 = 49;
+    private static final int BYTES_COUNT5 = 25;
+    public boolean empty;
+    public boolean flat;
+}

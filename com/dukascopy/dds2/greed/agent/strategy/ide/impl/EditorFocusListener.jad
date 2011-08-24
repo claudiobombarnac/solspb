@@ -1,0 +1,64 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   EditorFocusListener.java
+
+package com.dukascopy.dds2.greed.agent.strategy.ide.impl;
+
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.io.File;
+import javax.swing.text.JTextComponent;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.ide.impl:
+//            EditorFileHandler, EditorDialogManager, EditorDocumentListener
+
+public class EditorFocusListener
+    implements FocusListener
+{
+
+    public EditorFocusListener(JTextComponent textComponent, EditorFileHandler editorFileHandler, EditorDialogManager editorDialogManager)
+    {
+        prevLastModifiedTimeStamp = -1L;
+        this.textComponent = textComponent;
+        this.editorFileHandler = editorFileHandler;
+        this.editorDialogManager = editorDialogManager;
+    }
+
+    public void focusLost(FocusEvent e)
+    {
+        if(editorFileHandler != null && editorFileHandler.getFile() != null)
+            prevLastModifiedTimeStamp = editorFileHandler.getFile().lastModified();
+    }
+
+    public void focusGained(FocusEvent e)
+    {
+        if(editorFileHandler.getFile() == null)
+            return;
+        long curLastModifiedTimeStamp = editorFileHandler.getFile().lastModified();
+        if(prevLastModifiedTimeStamp == -1L)
+        {
+            prevLastModifiedTimeStamp = curLastModifiedTimeStamp;
+            return;
+        }
+        if(prevLastModifiedTimeStamp >= curLastModifiedTimeStamp)
+            return;
+        int answer = editorDialogManager.showRefreshTextArea();
+        if(answer == 0)
+        {
+            String reloadedContent = editorFileHandler.reloadFile();
+            textComponent.setText(reloadedContent);
+        }
+    }
+
+    public void reset()
+    {
+        prevLastModifiedTimeStamp = editorFileHandler.getFile().lastModified();
+    }
+
+    JTextComponent textComponent;
+    EditorFileHandler editorFileHandler;
+    EditorDocumentListener editorDocumentListener;
+    EditorDialogManager editorDialogManager;
+    long prevLastModifiedTimeStamp;
+}

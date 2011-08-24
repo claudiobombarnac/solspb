@@ -1,0 +1,51 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IPriceAggregationCreator.java
+
+package com.dukascopy.charts.data.datacache.priceaggregation;
+
+import com.dukascopy.charts.data.datacache.Data;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache.priceaggregation:
+//            AbstractPriceAggregationData, IPriceAggregationLiveFeedListener
+
+public interface IPriceAggregationCreator
+{
+
+    public abstract void reset();
+
+    public abstract AbstractPriceAggregationData[] getResult();
+
+    public abstract boolean isAllDesiredDataLoaded();
+
+    public abstract int getDesiredDatasCount();
+
+    public abstract boolean analyse(Data data);
+
+    public abstract boolean isDirectOrder();
+
+    public abstract AbstractPriceAggregationData getLastData();
+
+    public abstract AbstractPriceAggregationData getLastCompletedData();
+
+    public abstract AbstractPriceAggregationData getLastFiredData();
+
+    public abstract AbstractPriceAggregationData getFirstData();
+
+    public abstract int getLastElementIndex();
+
+    public abstract int getLoadedElementsNumber();
+
+    public abstract void setupLastData(AbstractPriceAggregationData abstractpriceaggregationdata);
+
+    public abstract boolean canContinueCurrentDataConstruction(AbstractPriceAggregationData abstractpriceaggregationdata, Data data);
+
+    public abstract void addListener(IPriceAggregationLiveFeedListener ipriceaggregationlivefeedlistener);
+
+    public abstract void removeListener(IPriceAggregationLiveFeedListener ipriceaggregationlivefeedlistener);
+
+    public abstract boolean contains(IPriceAggregationLiveFeedListener ipriceaggregationlivefeedlistener);
+
+    public abstract void fireNewBarCreated(AbstractPriceAggregationData abstractpriceaggregationdata);
+}

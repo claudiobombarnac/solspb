@@ -1,0 +1,255 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PointAndFigureDataProvider.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation.pf;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.DataCacheException;
+import com.dukascopy.charts.data.datacache.IFeedDataProvider;
+import com.dukascopy.charts.data.datacache.pnf.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.data.datacache.priceaggregation.TimeDataUtils;
+import com.dukascopy.charts.math.dataprovider.AbstractDataProvider;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.AbstractPriceAggregationDataProvider;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.AbstractPriceAggregationDataSequence;
+import java.util.Map;
+import org.slf4j.Logger;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider.priceaggregation.pf:
+//            PointAndFigureDataSequence
+
+public class PointAndFigureDataProvider extends AbstractPriceAggregationDataProvider
+{
+
+    public PointAndFigureDataProvider(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, int maxSequenceSize, int bufferSizeMultiplier, long lastTime, Filter filter, IFeedDataProvider feedDataProvider)
+    {
+        super(instrument, Period.TICK, offerSide, maxSequenceSize, bufferSizeMultiplier, lastTime, filter, feedDataProvider);
+        this.reversalAmount = reversalAmount;
+        this.priceRange = priceRange;
+        latestBarNotificationListener = new PointAndFigureLiveFeedAdapter() {
+
+            public void newPriceData(PointAndFigureData pointAndFigure)
+            {
+                latestBarArrived(pointAndFigure);
+            }
+
+            public volatile void newPriceData(AbstractPriceAggregationData x0)
+            {
+                newPriceData((PointAndFigureData)x0);
+            }
+
+            final PointAndFigureDataProvider this$0;
+
+            
+            {
+                this$0 = PointAndFigureDataProvider.this;
+                super();
+            }
+        };
+        inProgressBarListener = new PointAndFigureLiveFeedAdapter() {
+
+            public void newPriceData(PointAndFigureData pointAndFigure)
+            {
+                inProgressBarUpdated(pointAndFigure);
+            }
+
+            public volatile void newPriceData(AbstractPriceAggregationData x0)
+            {
+                newPriceData((PointAndFigureData)x0);
+            }
+
+            final PointAndFigureDataProvider this$0;
+
+            
+            {
+                this$0 = PointAndFigureDataProvider.this;
+                super();
+            }
+        };
+    }
+
+    protected PointAndFigureData[] createArray(int size)
+    {
+        return new PointAndFigureData[size];
+    }
+
+    protected PointAndFigureData[] createArray(PointAndFigureData data)
+    {
+        PointAndFigureData result[] = {
+            data
+        };
+        return result;
+    }
+
+    protected PointAndFigureDataSequence createDataSequence(long from, long to, int extraBefore, int extraAfter, PointAndFigureData data[], 
+            long gaps[][], Map formulaOutputs, Map indicators, boolean latestDataVisible, boolean includesLatestData)
+    {
+        return new PointAndFigureDataSequence(period, from, to, extraBefore, extraAfter, data, gaps, formulaOutputs, indicators, latestDataVisible, includesLatestData);
+    }
+
+    public void performDataLoad(int numOfCandlesBefore, long reqTime, int numOfCandlesAfter)
+        throws DataCacheException
+    {
+        feedDataProvider.loadPointAndFigureData(instrument, getOfferSide(), numOfCandlesBefore, reqTime, numOfCandlesAfter, getPriceRange(), getReversalAmount(), createPriceAggregationLiveFeedListener(), loadingProgressListener);
+    }
+
+    protected IPointAndFigureLiveFeedListener createPriceAggregationLiveFeedListener()
+    {
+        return new PointAndFigureLiveFeedAdapter() {
+
+            public void newPriceDatas(PointAndFigureData pointAndFigures[], int loadedNumberBefore, int loadedNumberAfter)
+            {
+                historicalBarsArived(pointAndFigures);
+            }
+
+            public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+            {
+                newPriceDatas((PointAndFigureData[])x0, x1, x2);
+            }
+
+            final PointAndFigureDataProvider this$0;
+
+            
+            {
+                this$0 = PointAndFigureDataProvider.this;
+                super();
+            }
+        };
+    }
+
+    public ReversalAmount getReversalAmount()
+    {
+        return reversalAmount;
+    }
+
+    public void setReversalAmount(ReversalAmount reversalAmount)
+    {
+        setParams(instrument, period, filter, side, priceRange, reversalAmount);
+    }
+
+    public void setFilter(Filter filter)
+    {
+        this.filter = filter;
+    }
+
+    public void setInstrument(Instrument instrument)
+    {
+        setParams(instrument, period, filter, side, priceRange, reversalAmount);
+    }
+
+    public void setOfferSide(OfferSide offerSide)
+    {
+        setParams(instrument, period, filter, offerSide, priceRange, reversalAmount);
+    }
+
+    public void setPeriod(Period period)
+    {
+        setParams(instrument, period, filter, side, priceRange, reversalAmount);
+    }
+
+    public void setPriceRange(PriceRange priceRange)
+    {
+        setParams(instrument, period, filter, side, priceRange, reversalAmount);
+    }
+
+    public PriceRange getPriceRange()
+    {
+        return priceRange;
+    }
+
+    private boolean isAnyParameterChanged(Instrument instrument, Period period, Filter filter, OfferSide side, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        return !this.period.equals(period) || !this.side.equals(side) || !this.filter.equals(filter) || !this.priceRange.equals(priceRange) || !this.instrument.equals(instrument) || !this.reversalAmount.equals(reversalAmount);
+    }
+
+    public void setParams(Instrument instrument, Period period, Filter filter, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Setting filter ").append(filter).append(" for [").append(instrument).append("] [").append(period).append("] [").append(offerSide).append("] provider").toString());
+        if(parentDataProvider != null)
+            synchronized(parentDataProvider)
+            {
+                synchronized(this)
+                {
+                    synchronizeParams(instrument, period, filter, offerSide, priceRange, reversalAmount);
+                }
+            }
+        else
+            synchronized(this)
+            {
+                synchronizeParams(instrument, period, filter, offerSide, priceRange, reversalAmount);
+            }
+    }
+
+    private void synchronizeParams(Instrument instrument, Period period, Filter filter, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        boolean isAnyParamChanged = isAnyParameterChanged(instrument, period, filter, offerSide, priceRange, reversalAmount);
+        this.priceRange = priceRange;
+        this.reversalAmount = reversalAmount;
+        super.synchronizeParams(instrument, period, filter, offerSide, isAnyParamChanged);
+    }
+
+    protected void addInProgressBarListeners()
+    {
+        feedDataProvider.addInProgressPointAndFigureListener(instrument, side, priceRange, reversalAmount, (IPointAndFigureLiveFeedListener)inProgressBarListener);
+        feedDataProvider.addPointAndFigureNotificationListener(instrument, side, priceRange, reversalAmount, (IPointAndFigureLiveFeedListener)latestBarNotificationListener);
+    }
+
+    protected void removeInProgressBarListeners()
+    {
+        feedDataProvider.removeInProgressPointAndFigureListener((IPointAndFigureLiveFeedListener)inProgressBarListener);
+        feedDataProvider.removePointAndFigureNotificationListener((IPointAndFigureLiveFeedListener)latestBarNotificationListener);
+    }
+
+    protected long getMaxTimeIntervalBetweenTwoBars()
+    {
+        Period period = getBarsBasedOnCandlesPeriod();
+        long result = 0L;
+        if(Unit.Millisecond.equals(period.getUnit()) || Unit.Second.equals(period.getUnit()) || Unit.Minute.equals(period.getUnit()) || Period.TICK.equals(period))
+            result = 60000L;
+        else
+            result = period.getInterval();
+        result += result / 4L;
+        return result;
+    }
+
+    protected PointAndFigureData getInProgressBar()
+    {
+        PointAndFigureData bar = feedDataProvider.getInProgressPointAndFigure(instrument, side, priceRange, reversalAmount);
+        return bar;
+    }
+
+    protected Period getBarsBasedOnCandlesPeriod()
+    {
+        return TimeDataUtils.getSuitablePeriod(getPriceRange(), getReversalAmount());
+    }
+
+    protected volatile AbstractPriceAggregationDataSequence createDataSequence(long x0, long x1, int x2, int x3, AbstractPriceAggregationData x4[], 
+            long x5[][], Map x6, Map x7, boolean x8, boolean x9)
+    {
+        return createDataSequence(x0, x1, x2, x3, (PointAndFigureData[])x4, x5, x6, x7, x8, x9);
+    }
+
+    protected volatile AbstractPriceAggregationData getInProgressBar()
+    {
+        return getInProgressBar();
+    }
+
+    protected volatile AbstractPriceAggregationData[] createArray(AbstractPriceAggregationData x0)
+    {
+        return createArray((PointAndFigureData)x0);
+    }
+
+    protected volatile AbstractPriceAggregationData[] createArray(int x0)
+    {
+        return createArray(x0);
+    }
+
+    private ReversalAmount reversalAmount;
+    private PriceRange priceRange;
+
+
+
+}

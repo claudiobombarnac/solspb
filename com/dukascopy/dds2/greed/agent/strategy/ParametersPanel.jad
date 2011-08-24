@@ -1,0 +1,1723 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ParametersPanel.java
+
+package com.dukascopy.dds2.greed.agent.strategy;
+
+import com.dukascopy.api.Configurable;
+import com.dukascopy.api.IChart;
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.connector.IConnectorManager;
+import com.dukascopy.api.impl.execution.IControlUI;
+import com.dukascopy.api.impl.execution.Task;
+import com.dukascopy.api.impl.execution.TaskParameter;
+import com.dukascopy.dds2.greed.agent.strategy.params.Preset;
+import com.dukascopy.dds2.greed.agent.strategy.params.PresetsModel;
+import com.dukascopy.dds2.greed.agent.strategy.params.Variable;
+import com.dukascopy.dds2.greed.agent.strategy.params.XMLPresets;
+import com.dukascopy.dds2.greed.connector.ConnectorManager;
+import com.dukascopy.dds2.greed.gui.component.DoubleSpinnerModel;
+import com.dukascopy.dds2.greed.gui.component.JRoundedBorder;
+import com.dukascopy.dds2.greed.gui.l10n.components.JLocalizableButton;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import com.toedter.calendar.IDateEditor;
+import com.toedter.calendar.JDateChooser;
+import com.toedter.calendar.JSpinnerDateEditor;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.HeadlessException;
+import java.awt.Insets;
+import java.awt.LayoutManager;
+import java.awt.Point;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.io.File;
+import java.io.FilenameFilter;
+import java.lang.reflect.Field;
+import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.ComboBoxEditor;
+import javax.swing.ComboBoxModel;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JFileChooser;
+import javax.swing.JFormattedTextField;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JRootPane;
+import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.JTextField;
+import javax.swing.RepaintManager;
+import javax.swing.SpinnerModel;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
+import javax.swing.border.Border;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.text.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy:
+//            StrategyRunParameter, ParseFilenameFilter, SpinnerMouseWheelListener, StratUtils
+
+public class ParametersPanel extends JPanel
+    implements ActionListener
+{
+    private class ComboboxMouseWheelListener
+        implements MouseWheelListener
+    {
+
+        public void mouseWheelMoved(MouseWheelEvent e)
+        {
+            if(e.getScrollType() == 0)
+            {
+                int selectedIndex = source.getSelectedIndex();
+                if(e.getWheelRotation() == 1)
+                {
+                    int itemCount = source.getItemCount();
+                    if(selectedIndex + 1 == itemCount)
+                        return;
+                    int newIndex = selectedIndex + 1;
+                    if(newIndex < source.getItemCount())
+                        source.setSelectedIndex(newIndex);
+                    else
+                        source.setSelectedIndex(--itemCount);
+                } else
+                {
+                    if(selectedIndex == 0)
+                        return;
+                    int newIndex = selectedIndex - 1;
+                    if(newIndex > 0)
+                        source.setSelectedIndex(newIndex);
+                    else
+                        source.setSelectedIndex(0);
+                }
+            }
+        }
+
+        private final JComboBox source;
+        final ParametersPanel this$0;
+
+        public ComboboxMouseWheelListener(JComboBox source)
+        {
+            this$0 = ParametersPanel.this;
+            super();
+            this.source = source;
+        }
+    }
+
+    private class FileSelectButtonActionListner
+        implements ActionListener
+    {
+
+        public void actionPerformed(ActionEvent e)
+        {
+            JFileChooser fc = new JFileChooser() {
+
+                protected JDialog createDialog(Component parent)
+                    throws HeadlessException
+                {
+                    JDialog dialog = super.createDialog(parent);
+                    dialog.setLocation(parent.getLocation().x - 40, parent.getLocation().y + 40);
+                    return dialog;
+                }
+
+                final FileSelectButtonActionListner this$1;
+
+                
+                {
+                    this$1 = FileSelectButtonActionListner.this;
+                    super();
+                }
+            };
+            File filePrevious = new File(textField.getText());
+            if(filePrevious.isFile())
+                fc.setSelectedFile(filePrevious);
+            else
+            if(filePrevious.isDirectory())
+                fc.setSelectedFile(filePrevious);
+            fc.setFileSelectionMode(0);
+            int res = fc.showOpenDialog(parent);
+            if(res == 0)
+                textField.setText(fc.getSelectedFile().getPath());
+        }
+
+        private final JDialog parent;
+        private final JTextField textField;
+        final ParametersPanel this$0;
+
+        public FileSelectButtonActionListner(JDialog parent, JTextField wherePutFileName)
+        {
+            this$0 = ParametersPanel.this;
+            super();
+            this.parent = parent;
+            textField = wherePutFileName;
+        }
+    }
+
+    private static final class Action extends Enum
+    {
+
+        public static Action[] values()
+        {
+            return (Action[])$VALUES.clone();
+        }
+
+        public static Action valueOf(String name)
+        {
+            return (Action)Enum.valueOf(com/dukascopy/dds2/greed/agent/strategy/ParametersPanel$Action, name);
+        }
+
+        public String getLabel()
+        {
+            return label;
+        }
+
+        public static final Action PRESET_DELETE;
+        public static final Action PRESET_SAVE;
+        public static final Action RUN;
+        public static final Action CANCEL;
+        private String label;
+        private static final Action $VALUES[];
+
+        static 
+        {
+            PRESET_DELETE = new Action("PRESET_DELETE", 0, "Delete Preset");
+            PRESET_SAVE = new Action("PRESET_SAVE", 1, "Save Preset");
+            RUN = new Action("RUN", 2, "Run");
+            CANCEL = new Action("CANCEL", 3, "Cancel");
+            $VALUES = (new Action[] {
+                PRESET_DELETE, PRESET_SAVE, RUN, CANCEL
+            });
+        }
+
+        private Action(String s, int i, String label)
+        {
+            super(s, i);
+            this.label = label;
+        }
+    }
+
+
+    public ParametersPanel(JDialog parentDialog, java.util.List params, boolean isEditDialog)
+    {
+        dateFormatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+        componentsList = null;
+        isAnyParameterDetected = false;
+        returnCode = null;
+        values = new ArrayList();
+        blockOtherOperations = false;
+        binaryFile = null;
+        plainTarget = null;
+        this.isEditDialog = isEditDialog;
+        this.parentDialog = parentDialog;
+        setIconImage();
+        setLayout(new BorderLayout());
+        createParametersUI(this, params, new HashMap());
+    }
+
+    public ParametersPanel(JDialog parentDialog, IStrategy target, boolean isEditDialog, File binaryFile)
+    {
+        dateFormatter = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+        componentsList = null;
+        isAnyParameterDetected = false;
+        returnCode = null;
+        values = new ArrayList();
+        blockOtherOperations = false;
+        this.binaryFile = null;
+        plainTarget = target;
+        this.isEditDialog = isEditDialog;
+        this.parentDialog = parentDialog;
+        this.binaryFile = binaryFile;
+        setIconImage();
+        setLayout(new BorderLayout());
+        presetsModel = XMLPresets.loadModel(target, binaryFile);
+        if(presetsModel == null)
+            return;
+        add(new JPanel(new BorderLayout()) {
+
+            final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                super(x0);
+                add(Box.createHorizontalStrut(135), "West");
+                add(createPresetsPanel(), "Center");
+            }
+        }, "North");
+        java.util.List params = new LinkedList();
+        Map fieldMap = new HashMap();
+        Field fields[] = plainTarget.getClass().getFields();
+        Field arr$[] = fields;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$;)
+        {
+            Field field = arr$[i$];
+            Configurable configurable = (Configurable)field.getAnnotation(com/dukascopy/api/Configurable);
+            if(configurable == null)
+                continue;
+            String name = field.getName();
+            String uiName = configurable.value();
+            try
+            {
+                StrategyRunParameter param = new StrategyRunParameter(name, field.getType(), field.get(target));
+                param.setTitle(uiName);
+                param.setMandatory(configurable.obligatory());
+                param.setStepSize(configurable.stepSize());
+                param.setFileType(configurable.fileType());
+                param.setDateAsLong(configurable.datetimeAsLong());
+                params.add(param);
+                fieldMap.put(name, field);
+                continue;
+            }
+            catch(IllegalArgumentException ex)
+            {
+                String message = MessageFormat.format("Error getting value from field {0} ({1}).", new Object[] {
+                    name, uiName
+                });
+                LOGGER.debug(message, ex);
+                continue;
+            }
+            catch(IllegalAccessException ex)
+            {
+                String message = MessageFormat.format("Error getting value from field {0} ({1}).", new Object[] {
+                    name, uiName
+                });
+                LOGGER.debug(message, ex);
+                i$++;
+            }
+        }
+
+        createParametersUI(this, params, fieldMap);
+    }
+
+    public void saveModel()
+    {
+        XMLPresets.saveModel(plainTarget, presetsModel, binaryFile);
+    }
+
+    private void createParametersUI(JPanel root, java.util.List params, Map fields)
+    {
+        JPanel paramsPanel = createParamsPanel(params, fields);
+        if(!isAnyParameterDetected)
+        {
+            return;
+        } else
+        {
+            JScrollPane mainScrollPane = new JScrollPane(new JPanel(paramsPanel) {
+
+                final JPanel val$paramsPanel;
+                final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                paramsPanel = jpanel;
+                super(x0);
+                add(paramsPanel, "North");
+            }
+            }, 20, 30);
+            mainScrollPane.setBorder(new JRoundedBorder(mainScrollPane));
+            root.add(Box.createHorizontalStrut(10), "West");
+            root.add(Box.createHorizontalStrut(10), "East");
+            root.add(mainScrollPane, "Center");
+            root.add(createButtonsPanel(), "South");
+            return;
+        }
+    }
+
+    private void setIconImage()
+    {
+        ImageIcon icon = null;
+        try
+        {
+            icon = StratUtils.loadImageIcon("rc/media/logo_empty_titlebar.png");
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        if(icon != null)
+            parentDialog.setIconImage(icon.getImage());
+    }
+
+    private JPanel createPresetsPanel()
+    {
+        JPanel panel = new JPanel(new GridBagLayout());
+        Arrays.sort(presetsModel.getAllPresets().toArray());
+        presetsCombo = new JComboBox(presetsModel.getAllPresets().toArray());
+        presetsCombo.setSelectedItem(presetsModel.getDefaultPreset());
+        presetsCombo.setEditable(true);
+        presetsCombo.addItemListener(new ItemListener() {
+
+            public void itemStateChanged(ItemEvent e)
+            {
+                if(!blockOtherOperations && e.getStateChange() == 1 && (presetsCombo.getSelectedItem() instanceof Preset))
+                    setPreset();
+            }
+
+            final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                super();
+            }
+        });
+        presetsCombo.addMouseWheelListener(new ComboboxMouseWheelListener(presetsCombo));
+        presetsCombo.setPreferredSize(DEFAULT_FIELD_SIZE);
+        JTextField comboTextField = (JTextField)presetsCombo.getEditor().getEditorComponent();
+        comboTextField.getDocument().addDocumentListener(new DocumentListener() {
+
+            public void changedUpdate(DocumentEvent e)
+            {
+                checkNewComboBoxText();
+            }
+
+            public void removeUpdate(DocumentEvent e)
+            {
+                checkNewComboBoxText();
+            }
+
+            public void insertUpdate(DocumentEvent e)
+            {
+                checkNewComboBoxText();
+            }
+
+            final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                super();
+            }
+        });
+        ImageIcon iconDelete = StratUtils.loadImageIcon("rc/media/dialog_strategy_delete_preset_active.png");
+        ImageIcon iconSave = StratUtils.loadImageIcon("rc/media/dialog_strategy_save_preset_active.png");
+        deletePresetButton = new JButton(iconDelete);
+        savePresetButton = new JButton(iconSave);
+        deletePresetButton.setMargin(new Insets(0, 0, 0, 0));
+        savePresetButton.setMargin(new Insets(0, 0, 0, 0));
+        deletePresetButton.setToolTipText(Action.PRESET_DELETE.getLabel());
+        savePresetButton.setToolTipText(Action.PRESET_SAVE.getLabel());
+        deletePresetButton.setActionCommand(Action.PRESET_DELETE.name());
+        savePresetButton.setActionCommand(Action.PRESET_SAVE.name());
+        deletePresetButton.addActionListener(this);
+        savePresetButton.addActionListener(this);
+        if(presetsModel.getDefaultPreset().getName().equals("Default"))
+        {
+            deletePresetButton.setEnabled(false);
+            savePresetButton.setEnabled(false);
+        }
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.insets = new Insets(10, 5, 5, 5);
+        constraints.ipadx = 2;
+        constraints.ipady = 2;
+        constraints.gridx = 0;
+        constraints.gridy = 0;
+        constraints.anchor = 13;
+        panel.add(PRESET_LABEL, constraints);
+        constraints.gridx++;
+        constraints.anchor = 17;
+        panel.add(presetsCombo, constraints);
+        constraints.gridx++;
+        constraints.insets = new Insets(10, 1, 5, 1);
+        panel.add(savePresetButton, constraints);
+        constraints.gridx++;
+        panel.add(deletePresetButton, constraints);
+        constraints.gridx = 0;
+        constraints.gridy = 1;
+        constraints.insets = new Insets(5, 5, 5, 5);
+        constraints.anchor = 13;
+        panel.add(VARIABLE_LABEL, constraints);
+        constraints.gridx++;
+        constraints.anchor = 17;
+        panel.add(VALUE_LABEL, constraints);
+        return panel;
+    }
+
+    private JPanel createButtonsPanel()
+    {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.insets = new Insets(5, 10, 10, 12);
+        constraints.ipadx = 2;
+        constraints.ipady = 2;
+        constraints.gridx = 0;
+        constraints.gridy = 0;
+        JLocalizableButton runButton;
+        if(isEditDialog)
+            runButton = new JLocalizableButton("strategy.parameters.dialog.button.set");
+        else
+            runButton = new JLocalizableButton("strategy.parameters.dialog.button.run");
+        runButton.addActionListener(this);
+        runButton.setActionCommand(Action.RUN.name());
+        runButton.setFocusCycleRoot(true);
+        parentDialog.getRootPane().setDefaultButton(runButton);
+        runButton.setPreferredSize(new Dimension(70, 20));
+        panel.add(runButton, constraints);
+        constraints.gridx++;
+        constraints.insets = new Insets(5, 12, 10, 12);
+        JLocalizableButton cancelButton = new JLocalizableButton("strategy.parameters.dialog.button.cancel");
+        cancelButton.addActionListener(this);
+        cancelButton.setActionCommand(Action.CANCEL.name());
+        cancelButton.setPreferredSize(new Dimension(70, 20));
+        panel.add(cancelButton, constraints);
+        return panel;
+    }
+
+    private JPanel createParamsPanel(java.util.List parameters, Map fields)
+    {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(2, 5, 2, 5);
+        gbc.ipadx = 2;
+        gbc.ipady = 2;
+        gbc.gridy = 0;
+        gbc.gridx = 0;
+        componentsList = new ArrayList();
+        Iterator i$ = parameters.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            StrategyRunParameter parameter = (StrategyRunParameter)i$.next();
+            isAnyParameterDetected = true;
+            gbc.anchor = 13;
+            String fieldName = parameter.getName();
+            String fieldTitle = parameter.getTitle();
+            if(fieldTitle == null || fieldTitle.isEmpty())
+                fieldTitle = fieldName;
+            JLabel label = new JLabel((new StringBuilder()).append("<html><font family=Verdana>").append(fieldTitle).append("</font>").append(parameter.isMandatory() ? "<sup><font family=Verdana color=Red>*</font></sup>" : "").append("</html>").toString(), null, 4);
+            label.setPreferredSize(DEFAULT_FIELD_LABELSIZE);
+            label.setMaximumSize(DEFAULT_FIELD_LABELSIZE);
+            label.setToolTipText(fieldTitle);
+            JComponent component = createControl(plainTarget, parameter);
+            if(component != null)
+            {
+                component.putClientProperty("fieldTitle", fieldTitle);
+                component.putClientProperty("stepSize", Double.valueOf(parameter.getStepSize()));
+                component.putClientProperty("fileType", parameter.getFileType());
+                gbc.gridy++;
+                gbc.gridx = 0;
+                panel.add(label, gbc);
+                if(component instanceof JTextField)
+                    ((JTextField)component).getDocument().addDocumentListener(new DocumentListener() {
+
+                        public void changedUpdate(DocumentEvent e)
+                        {
+                            componentWasChanged();
+                        }
+
+                        public void removeUpdate(DocumentEvent e)
+                        {
+                            componentWasChanged();
+                        }
+
+                        public void insertUpdate(DocumentEvent e)
+                        {
+                            componentWasChanged();
+                        }
+
+                        final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                super();
+            }
+                    });
+                else
+                if(component instanceof JSpinner)
+                    ((JSpinner)component).addChangeListener(new ChangeListener() {
+
+                        public void stateChanged(ChangeEvent e)
+                        {
+                            componentWasChanged();
+                        }
+
+                        final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                super();
+            }
+                    });
+                else
+                if(component instanceof JComboBox)
+                {
+                    ((JComboBox)component).addItemListener(new ItemListener() {
+
+                        public void itemStateChanged(ItemEvent e)
+                        {
+                            if(e.getStateChange() == 1)
+                                componentWasChanged();
+                        }
+
+                        final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                super();
+            }
+                    });
+                    component.addMouseWheelListener(new ComboboxMouseWheelListener((JComboBox)component));
+                } else
+                if(component instanceof JCheckBox)
+                    ((JCheckBox)component).addActionListener(new ActionListener() {
+
+                        public void actionPerformed(ActionEvent e)
+                        {
+                            componentWasChanged();
+                        }
+
+                        final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                super();
+            }
+                    });
+                else
+                if(component instanceof JDateChooser)
+                    ((JDateChooser)component).getDateEditor().addPropertyChangeListener(new PropertyChangeListener() {
+
+                        public void propertyChange(PropertyChangeEvent evt)
+                        {
+                            componentWasChanged();
+                        }
+
+                        final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                super();
+            }
+                    });
+                component.putClientProperty("field", fields.get(fieldName));
+                component.putClientProperty("type", parameter.getVariable().getType());
+                component.putClientProperty("fieldName", fieldName);
+                component.putClientProperty("dateAsLong", Boolean.valueOf(parameter.isDateAsLong()));
+                component.putClientProperty("obligatory", Boolean.valueOf(parameter.isMandatory()));
+                componentsList.add(component);
+                if(parameter.getVariable().getType().equals(java/io/File) && (component instanceof JTextField))
+                {
+                    JPanel fieldPanel = new JPanel(new FlowLayout(0, 0, 0));
+                    JButton fileSelectButton = new JButton("...");
+                    fileSelectButton.setMargin(new Insets(0, 0, 0, 0));
+                    fileSelectButton.addActionListener(new FileSelectButtonActionListner(parentDialog, (JTextField)component));
+                    fileSelectButton.setPreferredSize(new Dimension(20, 20));
+                    fieldPanel.add(component);
+                    fieldPanel.add(Box.createHorizontalStrut(4));
+                    fieldPanel.add(fileSelectButton);
+                    fieldPanel.setPreferredSize(DEFAULT_FIELD_SIZE);
+                    component = fieldPanel;
+                }
+                gbc.gridx = 1;
+                panel.add(component, gbc);
+            }
+        } while(true);
+        gbc.gridx = 0;
+        gbc.gridy++;
+        panel.add(new JLabel("\n"), gbc);
+        return panel;
+    }
+
+    private void componentWasChanged()
+    {
+        if(presetsCombo == null)
+            return;
+        Preset selectedPreset = presetsModel.getPreset(((JTextField)presetsCombo.getEditor().getEditorComponent()).getText());
+        if(selectedPreset == null || selectedPreset.getName().toLowerCase().equals("Default") || selectedPreset.getName().equals(""))
+            return;
+        if(!savePresetButton.isEnabled())
+            savePresetButton.setEnabled(true);
+    }
+
+    private void checkNewComboBoxText()
+    {
+        String text = ((JTextField)presetsCombo.getEditor().getEditorComponent()).getText();
+        if("Default".equalsIgnoreCase(text) || text.trim().isEmpty())
+        {
+            savePresetButton.setEnabled(false);
+            deletePresetButton.setEnabled(false);
+            return;
+        }
+        if(!savePresetButton.isEnabled())
+            savePresetButton.setEnabled(true);
+        deletePresetButton.setEnabled(false);
+    }
+
+    public java.util.List getValues()
+    {
+        return values;
+    }
+
+    public void setParameters(Map parameters)
+    {
+        if(isAnyParameterDetected && parameters != null)
+        {
+            presetsCombo.setSelectedIndex(-1);
+            setVariables(parameters);
+        }
+    }
+
+    public java.util.List getParameters()
+    {
+        java.util.List result = new LinkedList();
+        if(componentsList != null)
+        {
+            for(Iterator i$ = componentsList.iterator(); i$.hasNext();)
+            {
+                JComponent component = (JComponent)i$.next();
+                String name = (String)component.getClientProperty("fieldName");
+                Class fieldType = (Class)component.getClientProperty("type");
+                try
+                {
+                    Object value = getFieldValue(component, fieldType);
+                    StrategyRunParameter parameter = new StrategyRunParameter(name, fieldType, value);
+                    Boolean dateAsLong = (Boolean)component.getClientProperty("dateAsLong");
+                    parameter.setDateAsLong(dateAsLong != null ? dateAsLong.booleanValue() : false);
+                    Boolean mandatory = (Boolean)component.getClientProperty("obligatory");
+                    parameter.setMandatory(mandatory != null ? mandatory.booleanValue() : false);
+                    String fileType = (String)component.getClientProperty("fileType");
+                    parameter.setFileType(fileType);
+                    Double stepSize = (Double)component.getClientProperty("stepSize");
+                    if(stepSize != null)
+                        parameter.setStepSize(stepSize.doubleValue());
+                    String uiName = (String)component.getClientProperty("fieldTitle");
+                    parameter.setTitle(uiName);
+                    result.add(parameter);
+                }
+                catch(IllegalArgumentException e)
+                {
+                    LOGGER.debug((new StringBuilder()).append("Error getting value for field : ").append(name).toString(), e);
+                }
+            }
+
+        }
+        return result;
+    }
+
+    private JComponent createControl(IStrategy target, StrategyRunParameter parameter)
+    {
+        Variable var;
+        Class fieldType;
+        String fieldName;
+        boolean datetimeAsLong;
+        var = parameter.getVariable();
+        fieldType = var.getType();
+        fieldName = parameter.getName();
+        datetimeAsLong = parameter.isDateAsLong();
+        if(com/dukascopy/api/IChart.equals(fieldType))
+        {
+            IConnectorManager manager = ConnectorManager.getInstance();
+            ComboBoxModel model = (ComboBoxModel)manager.get(com.dukascopy.api.connector.IConnectorManager.ConnectorKeys.CHART_COMBO_MODEL);
+            return createComboBox(var.getValue(), fieldName, com/dukascopy/api/IChart, target, model);
+        }
+        if(java/lang/String.equals(fieldType))
+        {
+            JTextField fieldEditor = new JTextField();
+            fieldEditor.setPreferredSize(DEFAULT_FIELD_SIZE);
+            try
+            {
+                Object fieldValue = var.getValue();
+                Variable variable = getPresetVariable(fieldName);
+                if(!isEditDialog && variable != null)
+                {
+                    Object value = variable.getValue();
+                    if(value != null)
+                        fieldEditor.setText(String.valueOf(value));
+                } else
+                {
+                    fieldEditor.setText((String)fieldValue);
+                }
+                fieldEditor.putClientProperty("default", fieldValue);
+                fieldEditor.putClientProperty("type", java/lang/String);
+                fieldEditor.putClientProperty("dateAsLong", Boolean.FALSE);
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            return fieldEditor;
+        }
+        if(Integer.TYPE.equals(fieldType) || java/lang/Integer.equals(fieldType))
+        {
+            int stepSize = 1;
+            int configurableStepSize = (int)parameter.getStepSize();
+            if(configurableStepSize > 0)
+                stepSize = configurableStepSize;
+            return createSpinner(var.getValue(), fieldName, fieldType, target, new SpinnerNumberModel(Integer.valueOf(0), Integer.valueOf(0x80000000), Integer.valueOf(0x7fffffff), Integer.valueOf(stepSize)), "#");
+        }
+        if((Long.TYPE.equals(fieldType) || java/lang/Long.equals(fieldType)) && !datetimeAsLong)
+        {
+            long stepSize = 1L;
+            long configurableStepSize = (long)parameter.getStepSize();
+            if(configurableStepSize > 0L)
+                stepSize = configurableStepSize;
+            return createSpinner(var.getValue(), fieldName, fieldType, target, new SpinnerNumberModel(Long.valueOf(0L), Long.valueOf(0x8000000000000000L), Long.valueOf(0x7fffffffffffffffL), Long.valueOf(stepSize)), "#");
+        }
+        if(datetimeAsLong)
+            return createDateChooser(var.getValue(), datetimeAsLong, fieldName, fieldType, target);
+        if(Double.TYPE.equals(fieldType) || java/lang/Double.equals(fieldType))
+        {
+            double stepSize = 0.5D;
+            if(parameter.getStepSize() > 0.0D)
+                stepSize = parameter.getStepSize();
+            return createSpinner(var.getValue(), fieldName, fieldType, target, new DoubleSpinnerModel(0.0D, (-1.0D / 0.0D), 1.7976931348623157E+308D, stepSize), "0.0###################");
+        }
+        if(Boolean.TYPE.equals(fieldType))
+        {
+            JCheckBox fieldEditor = new JCheckBox();
+            fieldEditor.setPreferredSize(DEFAULT_FIELD_SIZE);
+            try
+            {
+                boolean fieldValue = ((Boolean)var.getValue()).booleanValue();
+                Variable variable = getPresetVariable(fieldName);
+                if(!isEditDialog && variable != null)
+                    fieldEditor.setSelected(((Boolean)variable.getValue()).booleanValue());
+                else
+                    fieldEditor.setSelected(fieldValue);
+                fieldEditor.putClientProperty("default", new Boolean(fieldValue));
+                fieldEditor.putClientProperty("type", fieldType);
+                fieldEditor.putClientProperty("dateAsLong", Boolean.FALSE);
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            return fieldEditor;
+        }
+        if(java/lang/Boolean.equals(fieldType))
+        {
+            JCheckBox fieldEditor = new JCheckBox();
+            fieldEditor.setPreferredSize(DEFAULT_FIELD_SIZE);
+            try
+            {
+                Boolean fieldValue = (Boolean)var.getValue();
+                Variable variable = getPresetVariable(fieldName);
+                if(!isEditDialog && variable != null)
+                {
+                    Boolean value = (Boolean)variable.getValue();
+                    fieldEditor.setSelected(value != null && value.booleanValue());
+                } else
+                {
+                    fieldEditor.setSelected(fieldValue != null && fieldValue.booleanValue());
+                }
+                fieldEditor.putClientProperty("default", fieldValue);
+                fieldEditor.putClientProperty("type", fieldType);
+                fieldEditor.putClientProperty("dateAsLong", Boolean.FALSE);
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            return fieldEditor;
+        }
+        if(com/dukascopy/api/Period.equals(fieldType))
+            return createComboBox(var.getValue(), fieldName, com/dukascopy/api/Period, target, Period.values());
+        if(com/dukascopy/api/Instrument.equals(fieldType))
+            return createComboBox(var.getValue(), fieldName, com/dukascopy/api/Instrument, target, Instrument.values());
+        if(!java/io/File.equals(fieldType))
+            break MISSING_BLOCK_LABEL_1351;
+        File fieldValue;
+        String fileType;
+        JTextField fileText;
+        fieldValue = (File)var.getValue();
+        fileType = parameter.getFileType();
+        if(fileType != null && !fileType.trim().isEmpty())
+            break MISSING_BLOCK_LABEL_1032;
+        fileText = new JTextField();
+        Variable variable = getPresetVariable(fieldName);
+        if(!isEditDialog && variable != null && variable.getValue() != null)
+            fileText.setText(((File)variable.getValue()).getPath());
+        else
+        if(fieldValue != null)
+            fileText.setText(fieldValue.getPath());
+        else
+            fileText.setText("");
+        fileText.setPreferredSize(new Dimension(128, 20));
+        fileText.putClientProperty("default", "");
+        fileText.putClientProperty("type", java/io/File);
+        fileText.putClientProperty("dateAsLong", Boolean.FALSE);
+        return fileText;
+        JComboBox fileCombo;
+        File strategyDir = FilePathManager.getInstance().getFilesForStrategiesDir();
+        FilenameFilter parseFilter = new ParseFilenameFilter(fileType);
+        String filteredFileNames[] = strategyDir.list(parseFilter);
+        Arrays.sort(filteredFileNames);
+        fileCombo = new JComboBox(filteredFileNames);
+        fileCombo.addItem("Not Selected");
+        Variable variable = getPresetVariable(fieldName);
+        if(!isEditDialog && variable != null)
+        {
+            File file = (File)variable.getValue();
+            if(file != null && "Default".equalsIgnoreCase(((Preset)presetsCombo.getSelectedItem()).getName()))
+            {
+                file = new File((new StringBuilder()).append(FilePathManager.getInstance().getFilesForStrategiesDir()).append(File.separator).append(file.getName()).toString());
+                variable.setValue(file);
+            }
+            if(file == null || !file.isFile())
+            {
+                fileCombo.setSelectedItem("Not Selected");
+            } else
+            {
+                String fileNameFromModel = file.getName();
+                if(Arrays.asList(filteredFileNames).contains(fileNameFromModel))
+                    fileCombo.setSelectedItem(fileNameFromModel);
+                else
+                    fileCombo.setSelectedItem("Not Selected");
+            }
+        } else
+        if(fieldValue != null && fieldValue.isFile())
+            fileCombo.setSelectedItem(fieldValue.getName());
+        else
+            fileCombo.setSelectedItem("Not Selected");
+        fileCombo.setPreferredSize(DEFAULT_FIELD_SIZE);
+        fileCombo.putClientProperty("type", java/io/File);
+        fileCombo.putClientProperty("default", "Not Selected");
+        fileCombo.putClientProperty("dateAsLong", Boolean.FALSE);
+        return fileCombo;
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return null;
+        if(fieldType.isEnum())
+        {
+            JComboBox fieldEditor = new JComboBox(fieldType.getEnumConstants());
+            fieldEditor.setPreferredSize(DEFAULT_FIELD_SIZE);
+            try
+            {
+                Object fieldValue = var.getValue();
+                Variable variable = getPresetVariable(fieldName);
+                if(!isEditDialog && variable != null)
+                    fieldEditor.setSelectedItem(variable.getValue());
+                else
+                    fieldEditor.setSelectedItem(fieldValue);
+                fieldEditor.putClientProperty("default", fieldValue);
+                fieldEditor.putClientProperty("type", fieldType);
+                fieldEditor.putClientProperty("dateAsLong", Boolean.FALSE);
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+            return fieldEditor;
+        }
+        if(java/util/Calendar.isAssignableFrom(fieldType) || java/util/Date.isAssignableFrom(fieldType))
+            return createDateChooser(var.getValue(), datetimeAsLong, fieldName, fieldType, target);
+        else
+            return null;
+    }
+
+    private static Class getWrapperClass(Class objectClass)
+    {
+        if(objectClass.isPrimitive())
+        {
+            if(objectClass == Integer.TYPE)
+                return java/lang/Integer;
+            if(objectClass == Long.TYPE)
+                return java/lang/Long;
+            if(objectClass == Double.TYPE)
+                return java/lang/Double;
+            if(objectClass == Boolean.TYPE)
+                return java/lang/Boolean;
+        }
+        return objectClass;
+    }
+
+    private JSpinner createSpinner(Object fieldValue, String fieldName, Class fieldClass, IStrategy strategy, final SpinnerNumberModel spinnerNumberModel, String format)
+    {
+        JSpinner spinner = new JSpinner(format) {
+
+            protected JComponent createEditor(SpinnerModel model)
+            {
+                return new javax.swing.JSpinner.NumberEditor(this, format);
+            }
+
+            public Dimension getPreferredSize()
+            {
+                return ParametersPanel.DEFAULT_FIELD_SIZE;
+            }
+
+            final String val$format;
+            final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                format = s;
+                super(x0);
+            }
+        };
+        ((javax.swing.JSpinner.DefaultEditor)spinner.getEditor()).getTextField().setHorizontalAlignment(2);
+        spinner.addMouseWheelListener(new SpinnerMouseWheelListener(spinner));
+        spinner.setPreferredSize(DEFAULT_FIELD_SIZE);
+        Variable variable = getPresetVariable(fieldName);
+        if(!isEditDialog && variable != null)
+            spinner.setValue(variable.getValue());
+        else
+        if(fieldValue != null)
+            spinner.setValue(fieldValue);
+        spinner.putClientProperty("default", fieldValue);
+        spinner.putClientProperty("type", fieldClass);
+        spinner.putClientProperty("dateAsLong", Boolean.FALSE);
+        return spinner;
+    }
+
+    private JComboBox createComboBox(Object fieldValue, String fieldName, Class fieldClass, IStrategy strategy, Object items[])
+    {
+        JComboBox comboBox = new JComboBox(items);
+        comboBox.setPreferredSize(DEFAULT_FIELD_SIZE);
+        Variable variable = getPresetVariable(fieldName);
+        if(!isEditDialog && variable != null)
+            comboBox.setSelectedItem(variable.getValue());
+        else
+        if(fieldValue != null)
+            comboBox.setSelectedItem(fieldValue);
+        else
+            comboBox.setSelectedIndex(0);
+        comboBox.putClientProperty("default", fieldValue);
+        comboBox.putClientProperty("type", fieldClass);
+        comboBox.putClientProperty("dateAsLong", Boolean.FALSE);
+        return comboBox;
+    }
+
+    private JComboBox createComboBox(Object fieldValue, String fieldName, Class fieldClass, IStrategy strategy, ComboBoxModel model)
+    {
+        JComboBox comboBox = new JComboBox(model);
+        comboBox.setPreferredSize(DEFAULT_FIELD_SIZE);
+        Variable variable = getPresetVariable(fieldName);
+        if(!isEditDialog && variable != null)
+            comboBox.setSelectedItem(variable.getValue());
+        else
+        if(fieldValue != null)
+            comboBox.setSelectedItem(fieldValue);
+        else
+            comboBox.setSelectedIndex(0);
+        comboBox.putClientProperty("default", fieldValue);
+        comboBox.putClientProperty("type", fieldClass);
+        comboBox.putClientProperty("dateAsLong", Boolean.FALSE);
+        return comboBox;
+    }
+
+    private JDateChooser createDateChooser(Object fieldValue, boolean datetimeAsLong, String fieldName, Class fieldClass, IStrategy strategy)
+    {
+        JSpinnerDateEditor spinnerDateEditor = new JSpinnerDateEditor();
+        spinnerDateEditor.setDateFormatString("dd-MM-yyyy HH:mm:ss");
+        JDateChooser dateChooser = new JDateChooser(spinnerDateEditor);
+        dateChooser.setDateFormatString("dd-MM-yyyy HH:mm:ss");
+        dateChooser.setPreferredSize(DEFAULT_FIELD_SIZE);
+        if(!isEditDialog)
+        {
+            Variable variable = getPresetVariable(fieldName);
+            if(java/util/Calendar.isAssignableFrom(fieldClass))
+            {
+                if(variable != null && variable.getValue() != null)
+                    dateChooser.setCalendar((Calendar)variable.getValue());
+            } else
+            if(java/util/Date.isAssignableFrom(fieldClass))
+            {
+                if(variable != null)
+                    dateChooser.setDate((Date)variable.getValue());
+            } else
+            if(datetimeAsLong && variable != null && variable.getValue() != null)
+                dateChooser.setDate(new Date(((Long)variable.getValue()).longValue()));
+        } else
+        if(java/util/Calendar.isAssignableFrom(fieldClass))
+            dateChooser.setCalendar((Calendar)fieldValue);
+        else
+        if(java/util/Date.isAssignableFrom(fieldClass))
+            dateChooser.setDate((Date)fieldValue);
+        else
+        if(datetimeAsLong)
+            dateChooser.setDate(new Date(((Long)fieldValue).longValue()));
+        dateChooser.putClientProperty("default", fieldValue);
+        dateChooser.putClientProperty("type", fieldClass);
+        dateChooser.putClientProperty("dateAsLong", Boolean.valueOf(datetimeAsLong));
+        return dateChooser;
+    }
+
+    private Variable getPresetVariable(String fieldName)
+    {
+        if(presetsModel != null && presetsModel.getDefaultVariableMap() != null)
+            return (Variable)presetsModel.getDefaultVariableMap().get(fieldName);
+        else
+            return null;
+    }
+
+    public void actionPerformed(ActionEvent e)
+    {
+        if(blockOtherOperations)
+            return;
+        Action action = Action.valueOf(e.getActionCommand());
+        static class _cls12
+        {
+
+            static final int $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$ParametersPanel$Action[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$ParametersPanel$Action = new int[Action.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$ParametersPanel$Action[Action.RUN.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$ParametersPanel$Action[Action.CANCEL.ordinal()] = 2;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$ParametersPanel$Action[Action.PRESET_SAVE.ordinal()] = 3;
+                }
+                catch(NoSuchFieldError ex) { }
+                try
+                {
+                    $SwitchMap$com$dukascopy$dds2$greed$agent$strategy$ParametersPanel$Action[Action.PRESET_DELETE.ordinal()] = 4;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        switch(_cls12..SwitchMap.com.dukascopy.dds2.greed.agent.strategy.ParametersPanel.Action[action.ordinal()])
+        {
+        case 1: // '\001'
+            boolean checkFail = false;
+            for(Iterator i$ = componentsList.iterator(); i$.hasNext();)
+            {
+                JComponent component = (JComponent)i$.next();
+                try
+                {
+                    setControlField(component, true);
+                }
+                catch(Exception ex)
+                {
+                    checkFail = true;
+                    flushField(component);
+                }
+            }
+
+            if(checkFail)
+                return;
+            returnCode = new TaskParameter(plainTarget, (IControlUI)parentDialog, componentsList);
+            parentDialog.dispose();
+            break;
+
+        case 2: // '\002'
+            setVisible(false);
+            parentDialog.dispose();
+            break;
+
+        case 3: // '\003'
+            saveCurrentPreset();
+            saveModel();
+            break;
+
+        case 4: // '\004'
+            deletePreset();
+            saveModel();
+            break;
+
+        default:
+            LOGGER.warn("Unsupported action : []", action);
+            break;
+        }
+    }
+
+    private void deletePreset()
+    {
+        Preset preset = presetsModel.getPreset(((JTextField)presetsCombo.getEditor().getEditorComponent()).getText());
+        if(preset == null || "Default".equalsIgnoreCase(preset.getName()))
+        {
+            savePresetButton.setEnabled(false);
+            deletePresetButton.setEnabled(false);
+            return;
+        }
+        if(presetsCombo.getItemCount() < 2)
+        {
+            presetsCombo.setEnabled(false);
+            return;
+        } else
+        {
+            presetsModel.deletePreset(preset);
+            presetsCombo.removeItem(preset);
+            return;
+        }
+    }
+
+    private void setPreset()
+    {
+        Preset selectedPreset = (Preset)presetsCombo.getSelectedItem();
+        HashMap variableMap = presetsModel.getVariableMap(selectedPreset);
+        setVariables(variableMap);
+        savePresetButton.setEnabled(false);
+        if("Default".equalsIgnoreCase(selectedPreset.getName()))
+            deletePresetButton.setEnabled(false);
+        else
+            deletePresetButton.setEnabled(true);
+    }
+
+    private void setVariables(Map variableMap)
+    {
+        Iterator i$ = componentsList.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            JComponent currentComponent = (JComponent)i$.next();
+            String fieldName = (String)currentComponent.getClientProperty("fieldName");
+            Variable modelVariable = (Variable)variableMap.get(fieldName);
+            if(currentComponent instanceof JCheckBox)
+                ((JCheckBox)currentComponent).setSelected(((Boolean)modelVariable.getValue()).booleanValue());
+            else
+            if(currentComponent instanceof JSpinner)
+            {
+                if(modelVariable.getValue() != null)
+                    ((JSpinner)currentComponent).setValue(modelVariable.getValue());
+                else
+                    ((JSpinner)currentComponent).setValue(Integer.valueOf(0));
+            } else
+            if(currentComponent instanceof JComboBox)
+            {
+                Class variableClass = modelVariable.getType();
+                if(variableClass.isEnum())
+                    ((JComboBox)currentComponent).setSelectedItem(modelVariable.getValue());
+                else
+                if(variableClass.equals(java/io/File))
+                {
+                    if(modelVariable.getValue() == null || !((File)modelVariable.getValue()).isFile())
+                    {
+                        ((JComboBox)currentComponent).setSelectedItem("Not Selected");
+                    } else
+                    {
+                        String fileName = ((File)modelVariable.getValue()).getName();
+                        ((JComboBox)currentComponent).setSelectedItem(fileName);
+                    }
+                } else
+                {
+                    ((JComboBox)currentComponent).setSelectedItem(modelVariable.getValue());
+                }
+            } else
+            if(currentComponent instanceof JDateChooser)
+            {
+                if(modelVariable.getValue() != null)
+                {
+                    if(java/util/Calendar.isAssignableFrom(modelVariable.getType()))
+                        ((JDateChooser)currentComponent).setCalendar((Calendar)modelVariable.getValue());
+                    else
+                    if(java/util/Date.isAssignableFrom(modelVariable.getType()))
+                        ((JDateChooser)currentComponent).setDate((Date)modelVariable.getValue());
+                } else
+                {
+                    ((JDateChooser)currentComponent).setDate(null);
+                }
+            } else
+            if(modelVariable.getValue() != null)
+                ((JTextField)currentComponent).setText(modelVariable.getValue().toString());
+            else
+                ((JTextField)currentComponent).setText("");
+        } while(true);
+    }
+
+    private void saveCurrentPreset()
+    {
+        if(!checkForTypeCompatibility())
+            return;
+        String comboText = ((JTextField)presetsCombo.getEditor().getEditorComponent()).getText();
+        Preset presetByText = presetsModel.getPreset(comboText);
+        if(presetByText != null && "Default".equalsIgnoreCase(presetByText.getName()))
+        {
+            savePresetButton.setEnabled(false);
+            deletePresetButton.setEnabled(false);
+            return;
+        }
+        if(presetByText == null)
+        {
+            Preset newPreset = new Preset(comboText, Preset.USER_ADDED);
+            HashMap variablesMap = new HashMap();
+            String fieldName;
+            Variable variable;
+            for(Iterator i$ = componentsList.iterator(); i$.hasNext(); variablesMap.put(fieldName, variable))
+            {
+                JComponent currentComponent = (JComponent)i$.next();
+                fieldName = (String)currentComponent.getClientProperty("fieldName");
+                Class fieldClass = (Class)currentComponent.getClientProperty("type");
+                Object obligatoryObj = currentComponent.getClientProperty("obligatory");
+                boolean obligatory = obligatoryObj != null ? ((Boolean)obligatoryObj).booleanValue() : false;
+                Object fieldValue = null;
+                if(java/lang/String.equals(fieldClass))
+                    fieldValue = ((JTextField)currentComponent).getText();
+                else
+                if(Integer.TYPE.equals(fieldClass) || java/lang/Integer.equals(fieldClass))
+                    fieldValue = ((JSpinner)currentComponent).getValue();
+                else
+                if(Long.TYPE.equals(fieldClass) || java/lang/Long.equals(fieldClass))
+                    fieldValue = ((JSpinner)currentComponent).getValue();
+                else
+                if(Double.TYPE.equals(fieldClass) || java/lang/Double.equals(fieldClass))
+                    fieldValue = ((JSpinner)currentComponent).getValue();
+                else
+                if(Boolean.TYPE.equals(fieldClass) || java/lang/Boolean.equals(fieldClass))
+                    fieldValue = Boolean.valueOf(((JCheckBox)currentComponent).isSelected());
+                else
+                if(com/dukascopy/api/Instrument.equals(fieldClass))
+                    fieldValue = ((JComboBox)currentComponent).getSelectedItem();
+                else
+                if(com/dukascopy/api/Period.equals(fieldClass))
+                    fieldValue = ((JComboBox)currentComponent).getSelectedItem();
+                else
+                if(java/io/File.equals(fieldClass))
+                {
+                    if(currentComponent instanceof JTextField)
+                    {
+                        fieldValue = new File(((JTextField)currentComponent).getText());
+                    } else
+                    {
+                        String fileName = (String)((JComboBox)currentComponent).getSelectedItem();
+                        if(!fileName.equals("Not Selected"))
+                        {
+                            String stratFilesPath = (new StringBuilder()).append(FilePathManager.getInstance().getFilesForStrategiesDir().getPath()).append(File.separator).toString();
+                            fieldValue = new File((new StringBuilder()).append(stratFilesPath).append(fileName).toString());
+                        } else
+                        {
+                            fieldValue = new File("");
+                        }
+                    }
+                } else
+                if(java/util/Date.isAssignableFrom(fieldClass))
+                    fieldValue = ((JDateChooser)currentComponent).getDate();
+                else
+                if(java/util/Calendar.isAssignableFrom(fieldClass))
+                    fieldValue = ((JDateChooser)currentComponent).getCalendar();
+                else
+                if(fieldClass.isEnum())
+                    fieldValue = ((JComboBox)currentComponent).getSelectedItem();
+                validate(fieldValue, getWrapperClass(fieldClass), fieldName, obligatory);
+                variable = new Variable(fieldValue, fieldClass);
+            }
+
+            presetsModel.addPreset(newPreset, variablesMap);
+            blockOtherOperations = true;
+            presetsCombo.addItem(newPreset);
+            presetsCombo.setSelectedItem(newPreset);
+            blockOtherOperations = false;
+        } else
+        {
+            saveMainPreset(presetByText);
+        }
+        savePresetButton.setEnabled(false);
+        deletePresetButton.setEnabled(true);
+    }
+
+    private void validate(Object fieldValue, Class fieldClass, String variableName, boolean obligatory)
+        throws IllegalArgumentException
+    {
+        if(fieldValue != null && !fieldClass.isAssignableFrom(fieldValue.getClass()) && !fieldClass.getClass().isInstance(fieldValue.getClass()))
+            throw new IllegalArgumentException((new StringBuilder()).append("Value of field [").append(variableName).append("] is not instance of ").append(fieldClass).append(" : ").append(fieldValue.getClass()).toString());
+        if(obligatory && fieldClass.equals(java/lang/String) && (fieldValue == null || fieldValue.equals("")))
+            throw new IllegalArgumentException((new StringBuilder()).append("Value of field [").append(variableName).append("] is not set").toString());
+        if(obligatory && fieldClass.equals(java/io/File) && (fieldValue == null || fieldValue.equals("Not Selected") || fieldValue.equals(new File(""))))
+            throw new IllegalArgumentException((new StringBuilder()).append("Value of field [").append(variableName).append("] is not set").toString());
+        if(obligatory && fieldValue == null)
+            throw new IllegalArgumentException((new StringBuilder()).append("Value of field [").append(variableName).append("] is not set").toString());
+        else
+            return;
+    }
+
+    void saveMainPreset(Preset presetToSave)
+    {
+        HashMap variablesMap = presetsModel.getVariableMap(presetToSave);
+        Variable modelVariable;
+        Object fieldValue;
+        for(Iterator i$ = componentsList.iterator(); i$.hasNext(); modelVariable.setValue(fieldValue))
+        {
+            JComponent currentComponent = (JComponent)i$.next();
+            String variableName = (String)currentComponent.getClientProperty("fieldName");
+            Class fieldType = (Class)currentComponent.getClientProperty("type");
+            modelVariable = (Variable)variablesMap.get(variableName);
+            fieldValue = getComponentValue(currentComponent, fieldType);
+        }
+
+    }
+
+    private Object getComponentValue(JComponent component, Class fieldType)
+    {
+        Object fieldValue;
+        if(fieldType.equals(java/lang/String))
+            fieldValue = ((JTextField)component).getText();
+        else
+        if(fieldType.equals(Integer.TYPE) || fieldType.equals(java/lang/Integer))
+            fieldValue = ((JSpinner)component).getValue();
+        else
+        if(fieldType.equals(Long.TYPE) || fieldType.equals(java/lang/Long))
+            fieldValue = ((JSpinner)component).getValue();
+        else
+        if(fieldType.equals(Double.TYPE) || fieldType.equals(java/lang/Double))
+            fieldValue = ((JSpinner)component).getValue();
+        else
+        if(fieldType.equals(Boolean.TYPE) || fieldType.equals(java/lang/Boolean))
+            fieldValue = Boolean.valueOf(((JCheckBox)component).isSelected());
+        else
+        if(fieldType.equals(com/dukascopy/api/Instrument))
+            fieldValue = ((JComboBox)component).getSelectedItem();
+        else
+        if(fieldType.equals(com/dukascopy/api/Period))
+            fieldValue = ((JComboBox)component).getSelectedItem();
+        else
+        if(fieldType.equals(java/io/File))
+        {
+            if(component instanceof JTextField)
+            {
+                fieldValue = new File(((JTextField)component).getText());
+            } else
+            {
+                String fileName = (String)((JComboBox)component).getSelectedItem();
+                if(!fileName.equals("Not Selected"))
+                {
+                    String stratFilesPath = (new StringBuilder()).append(FilePathManager.getInstance().getFilesForStrategiesDir().getPath()).append(File.separator).toString();
+                    fieldValue = new File((new StringBuilder()).append(stratFilesPath).append(fileName).toString());
+                } else
+                {
+                    fieldValue = new File("");
+                }
+            }
+        } else
+        if(java/util/Date.isAssignableFrom(fieldType))
+            fieldValue = ((JDateChooser)component).getDate();
+        else
+        if(java/util/Calendar.isAssignableFrom(fieldType))
+            fieldValue = ((JDateChooser)component).getCalendar();
+        else
+        if(fieldType.isEnum())
+        {
+            fieldValue = ((JComboBox)component).getSelectedItem();
+        } else
+        {
+            LOGGER.debug((new StringBuilder()).append("Unsupported field: ").append(fieldType).toString());
+            fieldValue = null;
+        }
+        return fieldValue;
+    }
+
+    private boolean checkForTypeCompatibility()
+    {
+        Iterator i$ = componentsList.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            JComponent currentComponent = (JComponent)i$.next();
+            try
+            {
+                setControlField(currentComponent, true);
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+                flushField(currentComponent);
+                return false;
+            }
+        } while(true);
+        return true;
+    }
+
+    public void setControlField(final JComponent component, boolean justCheckDoNotSetFields)
+        throws Exception
+    {
+        final Class fieldType = (Class)component.getClientProperty("type");
+        String fieldName = (String)component.getClientProperty("fieldName");
+        Object obligatoryObj = component.getClientProperty("obligatory");
+        boolean obligatory = obligatoryObj != null ? ((Boolean)obligatoryObj).booleanValue() : false;
+        Object fieldValue;
+        if(SwingUtilities.isEventDispatchThread())
+        {
+            fieldValue = getFieldValue(component, fieldType);
+        } else
+        {
+            Callable callable = new Callable() {
+
+                public Object call()
+                    throws Exception
+                {
+                    return getFieldValue(component, fieldType);
+                }
+
+                final JComponent val$component;
+                final Class val$fieldType;
+                final ParametersPanel this$0;
+
+            
+            {
+                this$0 = ParametersPanel.this;
+                component = jcomponent;
+                fieldType = class1;
+                super();
+            }
+            };
+            FutureTask task = new FutureTask(callable);
+            SwingUtilities.invokeAndWait(task);
+            try
+            {
+                fieldValue = task.get();
+            }
+            catch(ExecutionException e)
+            {
+                throw (Exception)e.getCause();
+            }
+        }
+        validate(fieldValue, getWrapperClass(fieldType), fieldName, obligatory);
+        if(justCheckDoNotSetFields)
+        {
+            return;
+        } else
+        {
+            Field field = (Field)component.getClientProperty("field");
+            field.set(plainTarget, fieldValue);
+            values.add(new String[] {
+                fieldName, getValueAsString(fieldValue)
+            });
+            return;
+        }
+    }
+
+    private String getValueAsString(Object value)
+    {
+        if(value == null)
+            return "";
+        if(value instanceof Calendar)
+            return dateFormatter.format(((Calendar)value).getTime());
+        if(value instanceof Date)
+            return dateFormatter.format((Date)value);
+        else
+            return value.toString();
+    }
+
+    private Object getFieldValue(JComponent component, Class fieldType)
+        throws IllegalArgumentException
+    {
+        Boolean timeAsLong = (Boolean)component.getClientProperty("dateAsLong");
+        boolean datetimeAsLong = timeAsLong != null ? timeAsLong.booleanValue() : false;
+        Object fieldValue = null;
+        if(com/dukascopy/api/IChart.equals(fieldType))
+            fieldValue = ((JComboBox)component).getSelectedItem();
+        else
+        if(java/lang/String.equals(fieldType))
+            fieldValue = ((JTextField)component).getText();
+        else
+        if(Integer.TYPE.equals(fieldType) || java/lang/Integer.equals(fieldType))
+            fieldValue = ((JSpinner)component).getValue();
+        else
+        if((Long.TYPE.equals(fieldType) || java/lang/Long.equals(fieldType)) && !datetimeAsLong)
+            fieldValue = ((JSpinner)component).getValue();
+        else
+        if((Long.TYPE.equals(fieldType) || java/lang/Long.equals(fieldType)) && datetimeAsLong)
+        {
+            if(((JDateChooser)component).getDate() != null)
+                fieldValue = Long.valueOf(((JDateChooser)component).getDate().getTime());
+        } else
+        if(Double.TYPE.equals(fieldType) || java/lang/Double.equals(fieldType))
+            fieldValue = ((JSpinner)component).getValue();
+        else
+        if(com/dukascopy/api/Period.equals(fieldType))
+            fieldValue = ((JComboBox)component).getSelectedItem();
+        else
+        if(com/dukascopy/api/Instrument.equals(fieldType))
+            fieldValue = ((JComboBox)component).getSelectedItem();
+        else
+        if(java/io/File.equals(fieldType))
+        {
+            String stratFilesDir = (new StringBuilder()).append(FilePathManager.getInstance().getFilesForStrategiesDir().getPath()).append(File.separator).toString();
+            if(component instanceof JTextField)
+            {
+                fieldValue = new File(((JTextField)component).getText());
+            } else
+            {
+                String fileName = (String)((JComboBox)component).getSelectedItem();
+                if(!fileName.equals("Not Selected"))
+                    fieldValue = new File((new StringBuilder()).append(stratFilesDir).append(fileName).toString());
+                else
+                    fieldValue = new File("");
+            }
+        } else
+        if(Boolean.TYPE.equals(fieldType) || java/lang/Boolean.equals(fieldType))
+            fieldValue = Boolean.valueOf(((JCheckBox)component).isSelected());
+        else
+        if(java/util/Date.isAssignableFrom(fieldType))
+        {
+            if(((JDateChooser)component).getDate() != null)
+                if(java/sql/Date.equals(fieldType))
+                    fieldValue = new java.sql.Date(((JDateChooser)component).getDate().getTime());
+                else
+                if(java/util/Date.equals(fieldType))
+                    fieldValue = ((JDateChooser)component).getDate();
+        } else
+        if(java/util/Calendar.isAssignableFrom(fieldType))
+            fieldValue = ((JDateChooser)component).getCalendar();
+        else
+        if(fieldType.isEnum())
+            fieldValue = ((JComboBox)component).getSelectedItem();
+        else
+            throw new IllegalArgumentException((new StringBuilder()).append("Unsupported field type : ").append(fieldType).toString());
+        return fieldValue;
+    }
+
+    public void flushField(JComponent fieldEditor)
+    {
+label0:
+        {
+            Border redBorder = BorderFactory.createLineBorder(Color.RED, 2);
+            if(fieldEditor instanceof JDateChooser)
+                fieldEditor = ((JDateChooser)fieldEditor).getDateEditor().getUiComponent();
+            Border originalBorder = fieldEditor.getBorder();
+            try
+            {
+                fieldEditor.setBorder(redBorder);
+                fieldEditor.repaint();
+                RepaintManager.currentManager(fieldEditor).paintDirtyRegions();
+                Thread.sleep(300L);
+                fieldEditor.setBorder(originalBorder);
+                fieldEditor.repaint();
+                RepaintManager.currentManager(fieldEditor).paintDirtyRegions();
+                Thread.sleep(300L);
+                fieldEditor.setBorder(redBorder);
+                fieldEditor.repaint();
+                RepaintManager.currentManager(fieldEditor).paintDirtyRegions();
+                Thread.sleep(300L);
+            }
+            catch(Exception e)
+            {
+                fieldEditor.setBorder(originalBorder);
+                break label0;
+            }
+            finally
+            {
+                fieldEditor.setBorder(originalBorder);
+                throw exception;
+            }
+            fieldEditor.setBorder(originalBorder);
+            break label0;
+        }
+    }
+
+    public static Dimension getDimension()
+    {
+        String params[];
+        String property = System.getProperty("com.dukascopy.ParametersDialog.size");
+        if(property == null || property.trim().isEmpty())
+            return null;
+        params = property.split(",");
+        if(params.length != 2)
+            return null;
+        return new Dimension(Integer.parseInt(params[0]), Integer.parseInt(params[1]));
+        Exception ex;
+        ex;
+        LOGGER.error("Unable to create dimension", ex);
+        return null;
+    }
+
+    public boolean isAnyParameterDetected()
+    {
+        return isAnyParameterDetected;
+    }
+
+    public Task getReturnCode()
+    {
+        return returnCode;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/ParametersPanel);
+    public static final String DIMENSION_PROPERTY_KEY = "com.dukascopy.ParametersDialog.size";
+    private static final String DIALOG_ICON_FILE = "rc/media/logo_empty_titlebar.png";
+    private static final String PRESET_SAVE_ICON_FILE = "rc/media/dialog_strategy_save_preset_active.png";
+    private static final String PRESET_DELETE_ICON_FILE = "rc/media/dialog_strategy_delete_preset_active.png";
+    private static final String FORMAT_INT = "#";
+    private static final String FORMAT_LONG = "#";
+    private static final String FORMAT_DOUBLE = "0.0###################";
+    private static final int FLUSH_THREAD_SLEEP_TIME = 300;
+    private static final JLabel PRESET_LABEL = new JLabel("<html><b>Preset</b></html>");
+    private static final JLabel VALUE_LABEL = new JLabel("<html><b>Value</b></html>");
+    private static final JLabel VARIABLE_LABEL = new JLabel("<html><b>Variable</b></html>");
+    private static final String CLIENT_PROPERTY_TYPE = "type";
+    private static final String CLIENT_PROPERTY_DATE_AS_LONG = "dateAsLong";
+    private static final String CLIENT_PROPERTY_DEFAULT = "default";
+    private static final String CLIENT_PROPERTY_FIELD_NAME = "fieldName";
+    private static final String CLIENT_PROPERTY_FIELD_TITLE = "fieldTitle";
+    private static final String CLIENT_PROPERTY_STEP_SIZE = "stepSize";
+    private static final String CLIENT_PROPERTY_FILE_TYPE = "fileType";
+    private static final String CLIENT_PROPERTY_FIELD = "field";
+    private static final String CLIENT_PROPERTY_OBLIGATORY = "obligatory";
+    private static final String PRESET_DEFAULT_NAME = "Default";
+    private static final String FILE_NOT_SELECTED = "Not Selected";
+    private static final Dimension DIALOG_SIZE = new Dimension(450, 450);
+    private static final Dimension DEFAULT_FIELD_SIZE = new Dimension(150, 20);
+    private static final Dimension DEFAULT_FIELD_LABELSIZE = new Dimension(150, 20);
+    private static final String DATE_FORMAT = "dd-MM-yyyy HH:mm:ss";
+    private SimpleDateFormat dateFormatter;
+    private java.util.List componentsList;
+    private final IStrategy plainTarget;
+    private final boolean isEditDialog;
+    private boolean isAnyParameterDetected;
+    private Task returnCode;
+    private final java.util.List values;
+    private JComboBox presetsCombo;
+    private JButton deletePresetButton;
+    private JButton savePresetButton;
+    private boolean blockOtherOperations;
+    private PresetsModel presetsModel;
+    private File binaryFile;
+    private final JDialog parentDialog;
+
+
+
+
+
+
+
+
+
+}

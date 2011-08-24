@@ -1,0 +1,98 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   PointAndFigureData.java
+
+package com.dukascopy.charts.data.datacache.pnf;
+
+import com.dukascopy.api.feed.IPointAndFigure;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+
+public class PointAndFigureData extends AbstractPriceAggregationData
+    implements IPointAndFigure
+{
+
+    public PointAndFigureData()
+    {
+    }
+
+    public PointAndFigureData(long time, long endTime, double open, double close, double low, double high, double vol, 
+            long formedElementsCount, Boolean rising)
+    {
+        super(time, endTime, open, close, low, high, vol, formedElementsCount);
+        this.rising = rising;
+    }
+
+    public Boolean isRising()
+    {
+        return rising;
+    }
+
+    public void setRising(Boolean rising)
+    {
+        this.rising = rising;
+    }
+
+    public PointAndFigureData clone()
+    {
+        return (PointAndFigureData)super.clone();
+    }
+
+    public String toString()
+    {
+        String pf = (new StringBuilder()).append("P&F: ").append(isRising() != null ? Boolean.TRUE.equals(isRising()) ? "X" : "O" : "-").toString();
+        return (new StringBuilder()).append(super.toString()).append(" ").append(pf).toString();
+    }
+
+    public int hashCode()
+    {
+        int prime = 31;
+        int result = super.hashCode();
+        result = 31 * result + (rising != null ? rising.hashCode() : 0);
+        return result;
+    }
+
+    public boolean equals(Object obj)
+    {
+        if(this == obj)
+            return true;
+        if(!super.equals(obj))
+            return false;
+        if(getClass() != obj.getClass())
+            return false;
+        PointAndFigureData other = (PointAndFigureData)obj;
+        if(rising == null)
+        {
+            if(other.rising != null)
+                return false;
+        } else
+        if(!rising.equals(other.rising))
+            return false;
+        return true;
+    }
+
+    public volatile AbstractPriceAggregationData clone()
+    {
+        return clone();
+    }
+
+    public volatile CandleData clone()
+    {
+        return clone();
+    }
+
+    public volatile Data clone()
+    {
+        return clone();
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    private Boolean rising;
+}

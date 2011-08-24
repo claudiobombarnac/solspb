@@ -1,0 +1,58 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ServiceBean.java
+
+package com.dukascopy.charts.persistence;
+
+import java.io.File;
+
+public abstract class ServiceBean
+{
+
+    protected ServiceBean(Integer id, String sourceFullFileName, String binaryFullFileName)
+    {
+        editable = false;
+        this.id = id;
+        this.sourceFullFileName = sourceFullFileName;
+        this.binaryFullFileName = binaryFullFileName;
+    }
+
+    protected ServiceBean(int id, File sourceFile, File binaryFile)
+    {
+        editable = false;
+        this.id = Integer.valueOf(id);
+        sourceFullFileName = sourceFile == null ? "" : sourceFile.getAbsolutePath();
+        binaryFullFileName = binaryFile == null ? "" : binaryFile.getAbsolutePath();
+    }
+
+    public final Integer getId()
+    {
+        return id;
+    }
+
+    public final String getSourceFullFileName()
+    {
+        return sourceFullFileName;
+    }
+
+    public final String getBinaryFullFileName()
+    {
+        return binaryFullFileName;
+    }
+
+    public final void setEditable(boolean value)
+    {
+        editable = value;
+    }
+
+    public final boolean isEditable()
+    {
+        return editable;
+    }
+
+    protected Integer id;
+    protected String sourceFullFileName;
+    protected String binaryFullFileName;
+    private boolean editable;
+}

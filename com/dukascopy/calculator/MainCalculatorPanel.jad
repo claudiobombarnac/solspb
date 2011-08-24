@@ -1,0 +1,963 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   MainCalculatorPanel.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.button.CalculatorButton;
+import com.dukascopy.calculator.complex.Complex;
+import com.dukascopy.calculator.function.Mean;
+import com.dukascopy.calculator.function.Mode;
+import com.dukascopy.calculator.function.Numeral;
+import com.dukascopy.calculator.function.PObject;
+import com.dukascopy.calculator.function.PopStDev;
+import com.dukascopy.calculator.function.StDev;
+import com.dukascopy.calculator.graph.Graph;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
+import javax.swing.*;
+import javax.swing.border.BevelBorder;
+import javax.swing.text.JTextComponent;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            Parser, Notation, DisplayPanel, DataTransfer, 
+//            HistoryItem, AbstractCalculatorPanel, Error, ReadOnlyCalculatorApplet, 
+//            AngleType, Base, SpecialButtonType, OObject
+
+public class MainCalculatorPanel extends JPanel
+    implements KeyListener, ReadOnlyCalculatorApplet
+{
+
+    public MainCalculatorPanel()
+    {
+        applet = this;
+    }
+
+    public void init()
+    {
+        applet = this;
+        frame(null);
+        try
+        {
+            SwingUtilities.invokeAndWait(new Runnable() {
+
+                public void run()
+                {
+                    setup();
+                }
+
+                final MainCalculatorPanel this$0;
+
+            
+            {
+                this$0 = MainCalculatorPanel.this;
+                super();
+            }
+            });
+        }
+        catch(Exception e) { }
+    }
+
+    public static void main(String args[])
+    {
+        SwingUtilities.invokeLater(new Runnable() {
+
+            public void run()
+            {
+                MainCalculatorPanel.showFrame();
+            }
+
+        });
+    }
+
+    private static void showFrame()
+    {
+        JFrame frame = createFrame();
+        frame.setDefaultCloseOperation(3);
+        frame.setVisible(true);
+    }
+
+    public static JFrame createFrame()
+    {
+        MainCalculatorPanel main = new MainCalculatorPanel();
+        JFrame frame = new JFrame("Scientific Calculator");
+        main.frame(frame);
+        main.setup();
+        frame.setContentPane(main);
+        frame.setResizable(false);
+        frame.setUndecorated(false);
+        frame.pack();
+        return frame;
+    }
+
+    public void setup()
+    {
+        setTextComponent(null);
+        graph = null;
+        setValue(new Complex());
+        setSizes();
+        parser = new Parser();
+        shift = false;
+        angleType = AngleType.DEGREES;
+        mode = 0;
+        stat = false;
+        notation = new Notation();
+        memory = new Complex();
+        statMemory = new Vector();
+        statMemoryNeg = new Vector();
+        addKeyListener(this);
+        setFocusable(true);
+        removeAll();
+        displayPanel = new DisplayPanel(this);
+        displayPanel.setBorder(new BevelBorder(1));
+        setPanels();
+        dataTransfer = new DataTransfer(this);
+        dataTransfer.setEnabled(true);
+        KeyStroke copy = KeyStroke.getKeyStroke(67, 2, false);
+        registerKeyboardAction(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                dataTransfer.copy();
+            }
+
+            final MainCalculatorPanel this$0;
+
+            
+            {
+                this$0 = MainCalculatorPanel.this;
+                super();
+            }
+        }, "Copy", copy, 0);
+        setBase(Base.DECIMAL);
+        history = new Vector();
+        tempParserList = new HistoryItem(null, getAngleType(), getBase(), getNotation());
+        historyPosition = -1;
+        shiftDown = false;
+        setOn(true);
+        setValue(new Complex(0.0D));
+        updateDisplay(true, true);
+        requestFocusInWindow();
+        resetCalculator();
+    }
+
+    public void resetCalculator()
+    {
+        ((CalculatorButton)calculatorPanel.buttons().elementAt(35)).actionPerformed(null);
+    }
+
+    private void setPanels()
+    {
+        displayPanel.setUp();
+        calculatorPanels = new HashMap();
+        SpecialButtonType arr$[] = SpecialButtonType.values();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            SpecialButtonType sbt = arr$[i$];
+            AbstractCalculatorPanel calculatorPanel = AbstractCalculatorPanel.createPanel(this, sbt, panelColour);
+            calculatorPanels.put(sbt, calculatorPanel);
+        }
+
+        setCalculatorPanel(SpecialButtonType.NONE);
+    }
+
+    private void setCalculatorPanel(SpecialButtonType sbt)
+    {
+        if(calculatorPanel != null)
+            remove(calculatorPanel);
+        calculatorPanel = (AbstractCalculatorPanel)calculatorPanels.get(sbt);
+        add(calculatorPanel);
+        calculatorPanel.setDisplayPanel();
+        calculatorPanel.repaint();
+        repaint();
+    }
+
+    public void clearHistory()
+    {
+        history = new Vector();
+        historyPosition = -1;
+    }
+
+    public void upHistory()
+    {
+        if(displayPanel.displayLabelHasCaret())
+            setCaretToEntry();
+        if(historyPosition >= history.size() - 1)
+            return;
+        if(historyPosition == -1)
+        {
+            if(getValue() instanceof Error)
+                setValue(new Complex());
+            tempParserList.list = parser.getList();
+            tempParserList.angleType = getAngleType();
+            tempParserList.base = getBase();
+            tempParserList.notation = getNotation();
+        } else
+        {
+            ((HistoryItem)history.elementAt(historyPosition)).list = parser.getList();
+            ((HistoryItem)history.elementAt(historyPosition)).angleType = getAngleType();
+            ((HistoryItem)history.elementAt(historyPosition)).base = getBase();
+            ((HistoryItem)history.elementAt(historyPosition)).notation = getNotation();
+        }
+        historyPosition++;
+        parser.setList(((HistoryItem)history.elementAt(historyPosition)).list);
+        setAngleType(((HistoryItem)history.elementAt(historyPosition)).angleType);
+        setBase(((HistoryItem)history.elementAt(historyPosition)).base);
+        setNotation(((HistoryItem)history.elementAt(historyPosition)).notation);
+        displayPanel.setExpression(parser);
+    }
+
+    public boolean downHistory()
+    {
+        if(historyPosition < 0)
+            if(displayPanel.displayLabelScrollable())
+            {
+                setCaretToDisplay();
+                return true;
+            } else
+            {
+                return false;
+            }
+        ((HistoryItem)history.elementAt(historyPosition)).list = parser.getList();
+        ((HistoryItem)history.elementAt(historyPosition)).angleType = getAngleType();
+        ((HistoryItem)history.elementAt(historyPosition)).base = getBase();
+        ((HistoryItem)history.elementAt(historyPosition)).notation = getNotation();
+        historyPosition--;
+        if(historyPosition == -1)
+        {
+            parser.setList(tempParserList.list);
+            setAngleType(tempParserList.angleType);
+            setBase(tempParserList.base);
+            setNotation(tempParserList.notation);
+        } else
+        {
+            parser.setList(((HistoryItem)history.elementAt(historyPosition)).list);
+            setAngleType(((HistoryItem)history.elementAt(historyPosition)).angleType);
+            setBase(((HistoryItem)history.elementAt(historyPosition)).base);
+            setNotation(((HistoryItem)history.elementAt(historyPosition)).notation);
+        }
+        displayPanel.setExpression(parser);
+        return true;
+    }
+
+    public void pushHistory()
+    {
+        LinkedList list = parser.getList();
+        if(list.size() == 0)
+            return;
+        history.add(0, new HistoryItem(list, getAngleType(), getBase(), getNotation()));
+        for(; history.size() > 24; history.removeElementAt(24));
+        historyPosition = -1;
+    }
+
+    public void right()
+    {
+        displayPanel.right();
+    }
+
+    public void left()
+    {
+        displayPanel.left();
+    }
+
+    public Action backward()
+    {
+        return displayPanel.backward();
+    }
+
+    public void newExpression()
+    {
+        displayPanel.newExpression();
+    }
+
+    public DisplayPanel displayPanel()
+    {
+        return displayPanel;
+    }
+
+    public void clear()
+    {
+        displayPanel.clear(getParser());
+        displayPanel.setExpression(parser);
+    }
+
+    public void delete()
+    {
+        displayPanel.delete(getParser());
+    }
+
+    public void copy()
+    {
+        dataTransfer.copy();
+    }
+
+    public void insert(PObject p)
+    {
+        displayPanel.insert(p, getParser());
+    }
+
+    public void updateDisplay(boolean entry, boolean extra)
+    {
+        if(displayPanel != null)
+            displayPanel.update(entry, extra);
+        if(textComponent != null)
+            textComponent.setText(getValue().toString());
+    }
+
+    public int displayHeight(int minSize)
+    {
+        return 30 * minSize;
+    }
+
+    public int buttonHeight(int minSize)
+    {
+        return 10 * minSize;
+    }
+
+    public int buttonWidth(int minSize)
+    {
+        return 23 * minSize;
+    }
+
+    public int strutSize(int minSize)
+    {
+        return 3 * minSize;
+    }
+
+    public int displayHeight()
+    {
+        return displayHeight(minSize());
+    }
+
+    public int buttonHeight()
+    {
+        return buttonHeight(minSize());
+    }
+
+    public int buttonWidth()
+    {
+        return buttonWidth(minSize());
+    }
+
+    public int strutSize()
+    {
+        return strutSize(minSize());
+    }
+
+    public void setMinSize(int mSize)
+    {
+        this.mSize = mSize;
+        if(frame() == null)
+            return;
+        setPanels();
+        frame().pack();
+        if(graph != null)
+            graph.updateMenu();
+    }
+
+    public int minSize()
+    {
+        return mSize;
+    }
+
+    public float buttonTextSize()
+    {
+        return (float)mSize * 4F;
+    }
+
+    public float entryTextSize()
+    {
+        return (float)mSize * 6.4F;
+    }
+
+    public float displayTextSize()
+    {
+        return (float)mSize * 9.2F;
+    }
+
+    public float extraTextSize()
+    {
+        return (float)mSize * 2.5F;
+    }
+
+    public void setShift(boolean value)
+    {
+        shift = value;
+        static class _cls4
+        {
+
+            static final int $SwitchMap$com$dukascopy$calculator$Base[];
+
+            static 
+            {
+                $SwitchMap$com$dukascopy$calculator$Base = new int[Base.values().length];
+                try
+                {
+                    $SwitchMap$com$dukascopy$calculator$Base[Base.DECIMAL.ordinal()] = 1;
+                }
+                catch(NoSuchFieldError ex) { }
+            }
+        }
+
+        if(shift)
+        {
+            if(stat)
+                setCalculatorPanel(SpecialButtonType.SHIFT_STAT);
+            else
+                switch(_cls4..SwitchMap.com.dukascopy.calculator.Base[getBase().ordinal()])
+                {
+                case 1: // '\001'
+                    setCalculatorPanel(SpecialButtonType.SHIFT);
+                    break;
+
+                default:
+                    setCalculatorPanel(SpecialButtonType.SHIFT_HEX);
+                    break;
+                }
+        } else
+        if(stat)
+            setCalculatorPanel(SpecialButtonType.STAT);
+        else
+            switch(_cls4..SwitchMap.com.dukascopy.calculator.Base[getBase().ordinal()])
+            {
+            case 1: // '\001'
+                setCalculatorPanel(SpecialButtonType.NONE);
+                break;
+
+            default:
+                setCalculatorPanel(SpecialButtonType.HEX);
+                break;
+            }
+    }
+
+    public void setOn(boolean value)
+    {
+        if(displayPanel != null)
+        {
+            displayPanel.setOn(value);
+            displayPanel.repaint();
+        }
+    }
+
+    public boolean getOn()
+    {
+        if(displayPanel != null)
+            return displayPanel.getOn();
+        else
+            return false;
+    }
+
+    public boolean getShift()
+    {
+        return shift;
+    }
+
+    public Parser getParser()
+    {
+        return parser;
+    }
+
+    public OObject getValue()
+    {
+        return value;
+    }
+
+    public void setValue(OObject o)
+    {
+        value = o;
+        if(value != null && displayPanel != null)
+            displayPanel.setValue();
+    }
+
+    public void setMemory(OObject o)
+    {
+        memory = o;
+    }
+
+    public OObject getMemory()
+    {
+        return memory;
+    }
+
+    public void setAngleType(AngleType angleType)
+    {
+        this.angleType = angleType;
+    }
+
+    public AngleType getAngleType()
+    {
+        return angleType;
+    }
+
+    public boolean getStat()
+    {
+        return stat;
+    }
+
+    public void setStat(boolean stat)
+    {
+        this.stat = stat;
+        if(stat)
+            setBase(Base.DECIMAL);
+        setShift(getShift());
+    }
+
+    public int getMode()
+    {
+        return mode;
+    }
+
+    public void setMode(int i)
+    {
+        mode = i % (frame() == null || sizes.size() <= 1 ? 3 : 4);
+    }
+
+    public void setMode(PObject p)
+    {
+        if(p instanceof Numeral)
+        {
+            Numeral numeral = (Numeral)p;
+            if(mode == 3)
+            {
+                int size = 0;
+                switch(numeral.get())
+                {
+                case 49: // '1'
+                    size = 1;
+                    break;
+
+                case 50: // '2'
+                    size = 2;
+                    break;
+
+                case 51: // '3'
+                    size = 3;
+                    break;
+
+                case 52: // '4'
+                    size = 4;
+                    break;
+
+                case 53: // '5'
+                    size = 5;
+                    break;
+
+                case 54: // '6'
+                    size = 6;
+                    break;
+
+                case 55: // '7'
+                    size = 7;
+                    break;
+
+                case 56: // '8'
+                    size = 8;
+                    break;
+
+                case 57: // '9'
+                    size = 9;
+                    break;
+
+                default:
+                    size = 0;
+                    break;
+                }
+                if(size < sizes.size())
+                {
+                    size = ((Integer)sizes.elementAt(size)).intValue();
+                    if(minSize() != size)
+                        setMinSize(size);
+                    setMode(0);
+                    updateDisplay(true, true);
+                }
+            } else
+            if(numeral.name().equals("1"))
+            {
+                if(mode == 2)
+                    setAngleType(AngleType.DEGREES);
+                else
+                if(mode == 1)
+                    setStat(false);
+                setMode(0);
+                updateDisplay(true, true);
+            } else
+            if(numeral.name().equals("2"))
+            {
+                if(mode == 2)
+                    setAngleType(AngleType.RADIANS);
+                else
+                if(mode == 1)
+                    setStat(true);
+                setMode(0);
+                updateDisplay(true, true);
+            } else
+            if(numeral.name().equals("3"))
+            {
+                setMode(0);
+                updateDisplay(true, true);
+            }
+        } else
+        if(p instanceof Mode)
+            setMode(getMode() + 1);
+    }
+
+    public void clearStatMemory()
+    {
+        statMemory.clear();
+        statMemoryNeg.clear();
+    }
+
+    public Complex statAdd(Complex d)
+    {
+        statMemory.add(d);
+        return new Complex(statSize());
+    }
+
+    public Complex statSub(Complex d)
+    {
+        statMemoryNeg.add(d);
+        return new Complex(statSize());
+    }
+
+    private double statSize()
+    {
+        return (double)(statMemory.size() - statMemoryNeg.size());
+    }
+
+    public Mean statMean()
+    {
+        Mean mean = new Mean();
+        Complex d = new Complex();
+        for(Iterator i$ = statMemory.iterator(); i$.hasNext();)
+        {
+            Complex o = (Complex)i$.next();
+            d = d.add(o);
+        }
+
+        for(Iterator i$ = statMemoryNeg.iterator(); i$.hasNext();)
+        {
+            Complex o = (Complex)i$.next();
+            d = d.subtract(o);
+        }
+
+        if(statSize() > 0.0D)
+            mean.setValue(d.divide(new Complex(statSize(), 0.0D)));
+        else
+            mean.setError(true);
+        return mean;
+    }
+
+    public Complex statSumSquares()
+    {
+        Mean m = statMean();
+        if(m.error() || !(m.value() instanceof Complex))
+            throw new RuntimeException("Stat Error");
+        Complex e = (Complex)(Complex)m.value();
+        Complex d = new Complex();
+        for(Iterator i$ = statMemory.iterator(); i$.hasNext();)
+        {
+            Complex o = (Complex)i$.next();
+            Complex c = o.subtract(e);
+            d = d.add(c.square());
+        }
+
+        for(Iterator i$ = statMemoryNeg.iterator(); i$.hasNext();)
+        {
+            Complex o = (Complex)i$.next();
+            Complex c = o.subtract(e);
+            d = d.subtract(c.square());
+        }
+
+        return d;
+    }
+
+    public StDev statSampleStDev()
+    {
+        StDev stDev = new StDev();
+        Complex d;
+        d = statSumSquares();
+        if(statSize() >= 2D)
+            break MISSING_BLOCK_LABEL_31;
+        stDev.setError(true);
+        return stDev;
+        stDev.setValue(d.divide(new Complex(statSize() - 1.0D, 0.0D)).sqrt());
+        return stDev;
+        Exception e;
+        e;
+        stDev.setError(true);
+        return stDev;
+    }
+
+    public PopStDev statPopulationStDev()
+    {
+        PopStDev stDev = new PopStDev();
+        Complex d;
+        d = statSumSquares();
+        if(statSize() >= 1.0D)
+            break MISSING_BLOCK_LABEL_29;
+        stDev.setError(true);
+        return stDev;
+        stDev.setValue(d.divide(new Complex(statSize(), 0.0D)).sqrt());
+        return stDev;
+        Exception e;
+        e;
+        stDev.setError(true);
+        return stDev;
+    }
+
+    public void frame(JFrame jframe)
+    {
+        this.jframe = jframe;
+    }
+
+    public JFrame frame()
+    {
+        return jframe;
+    }
+
+    public void keyPressed(KeyEvent keyEvent)
+    {
+        if(keyEvent.getKeyCode() == 37)
+            ((CalculatorButton)calculatorPanel.buttons().elementAt(40)).actionPerformed(null);
+        else
+        if(keyEvent.getKeyCode() == 39)
+            ((CalculatorButton)calculatorPanel.buttons().elementAt(41)).actionPerformed(null);
+        else
+        if(keyEvent.getKeyCode() == 38)
+            ((CalculatorButton)calculatorPanel.buttons().elementAt(43)).actionPerformed(null);
+        else
+        if(keyEvent.getKeyCode() == 40)
+            ((CalculatorButton)calculatorPanel.buttons().elementAt(44)).actionPerformed(null);
+        else
+        if(keyEvent.getKeyCode() == 65406)
+        {
+            if(!shiftDown)
+            {
+                ((CalculatorButton)calculatorPanel.buttons().elementAt(10)).actionPerformed(null);
+                shiftDown = true;
+            }
+        } else
+        if(keyEvent.getKeyCode() == 65485)
+            if(!shiftDown)
+                copy();
+            else
+                ((CalculatorButton)calculatorPanel.buttons().elementAt(15)).actionPerformed(null);
+    }
+
+    public void keyReleased(KeyEvent keyEvent)
+    {
+        if(keyEvent.getKeyCode() == 65406)
+        {
+            shiftDown = false;
+        } else
+        {
+            char c = keyEvent.getKeyChar();
+            if((keyEvent.getModifiersEx() & 0x80) != 0 && keyEvent.getKeyCode() == 67)
+                dataTransfer.copy();
+        }
+    }
+
+    public void keyTyped(KeyEvent keyEvent)
+    {
+        if((keyEvent.getModifiersEx() & 0x80) == 0)
+        {
+            char c = keyEvent.getKeyChar();
+            if(c == '\n')
+                c = '=';
+            CalculatorButton b = (CalculatorButton)calculatorPanel.keyMap().get(Character.valueOf(c));
+            if(b != null)
+                b.doClick();
+            else
+            if(c == '\b' && !shift)
+                ((CalculatorButton)calculatorPanel.buttons().elementAt(30)).actionPerformed(null);
+            else
+            if(c == '\033')
+                resetCalculator();
+        }
+    }
+
+    private static Spring scale(Spring spring, int s)
+    {
+        if(s < 2)
+            return spring;
+        Spring result = Spring.sum(spring, spring);
+        for(int i = 2; i < s; i++)
+            result = Spring.sum(result, spring);
+
+        return result;
+    }
+
+    public Base getBase()
+    {
+        return parser.base();
+    }
+
+    public void setBase(Base b)
+    {
+        if(getBase() == b)
+            return;
+        parser.base(b);
+        switch(_cls4..SwitchMap.com.dukascopy.calculator.Base[b.ordinal()])
+        {
+        case 1: // '\001'
+            setCalculatorPanel(SpecialButtonType.NONE);
+            break;
+
+        default:
+            setCalculatorPanel(SpecialButtonType.HEX);
+            break;
+        }
+    }
+
+    public void setTextComponent(JTextComponent textComponent)
+    {
+        this.textComponent = textComponent;
+    }
+
+    public final JTextComponent getTextComponent()
+    {
+        return textComponent;
+    }
+
+    public Notation getNotation()
+    {
+        return notation;
+    }
+
+    public void setNotation(Notation notation)
+    {
+        this.notation = notation;
+    }
+
+    public final Insets getFrameInsets()
+    {
+        if(jframe == null)
+            return new Insets(29, 4, 4, 4);
+        else
+            return jframe.getInsets();
+    }
+
+    private int getFrameWidth(int mSize)
+    {
+        int x = getFrameInsets().left + getFrameInsets().right;
+        return 4 * strutSize(mSize) + 5 * mSize + 8 * buttonWidth(mSize) + x;
+    }
+
+    private int getFrameHeight(int mSize)
+    {
+        int y = getFrameInsets().top + getFrameInsets().bottom;
+        return 3 * strutSize(mSize) + 4 * mSize + 5 * buttonHeight(mSize) + displayHeight(mSize) + y;
+    }
+
+    public int graphHeight()
+    {
+        if(jframe == null)
+            return getFrameHeight(mSize);
+        else
+            return jframe.getHeight();
+    }
+
+    private void setSizes()
+    {
+        mSize = 4;
+        if(jframe == null)
+            return;
+        int width = Toolkit.getDefaultToolkit().getScreenSize().width;
+        int height = Toolkit.getDefaultToolkit().getScreenSize().height;
+        int max = 3;
+        for(int i = 0; i < 11; i++)
+        {
+            if(getFrameWidth(3 + i) > width || getFrameHeight(3 + i) > height)
+            {
+                max = i;
+                break;
+            }
+            if(i == 10)
+                max = i;
+        }
+
+        sizes = new Vector(max);
+        for(int i = 3; i < 3 + max; i++)
+            sizes.add(Integer.valueOf(i));
+
+        if(max < 4)
+            mSize = 3;
+    }
+
+    public int getSizesSize()
+    {
+        return sizes.size();
+    }
+
+    public int getMinSize()
+    {
+        return 3;
+    }
+
+    private void setCaretToEntry()
+    {
+        displayPanel.setCaretToEntry();
+    }
+
+    private void setCaretToDisplay()
+    {
+        displayPanel.setCaretToDisplay();
+    }
+
+    public void displayGraph()
+    {
+        if(graph == null)
+            graph = new Graph(this);
+        else
+            graph.setVisible(true);
+        graph.setLocus(getValue());
+    }
+
+    private static final long serialVersionUID = 1L;
+    private Graph graph;
+    private OObject value;
+    private AngleType angleType;
+    private int mode;
+    private boolean stat;
+    private OObject memory;
+    private Vector statMemory;
+    private Vector statMemoryNeg;
+    private int frameHeight;
+    private MainCalculatorPanel applet;
+    private DisplayPanel displayPanel;
+    private AbstractCalculatorPanel calculatorPanel;
+    private HashMap calculatorPanels;
+    private int mSize;
+    private Parser parser;
+    private boolean shift;
+    private static final int bWidth = 23;
+    private static final int bHeight = 10;
+    private static final int sSize = 3;
+    private static final int dHeight = 30;
+    private static final float bTextSize = 4F;
+    private static final float eTextSize = 6.4F;
+    private static final float dTextSize = 9.2F;
+    private static final float sTextSize = 2.5F;
+    private Vector history;
+    private static final int HISTORY_SIZE = 24;
+    HistoryItem tempParserList;
+    int historyPosition;
+    private static final Color panelColour;
+    protected JFrame jframe;
+    private boolean shiftDown;
+    private Notation notation;
+    private JTextComponent textComponent;
+    private DataTransfer dataTransfer;
+    private final int minimumSize = 3;
+    private Vector sizes;
+
+    static 
+    {
+        panelColour = Color.LIGHT_GRAY;
+    }
+
+
+}

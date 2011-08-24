@@ -1,0 +1,155 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadLastAvailableDataAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, DataCacheException, DailyFilterLastAvailableListener, FeedDataProvider, 
+//            LiveFeedListener, LoadingProgressListener, NoDataForPeriodException, DataCacheUtils, 
+//            LocalCacheManager, CurvesDataLoader
+
+public class LoadLastAvailableDataAction extends LoadProgressingAction
+    implements Runnable
+{
+
+    public LoadLastAvailableDataAction(FeedDataProvider feedDataProvider, Instrument instrument, Period period, OfferSide side, long from, long to, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, LiveFeedListener candleListener, LoadingProgressListener loadingProgress, StackTraceElement stackTrace[])
+        throws DataCacheException
+    {
+        super(loadingProgress);
+        this.instrument = instrument;
+        this.period = period;
+        this.side = side;
+        this.from = from;
+        this.to = to;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        listener = candleListener;
+        this.stackTrace = stackTrace;
+        this.feedDataProvider = feedDataProvider;
+        if(instrument == null || period == null || from > to || loadingProgress == null || period == Period.TICK)
+            throw new DataCacheException((new StringBuilder()).append("Wrong parameters: instrument=").append(instrument).append(" / period=").append(period).append(" / ").append(from).append(", ").append(to).append(" / ").append(loadingProgress).toString());
+        if(!DataCacheUtils.isIntervalValid(period, from, to))
+            throw new DataCacheException((new StringBuilder()).append("Time interval[").append(formatter.format(Long.valueOf(from))).append(", ").append(formatter.format(Long.valueOf(to))).append("] is not valid for period requested").toString());
+        else
+            return;
+    }
+
+    public LoadLastAvailableDataAction(FeedDataProvider feedDataProvider, Instrument instrument, long from, long to, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, 
+            LiveFeedListener tickListener, LoadingProgressListener loadingProgress, StackTraceElement stackTrace[])
+        throws NoDataForPeriodException, DataCacheException
+    {
+        super(loadingProgress);
+        this.instrument = instrument;
+        period = Period.TICK;
+        side = null;
+        this.from = from;
+        this.to = to;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        listener = tickListener;
+        this.stackTrace = stackTrace;
+        this.feedDataProvider = feedDataProvider;
+        if(instrument == null || from > to || loadingProgress == null)
+            throw new DataCacheException((new StringBuilder()).append("Wrong parameters: ").append(instrument).append(" / ").append(from).append(", ").append(to).append(" / ").append(loadingProgress).toString());
+        else
+            return;
+    }
+
+    public void run()
+    {
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, from, to, to, null);
+            return;
+        }
+        loadingProgress.dataLoaded(from, to, from, "Downloading data into cache...");
+        long lastTickTime;
+        long correctedFrom;
+        long correctedTo;
+        long timeOfFirstCandle;
+        lastTickTime = feedDataProvider.getCurrentTime(instrument);
+        correctedFrom = from;
+        correctedTo = to;
+        timeOfFirstCandle = feedDataProvider.getTimeOfFirstCandle(instrument, period);
+        if(timeOfFirstCandle == 0x7fffffffffffffffL)
+        {
+            loadingProgress.dataLoaded(from, to, to, "Data loaded!");
+            loadingProgress.loadingFinished(true, from, to, to, null);
+            return;
+        }
+        if(period == Period.TICK)
+        {
+            if(correctedFrom < timeOfFirstCandle)
+                correctedFrom = timeOfFirstCandle;
+            if(lastTickTime != 0x8000000000000000L && correctedTo > lastTickTime + 500L)
+                correctedTo = lastTickTime + 500L;
+        } else
+        {
+            if(correctedFrom < timeOfFirstCandle)
+                for(correctedFrom = DataCacheUtils.getCandleStartFast(period, correctedFrom); correctedFrom < timeOfFirstCandle; correctedFrom = DataCacheUtils.getNextCandleStartFast(period, correctedFrom));
+            if(lastTickTime != 0x8000000000000000L)
+            {
+                long lastTickCandleStartTime = DataCacheUtils.getCandleStartFast(period, lastTickTime);
+                if(correctedTo >= lastTickCandleStartTime)
+                    correctedTo = DataCacheUtils.getPreviousCandleStartFast(period, lastTickCandleStartTime);
+            }
+        }
+        if(correctedFrom > correctedTo)
+        {
+            loadingProgress.dataLoaded(from, to, to, "Data loaded!");
+            loadingProgress.loadingFinished(true, from, to, to, null);
+            return;
+        }
+        if(listener != null)
+        {
+            loadingProgress.dataLoaded(from, to, to, "Reading data from cache...");
+            LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+            localCacheManager.readLastAvailableData(instrument, period, side, correctedFrom, correctedTo, intraperiodExistsPolicy, new DailyFilterLastAvailableListener(listener), loadingProgress);
+        }
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, from, to, to, null);
+            return;
+        }
+        try
+        {
+            loadingProgress.dataLoaded(from, to, to, "Data loaded!");
+            loadingProgress.loadingFinished(true, from, to, to, null);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            loadingProgress.loadingFinished(false, from, to, from, e);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            loadingProgress.loadingFinished(false, from, to, from, null);
+        }
+        return;
+    }
+
+    private static SimpleDateFormat formatter;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/LoadLastAvailableDataAction);
+    private final Instrument instrument;
+    private final Period period;
+    private final OfferSide side;
+    private final long from;
+    private final long to;
+    private final CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    private final LiveFeedListener listener;
+    private final StackTraceElement stackTrace[];
+    private final FeedDataProvider feedDataProvider;
+
+    static 
+    {
+        formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+        formatter.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+    }
+}

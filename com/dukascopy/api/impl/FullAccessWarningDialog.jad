@@ -1,0 +1,105 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:22
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   FullAccessWarningDialog.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import javax.swing.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class FullAccessWarningDialog extends JDialog
+{
+
+    public FullAccessWarningDialog(JFrame owner)
+    {
+        super(owner, true);
+        accepted = false;
+        setDefaultCloseOperation(2);
+        String iconFile = "rc/media/warning.gif";
+        try
+        {
+            setIconImage(StratUtils.loadImage(iconFile));
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        setTitle("   SECURITY WARNING!    PLEASE READ CAREFULLY.");
+        JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        JLabel warningLabel = new JLabel("Please read and accept this agreement:");
+        mainPanel.add(warningLabel, "North");
+        JEditorPane warning = new JEditorPane();
+        warning.setContentType("text/html");
+        warning.setText(getWarningText());
+        warning.setEditable(false);
+        mainPanel.add(new JScrollPane(warning), "Center");
+        JPanel buttons = new JPanel(new FlowLayout(2, 5, 5));
+        JButton acceptButton = new JButton("Accept");
+        acceptButton.setFocusable(false);
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.setFocusable(false);
+        acceptButton.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                accepted = true;
+                dispose();
+            }
+
+            final FullAccessWarningDialog this$0;
+
+            
+            {
+                this$0 = FullAccessWarningDialog.this;
+                super();
+            }
+        });
+        cancelButton.addActionListener(new ActionListener() {
+
+            public void actionPerformed(ActionEvent e)
+            {
+                accepted = false;
+                dispose();
+            }
+
+            final FullAccessWarningDialog this$0;
+
+            
+            {
+                this$0 = FullAccessWarningDialog.this;
+                super();
+            }
+        });
+        buttons.add(acceptButton);
+        buttons.add(cancelButton);
+        mainPanel.add(buttons, "South");
+        setContentPane(mainPanel);
+        pack();
+        setSize(600, 420);
+        setLocationRelativeTo(owner);
+        setVisible(true);
+    }
+
+    private String getWarningText()
+    {
+        return "<html><font face=\"Dialog\"><b>WARNING !</b><br>You are going to run a strategy that has full access to the local computer and files.Such a strategy has the privilege to upload any file, executable or not, from the local computer and beyond.Such a privilege can potentially be harmful and must be used cautiously.You should only run such a strategy if you get it from a trusted source; you should not run such a strategy if you are in doubt about the potential consequences of using it.Among others, potential undesirable effects include accessing, reading, writing on strategies from unauthorized sources. Malicious and virus codes may be operated from the local computer and files, and affect the strategies coded. In none instance shall Dukascopy take, nor endorse any responsibility for any consequence arising from the use of this function.</font></html>";
+    }
+
+    public boolean isAccepted()
+    {
+        return accepted;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/FullAccessWarningDialog);
+    private boolean accepted;
+
+
+}

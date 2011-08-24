@@ -1,0 +1,258 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   BackgroundFeedLoadingThread.java
+
+package com.dukascopy.charts.data.datacache.thread;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class BackgroundFeedLoadingThread extends Thread
+{
+
+    public BackgroundFeedLoadingThread(FeedDataProvider feedDataProvider)
+    {
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+        lastLoadedTimes = new HashMap();
+        this.feedDataProvider = feedDataProvider;
+    }
+
+    public void run()
+    {
+        int exceptionsAntispam;
+        try
+        {
+            Thread.sleep(30000L);
+        }
+        catch(InterruptedException e)
+        {
+            LOGGER.error(e.getLocalizedMessage(), e);
+        }
+        exceptionsAntispam = 10;
+_L6:
+        if(isFinished())
+            break; /* Loop/switch isn't completed */
+        boolean dataLoadWasNeeded;
+        Period arr$[];
+        int len$;
+        int i$;
+        dataLoadWasNeeded = false;
+        arr$ = Period.valuesForIndicator();
+        len$ = arr$.length;
+        i$ = 0;
+_L4:
+        Period period;
+        if(i$ >= len$)
+            break MISSING_BLOCK_LABEL_240;
+        period = arr$[i$];
+        if(isFinished())
+            return;
+        Iterator i$ = feedDataProvider.getInstrumentsCurrentlySubscribed().iterator();
+_L2:
+        Instrument instrument;
+        if(!i$.hasNext())
+            break MISSING_BLOCK_LABEL_234;
+        instrument = (Instrument)i$.next();
+        if(isFinished())
+            return;
+        long lastLoadedTime = getLastLoadedTime(instrument, period);
+        if(lastLoadedTime > 0L)
+        {
+            long loadFrom = getFromTime(instrument, period);
+            if(loadFrom > 0L)
+            {
+                dataLoadWasNeeded = true;
+                if(Period.TICK.equals(period))
+                {
+                    loadData(instrument, period, null, loadFrom, lastLoadedTime);
+                } else
+                {
+                    OfferSide arr$[] = OfferSide.values();
+                    int len$ = arr$.length;
+                    for(int i$ = 0; i$ < len$; i$++)
+                    {
+                        OfferSide offerSide = arr$[i$];
+                        loadData(instrument, period, offerSide, loadFrom, lastLoadedTime);
+                    }
+
+                }
+                setLastLoadedTime(instrument, period, loadFrom);
+            }
+        }
+        if(true) goto _L2; else goto _L1
+_L1:
+        i$++;
+        if(true) goto _L4; else goto _L3
+_L3:
+        if(!dataLoadWasNeeded)
+            Thread.sleep(10000L);
+        continue; /* Loop/switch isn't completed */
+        Throwable t;
+        t;
+        if(exceptionsAntispam > 0)
+            LOGGER.error(t.getLocalizedMessage(), t);
+        else
+            return;
+        exceptionsAntispam--;
+        if(true) goto _L6; else goto _L5
+_L5:
+    }
+
+    private void loadData(Instrument instrument, Period period, OfferSide offerSide, long from, long to)
+        throws DataCacheException, InterruptedException
+    {
+        if(DataCacheUtils.getCandleStartFast(Period.DAILY, System.currentTimeMillis()) <= from || DataCacheUtils.getCandleStartFast(Period.DAILY, System.currentTimeMillis()) <= to || !feedDataProvider.getLocalCacheManager().isDataCached(instrument, period, offerSide, from, to))
+        {
+            Thread.sleep(10000L);
+            if(Period.TICK.equals(period))
+                feedDataProvider.loadTicksDataBlockingSynched(instrument, from, to, createEmptyLiveFeedListener(), createEmptyLoadingProgressListener());
+            else
+                feedDataProvider.loadCandlesDataSynched(instrument, period, offerSide, from, to, createEmptyLiveFeedListener(), createEmptyLoadingProgressListener());
+        }
+    }
+
+    private void setLastLoadedTime(Instrument instrument, Period period, long time)
+    {
+        ((Map)lastLoadedTimes.get(instrument)).put(period, new Long(time));
+    }
+
+    private long getLastLoadedTime(Instrument instrument, Period period)
+    {
+        if(!lastLoadedTimes.containsKey(instrument))
+            lastLoadedTimes.put(instrument, new HashMap());
+        Map periodTimeMap = (Map)lastLoadedTimes.get(instrument);
+        Long lastLoadedFromTime = (Long)periodTimeMap.get(period);
+        if(lastLoadedFromTime == null)
+        {
+            long lastTickTime = feedDataProvider.getLastTickTime(instrument);
+            if(lastTickTime > 0L)
+            {
+                lastLoadedFromTime = new Long(feedDataProvider.getLastTickTime(instrument));
+                if(!Period.TICK.equals(period))
+                    lastLoadedFromTime = new Long(DataCacheUtils.getCandleStartFast(period, lastLoadedFromTime.longValue()));
+                periodTimeMap.put(period, lastLoadedFromTime);
+            } else
+            {
+                lastLoadedFromTime = new Long(0x7fffffffffffffffL);
+            }
+        }
+        return lastLoadedFromTime.longValue();
+    }
+
+    private long getFromTime(Instrument instrument, Period period)
+    {
+        long lastLoadedFromTime = getLastLoadedTime(instrument, period);
+        long lastKnownTime = feedDataProvider.getLastTickTime(instrument);
+        if(lastLoadedFromTime > 0L && lastKnownTime > 0L)
+            if(Period.TICK.equals(period))
+            {
+                if(lastKnownTime - lastLoadedFromTime < 0x14997000L)
+                    return lastLoadedFromTime - 0x14997000L;
+            } else
+            {
+                lastKnownTime = DataCacheUtils.getPreviousCandleStartFast(period, DataCacheUtils.getCandleStartFast(period, lastKnownTime));
+                long firstTime = feedDataProvider.getTimeOfFirstCandle(instrument, period);
+                if(Period.ONE_MIN.equals(period))
+                {
+                    if(lastLoadedFromTime > firstTime)
+                        return lastLoadedFromTime - 0x1ee62800L;
+                } else
+                if(Period.ONE_HOUR.equals(period) || Period.DAILY.equals(period))
+                {
+                    if(lastLoadedFromTime > firstTime)
+                        return firstTime;
+                } else
+                {
+                    throw new IllegalArgumentException((new StringBuilder()).append("Unsupported period for feed loading ").append(period).toString());
+                }
+            }
+        return 0x8000000000000000L;
+    }
+
+    public boolean isFinished()
+    {
+        BackgroundFeedLoadingThread backgroundfeedloadingthread = this;
+        JVM INSTR monitorenter ;
+        return finished;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public void setFinished(boolean finished)
+    {
+        synchronized(this)
+        {
+            this.finished = finished;
+        }
+    }
+
+    private LiveFeedListener createEmptyLiveFeedListener()
+    {
+        return new LiveFeedListener() {
+
+            public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                    double d1, double d2, double d3, double d4)
+            {
+            }
+
+            public void newTick(Instrument instrument1, long l, double d, double d1, 
+                    double d2, double d3)
+            {
+            }
+
+            final BackgroundFeedLoadingThread this$0;
+
+            
+            {
+                this$0 = BackgroundFeedLoadingThread.this;
+                super();
+            }
+        };
+    }
+
+    private LoadingProgressListener createEmptyLoadingProgressListener()
+    {
+        return new LoadingProgressListener() {
+
+            public void dataLoaded(long l, long l1, long l2, String s)
+            {
+            }
+
+            public void loadingFinished(boolean flag, long l, long l1, long l2, 
+                    Exception exception)
+            {
+            }
+
+            public boolean stopJob()
+            {
+                return false;
+            }
+
+            final BackgroundFeedLoadingThread this$0;
+
+            
+            {
+                this$0 = BackgroundFeedLoadingThread.this;
+                super();
+            }
+        };
+    }
+
+    private static Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/thread/BackgroundFeedLoadingThread);
+    protected static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MMM-dd HH:mm:ss:SSS");
+    private boolean finished;
+    private final FeedDataProvider feedDataProvider;
+    private Map lastLoadedTimes;
+    private final long TICK_LOADING_PERIOD = 0x14997000L;
+    private final long ONE_MINUTE_CANDLE_LOADING_PERIOD = 0x1ee62800L;
+    private final long WAIT_BEFORE_START = 30000L;
+    private final long DELAY_INTERVAL_BEFORE_CHECK_ALL_INSTRUMENTS = 10000L;
+    private final long DELAY_INTERVAL_BETWEEN_EACH_DATA_LOAD = 10000L;
+
+}

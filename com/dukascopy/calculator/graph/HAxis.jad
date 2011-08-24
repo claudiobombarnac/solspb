@@ -1,0 +1,70 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   HAxis.java
+
+package com.dukascopy.calculator.graph;
+
+import java.awt.Graphics2D;
+import java.awt.font.TextLayout;
+import java.awt.geom.Line2D;
+
+// Referenced classes of package com.dukascopy.calculator.graph:
+//            Axis, Model, View, Transformation
+
+public class HAxis extends Axis
+{
+
+    public HAxis()
+    {
+        setY(0.0D);
+    }
+
+    public void setY(double y)
+    {
+        this.y = y;
+    }
+
+    public void draw(Model model, View view, Graphics2D graphics2d)
+    {
+        double left = view.getTransformation().toModelX(0.0D);
+        double right = view.getTransformation().toModelX(view.getWidth());
+        double y = view.getTransformation().toViewY(this.y);
+        java.awt.geom.Line2D.Double line = new java.awt.geom.Line2D.Double(0.0D, y, view.getWidth(), y);
+        graphics2d.draw(line);
+        if(getShowMajorUnit())
+        {
+            double unit = view.getTransformation().getXMajorUnit();
+            double origin = view.getTransformation().getOriginY();
+            for(int i = (int)Math.ceil(left / unit) - 1; i < (int)Math.floor(right / unit) + 2; i++)
+            {
+                double tick = view.getTransformation().toViewX((double)i * unit);
+                line = new java.awt.geom.Line2D.Double(tick, y, tick, y + (double)getMajorUnitTickLength());
+                graphics2d.draw(line);
+                String s = convertDouble((double)i * unit);
+                graphics2d.setFont(view.getFont());
+                TextLayout textLayout = new TextLayout(s, graphics2d.getFont(), graphics2d.getFontRenderContext());
+                float width = textLayout.getVisibleAdvance();
+                float height = textLayout.getAscent() + textLayout.getLeading();
+                if((double)i * unit != origin)
+                    graphics2d.drawString(s, (float)tick - 0.5F * width, (float)y + (float)getMajorUnitTickLength() + height);
+                else
+                    graphics2d.drawString(s, (float)tick - width - (float)getMajorUnitTickLength() - 2.0F, (float)y + (float)getMajorUnitTickLength() + height);
+            }
+
+        }
+        if(getShowMinorUnit())
+        {
+            double unit = view.getTransformation().getXMinorUnit();
+            for(int i = (int)Math.ceil(left / unit) - 1; i < (int)Math.floor(right / unit) + 2; i++)
+            {
+                double tick = view.getTransformation().toViewX((double)i * unit);
+                line = new java.awt.geom.Line2D.Double(tick, y, tick, y + (double)getMinorUnitTickLength());
+                graphics2d.draw(line);
+            }
+
+        }
+    }
+
+    protected double y;
+}

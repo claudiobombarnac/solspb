@@ -1,0 +1,26 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:28
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   IntegerRangeHolder.java
+
+package com.dukascopy.api.impl.talib;
+
+
+// Referenced classes of package com.dukascopy.api.impl.talib:
+//            Holder
+
+public class IntegerRangeHolder extends Holder
+{
+
+    public IntegerRangeHolder()
+    {
+    }
+
+    public String paramName;
+    public int defaultValue;
+    public int min;
+    public int max;
+    public int suggested_start;
+    public int suggested_end;
+    public int suggested_increment;
+}

@@ -1,0 +1,38 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LastTickProgressListener.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.listener;
+
+import com.dukascopy.charts.data.datacache.LoadingProgressListener;
+
+public class LastTickProgressListener
+    implements LoadingProgressListener
+{
+
+    public LastTickProgressListener(LoadingProgressListener progressListener)
+    {
+        this.progressListener = progressListener;
+    }
+
+    public void dataLoaded(long l, long l1, long l2, String s)
+    {
+    }
+
+    public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+            Exception e)
+    {
+        this.allDataLoaded = allDataLoaded;
+        exception = e;
+    }
+
+    public boolean stopJob()
+    {
+        return progressListener.stopJob();
+    }
+
+    public boolean allDataLoaded;
+    public Exception exception;
+    private LoadingProgressListener progressListener;
+}

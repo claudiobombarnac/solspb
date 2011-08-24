@@ -1,0 +1,86 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LocalizedMessageHelper.java
+
+package com.dukascopy.charts.utils.helper;
+
+import com.dukascopy.dds2.greed.gui.l10n.LocalizationManager;
+import java.awt.Component;
+import javax.swing.Icon;
+import javax.swing.JOptionPane;
+
+public class LocalizedMessageHelper
+{
+
+    public LocalizedMessageHelper()
+    {
+    }
+
+    public static int showConfirmationMessage(Component owner, String message)
+    {
+        return showConfirmationMessage(owner, LocalizationManager.getText("confirmation.title"), message, null);
+    }
+
+    public static int showConfirmationMessage(Component owner, String confirmationTitle, String message)
+    {
+        return showConfirmationMessage(owner, confirmationTitle, message, null);
+    }
+
+    public static int showConfirmationMessage(Component owner, String confirmationTitle, String message, Icon icon)
+    {
+        resetTexts();
+        int n = JOptionPane.showOptionDialog(owner, message, confirmationTitle, 0, 3, icon, yesNoOptions, yesNoOptions[0]);
+        return n;
+    }
+
+    public static void showInformtionMessage(Component owner, String message)
+    {
+        showInformtionMessage(owner, LocalizationManager.getText("information.title"), message, null);
+    }
+
+    public static void showInformtionMessage(Component owner, String informationTitle, String message, Icon icon)
+    {
+        resetTexts();
+        JOptionPane.showOptionDialog(owner, message, informationTitle, 0, 1, icon, okOptions, okOptions[0]);
+    }
+
+    public static void showErrorMessage(Component owner, String message)
+    {
+        showErrorMessage(owner, LocalizationManager.getText("error.title"), message, null);
+    }
+
+    public static void showErrorMessage(Component owner, String errorTitle, String message, Icon icon)
+    {
+        resetTexts();
+        JOptionPane.showOptionDialog(owner, message, errorTitle, 0, 0, icon, okOptions, okOptions[0]);
+    }
+
+    public static String formatMessage(String message, boolean isBold, boolean isItalic, boolean isCenter, boolean isNewLine)
+    {
+        StringBuilder result = new StringBuilder(message);
+        if(isBold)
+            result.insert(0, "<b>");
+        if(isItalic)
+            result.insert(0, "<i>");
+        if(isCenter)
+            result.insert(0, "<body align='center'>");
+        if(isNewLine)
+            result.append("<br>");
+        result.insert(0, "<html>");
+        return result.toString();
+    }
+
+    private static void resetTexts()
+    {
+        yesNoOptions = (new Object[] {
+            LocalizationManager.getText("yes.option"), LocalizationManager.getText("no.option")
+        });
+        okOptions = (new Object[] {
+            LocalizationManager.getText("ok.option")
+        });
+    }
+
+    private static Object yesNoOptions[];
+    private static Object okOptions[];
+}

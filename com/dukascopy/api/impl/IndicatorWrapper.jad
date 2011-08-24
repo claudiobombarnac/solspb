@@ -1,0 +1,916 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:23
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   IndicatorWrapper.java
+
+package com.dukascopy.api.impl;
+
+import com.dukascopy.api.ConnectorIndicator;
+import com.dukascopy.api.IIndicators;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.connector.IConnector;
+import com.dukascopy.api.indicators.BooleanOptInputDescription;
+import com.dukascopy.api.indicators.DoubleListDescription;
+import com.dukascopy.api.indicators.DoubleRangeDescription;
+import com.dukascopy.api.indicators.IDrawingIndicator;
+import com.dukascopy.api.indicators.IIndicator;
+import com.dukascopy.api.indicators.IIndicatorDrawingSupport;
+import com.dukascopy.api.indicators.IndicatorInfo;
+import com.dukascopy.api.indicators.InputParameterInfo;
+import com.dukascopy.api.indicators.IntegerListDescription;
+import com.dukascopy.api.indicators.IntegerRangeDescription;
+import com.dukascopy.api.indicators.OptInputParameterInfo;
+import com.dukascopy.api.indicators.OutputParameterInfo;
+import com.dukascopy.charts.math.indicators.IndicatorsProvider;
+import com.dukascopy.charts.persistence.IdManager;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Stroke;
+import java.lang.reflect.Method;
+import java.security.InvalidParameterException;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl:
+//            IndicatorHolder
+
+public class IndicatorWrapper
+    implements Cloneable
+{
+
+    public IndicatorWrapper()
+    {
+        changeTreeSelection = true;
+    }
+
+    public IndicatorWrapper(String name)
+    {
+        this(IndicatorsProvider.getInstance().getIndicatorHolder(name), -1);
+    }
+
+    public IndicatorWrapper(String name, int id)
+    {
+        this(IndicatorsProvider.getInstance().getIndicatorHolder(name), id);
+    }
+
+    public IndicatorWrapper(IndicatorHolder indicatorHolder)
+    {
+        this(indicatorHolder, -1);
+    }
+
+    public IndicatorWrapper(IndicatorHolder indicatorHolder, Object optParams[])
+    {
+        this(indicatorHolder, -1, optParams, null, null, null, null);
+    }
+
+    public IndicatorWrapper(IndicatorHolder indicatorHolder, Object optParams[], Color outputColors[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle outputDrawingStyles[], int outputWidths[], int outputShifts[])
+    {
+        this(indicatorHolder, -1, optParams, outputColors, outputDrawingStyles, outputWidths, outputShifts);
+    }
+
+    protected IndicatorWrapper(IndicatorHolder indicatorHolder, int id, Object optParams[], Color outputColors[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle outputDrawingStyles[], int outputWidths[], int outputShifts[])
+    {
+        changeTreeSelection = true;
+        if(LOGGER.isDebugEnabled())
+            LOGGER.debug((new StringBuilder()).append("Creating indicator wrapper for : ").append(indicatorHolder.getIndicator().getIndicatorInfo().getName()).toString());
+        init(indicatorHolder, id);
+        sidesForTicks = extractSidesForTicks(indicatorHolder.getIndicator());
+        appliedPricesForCandles = extractAppliedPrices(indicatorHolder.getIndicator());
+        int numberOfOutputs = indicatorHolder.getIndicator().getIndicatorInfo().getNumberOfOutputs();
+        this.optParams = optParams != null ? optParams : extractOptParams(indicatorHolder.getIndicator());
+        if(outputColors == null)
+        {
+            this.outputColors = new Color[numberOfOutputs];
+            outputColors2 = new Color[numberOfOutputs];
+            initColors();
+        } else
+        {
+            this.outputColors = outputColors;
+        }
+        if(outputDrawingStyles == null)
+        {
+            drawingStyles = new com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle[numberOfOutputs];
+            initDrawingStyles();
+        } else
+        {
+            drawingStyles = outputDrawingStyles;
+        }
+        if(outputWidths == null)
+        {
+            lineWidths = new int[numberOfOutputs];
+            Arrays.fill(lineWidths, 1);
+        } else
+        {
+            lineWidths = outputWidths;
+        }
+        if(outputShifts == null)
+        {
+            this.outputShifts = new int[numberOfOutputs];
+            initOutputShifts();
+        } else
+        {
+            this.outputShifts = outputShifts;
+        }
+        opacityAlphas = new float[numberOfOutputs];
+        Arrays.fill(opacityAlphas, 1.0F);
+        extractMethods();
+    }
+
+    public IndicatorWrapper(String name, int id, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], 
+            int lineWidths[], int outputShifts[], Integer subPanelId, java.util.List chartObjects)
+        throws InvalidParameterException
+    {
+        this(name, id, sidesForTicks, appliedPricesForCandles, optParams, outputColors, new boolean[outputColors.length], new boolean[outputColors.length], new float[outputColors.length], drawingStyles, lineWidths, outputShifts, subPanelId, chartObjects);
+    }
+
+    public IndicatorWrapper(String name, int id, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], boolean valuesOnChart[], 
+            boolean showOutputs[], float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], Integer subPanelId, java.util.List chartObjects)
+        throws InvalidParameterException
+    {
+        this(name, id, sidesForTicks, appliedPricesForCandles, optParams, outputColors, ((Color []) (null)), drawingStyles, lineWidths, outputShifts, subPanelId, chartObjects);
+    }
+
+    public IndicatorWrapper(String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], 
+            int outputShifts[])
+        throws InvalidParameterException
+    {
+        this(name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, new boolean[outputColors.length], new boolean[outputColors.length], new float[outputColors.length], drawingStyles, lineWidths, outputShifts);
+    }
+
+    public IndicatorWrapper(String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], boolean valuesOnChart[], boolean showOutputs[], 
+            float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[])
+        throws InvalidParameterException
+    {
+        this(name, -1, sidesForTicks, appliedPricesForCandles, optParams, outputColors, valuesOnChart, showOutputs, opacityAlphas, drawingStyles, lineWidths, outputShifts, null, null);
+    }
+
+    protected IndicatorWrapper(IndicatorHolder indicatorHolder, int id)
+    {
+        this(indicatorHolder, id, null, null, null, null, null);
+    }
+
+    public IndicatorWrapper(String name, int id, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], 
+            com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], Integer subPanelId, java.util.List chartObjects)
+        throws InvalidParameterException
+    {
+        this(name, id, sidesForTicks, appliedPricesForCandles, optParams, outputColors, outputColors2, new boolean[outputColors.length], new boolean[outputColors.length], new float[outputColors.length], drawingStyles, lineWidths, outputShifts, subPanelId, chartObjects, null);
+    }
+
+    public IndicatorWrapper(String name, int id, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], 
+            com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], Integer subPanelId, java.util.List chartObjects, java.util.List levelInfoList)
+        throws InvalidParameterException
+    {
+        this(name, id, sidesForTicks, appliedPricesForCandles, optParams, outputColors, outputColors2, new boolean[outputColors.length], new boolean[outputColors.length], new float[outputColors.length], drawingStyles, lineWidths, outputShifts, subPanelId, chartObjects, levelInfoList);
+    }
+
+    public IndicatorWrapper(String name, int id, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], 
+            boolean valuesOnChart[], boolean showOutputs[], float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[], Integer subPanelId, 
+            java.util.List chartObjects, java.util.List levelInfoList)
+        throws InvalidParameterException
+    {
+        changeTreeSelection = true;
+        init(name, id);
+        validate(sidesForTicks, appliedPricesForCandles, optParams, outputColors);
+        this.sidesForTicks = sidesForTicks;
+        this.appliedPricesForCandles = appliedPricesForCandles;
+        this.optParams = optParams;
+        this.outputColors = outputColors;
+        this.outputColors2 = outputColors2 != null ? outputColors2 : this.outputColors;
+        showValuesOnChart = valuesOnChart;
+        this.showOutputs = showOutputs;
+        this.subPanelId = subPanelId;
+        this.chartObjects = chartObjects;
+        this.levelInfoList = levelInfoList;
+        if(drawingStyles == null)
+        {
+            this.drawingStyles = new com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle[outputColors.length];
+            initDrawingStyles();
+        } else
+        {
+            this.drawingStyles = drawingStyles;
+        }
+        if(lineWidths == null)
+        {
+            this.lineWidths = new int[outputColors.length];
+            Arrays.fill(this.lineWidths, 1);
+        } else
+        {
+            this.lineWidths = lineWidths;
+        }
+        if(outputShifts == null)
+        {
+            this.outputShifts = new int[outputColors.length];
+            Arrays.fill(this.outputShifts, 0);
+        } else
+        {
+            this.outputShifts = outputShifts;
+        }
+        if(null == opacityAlphas)
+        {
+            this.opacityAlphas = new float[outputColors.length];
+            Arrays.fill(this.opacityAlphas, 1.0F);
+        } else
+        {
+            this.opacityAlphas = opacityAlphas;
+        }
+        extractMethods();
+    }
+
+    public IndicatorWrapper(String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], 
+            int lineWidths[], int outputShifts[])
+        throws InvalidParameterException
+    {
+        this(name, sidesForTicks, appliedPricesForCandles, optParams, outputColors, outputColors2, new boolean[outputColors.length], new boolean[outputColors.length], new float[outputColors.length], drawingStyles, lineWidths, outputShifts);
+    }
+
+    public IndicatorWrapper(String name, OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[], Color outputColors2[], boolean valuesOnChart[], 
+            boolean showOutputs[], float opacityAlphas[], com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[], int lineWidths[], int outputShifts[])
+        throws InvalidParameterException
+    {
+        this(name, -1, sidesForTicks, appliedPricesForCandles, optParams, outputColors, outputColors2, valuesOnChart, showOutputs, opacityAlphas, drawingStyles, lineWidths, outputShifts, null, null, null);
+    }
+
+    public boolean isChangeTreeSelection()
+    {
+        return changeTreeSelection;
+    }
+
+    public void setChangeTreeSelection(boolean changeTreeSelection)
+    {
+        this.changeTreeSelection = changeTreeSelection;
+    }
+
+    private void validate(OfferSide sidesForTicks[], com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[], Object optParams[], Color outputColors[])
+    {
+        if(indicatorHolder == null || sidesForTicks == null || sidesForTicks.length != indicatorHolder.getIndicator().getIndicatorInfo().getNumberOfInputs() || appliedPricesForCandles == null || appliedPricesForCandles.length != indicatorHolder.getIndicator().getIndicatorInfo().getNumberOfInputs() || optParams == null || optParams.length != indicatorHolder.getIndicator().getIndicatorInfo().getNumberOfOptionalInputs() || outputColors == null || outputColors.length != indicatorHolder.getIndicator().getIndicatorInfo().getNumberOfOutputs())
+            throw new InvalidParameterException("Some of the parameters are wrong");
+        OfferSide arr$[] = sidesForTicks;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            OfferSide offerSide = arr$[i$];
+            if(offerSide == null)
+                throw new InvalidParameterException("Wrong offer side parameter value");
+        }
+
+        arr$ = appliedPricesForCandles;
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            com.dukascopy.api.IIndicators.AppliedPrice appliedPrice = arr$[i$];
+            if(appliedPrice == null)
+                throw new InvalidParameterException("Wrong applied price parameter value");
+        }
+
+        arr$ = ((OfferSide []) (optParams));
+        len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Object optParam = arr$[i$];
+            if(optParam == null || !(optParam instanceof Integer) && !(optParam instanceof Double) && !(optParam instanceof Boolean))
+                throw new InvalidParameterException("Wrong optional parameter value");
+        }
+
+    }
+
+    private void init(String name, int id)
+    {
+        init(IndicatorsProvider.getInstance().getIndicatorHolder(name), id);
+        this.name = name;
+    }
+
+    private void init(IndicatorHolder indicatorHolder, int id)
+    {
+        if(id < 0)
+            this.id = IdManager.getNextIndicatorId();
+        else
+            this.id = id;
+        IIndicator indicator = indicatorHolder.getIndicator();
+        name = indicator.getIndicatorInfo().getName();
+        this.indicatorHolder = indicatorHolder;
+        setChartPanelId(Integer.valueOf(id));
+        int outpCount = indicator.getIndicatorInfo().getNumberOfOutputs();
+        showValuesOnChart = new boolean[outpCount];
+        showOutputs = new boolean[outpCount];
+        opacityAlphas = new float[outpCount];
+        for(int i = 0; i < outpCount; i++)
+        {
+            OutputParameterInfo info = indicator.getOutputParameterInfo(i);
+            setShowValueOnChart(i, info.isShowValueOnChart());
+            setShowOutput(i, info.isShowOutput());
+            setOpacityAlpha(i, info.getOpacityAlpha());
+        }
+
+    }
+
+    private void initColors()
+    {
+        for(int i = 0; i < outputColors.length; i++)
+        {
+            OutputParameterInfo outputParameterInfo = indicatorHolder.getIndicator().getOutputParameterInfo(i);
+            outputColors[i] = outputParameterInfo.getColor();
+            outputColors2[i] = outputParameterInfo.getColor2();
+        }
+
+    }
+
+    private void initDrawingStyles()
+    {
+        for(int i = 0; i < drawingStyles.length; i++)
+        {
+            OutputParameterInfo outputParameterInfo = indicatorHolder.getIndicator().getOutputParameterInfo(i);
+            drawingStyles[i] = outputParameterInfo.getDrawingStyle();
+        }
+
+    }
+
+    private void initOutputShifts()
+    {
+        for(int i = 0; i < outputShifts.length; i++)
+        {
+            OutputParameterInfo outputParameterInfo = indicatorHolder.getIndicator().getOutputParameterInfo(i);
+            outputShifts[i] = outputParameterInfo.getShift();
+        }
+
+    }
+
+    private void extractMethods()
+    {
+        Class indicatorClass = indicatorHolder.getIndicator().getClass();
+        if(com/dukascopy/api/indicators/IDrawingIndicator.isAssignableFrom(indicatorClass))
+            try
+            {
+                selfdrawingMethod = indicatorClass.getMethod("drawOutput", new Class[] {
+                    java/awt/Graphics, Integer.TYPE, java/lang/Object, java/awt/Color, java/awt/Stroke, com/dukascopy/api/indicators/IIndicatorDrawingSupport, java/util/List, java/util/Map
+                });
+            }
+            catch(NoSuchMethodException e) { }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        else
+            try
+            {
+                selfdrawingMethod = indicatorClass.getMethod("drawOutput", new Class[] {
+                    java/awt/Graphics, Integer.TYPE, java/lang/Object, java/awt/Color, com/dukascopy/api/indicators/IIndicatorDrawingSupport, java/util/List, java/util/Map
+                });
+            }
+            catch(NoSuchMethodException e) { }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        try
+        {
+            minMaxMethod = indicatorClass.getMethod("getMinMax", new Class[] {
+                Integer.TYPE, java/lang/Object, Integer.TYPE, Integer.TYPE
+            });
+        }
+        catch(NoSuchMethodException e) { }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private OfferSide[] extractSidesForTicks(IIndicator indicator)
+    {
+        OfferSide sidesForTicks[] = new OfferSide[indicator.getIndicatorInfo().getNumberOfInputs()];
+        for(int i = 0; i < sidesForTicks.length; i++)
+            sidesForTicks[i] = OfferSide.BID;
+
+        return sidesForTicks;
+    }
+
+    private com.dukascopy.api.IIndicators.AppliedPrice[] extractAppliedPrices(IIndicator indicator)
+    {
+        com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[] = new com.dukascopy.api.IIndicators.AppliedPrice[indicator.getIndicatorInfo().getNumberOfInputs()];
+        for(int i = 0; i < appliedPricesForCandles.length; i++)
+        {
+            InputParameterInfo inputParameterInfo = indicator.getInputParameterInfo(i);
+            appliedPricesForCandles[i] = inputParameterInfo.getAppliedPrice();
+            if(appliedPricesForCandles[i] == null)
+                appliedPricesForCandles[i] = com.dukascopy.api.IIndicators.AppliedPrice.CLOSE;
+        }
+
+        return appliedPricesForCandles;
+    }
+
+    private Object[] extractOptParams(IIndicator indicator)
+    {
+        Object optParams[] = new Object[indicator.getIndicatorInfo().getNumberOfOptionalInputs()];
+        for(int i = 0; i < optParams.length; i++)
+        {
+            OptInputParameterInfo info = indicator.getOptInputParameterInfo(i);
+            if(info.getDescription() instanceof IntegerListDescription)
+            {
+                IntegerListDescription integerList = (IntegerListDescription)info.getDescription();
+                optParams[i] = Integer.valueOf(integerList.getDefaultValue());
+                continue;
+            }
+            if(info.getDescription() instanceof IntegerRangeDescription)
+            {
+                IntegerRangeDescription integerRange = (IntegerRangeDescription)info.getDescription();
+                optParams[i] = Integer.valueOf(integerRange.getDefaultValue());
+                continue;
+            }
+            if(info.getDescription() instanceof DoubleListDescription)
+            {
+                DoubleListDescription realList = (DoubleListDescription)info.getDescription();
+                optParams[i] = Double.valueOf(realList.getDefaultValue());
+                continue;
+            }
+            if(info.getDescription() instanceof DoubleRangeDescription)
+            {
+                DoubleRangeDescription realRange = (DoubleRangeDescription)info.getDescription();
+                optParams[i] = Double.valueOf(realRange.getDefaultValue());
+                continue;
+            }
+            if(info.getDescription() instanceof BooleanOptInputDescription)
+            {
+                BooleanOptInputDescription booleanOptDescription = (BooleanOptInputDescription)info.getDescription();
+                optParams[i] = Boolean.valueOf(booleanOptDescription.getDefaultValue());
+            } else
+            {
+                throw new IllegalArgumentException((new StringBuilder()).append("Unsupported Description type - ").append(info.getDescription()).toString());
+            }
+        }
+
+        return optParams;
+    }
+
+    public int getId()
+    {
+        return id;
+    }
+
+    public String getName()
+    {
+        return name;
+    }
+
+    public String getNameWithParams()
+    {
+        StringBuffer indicatorDescription = new StringBuffer(name);
+        if(optParams.length > 0)
+            indicatorDescription.append(":");
+        for(int i = 0; i < optParams.length; i++)
+        {
+            Object optParam = optParams[i];
+            if(i == 0)
+                indicatorDescription.append(" (");
+            OptInputParameterInfo info = indicatorHolder.getIndicator().getOptInputParameterInfo(i);
+            if(info.getDescription() instanceof IntegerListDescription)
+            {
+                IntegerListDescription integerList = (IntegerListDescription)info.getDescription();
+                int index = -1;
+                int j = 0;
+                do
+                {
+                    if(j >= integerList.getValues().length)
+                        break;
+                    if(integerList.getValues()[j] == ((Integer)optParam).intValue())
+                    {
+                        index = j;
+                        break;
+                    }
+                    j++;
+                } while(true);
+                if(index == -1)
+                    index = ((Integer)optParam).intValue();
+                if(index > integerList.getValues().length - 1)
+                    index = integerList.getValues().length - 1;
+                indicatorDescription.append(integerList.getValueNames()[index]);
+            } else
+            {
+                indicatorDescription.append(optParam);
+            }
+            if(i < optParams.length - 1)
+                indicatorDescription.append(", ");
+            else
+                indicatorDescription.append(")");
+        }
+
+        return indicatorDescription.toString();
+    }
+
+    public void setOfferSideForTicks(int paramIndex, OfferSide side)
+    {
+        sidesForTicks[paramIndex] = side;
+    }
+
+    public void setAppliedPriceForCandles(int paramIndex, com.dukascopy.api.IIndicators.AppliedPrice type)
+    {
+        appliedPricesForCandles[paramIndex] = type;
+    }
+
+    public OfferSide[] getOfferSidesForTicks()
+    {
+        return sidesForTicks;
+    }
+
+    public com.dukascopy.api.IIndicators.AppliedPrice[] getAppliedPricesForCandles()
+    {
+        return appliedPricesForCandles;
+    }
+
+    public void setOptParam(int paramIndex, Object value)
+    {
+        optParams[paramIndex] = value;
+        indicatorHolder.getIndicator().setOptInputParameter(paramIndex, value);
+        for(int i = 0; i < drawingStyles.length; i++)
+            drawingStyles[i] = indicatorHolder.getIndicator().getOutputParameterInfo(i).getDrawingStyle();
+
+    }
+
+    public Object[] getOptParams()
+    {
+        return optParams;
+    }
+
+    public String getPropsStr()
+    {
+        if(optParams.length == 0)
+            return null;
+        StringBuilder str = new StringBuilder();
+        for(int i = 0; i < optParams.length; i++)
+        {
+            Object param = optParams[i];
+            if(param instanceof Integer)
+            {
+                OptInputParameterInfo info = indicatorHolder.getIndicator().getOptInputParameterInfo(i);
+                if(info.getDescription() instanceof IntegerListDescription)
+                {
+                    IntegerListDescription integerList = (IntegerListDescription)info.getDescription();
+                    int index = -1;
+                    int j = 0;
+                    do
+                    {
+                        if(j >= integerList.getValues().length)
+                            break;
+                        if(integerList.getValues()[j] == ((Integer)param).intValue())
+                        {
+                            index = j;
+                            break;
+                        }
+                        j++;
+                    } while(true);
+                    if(index == -1)
+                        index = ((Integer)param).intValue();
+                    if(index > integerList.getValues().length - 1)
+                        index = integerList.getValues().length - 1;
+                    str.append(integerList.getValueNames()[index]).append(", ");
+                } else
+                {
+                    str.append(param.toString()).append(", ");
+                }
+                continue;
+            }
+            if(param instanceof Double)
+            {
+                getDecimalFormat(i).format(param);
+                str.append(getDecimalFormat(i).format(((Double)param).doubleValue())).append(", ");
+                continue;
+            }
+            if(param instanceof Boolean)
+                str.append(String.valueOf(param)).append(", ");
+        }
+
+        str.setLength(str.length() - 2);
+        return str.toString();
+    }
+
+    public void setOutputColor(int paramIndex, Color color)
+    {
+        outputColors[paramIndex] = color;
+    }
+
+    public Color[] getOutputColors()
+    {
+        return outputColors;
+    }
+
+    public void setOutputColor2(int paramIndex, Color color)
+    {
+        outputColors2[paramIndex] = color;
+    }
+
+    public Color[] getOutputColors2()
+    {
+        if(outputColors2 == null)
+            outputColors2 = (Color[])getOutputColors().clone();
+        return outputColors2;
+    }
+
+    public boolean[] getShowValuesOnChart()
+    {
+        return showValuesOnChart;
+    }
+
+    public boolean showValueOnChart(int outputIdx)
+    {
+        return showValuesOnChart[outputIdx];
+    }
+
+    public void setShowValueOnChart(int outputIdx, boolean showValue)
+    {
+        showValuesOnChart[outputIdx] = showValue;
+    }
+
+    public boolean[] getShowOutputs()
+    {
+        return showOutputs;
+    }
+
+    public boolean showOutput(int outputIdx)
+    {
+        return showOutputs[outputIdx];
+    }
+
+    public void setShowOutput(int outputIdx, boolean showValue)
+    {
+        showOutputs[outputIdx] = showValue;
+    }
+
+    public float[] getOpacityAlphas()
+    {
+        return opacityAlphas;
+    }
+
+    public float getOpacityAlpha(int outputIdx)
+    {
+        return opacityAlphas[outputIdx];
+    }
+
+    public void setOpacityAlpha(int outputIdx, float alphaValue)
+    {
+        opacityAlphas[outputIdx] = alphaValue;
+    }
+
+    public void setDrawingStyle(int paramIndex, com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyle)
+    {
+        drawingStyles[paramIndex] = drawingStyle;
+        indicatorHolder.getIndicator().getOutputParameterInfo(paramIndex).setDrawingStyle(drawingStyle);
+    }
+
+    public com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle[] getDrawingStyles()
+    {
+        return drawingStyles;
+    }
+
+    public void setOutputShift(int paramIndex, int shift)
+    {
+        outputShifts[paramIndex] = shift;
+        indicatorHolder.getIndicator().getOutputParameterInfo(paramIndex).setShift(shift);
+    }
+
+    public int[] getOutputShifts()
+    {
+        if(outputShifts == null)
+            outputShifts = new int[indicatorHolder.getIndicator().getIndicatorInfo().getNumberOfOutputs()];
+        return outputShifts;
+    }
+
+    public void setLineWidth(int paramIndex, int width)
+    {
+        lineWidths[paramIndex] = width;
+    }
+
+    public int[] getLineWidths()
+    {
+        return lineWidths;
+    }
+
+    public IIndicator getIndicator()
+    {
+        return indicatorHolder.getIndicator();
+    }
+
+    public IndicatorHolder getIndicatorHolder()
+    {
+        return indicatorHolder;
+    }
+
+    public Method getSelfdrawingMethod()
+    {
+        return selfdrawingMethod;
+    }
+
+    public Method getMinMaxMethod()
+    {
+        return minMaxMethod;
+    }
+
+    public void copySettingsFrom(IndicatorWrapper sourceIndicatorWrapper)
+    {
+        if(!sourceIndicatorWrapper.getIndicator().getIndicatorInfo().getName().toUpperCase().equals(indicatorHolder.getIndicator().getIndicatorInfo().getName().toUpperCase()))
+        {
+            throw new IllegalArgumentException("Cannot copy setting into indicator from some other type/formula indicator");
+        } else
+        {
+            sidesForTicks = new OfferSide[sourceIndicatorWrapper.sidesForTicks.length];
+            System.arraycopy(sourceIndicatorWrapper.sidesForTicks, 0, sidesForTicks, 0, sidesForTicks.length);
+            appliedPricesForCandles = new com.dukascopy.api.IIndicators.AppliedPrice[sourceIndicatorWrapper.appliedPricesForCandles.length];
+            System.arraycopy(sourceIndicatorWrapper.appliedPricesForCandles, 0, appliedPricesForCandles, 0, appliedPricesForCandles.length);
+            optParams = new Object[sourceIndicatorWrapper.optParams.length];
+            System.arraycopy(((Object) (sourceIndicatorWrapper.optParams)), 0, ((Object) (optParams)), 0, optParams.length);
+            outputColors = new Color[sourceIndicatorWrapper.outputColors.length];
+            System.arraycopy(sourceIndicatorWrapper.outputColors, 0, outputColors, 0, outputColors.length);
+            drawingStyles = new com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle[sourceIndicatorWrapper.drawingStyles.length];
+            System.arraycopy(sourceIndicatorWrapper.drawingStyles, 0, drawingStyles, 0, drawingStyles.length);
+            lineWidths = new int[sourceIndicatorWrapper.lineWidths.length];
+            System.arraycopy(sourceIndicatorWrapper.lineWidths, 0, lineWidths, 0, lineWidths.length);
+            showValuesOnChart = new boolean[sourceIndicatorWrapper.showValuesOnChart.length];
+            System.arraycopy(sourceIndicatorWrapper.showValuesOnChart, 0, showValuesOnChart, 0, showValuesOnChart.length);
+            showOutputs = new boolean[sourceIndicatorWrapper.showOutputs.length];
+            System.arraycopy(sourceIndicatorWrapper.showOutputs, 0, showOutputs, 0, showOutputs.length);
+            opacityAlphas = new float[sourceIndicatorWrapper.opacityAlphas.length];
+            System.arraycopy(sourceIndicatorWrapper.opacityAlphas, 0, opacityAlphas, 0, opacityAlphas.length);
+            outputShifts = new int[sourceIndicatorWrapper.outputShifts.length];
+            System.arraycopy(sourceIndicatorWrapper.outputShifts, 0, outputShifts, 0, outputShifts.length);
+            return;
+        }
+    }
+
+    public IndicatorWrapper clone()
+    {
+        IndicatorWrapper clone;
+        clone = (IndicatorWrapper)super.clone();
+        clone.indicatorHolder = IndicatorsProvider.getInstance().getIndicatorHolder(indicatorHolder.getIndicator().getIndicatorInfo().getName());
+        clone.sidesForTicks = new OfferSide[sidesForTicks.length];
+        System.arraycopy(sidesForTicks, 0, clone.sidesForTicks, 0, sidesForTicks.length);
+        clone.appliedPricesForCandles = new com.dukascopy.api.IIndicators.AppliedPrice[appliedPricesForCandles.length];
+        System.arraycopy(appliedPricesForCandles, 0, clone.appliedPricesForCandles, 0, appliedPricesForCandles.length);
+        clone.optParams = new Object[optParams.length];
+        System.arraycopy(((Object) (optParams)), 0, ((Object) (clone.optParams)), 0, optParams.length);
+        clone.outputColors = new Color[outputColors.length];
+        System.arraycopy(outputColors, 0, clone.outputColors, 0, outputColors.length);
+        clone.drawingStyles = new com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle[drawingStyles.length];
+        System.arraycopy(drawingStyles, 0, clone.drawingStyles, 0, drawingStyles.length);
+        clone.lineWidths = new int[lineWidths.length];
+        System.arraycopy(lineWidths, 0, clone.lineWidths, 0, lineWidths.length);
+        clone.showValuesOnChart = new boolean[showValuesOnChart.length];
+        System.arraycopy(showValuesOnChart, 0, clone.showValuesOnChart, 0, showValuesOnChart.length);
+        clone.showOutputs = new boolean[showOutputs.length];
+        System.arraycopy(showOutputs, 0, clone.showOutputs, 0, showOutputs.length);
+        clone.opacityAlphas = new float[opacityAlphas.length];
+        System.arraycopy(opacityAlphas, 0, clone.opacityAlphas, 0, opacityAlphas.length);
+        clone.outputShifts = new int[outputShifts.length];
+        System.arraycopy(outputShifts, 0, clone.outputShifts, 0, outputShifts.length);
+        return clone;
+        Exception e;
+        e;
+        return null;
+    }
+
+    public int hashCode()
+    {
+        int prime = 31;
+        int result = 1;
+        result = 31 * result + id;
+        return result;
+    }
+
+    public boolean equals(Object obj)
+    {
+        if(this == obj)
+            return true;
+        if(obj == null)
+            return false;
+        if(getClass() != obj.getClass())
+            return false;
+        IndicatorWrapper other = (IndicatorWrapper)obj;
+        return id == other.id;
+    }
+
+    public boolean isOverlappingIndicator(int outputIdx)
+    {
+        OutputParameterInfo outputParameterInfo = indicatorHolder.getIndicator().getOutputParameterInfo(outputIdx);
+        if(outputParameterInfo.getType() != com.dukascopy.api.indicators.OutputParameterInfo.Type.DOUBLE)
+            return false;
+        return drawingStyles[outputIdx] != com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.HISTOGRAM;
+    }
+
+    public boolean shouldBeShownOnSubWin()
+    {
+        return !indicatorHolder.getIndicator().getIndicatorInfo().isOverChart();
+    }
+
+    public boolean isLevelsEnabled()
+    {
+        if(shouldBeShownOnSubWin())
+            return true;
+        com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle arr$[] = getDrawingStyles();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyle = arr$[i$];
+            if(!drawingStyle.isOutputAsLine())
+                return false;
+        }
+
+        return true;
+    }
+
+    public Integer getSubPanelId()
+    {
+        return subPanelId;
+    }
+
+    public void setSubPanelId(Integer subPanelId)
+    {
+        this.subPanelId = subPanelId;
+    }
+
+    public java.util.List getChartObjects()
+    {
+        return chartObjects;
+    }
+
+    public void setChartObjects(java.util.List chartObjects)
+    {
+        this.chartObjects = chartObjects;
+    }
+
+    public java.util.List getLevelInfoList()
+    {
+        if(levelInfoList == null)
+            levelInfoList = new ArrayList();
+        return levelInfoList;
+    }
+
+    public void setLevelInfoList(java.util.List levelInfoList)
+    {
+        this.levelInfoList = levelInfoList;
+    }
+
+    public DecimalFormat getDecimalFormat(int optInputIndex)
+    {
+        String format = "0";
+        OptInputParameterInfo optInputParameterInfo = indicatorHolder.getIndicator().getOptInputParameterInfo(optInputIndex);
+        if(optInputParameterInfo.getDescription() instanceof DoubleRangeDescription)
+        {
+            DoubleRangeDescription doubleRangeDescription = (DoubleRangeDescription)optInputParameterInfo.getDescription();
+            if(doubleRangeDescription.getPrecision() > 0)
+            {
+                format = (new StringBuilder()).append(format).append(".").toString();
+                for(int i = 0; i < doubleRangeDescription.getPrecision(); i++)
+                    format = (new StringBuilder()).append(format).append("0").toString();
+
+            }
+        } else
+        {
+            format = (new StringBuilder()).append(format).append(".00").toString();
+        }
+        DecimalFormat decimalFormat = new DecimalFormat(format);
+        return decimalFormat;
+    }
+
+    public Integer getChartPanelId()
+    {
+        return chartPanelId;
+    }
+
+    public void setChartPanelId(Integer chartPanelId)
+    {
+        this.chartPanelId = chartPanelId;
+        if(indicatorHolder.getIndicator() instanceof ConnectorIndicator)
+            ((ConnectorIndicator)indicatorHolder.getIndicator()).getConnector().setChartPanelId(chartPanelId.intValue());
+    }
+
+    public volatile Object clone()
+        throws CloneNotSupportedException
+    {
+        return clone();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/IndicatorWrapper);
+    public static final float DEFAULT_OUTPUT_OPACITY_ALPHA = 1F;
+    protected IndicatorHolder indicatorHolder;
+    private OfferSide sidesForTicks[];
+    private com.dukascopy.api.IIndicators.AppliedPrice appliedPricesForCandles[];
+    private Object optParams[];
+    private Color outputColors[];
+    private Color outputColors2[];
+    private com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyles[];
+    private int lineWidths[];
+    private int outputShifts[];
+    private boolean showValuesOnChart[];
+    private boolean showOutputs[];
+    private float opacityAlphas[];
+    private int id;
+    private String name;
+    private Method selfdrawingMethod;
+    private Method minMaxMethod;
+    private Integer subPanelId;
+    private Integer chartPanelId;
+    private java.util.List chartObjects;
+    private boolean changeTreeSelection;
+    private java.util.List levelInfoList;
+
+}

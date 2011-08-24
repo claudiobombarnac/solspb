@@ -1,0 +1,60 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AxisData.java
+
+package com.dukascopy.calculator.graph;
+
+
+public class AxisData
+{
+
+    public AxisData()
+    {
+        minimum = -10D;
+        maximum = 10D;
+        majorUnit = 5D;
+        minorUnit = 5D;
+        majorVisible = true;
+        minorVisible = true;
+    }
+
+    public void assign(AxisData axisData)
+    {
+        minimum = axisData.minimum;
+        maximum = axisData.maximum;
+        majorUnit = axisData.majorUnit;
+        minorUnit = axisData.minorUnit;
+        majorVisible = axisData.majorVisible;
+        minorVisible = axisData.minorVisible;
+    }
+
+    boolean minMaxMatches(AxisData axisData)
+    {
+        if(axisData.minimum != minimum)
+            return false;
+        return axisData.maximum == maximum;
+    }
+
+    boolean equals(AxisData axisData)
+    {
+        if(axisData.minimum != minimum)
+            return false;
+        if(axisData.maximum != maximum)
+            return false;
+        if(axisData.majorUnit != majorUnit)
+            return false;
+        if(axisData.minorUnit != minorUnit)
+            return false;
+        if(axisData.majorVisible != majorVisible)
+            return false;
+        return axisData.minorVisible == minorVisible;
+    }
+
+    public double minimum;
+    public double maximum;
+    public double majorUnit;
+    public double minorUnit;
+    public boolean majorVisible;
+    public boolean minorVisible;
+}

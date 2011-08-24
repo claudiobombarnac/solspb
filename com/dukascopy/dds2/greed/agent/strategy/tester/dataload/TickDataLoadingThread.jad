@@ -1,0 +1,88 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TickDataLoadingThread.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.dataload;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.TimedData;
+import com.dukascopy.charts.data.datacache.*;
+import java.util.concurrent.BlockingQueue;
+import org.slf4j.Logger;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester.dataload:
+//            AbstractDataLoadingThread
+
+public class TickDataLoadingThread extends AbstractDataLoadingThread
+{
+
+    public TickDataLoadingThread(String name, Instrument instrument, BlockingQueue queue, long from, long to, 
+            IFeedDataProvider feedDataProvider)
+    {
+        super(name, instrument, new JForexPeriod(DataType.TICKS, Period.TICK), null, queue, from, to, feedDataProvider);
+    }
+
+    public void run()
+    {
+        LiveFeedListener feedListener = new LiveFeedListener() {
+
+            public void newCandle(Instrument instrument1, Period period1, OfferSide offerside, long l, double d, 
+                    double d1, double d2, double d3, double d4)
+            {
+            }
+
+            public void newTick(Instrument instrument, long time, double ask, double bid, 
+                    double askVol, double bidVol)
+            {
+                tickReceived(instrument, new TickData(time, ask, bid, askVol, bidVol, new double[] {
+                    ask
+                }, new double[] {
+                    bid
+                }, new double[] {
+                    askVol
+                }, new double[] {
+                    bidVol
+                }));
+            }
+
+            final TickDataLoadingThread this$0;
+
+            
+            {
+                this$0 = TickDataLoadingThread.this;
+                super();
+            }
+        };
+        LoadingProgressListener loadingProgressListener = createLoadingProgressListener();
+        try
+        {
+            getFeedDataProvider().loadTicksDataBlockingSynched(getInstrument(), getFrom(), getTo(), feedListener, loadingProgressListener);
+        }
+        catch(DataCacheException e)
+        {
+            LOGGER.error(e.getLocalizedMessage(), e);
+        }
+    }
+
+    protected void tickReceived(Instrument instrument, TickData tickData)
+    {
+        putTickToQueue(tickData);
+    }
+
+    protected void putTickToQueue(TickData tickData)
+    {
+        if(!isStop())
+            putDataToQueue(tickData);
+    }
+
+    protected TickData createEmptyBar()
+    {
+        return new TickData(0x8000000000000000L, -1D, -1D, -1D, -1D, null, null, null, null);
+    }
+
+    protected volatile TimedData createEmptyBar()
+    {
+        return createEmptyBar();
+    }
+}

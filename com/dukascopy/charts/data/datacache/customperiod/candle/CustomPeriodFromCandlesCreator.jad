@@ -1,0 +1,126 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   CustomPeriodFromCandlesCreator.java
+
+package com.dukascopy.charts.data.datacache.customperiod.candle;
+
+import com.dukascopy.api.*;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.DataCacheUtils;
+import com.dukascopy.charts.data.datacache.customperiod.AbstractCustomPeriodCreator;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+
+public class CustomPeriodFromCandlesCreator extends AbstractCustomPeriodCreator
+{
+
+    public CustomPeriodFromCandlesCreator(Instrument instrument, Period desiredPeriod, Period basicPeriod, OfferSide offerSide)
+    {
+        super(instrument, offerSide, desiredPeriod);
+        DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+        this.basicPeriod = basicPeriod;
+        currentCandleDataUnderAnalysis = null;
+        previouslyAnalysedCandleData = null;
+    }
+
+    public CandleData analyse(CandleData data)
+    {
+        if(currentCandleDataUnderAnalysis == null)
+        {
+            startNewCandleAnalysis(data);
+        } else
+        {
+            long currentCandleStartTimeForData = DataCacheUtils.getCandleStartFast(getDesiredPeriod(), data.getTime());
+            long nextCandleStartTimeForData = DataCacheUtils.getCandleStartFast(getDesiredPeriod(), data.getTime() + getBasicPeriod().getInterval());
+            if(currentCandleDataUnderAnalysis.getTime() == currentCandleStartTimeForData && nextCandleStartTimeForData > currentCandleStartTimeForData)
+            {
+                continueCurrentCandleAnalysis(data);
+                CandleData candleDataResult = finishCurrentCandleAnalysis();
+                fireNewCandle(candleDataResult);
+                return candleDataResult;
+            }
+            if(currentCandleStartTimeForData > currentCandleDataUnderAnalysis.getTime())
+            {
+                CandleData candleDataResult = finishCurrentCandleAnalysis();
+                fireNewCandle(candleDataResult);
+                startNewCandleAnalysis(data);
+                return candleDataResult;
+            }
+            continueCurrentCandleAnalysis(data);
+        }
+        return null;
+    }
+
+    private CandleData finishCurrentCandleAnalysis()
+    {
+        if(currentCandleDataUnderAnalysis != null && Double.isNaN(currentCandleDataUnderAnalysis.getOpen()))
+            currentCandleDataUnderAnalysis.setOpen(currentCandleDataUnderAnalysis.getClose());
+        previouslyAnalysedCandleData = currentCandleDataUnderAnalysis;
+        currentCandleDataUnderAnalysis = null;
+        return previouslyAnalysedCandleData;
+    }
+
+    private void continueCurrentCandleAnalysis(CandleData data)
+    {
+        currentCandleDataUnderAnalysis.setVolume(round(currentCandleDataUnderAnalysis.getVolume() + data.getVolume()));
+        currentCandleDataUnderAnalysis.setClose(data.getClose());
+        if(currentCandleDataUnderAnalysis.getHigh() < data.getHigh())
+            currentCandleDataUnderAnalysis.setHigh(data.getHigh());
+        if(currentCandleDataUnderAnalysis.getLow() > data.getLow())
+            currentCandleDataUnderAnalysis.setLow(data.getLow());
+        boolean isFlat = isFlat(data);
+        if(Double.isNaN(currentCandleDataUnderAnalysis.getOpen()) && (!isFlat || isFlat && data.getOpen() != currentCandleDataUnderAnalysis.getClose()))
+            currentCandleDataUnderAnalysis.setOpen(data.getOpen());
+    }
+
+    private void startNewCandleAnalysis(CandleData data)
+    {
+        double openPrice = data.getOpen();
+        if(isFlat(data))
+            openPrice = (0.0D / 0.0D);
+        currentCandleDataUnderAnalysis = new CandleData();
+        currentCandleDataUnderAnalysis.setClose(data.getClose());
+        currentCandleDataUnderAnalysis.setHigh(data.getHigh());
+        currentCandleDataUnderAnalysis.setLow(data.getLow());
+        currentCandleDataUnderAnalysis.setOpen(openPrice);
+        currentCandleDataUnderAnalysis.setVolume(data.getVolume());
+        currentCandleDataUnderAnalysis.setTime(DataCacheUtils.getCandleStartFast(getDesiredPeriod(), data.getTime()));
+    }
+
+    protected boolean isFlat(CandleData data)
+    {
+        return data.getClose() == data.getOpen() && data.getOpen() == data.getHigh() && data.getHigh() == data.getLow() && data.getVolume() == 0.0D;
+    }
+
+    public CandleData getCurrentCandleDataUnderAnalysis()
+    {
+        return currentCandleDataUnderAnalysis;
+    }
+
+    public CandleData[] completeAnalysis()
+    {
+        CandleData candleDataResult = finishCurrentCandleAnalysis();
+        CandleData result[] = {
+            candleDataResult
+        };
+        return result;
+    }
+
+    private Period getBasicPeriod()
+    {
+        return basicPeriod;
+    }
+
+    private double round(double value)
+    {
+        return StratUtils.round(value, 8);
+    }
+
+    protected static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+    private final Period basicPeriod;
+    private CandleData currentCandleDataUnderAnalysis;
+    private CandleData previouslyAnalysedCandleData;
+
+}

@@ -1,0 +1,471 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   FilePathManager.java
+
+package com.dukascopy.dds2.greed.util;
+
+import java.io.File;
+import java.io.PrintStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Random;
+import javax.swing.filechooser.FileSystemView;
+
+// Referenced classes of package com.dukascopy.dds2.greed.util:
+//            PlatformSpecific
+
+public class FilePathManager
+{
+
+    private FilePathManager()
+    {
+        WORKSPACE_LOCK_FILE_NAME = "workspace.lck";
+        DEFAULT_WORKSPACE_FILE_NAME = "Workspace.xml";
+        SYSTEM_SETTING_FILE_NAME = "system_settings.xml";
+        LOCAL_SETTINGS_FOLDER_NAME = "Local Settings";
+        JFOREX_FOLDER_NAME = "JForex";
+        DEFAULT_WORKSPACES_FOLDER_NAME = "Workspaces";
+        DEFAULT_STRATEGIES_FOLDER_NAME = "Strategies";
+        DEFAULT_TEMPLATES_FOLDER_NAME = "Templates";
+        DEFAULT_INDICATORS_FOLDER_NAME = "Indicators";
+        DEFAULT_CACHE_FOLDER_NAME = ".cache";
+        DEFAULT_SYSTEM_SETTINGS_FOLDER_NAME = ".settings";
+        FILES = "files";
+        TEMP_FOLDER_NAME = "temp";
+    }
+
+    public static FilePathManager getInstance()
+    {
+        if(instance == null)
+            reset();
+        return instance;
+    }
+
+    public String getSystemSettingsFilePath()
+    {
+        return getSystemSettingsFolderPath() != null ? (new StringBuilder()).append(getSystemSettingsFolderPath()).append(getPathSeparator()).append(SYSTEM_SETTING_FILE_NAME).toString() : getDefaultSystemSettingsFilePath();
+    }
+
+    public String getSystemSettingsFolderPath()
+    {
+        return systemSettingsFolderPath;
+    }
+
+    public void setSystemSettingsFolderPath(String systemSettingsFolderPath)
+    {
+        this.systemSettingsFolderPath = systemSettingsFolderPath;
+    }
+
+    private String getCacheFolderPath()
+    {
+        return cacheFolderPath;
+    }
+
+    public void setCacheFolderPath(String cacheFolderPath)
+    {
+        cachedCacheDirectory = null;
+        this.cacheFolderPath = cacheFolderPath;
+    }
+
+    public void setCacheTempFolderPath(String cacheTempFolderPath)
+    {
+        this.cacheTempFolderPath = cacheTempFolderPath;
+    }
+
+    public boolean isFoldersAccessible()
+    {
+        return foldersAccessible;
+    }
+
+    public void setFoldersAccessible(boolean foldersAccessible)
+    {
+        this.foldersAccessible = foldersAccessible;
+    }
+
+    public String getWorkspacesFolderPath()
+    {
+        return workspacesFolderPath;
+    }
+
+    public void setWorkspacesFolderPath(String workspacesFolderPath)
+    {
+        this.workspacesFolderPath = workspacesFolderPath;
+    }
+
+    public String getStrategiesFolderPath()
+    {
+        return strategiesFolderPath;
+    }
+
+    public void setStrategiesFolderPath(String strategiesFolderPath)
+    {
+        this.strategiesFolderPath = strategiesFolderPath;
+    }
+
+    public String getTemplatesFolderPath()
+    {
+        return templatesFolderPath;
+    }
+
+    public void setTemplatesFolderPath(String templatesFolderPath)
+    {
+        this.templatesFolderPath = templatesFolderPath;
+    }
+
+    public String getIndicatorsFolderPath()
+    {
+        return indicatorsFolderPath;
+    }
+
+    public void setIndicatorsFolderPath(String indicatorsFolderPath)
+    {
+        this.indicatorsFolderPath = indicatorsFolderPath;
+    }
+
+    public String getPathSeparator()
+    {
+        return File.separator;
+    }
+
+    public char getPathSeparatorChar()
+    {
+        return File.separatorChar;
+    }
+
+    private String getDefaultUserDocumentsFolderPath()
+    {
+        return FileSystemView.getFileSystemView().getDefaultDirectory().getPath();
+    }
+
+    public String getDefaultTempFolderPath()
+    {
+        String defaultTempFolderPath = System.getProperty("user.home");
+        if(PlatformSpecific.WINDOWS)
+        {
+            defaultTempFolderPath = addPathSeparatorIfNeeded(defaultTempFolderPath);
+            defaultTempFolderPath = (new StringBuilder()).append(defaultTempFolderPath).append(LOCAL_SETTINGS_FOLDER_NAME).toString();
+        }
+        defaultTempFolderPath = addPathSeparatorIfNeeded(defaultTempFolderPath);
+        defaultTempFolderPath = (new StringBuilder()).append(defaultTempFolderPath).append(JFOREX_FOLDER_NAME).toString();
+        return defaultTempFolderPath;
+    }
+
+    public String addPathSeparatorIfNeeded(String path)
+    {
+        if(path == null)
+            return null;
+        if(path.isEmpty())
+            return getPathSeparator();
+        if(path.charAt(path.length() - 1) != getPathSeparatorChar())
+            return (new StringBuilder()).append(path).append(getPathSeparatorChar()).toString();
+        else
+            return path;
+    }
+
+    public String getDefaultJForexFolderPath()
+    {
+        return (new StringBuilder()).append(getDefaultUserDocumentsFolderPath()).append(getPathSeparator()).append(JFOREX_FOLDER_NAME).toString();
+    }
+
+    private String getDefaultFolder(String clientMode, String userAccountId, String folder)
+    {
+        return (new StringBuilder()).append(getDefaultJForexFolderPath()).append(getPathSeparator()).append(folder).append(getPathSeparator()).append(clientMode).append(getPathSeparator()).append(userAccountId).toString();
+    }
+
+    private String getDefaultFolder(String folder)
+    {
+        return (new StringBuilder()).append(getDefaultJForexFolderPath()).append(getPathSeparator()).append(folder).toString();
+    }
+
+    public String getDefaultWorkspaceFolderPath(String clientMode, String userAccountId)
+    {
+        return getDefaultFolder(clientMode, userAccountId, DEFAULT_WORKSPACES_FOLDER_NAME);
+    }
+
+    public String getDefaultStrategiesFolderPath()
+    {
+        return getDefaultJForexFolderPath();
+    }
+
+    public String getDefaultIndicatorsFolderPath()
+    {
+        return getDefaultJForexFolderPath();
+    }
+
+    public String getDefaultTemplatesFolderPath()
+    {
+        return getDefaultFolder(DEFAULT_TEMPLATES_FOLDER_NAME);
+    }
+
+    public String getDefaultCacheFolderPath()
+    {
+        return (new StringBuilder()).append(getDefaultTempFolderPath()).append(getPathSeparator()).append(DEFAULT_CACHE_FOLDER_NAME).toString();
+    }
+
+    public String getDefaultSystemSettingsFolderPath()
+    {
+        return (new StringBuilder()).append(getDefaultTempFolderPath()).append(getPathSeparator()).append(DEFAULT_SYSTEM_SETTINGS_FOLDER_NAME).toString();
+    }
+
+    public String getDefaultSystemSettingsFilePath()
+    {
+        return (new StringBuilder()).append(getDefaultSystemSettingsFolderPath()).append(getPathSeparator()).append(SYSTEM_SETTING_FILE_NAME).toString();
+    }
+
+    public String getDefaultWorkspaceSettingsFilePath(String clientMode, String userAccountId)
+    {
+        return (new StringBuilder()).append(getDefaultWorkspaceFolderPath(clientMode, userAccountId)).append(getPathSeparator()).append(DEFAULT_WORKSPACE_FILE_NAME).toString();
+    }
+
+    public String getAlternativeDefaultWorkspaceSettingsFilePath(String clientMode, String userAccountId)
+    {
+        return (new StringBuilder()).append(getAlternativeDefaultWorkspacesFolderPath(clientMode, userAccountId)).append(getPathSeparator()).append(DEFAULT_WORKSPACE_FILE_NAME).toString();
+    }
+
+    private String getRootForAlternativePathes()
+    {
+        return "";
+    }
+
+    private String getAlternativeUserDocumentsFolderPath()
+    {
+        return getRootForAlternativePathes();
+    }
+
+    private String getAlternativeTempFolderPath()
+    {
+        return (new StringBuilder()).append(getRootForAlternativePathes()).append(getPathSeparator()).append(TEMP_FOLDER_NAME).toString();
+    }
+
+    public String getAlternativeJForexFolderPath()
+    {
+        return (new StringBuilder()).append(getAlternativeUserDocumentsFolderPath()).append(getPathSeparator()).append(JFOREX_FOLDER_NAME).toString();
+    }
+
+    private String getAlternateDefaultFolder(String clientMode, String userAccountId, String folder)
+    {
+        return (new StringBuilder()).append(getAlternativeJForexFolderPath()).append(getPathSeparator()).append(folder).append(getPathSeparator()).append(clientMode).append(getPathSeparator()).append(userAccountId).toString();
+    }
+
+    private String getAlternateDefaultFolder(String folder)
+    {
+        return (new StringBuilder()).append(getAlternativeJForexFolderPath()).append(getPathSeparator()).append(folder).toString();
+    }
+
+    public String getAlternativeDefaultWorkspacesFolderPath(String clientMode, String userAccountId)
+    {
+        return getAlternateDefaultFolder(clientMode, userAccountId, DEFAULT_WORKSPACES_FOLDER_NAME);
+    }
+
+    public String getAlternativeDefaultTemplatesFolderPath()
+    {
+        return getAlternateDefaultFolder(DEFAULT_TEMPLATES_FOLDER_NAME);
+    }
+
+    public String getAlternativeDefaultIndicatorsFolderPath()
+    {
+        return getAlternativeJForexFolderPath();
+    }
+
+    public String getAlternativeStrategiesFolderPath()
+    {
+        return getAlternativeJForexFolderPath();
+    }
+
+    public String getAlternativeSystemSettingsFolderPath()
+    {
+        return (new StringBuilder()).append(getAlternativeTempFolderPath()).append(getPathSeparator()).append(DEFAULT_SYSTEM_SETTINGS_FOLDER_NAME).toString();
+    }
+
+    public String getAlternativeSystemSettingsFilePath()
+    {
+        return (new StringBuilder()).append(getAlternativeSystemSettingsFolderPath()).append(getPathSeparator()).append(SYSTEM_SETTING_FILE_NAME).toString();
+    }
+
+    public String getAlternativeCacheFolderPath()
+    {
+        return (new StringBuilder()).append(getAlternativeTempFolderPath()).append(getPathSeparator()).append(DEFAULT_CACHE_FOLDER_NAME).toString();
+    }
+
+    public boolean isFileFolderAccessible(String filePath)
+    {
+        File file = new File(filePath);
+        return isFolderAccessible(file.getParent());
+    }
+
+    public boolean isFolderAccessible(String folderPath)
+    {
+        File file;
+        File folder = checkAndGetFolder(folderPath);
+        Random r = new Random();
+        file = null;
+        String fileName = (new StringBuilder()).append(folder.getAbsolutePath()).append(getPathSeparator()).toString();
+        for(; file == null || file.exists(); file = new File(fileName))
+            fileName = (new StringBuilder()).append(fileName).append(String.valueOf(Math.abs(r.nextInt()))).toString();
+
+        if(!file.createNewFile())
+            break MISSING_BLOCK_LABEL_116;
+        file.delete();
+        return true;
+        file.delete();
+        return false;
+        Throwable e;
+        e;
+        return false;
+    }
+
+    public void checkFolderStructure(String path)
+    {
+        File file = new File(path);
+        if(!file.exists())
+            file.mkdirs();
+    }
+
+    public File checkAndGetFolder(String path)
+    {
+        if(path == null)
+            return null;
+        File file = new File(path);
+        if(!file.exists())
+            file.mkdirs();
+        return file;
+    }
+
+    public File getIndicatorsFolder()
+    {
+        return checkAndGetFolder(getIndicatorsFolderPath());
+    }
+
+    public File getStrategiesFolder()
+    {
+        return checkAndGetFolder(getStrategiesFolderPath());
+    }
+
+    public File getFilesForStrategiesDir()
+    {
+        File folder = getStrategiesFolder();
+        if(folder == null)
+            return null;
+        else
+            return checkAndGetFolder((new StringBuilder()).append(folder.getAbsolutePath()).append(getPathSeparator()).append(FILES).toString());
+    }
+
+    public File getWorkspacesFolder()
+    {
+        return checkAndGetFolder(getWorkspacesFolderPath());
+    }
+
+    public File getTemplatesFolder()
+    {
+        return checkAndGetFolder(getTemplatesFolderPath());
+    }
+
+    public String getCacheDirectory()
+    {
+        if(cachedCacheDirectory == null)
+        {
+            String cacheDirectory = getCacheFolderPath();
+            if(cacheDirectory == null)
+                cacheDirectory = getDefaultCacheFolderPath();
+            if(!foldersAccessible && !isFolderAccessible(cacheDirectory))
+                cacheDirectory = getAlternativeCacheFolderPath();
+            String result = cacheDirectory;
+            try
+            {
+                result = (new File(cacheDirectory)).getCanonicalPath();
+                result = addPathSeparatorIfNeeded(result);
+            }
+            catch(Throwable t) { }
+            cachedCacheDirectory = result;
+            return result;
+        } else
+        {
+            return cachedCacheDirectory;
+        }
+    }
+
+    public String getCacheTempDirectory()
+    {
+        if(cacheTempFolderPath == null)
+            return (new StringBuilder()).append(getCacheDirectory()).append(File.separatorChar).append("jftemp").toString();
+        else
+            return cacheTempFolderPath;
+    }
+
+    public static void main(String str[])
+    {
+        String temp = "c:\\My Documents\\App data\\JForex\\";
+        getInstance().setCacheFolderPath((new StringBuilder()).append(temp).append(".cache").toString());
+        getInstance().setIndicatorsFolderPath((new StringBuilder()).append(temp).append("Indicators").toString());
+        getInstance().setStrategiesFolderPath((new StringBuilder()).append(temp).append("Strategies").toString());
+        getInstance().setSystemSettingsFolderPath((new StringBuilder()).append(temp).append(".forex").toString());
+        getInstance().setTemplatesFolderPath((new StringBuilder()).append(temp).append("Templates").toString());
+        getInstance().setWorkspacesFolderPath((new StringBuilder()).append(temp).append("Workspaces").toString());
+        Method arr$[] = com/dukascopy/dds2/greed/util/FilePathManager.getMethods();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Method m = arr$[i$];
+            if(!m.getName().startsWith("get"))
+                continue;
+            try
+            {
+                System.out.println((new StringBuilder()).append(m.getName()).append(" - ").append(m.invoke(getInstance(), (Object[])null)).toString());
+            }
+            catch(IllegalArgumentException e)
+            {
+                e.printStackTrace();
+            }
+            catch(IllegalAccessException e)
+            {
+                e.printStackTrace();
+            }
+            catch(InvocationTargetException e)
+            {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    public String getWorkspacesFileName()
+    {
+        return workspacesFileName;
+    }
+
+    public void setWorkspacesFileName(String workspacesFileName)
+    {
+        this.workspacesFileName = workspacesFileName;
+    }
+
+    public static void reset()
+    {
+        instance = new FilePathManager();
+    }
+
+    private static FilePathManager instance;
+    public String WORKSPACE_LOCK_FILE_NAME;
+    public String DEFAULT_WORKSPACE_FILE_NAME;
+    public String SYSTEM_SETTING_FILE_NAME;
+    public String LOCAL_SETTINGS_FOLDER_NAME;
+    public String JFOREX_FOLDER_NAME;
+    public String DEFAULT_WORKSPACES_FOLDER_NAME;
+    public String DEFAULT_STRATEGIES_FOLDER_NAME;
+    public String DEFAULT_TEMPLATES_FOLDER_NAME;
+    public String DEFAULT_INDICATORS_FOLDER_NAME;
+    public String DEFAULT_CACHE_FOLDER_NAME;
+    public String DEFAULT_SYSTEM_SETTINGS_FOLDER_NAME;
+    public String FILES;
+    private String TEMP_FOLDER_NAME;
+    private String systemSettingsFolderPath;
+    private String workspacesFolderPath;
+    private String workspacesFileName;
+    private String strategiesFolderPath;
+    private String templatesFolderPath;
+    private String indicatorsFolderPath;
+    private String cacheFolderPath;
+    private String cacheTempFolderPath;
+    private String cachedCacheDirectory;
+    private boolean foldersAccessible;
+}

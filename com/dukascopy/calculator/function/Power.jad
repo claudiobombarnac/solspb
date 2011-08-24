@@ -1,0 +1,44 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   Power.java
+
+package com.dukascopy.calculator.function;
+
+import com.dukascopy.calculator.OObject;
+
+// Referenced classes of package com.dukascopy.calculator.function:
+//            DFunction
+
+public class Power extends DFunction
+{
+
+    public Power()
+    {
+        ftooltip = "sc.calculator.power.function";
+        fshortcut = '^';
+    }
+
+    public double function(double x, double y)
+    {
+        if(y >= 0.0D)
+            return Math.pow(x, y);
+        else
+            return 1.0D / Math.pow(x, -y);
+    }
+
+    public OObject function(OObject x, OObject y)
+    {
+        return x.pow(y);
+    }
+
+    public String[] name_array()
+    {
+        return fname;
+    }
+
+    private static final String fname[] = {
+        "^"
+    };
+
+}

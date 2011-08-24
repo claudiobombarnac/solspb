@@ -1,0 +1,945 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IndicatorsProvider.java
+
+package com.dukascopy.charts.math.indicators;
+
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.impl.CustIndicatorWrapper;
+import com.dukascopy.api.impl.IndicatorContext;
+import com.dukascopy.api.impl.IndicatorHolder;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.impl.TaLibIndicator;
+import com.dukascopy.api.impl.TaLibMetaData;
+import com.dukascopy.api.impl.talib.FuncInfoHolder;
+import com.dukascopy.api.impl.talib.TaGrpService;
+import com.dukascopy.api.indicators.BooleanOptInputDescription;
+import com.dukascopy.api.indicators.DoubleListDescription;
+import com.dukascopy.api.indicators.DoubleRangeDescription;
+import com.dukascopy.api.indicators.IDrawingIndicator;
+import com.dukascopy.api.indicators.IIndicator;
+import com.dukascopy.api.indicators.IIndicatorDrawingSupport;
+import com.dukascopy.api.indicators.IIndicatorsProvider;
+import com.dukascopy.api.indicators.IMinMax;
+import com.dukascopy.api.indicators.IndicatorInfo;
+import com.dukascopy.api.indicators.InputParameterInfo;
+import com.dukascopy.api.indicators.IntegerListDescription;
+import com.dukascopy.api.indicators.IntegerRangeDescription;
+import com.dukascopy.api.indicators.OptInputDescription;
+import com.dukascopy.api.indicators.OptInputParameterInfo;
+import com.dukascopy.api.indicators.OutputParameterInfo;
+import com.dukascopy.charts.persistence.EnabledIndicatorBean;
+import com.dukascopy.charts.persistence.SettingsStorage;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import com.dukascopy.dds2.greed.util.IndicatorHelper;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import com.dukascopy.indicators.ACIndicator;
+import com.dukascopy.indicators.APOscillator;
+import com.dukascopy.indicators.AlligatorIndicator;
+import com.dukascopy.indicators.AwesomeOscillator;
+import com.dukascopy.indicators.BWMFIIndicator;
+import com.dukascopy.indicators.BearPowerIndicator;
+import com.dukascopy.indicators.BollingerBands;
+import com.dukascopy.indicators.BullsPowerIndicator;
+import com.dukascopy.indicators.ButterworthFilterIndicator;
+import com.dukascopy.indicators.CamarillaPivotIndicator;
+import com.dukascopy.indicators.CenterOfGravityIndicator;
+import com.dukascopy.indicators.DMIOscillator;
+import com.dukascopy.indicators.DonchianChannel;
+import com.dukascopy.indicators.EMAEnvelopesIndicator;
+import com.dukascopy.indicators.EnvelopesIndicator;
+import com.dukascopy.indicators.FibonacciPivotIndicator;
+import com.dukascopy.indicators.ForceIndicator;
+import com.dukascopy.indicators.FractalIndicator;
+import com.dukascopy.indicators.FractalLinesIndicator;
+import com.dukascopy.indicators.GatorIndicator;
+import com.dukascopy.indicators.HMAIndicator;
+import com.dukascopy.indicators.HeikinAshiIndicator;
+import com.dukascopy.indicators.IchimokuIndicator;
+import com.dukascopy.indicators.KairiIndicator;
+import com.dukascopy.indicators.KeltnerChannel;
+import com.dukascopy.indicators.LWMAIndicator;
+import com.dukascopy.indicators.LaguerreACS1;
+import com.dukascopy.indicators.MACDEXTIndicator;
+import com.dukascopy.indicators.MAIndicator;
+import com.dukascopy.indicators.MAVPIndicator;
+import com.dukascopy.indicators.MAXIndicator;
+import com.dukascopy.indicators.MINIndicator;
+import com.dukascopy.indicators.MurreyChannelsIndicator;
+import com.dukascopy.indicators.OsMAIndicator;
+import com.dukascopy.indicators.PPOscillator;
+import com.dukascopy.indicators.PercentBollingerBands;
+import com.dukascopy.indicators.PivotIndicator;
+import com.dukascopy.indicators.PriceChannelIndicator;
+import com.dukascopy.indicators.RCIIndicator;
+import com.dukascopy.indicators.RMIIndicator;
+import com.dukascopy.indicators.RSIIndicator;
+import com.dukascopy.indicators.RelativeVigorIndicator;
+import com.dukascopy.indicators.SMMAIndicator;
+import com.dukascopy.indicators.StochasticFastIndicator;
+import com.dukascopy.indicators.StochasticIndicator;
+import com.dukascopy.indicators.StochasticRSIIndicator;
+import com.dukascopy.indicators.SupportResistanceIndicator;
+import com.dukascopy.indicators.TD_IIndicator;
+import com.dukascopy.indicators.TD_Sequential;
+import com.dukascopy.indicators.TimeSegmentedVolumeIndicator;
+import com.dukascopy.indicators.TrendEnvelopesIndicator;
+import com.dukascopy.indicators.VolumeEXTIndicator;
+import com.dukascopy.indicators.VolumeIndicator;
+import com.dukascopy.indicators.VolumeWAP;
+import com.dukascopy.indicators.WSMTimeIndicator;
+import com.dukascopy.indicators.WaddahAttarTrend;
+import com.dukascopy.indicators.WoodiePivotIndicator;
+import com.dukascopy.indicators.ZigZagIndicator;
+import com.dukascopy.indicators.pattern.AscendingTrianglePatternIndicator;
+import com.dukascopy.indicators.pattern.ChannelDownPatternIndicator;
+import com.dukascopy.indicators.pattern.ChannelUpPatternIndicator;
+import com.dukascopy.indicators.pattern.DescendingTrianglePatternIndicator;
+import com.dukascopy.indicators.pattern.DoubleBottomPatternIndicator;
+import com.dukascopy.indicators.pattern.DoubleTopPatternIndicator;
+import com.dukascopy.indicators.pattern.FallingWedgePatternIndicator;
+import com.dukascopy.indicators.pattern.HeadAndShouldersPatternIndicator;
+import com.dukascopy.indicators.pattern.InverseHeadAndShouldersPatternIndicator;
+import com.dukascopy.indicators.pattern.InverseRectanglePatternIndicator;
+import com.dukascopy.indicators.pattern.PennantPatternIndicator;
+import com.dukascopy.indicators.pattern.RectanglePatternIndicator;
+import com.dukascopy.indicators.pattern.RisingWedgePatternIndicator;
+import com.dukascopy.indicators.pattern.TrianglePatternIndicator;
+import com.dukascopy.indicators.pattern.TripleBottomPatternIndicator;
+import com.dukascopy.indicators.pattern.TripleTopPatternIndicator;
+import com.dukascopy.indicators.patterns.MorningDojiStarPattern;
+import com.dukascopy.indicators.patterns.ThrustBarPattern;
+import com.dukascopy.indicators.patterns.ThrustOutsideBarPattern;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Stroke;
+import java.io.File;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.math.indicators:
+//            IndicatorsFilter
+
+public class IndicatorsProvider
+    implements IIndicatorsProvider
+{
+
+    public static void createInstance(SettingsStorage settingsStorage)
+    {
+        indicatorsProvider = new IndicatorsProvider(settingsStorage);
+        indicatorsProvider.init();
+    }
+
+    private IndicatorsProvider(SettingsStorage settingsStorage)
+    {
+        taLibIndicatorGroups = new HashSet();
+        dukascopyIndicatorGroups = new HashSet();
+        customIndicatorGroups = new HashSet();
+        groupToTaLibIndicators = new HashMap();
+        groupToDukascopyIndicators = new HashMap();
+        groupToCustomIndicators = new HashMap();
+        taLibIndicatorNames = new HashSet();
+        dukascopyIndicatorNames = new HashSet();
+        customIndicatorNames = new HashSet();
+        dukascopyIndicatorTitles = new HashMap();
+        customIndicatorTitles = new HashMap();
+        nameToCustIndWrapper = new HashMap();
+        binFileToCustIndName = new HashMap();
+        nameToDukaIndClass = new HashMap();
+        this.settingsStorage = settingsStorage;
+    }
+
+    public static IndicatorsProvider getInstance()
+    {
+        return indicatorsProvider;
+    }
+
+    private void init()
+    {
+        try
+        {
+            TaLibMetaData.forEachGrp(new TaGrpService() {
+
+                public void execute(String group, Set functions)
+                    throws Exception
+                {
+                    taLibIndicatorGroups.add(group);
+                    Set indicators = new HashSet();
+                    String name;
+                    for(Iterator i$ = functions.iterator(); i$.hasNext(); taLibIndicatorNames.add(name))
+                    {
+                        TaLibMetaData coreMetaData = (TaLibMetaData)i$.next();
+                        name = coreMetaData.getFuncInfo().name;
+                        indicators.add(name);
+                    }
+
+                    groupToTaLibIndicators.put(group, indicators);
+                }
+
+                final IndicatorsProvider this$0;
+
+            
+            {
+                this$0 = IndicatorsProvider.this;
+                super();
+            }
+            });
+            performRegistration(new TD_IIndicator());
+            performRegistration(new VolumeIndicator());
+            performRegistration(new TD_Sequential());
+            performRegistration(new AwesomeOscillator());
+            performRegistration(new WaddahAttarTrend());
+            performRegistration(new VolumeWAP());
+            performRegistration(new SMMAIndicator());
+            performRegistration(new AlligatorIndicator());
+            performRegistration(new FractalIndicator());
+            performRegistration(new SupportResistanceIndicator());
+            performRegistration(new RelativeVigorIndicator());
+            performRegistration(new ZigZagIndicator());
+            performRegistration(new HeikinAshiIndicator());
+            performRegistration(new ButterworthFilterIndicator());
+            performRegistration(new EnvelopesIndicator());
+            performRegistration(new EMAEnvelopesIndicator());
+            performRegistration(new IchimokuIndicator());
+            performRegistration(new TimeSegmentedVolumeIndicator());
+            performRegistration(new PivotIndicator());
+            performRegistration(new PriceChannelIndicator());
+            performRegistration(new CamarillaPivotIndicator());
+            performRegistration(new BWMFIIndicator());
+            performRegistration(new BullsPowerIndicator());
+            performRegistration(new BearPowerIndicator());
+            performRegistration(new ForceIndicator());
+            performRegistration(new GatorIndicator());
+            performRegistration(new OsMAIndicator());
+            performRegistration(new ACIndicator());
+            performRegistration(new DMIOscillator());
+            performRegistration(new KeltnerChannel());
+            performRegistration(new WoodiePivotIndicator());
+            performRegistration(new FibonacciPivotIndicator());
+            performRegistration(new MurreyChannelsIndicator());
+            performRegistration(new LaguerreACS1());
+            performRegistration(new WSMTimeIndicator());
+            performRegistration(new DonchianChannel());
+            performRegistration(new KairiIndicator());
+            performRegistration(new CenterOfGravityIndicator());
+            performRegistration(new VolumeEXTIndicator());
+            performRegistration(new MAIndicator());
+            performRegistration(new StochasticRSIIndicator());
+            performRegistration(new StochasticFastIndicator());
+            performRegistration(new StochasticIndicator());
+            performRegistration(new APOscillator());
+            performRegistration(new PPOscillator());
+            performRegistration(new MAVPIndicator());
+            performRegistration(new MACDEXTIndicator());
+            performRegistration(new BollingerBands());
+            performRegistration(new RMIIndicator());
+            performRegistration(new RSIIndicator());
+            performRegistration(new MINIndicator());
+            performRegistration(new MAXIndicator());
+            performRegistration(new PercentBollingerBands());
+            performRegistration(new RCIIndicator());
+            performRegistration(new HMAIndicator());
+            performRegistration(new FractalLinesIndicator());
+            performRegistration(new MorningDojiStarPattern());
+            performRegistration(new ThrustBarPattern());
+            performRegistration(new ThrustOutsideBarPattern());
+            performRegistration(new HeadAndShouldersPatternIndicator());
+            performRegistration(new InverseHeadAndShouldersPatternIndicator());
+            performRegistration(new DoubleTopPatternIndicator());
+            performRegistration(new DoubleBottomPatternIndicator());
+            performRegistration(new RectanglePatternIndicator());
+            performRegistration(new InverseRectanglePatternIndicator());
+            performRegistration(new TripleTopPatternIndicator());
+            performRegistration(new TripleBottomPatternIndicator());
+            performRegistration(new TrianglePatternIndicator());
+            performRegistration(new AscendingTrianglePatternIndicator());
+            performRegistration(new DescendingTrianglePatternIndicator());
+            performRegistration(new PennantPatternIndicator());
+            performRegistration(new FallingWedgePatternIndicator());
+            performRegistration(new RisingWedgePatternIndicator());
+            performRegistration(new ChannelUpPatternIndicator());
+            performRegistration(new ChannelDownPatternIndicator());
+            performRegistration(new LWMAIndicator());
+            performRegistration(new TrendEnvelopesIndicator());
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    private void performRegistration(IIndicator indicator)
+    {
+        registerIndicator(indicator, NotificationUtilsProvider.getNotificationUtils(), true);
+        nameToDukaIndClass.put(indicator.getIndicatorInfo().getName().toUpperCase(), indicator.getClass());
+    }
+
+    public void registerIndicatorsFromPrefs()
+    {
+        if(settingsStorage == null)
+            return;
+        java.util.List enabledIndicators = settingsStorage.getEnabledIndicators();
+        Iterator i$ = enabledIndicators.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            EnabledIndicatorBean enabledIndicator = (EnabledIndicatorBean)i$.next();
+            try
+            {
+                String fileName = enabledIndicator.getBinaryFullFileName();
+                if(fileName != null)
+                {
+                    File binFile = new File(fileName);
+                    if(binFile.exists())
+                    {
+                        CustIndicatorWrapper indicatorWrapper = new CustIndicatorWrapper();
+                        indicatorWrapper.setBinaryFile(binFile);
+                        if(enableIndicator(indicatorWrapper, NotificationUtilsProvider.getNotificationUtils()) == null)
+                            settingsStorage.removeEnabledIndicator(enabledIndicator);
+                    }
+                }
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        } while(true);
+    }
+
+    public boolean isEnabledOnCharts(String indicatorName)
+    {
+        indicatorName = indicatorName.toUpperCase();
+        return !taLibIndicatorNames.contains(indicatorName) || IndicatorsFilter.getTitle(indicatorName) != null;
+    }
+
+    public Collection getAllNames()
+    {
+        Collection indicatorNames = new HashSet(taLibIndicatorNames.size() + dukascopyIndicatorNames.size() + customIndicatorNames.size());
+        indicatorNames.addAll(taLibIndicatorNames);
+        indicatorNames.addAll(dukascopyIndicatorNames);
+        indicatorNames.addAll(customIndicatorNames);
+        return indicatorNames;
+    }
+
+    public Collection getGroups()
+    {
+        Collection indicatorGroups = new HashSet(taLibIndicatorGroups.size() + dukascopyIndicatorGroups.size() + customIndicatorGroups.size());
+        indicatorGroups.addAll(taLibIndicatorGroups);
+        indicatorGroups.addAll(dukascopyIndicatorGroups);
+        indicatorGroups.addAll(customIndicatorGroups);
+        return indicatorGroups;
+    }
+
+    public Collection getCustomIndicatorGroups()
+    {
+        return Collections.unmodifiableCollection(customIndicatorGroups);
+    }
+
+    public IIndicator getIndicator(String name)
+    {
+        IndicatorHolder indicatorHolder = getIndicatorHolder(name);
+        if(indicatorHolder != null)
+            return getIndicatorHolder(name).getIndicator();
+        else
+            return null;
+    }
+
+    public IndicatorHolder getIndicatorHolder(String name)
+    {
+        name = name.toUpperCase();
+        if(dukascopyIndicatorNames.contains(name))
+        {
+            Class clazz = (Class)nameToDukaIndClass.get(name);
+            IIndicator indicator;
+            try
+            {
+                indicator = (IIndicator)clazz.newInstance();
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+                return null;
+            }
+            IndicatorContext indicatorContext = IndicatorHelper.createIndicatorContext();
+            try
+            {
+                indicator.onStart(indicatorContext);
+            }
+            catch(AbstractMethodError e) { }
+            return new IndicatorHolder(indicator, indicatorContext);
+        }
+        if(!taLibIndicatorNames.contains(name))
+            break MISSING_BLOCK_LABEL_142;
+        return new IndicatorHolder(new TaLibIndicator(TaLibMetaData.getInstance(name)), IndicatorHelper.createIndicatorContext());
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return null;
+        if(customIndicatorNames.contains(name))
+        {
+            CustIndicatorWrapper custIndicatorWrapper = (CustIndicatorWrapper)nameToCustIndWrapper.get(name);
+            IIndicator indicator = custIndicatorWrapper.getIndicator();
+            IndicatorContext indicatorContext = IndicatorHelper.createIndicatorContext();
+            try
+            {
+                indicator.onStart(indicatorContext);
+            }
+            catch(AbstractMethodError e)
+            {
+                NotificationUtilsProvider.getNotificationUtils().postWarningMessage("onStart method not implemented in indicator, implement it and recompile indicator", true);
+            }
+            return new IndicatorHolder(indicator, indicatorContext);
+        } else
+        {
+            return null;
+        }
+    }
+
+    public boolean isIndicatorRegistered(String name)
+    {
+        name = name.toUpperCase();
+        return taLibIndicatorNames.contains(name) || customIndicatorNames.contains(name) || dukascopyIndicatorNames.contains(name);
+    }
+
+    public Collection getNames(String groupName)
+    {
+        Collection taLibGroup = (Collection)groupToTaLibIndicators.get(groupName);
+        Collection dukascopyIndicatorsGroup = (Collection)groupToDukascopyIndicators.get(groupName);
+        Collection customIndicatorsGroup = (Collection)groupToCustomIndicators.get(groupName);
+        if(taLibGroup == null && dukascopyIndicatorsGroup == null && customIndicatorsGroup == null)
+            return null;
+        Collection indicatorGroups = new HashSet();
+        if(taLibGroup != null)
+            indicatorGroups.addAll(taLibGroup);
+        if(dukascopyIndicatorsGroup != null)
+            indicatorGroups.addAll(dukascopyIndicatorsGroup);
+        if(customIndicatorsGroup != null)
+            indicatorGroups.addAll(customIndicatorsGroup);
+        return indicatorGroups;
+    }
+
+    public void registerUserIndicator(File compiledCustomIndcatorFile)
+        throws JFException
+    {
+        if(compiledCustomIndcatorFile == null || !compiledCustomIndcatorFile.canExecute())
+            throw new JFException((new StringBuilder()).append("Given file: ").append(compiledCustomIndcatorFile.getAbsolutePath()).append(" does not exists or can't be executed").toString());
+        CustIndicatorWrapper custIndicatorWrapper = new CustIndicatorWrapper();
+        custIndicatorWrapper.setBinaryFile(compiledCustomIndcatorFile);
+        String indicatorName = enableIndicator(custIndicatorWrapper, NotificationUtilsProvider.getNotificationUtils());
+        if(indicatorName == null)
+            throw new JFException((new StringBuilder()).append("Error while loading indicator file: ").append(compiledCustomIndcatorFile.getAbsolutePath()).toString());
+        else
+            return;
+    }
+
+    public Collection getBuildInIndicatorNames()
+    {
+        Collection indicatorNames = new HashSet(taLibIndicatorNames.size() + dukascopyIndicatorNames.size() + customIndicatorNames.size());
+        indicatorNames.addAll(taLibIndicatorNames);
+        indicatorNames.addAll(dukascopyIndicatorNames);
+        return indicatorNames;
+    }
+
+    public Collection getCustomIndictorNames()
+    {
+        Collection indicatorNames = new HashSet(customIndicatorNames.size());
+        indicatorNames.addAll(customIndicatorNames);
+        return indicatorNames;
+    }
+
+    public String getTitle(String name)
+    {
+        name = name.toUpperCase();
+        if(taLibIndicatorNames.contains(name))
+            return IndicatorsFilter.getTitle(name);
+        if(customIndicatorNames.contains(name))
+            return (String)customIndicatorTitles.get(name);
+        if(dukascopyIndicatorNames.contains(name))
+            return (String)dukascopyIndicatorTitles.get(name);
+        else
+            return null;
+    }
+
+    public String enableIndicator(CustIndicatorWrapper custIndicatorWrapper, INotificationUtils notificationUtils)
+    {
+        custIndicatorWrapper.reinit();
+        if(!custIndicatorWrapper.requestFullAccess())
+            return null;
+        break MISSING_BLOCK_LABEL_63;
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        NotificationUtilsProvider.getNotificationUtils().postErrorMessage((new StringBuilder()).append("Error while loading indicator: ").append(e.getMessage()).toString(), true);
+        return null;
+        disableIndicator(custIndicatorWrapper.getBinaryFile());
+        IIndicator indicator = custIndicatorWrapper.getIndicator();
+        if(registerIndicator(indicator, notificationUtils, false))
+        {
+            String name = indicator.getIndicatorInfo().getName().toUpperCase();
+            nameToCustIndWrapper.put(name, custIndicatorWrapper);
+            binFileToCustIndName.put(custIndicatorWrapper.getBinaryFile(), name);
+            if(settingsStorage != null)
+                settingsStorage.saveEnabledIndicator(new EnabledIndicatorBean(name, custIndicatorWrapper.getSourceFile(), custIndicatorWrapper.getBinaryFile()));
+            return name;
+        } else
+        {
+            return null;
+        }
+    }
+
+    private boolean registerIndicator(IIndicator indicator, INotificationUtils notificationUtils, boolean dukascopy)
+    {
+        Throwable e;
+        if(indicator == null)
+        {
+            notificationUtils.postErrorMessage("Cannot instantiate indicator", true);
+            return false;
+        }
+        try
+        {
+            indicator.onStart(IndicatorHelper.createIndicatorContext());
+        }
+        // Misplaced declaration of an exception variable
+        catch(Throwable e)
+        {
+            NotificationUtilsProvider.getNotificationUtils().postWarningMessage("onStart method not implemented in indicator, implement it and recompile indicator", true);
+        }
+        // Misplaced declaration of an exception variable
+        catch(Throwable e)
+        {
+            notificationUtils.postErrorMessage((new StringBuilder()).append("Exception in onStart method: ").append(StrategyWrapper.representError(indicator, e)).toString(), e, true);
+            return false;
+        }
+        if(!validateIndicator(indicator, notificationUtils, dukascopy))
+            return false;
+        break MISSING_BLOCK_LABEL_134;
+        e;
+        notificationUtils.postErrorMessage((new StringBuilder()).append("Exception while validating indicator: ").append(StrategyWrapper.representError(indicator, e)).toString(), e, true);
+        return false;
+        String name = indicator.getIndicatorInfo().getName().toUpperCase();
+        String group = indicator.getIndicatorInfo().getGroupName();
+        if(dukascopy)
+            dukascopyIndicatorGroups.add(group);
+        else
+            customIndicatorGroups.add(group);
+        Set indicators = dukascopy ? (Set)groupToDukascopyIndicators.get(group) : (Set)groupToCustomIndicators.get(group);
+        if(indicators == null)
+        {
+            indicators = new HashSet();
+            if(dukascopy)
+                groupToDukascopyIndicators.put(group, indicators);
+            else
+                groupToCustomIndicators.put(group, indicators);
+        }
+        indicators.add(name);
+        if(dukascopy)
+        {
+            dukascopyIndicatorNames.add(name);
+            dukascopyIndicatorTitles.put(name, indicator.getIndicatorInfo().getTitle());
+        } else
+        {
+            customIndicatorNames.add(name);
+            customIndicatorTitles.put(name, indicator.getIndicatorInfo().getTitle());
+        }
+        return true;
+    }
+
+    public void disableIndicator(File binIndicatorFile)
+    {
+        String name = (String)binFileToCustIndName.remove(binIndicatorFile);
+        disableIndicator(name);
+    }
+
+    public void disableIndicator(String name)
+    {
+        CustIndicatorWrapper custIndicatorWrapper = (CustIndicatorWrapper)nameToCustIndWrapper.remove(name);
+        if(custIndicatorWrapper == null)
+            return;
+        IIndicator indicator = custIndicatorWrapper.getIndicator();
+        try
+        {
+            indicator.onStart(IndicatorHelper.createIndicatorContext());
+        }
+        catch(AbstractMethodError e)
+        {
+            NotificationUtilsProvider.getNotificationUtils().postWarningMessage("onStart method not implemented in indicator, implement it and recompile indicator", true);
+        }
+        String group = indicator.getIndicatorInfo().getGroupName();
+        customIndicatorTitles.remove(name);
+        customIndicatorNames.remove(name);
+        Set indicators = (Set)groupToCustomIndicators.get(group);
+        indicators.remove(name);
+        if(indicators.isEmpty())
+        {
+            groupToCustomIndicators.remove(group);
+            customIndicatorGroups.remove(group);
+        }
+        if(settingsStorage != null)
+            settingsStorage.removeEnabledIndicator(new EnabledIndicatorBean(name, custIndicatorWrapper.getSourceFile(), custIndicatorWrapper.getBinaryFile()));
+    }
+
+    private boolean validateIndicator(IIndicator indicator, INotificationUtils notificationUtils, boolean dukascopy)
+    {
+        IndicatorInfo indicatorInfo = indicator.getIndicatorInfo();
+        if(indicatorInfo == null)
+        {
+            notificationUtils.postErrorMessage("Cannot enable indicator, getIndicatorInfo returns null", true);
+            return false;
+        }
+        String name = indicatorInfo.getName().toUpperCase();
+        if(!dukascopy && getAllNames().contains(name))
+            if(nameToCustIndWrapper.containsKey(name))
+            {
+                disableIndicator(name);
+            } else
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, another indicator with name [").append(name).append("] already registered in the system").toString(), true);
+                return false;
+            }
+        if(indicatorInfo.getGroupName() == null)
+        {
+            notificationUtils.postErrorMessage("Cannot enable indicator, getGroupName returns null", true);
+            return false;
+        }
+        if(indicatorInfo.isOverChart() && indicatorInfo.isOverVolumes())
+        {
+            notificationUtils.postErrorMessage("Cannot enable indicator, both isOverChart and isOverVolumes return true", true);
+            return false;
+        }
+        int numberOfInputs = indicatorInfo.getNumberOfInputs();
+        if(numberOfInputs < 0)
+        {
+            notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getNumberOfInputs returns [").append(numberOfInputs).append("]").toString(), true);
+            return false;
+        }
+        int numberOfOptionalInputs = indicatorInfo.getNumberOfOptionalInputs();
+        if(numberOfOptionalInputs < 0)
+        {
+            notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getNumberOfOptionalInputs returns [").append(numberOfOptionalInputs).append("]").toString(), true);
+            return false;
+        }
+        int numberOfOutputs = indicatorInfo.getNumberOfOutputs();
+        if(numberOfOutputs < 1)
+        {
+            notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getNumberOfOutputs returns [").append(numberOfOutputs).append("]").toString(), true);
+            return false;
+        }
+        for(int i = 0; i < numberOfInputs; i++)
+        {
+            InputParameterInfo inputInfo = indicator.getInputParameterInfo(i);
+            if(inputInfo == null)
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getInputParameterInfo for input parameter with index [").append(i).append("] returns null").toString(), true);
+                return false;
+            }
+            if(inputInfo.getType() == null)
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getType for input parameter with index [").append(i).append("] returns null").toString(), true);
+                return false;
+            }
+        }
+
+        for(int i = 0; i < numberOfOptionalInputs; i++)
+        {
+            OptInputParameterInfo optInputInfo = indicator.getOptInputParameterInfo(i);
+            if(optInputInfo == null)
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getOptInputParameterInfo for optional input parameter with index [").append(i).append("] returns null").toString(), true);
+                return false;
+            }
+            OptInputDescription description = optInputInfo.getDescription();
+            if(description == null)
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDescription for optional input parameter with index [").append(i).append("] returns null").toString(), true);
+                return false;
+            }
+            if(!(description instanceof IntegerListDescription) && !(description instanceof IntegerRangeDescription) && !(description instanceof DoubleListDescription) && !(description instanceof DoubleRangeDescription) && !(description instanceof BooleanOptInputDescription))
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDescription for optional input parameter with index [").append(i).append("] returns object that is not one of the allowed classes").toString(), true);
+                return false;
+            }
+            if(description instanceof IntegerListDescription)
+            {
+                IntegerListDescription ilDescription = (IntegerListDescription)description;
+                int values[] = ilDescription.getValues();
+                if(values == null)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getValues of description for optional input parameter with index [").append(i).append("] returns null").toString(), true);
+                    return false;
+                }
+                String valueNames[] = ilDescription.getValueNames();
+                if(valueNames == null)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getValueNames of description for optional input parameter with index [").append(i).append("] returns null").toString(), true);
+                    return false;
+                }
+                if(values.length != valueNames.length)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getValueNames and getValues of description for optional input parameter with index [").append(i).append("] returns arrays of different length").toString(), true);
+                    return false;
+                }
+                int defaultValue = ilDescription.getDefaultValue();
+                boolean found = false;
+                int arr$[] = values;
+                int len$ = arr$.length;
+                int i$ = 0;
+                do
+                {
+                    if(i$ >= len$)
+                        break;
+                    int value = arr$[i$];
+                    if(value == defaultValue)
+                    {
+                        found = true;
+                        break;
+                    }
+                    i$++;
+                } while(true);
+                if(!found)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDefaultValue of description for optional input parameter with index [").append(i).append("] returns value that is not part of available values returned by getValues method").toString(), true);
+                    return false;
+                }
+                continue;
+            }
+            if(description instanceof DoubleListDescription)
+            {
+                DoubleListDescription dlDescription = (DoubleListDescription)description;
+                double values[] = dlDescription.getValues();
+                if(values == null)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getValues of description for optional input parameter with index [").append(i).append("] returns null").toString(), true);
+                    return false;
+                }
+                String valueNames[] = dlDescription.getValueNames();
+                if(valueNames == null)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getValueNames of description for optional input parameter with index [").append(i).append("] returns null").toString(), true);
+                    return false;
+                }
+                if(values.length != valueNames.length)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getValueNames and getValues of description for optional input parameter with index [").append(i).append("] returns arrays of different length").toString(), true);
+                    return false;
+                }
+                double defaultValue = dlDescription.getDefaultValue();
+                boolean found = false;
+                double arr$[] = values;
+                int len$ = arr$.length;
+                int i$ = 0;
+                do
+                {
+                    if(i$ >= len$)
+                        break;
+                    double value = arr$[i$];
+                    if(value == defaultValue)
+                    {
+                        found = true;
+                        break;
+                    }
+                    i$++;
+                } while(true);
+                if(!found)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDefaultValue of description for optional input parameter with index [").append(i).append("] returns value that is not part of available values returned by getValues method").toString(), true);
+                    return false;
+                }
+                continue;
+            }
+            if(description instanceof IntegerRangeDescription)
+            {
+                IntegerRangeDescription irDescription = (IntegerRangeDescription)description;
+                int min = irDescription.getMin();
+                int max = irDescription.getMax();
+                if(min > max)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getMin is bigger than getMax of description for optional input parameter with index [").append(i).append("]").toString(), true);
+                    return false;
+                }
+                int defaultValue = irDescription.getDefaultValue();
+                if(defaultValue < min || defaultValue > max)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDefaultValue of description for optional input parameter with index [").append(i).append("] returns value that is not in range of getMin and getMax").toString(), true);
+                    return false;
+                }
+                int increment = irDescription.getSuggestedIncrement();
+                if(min != max && increment == 0)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getSuggestedIncrement of description for optional input parameter with index [").append(i).append("] returns zero").toString(), true);
+                    return false;
+                }
+                if(min == max && increment != 0)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getSuggestedIncrement of description for optional input parameter with index [").append(i).append("] returns non zero while getMin == getMax").toString(), true);
+                    return false;
+                }
+                if(min != max && increment > max - min)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getSuggestedIncrement of description for optional input parameter with index [").append(i).append("] returns value that is bigger than getMax - getMin").toString(), true);
+                    return false;
+                }
+                continue;
+            }
+            if(description instanceof DoubleRangeDescription)
+            {
+                DoubleRangeDescription drDescription = (DoubleRangeDescription)description;
+                double min = drDescription.getMin();
+                double max = drDescription.getMax();
+                if(min > max)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getMin is bigger than getMax of description for optional input parameter with index [").append(i).append("]").toString(), true);
+                    return false;
+                }
+                double defaultValue = drDescription.getDefaultValue();
+                if(defaultValue < min || defaultValue > max)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDefaultValue of description for optional input parameter with index [").append(i).append("] returns value that is not in range of getMin and getMax").toString(), true);
+                    return false;
+                }
+                double increment = drDescription.getSuggestedIncrement();
+                if(min != max && increment == 0.0D)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getSuggestedIncrement of description for optional input parameter with index [").append(i).append("] returns zero").toString(), true);
+                    return false;
+                }
+                if(min == max && increment != 0.0D)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getSuggestedIncrement of description for optional input parameter with index [").append(i).append("] returns non zero while getMin == getMax").toString(), true);
+                    return false;
+                }
+                if(min != max && increment > max - min)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getSuggestedIncrement of description for optional input parameter with index [").append(i).append("] returns value that is bigger than getMax - getMin").toString(), true);
+                    return false;
+                }
+                int precision = drDescription.getPrecision();
+                if(precision < 0 || precision > 10)
+                {
+                    notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getPrecision of description for optional input parameter with index [").append(i).append("] returns value that is either less than zero or bigger than 10").toString(), true);
+                    return false;
+                }
+            } else
+            if(!(description instanceof BooleanOptInputDescription));
+        }
+
+        for(int i = 0; i < numberOfOutputs; i++)
+        {
+            OutputParameterInfo outputInfo = indicator.getOutputParameterInfo(i);
+            if(outputInfo == null)
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getOutputParameterInfo for output parameter with index [").append(i).append("] returns null").toString(), true);
+                return false;
+            }
+            if(outputInfo.getType() == null)
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getType for output parameter with index [").append(i).append("] returns null").toString(), true);
+                return false;
+            }
+            com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle drawingStyle = outputInfo.getDrawingStyle();
+            if(indicatorInfo.isOverChart() && drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.HISTOGRAM)
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDrawingStyle for output parameter with index [").append(i).append("] returns style that is not compatible with \"over chart\" indicator").toString(), true);
+                return false;
+            }
+            if(indicatorInfo.isOverVolumes() && (drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.HISTOGRAM || drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.PATTERN_BOOL || drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.PATTERN_BULL_BEAR || drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.PATTERN_STRENGTH))
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDrawingStyle for output parameter with index [").append(i).append("] returns style that is not compatible with \"over volumes\" indicator").toString(), true);
+                return false;
+            }
+            if((drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.PATTERN_BOOL || drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.PATTERN_BULL_BEAR || drawingStyle == com.dukascopy.api.indicators.OutputParameterInfo.DrawingStyle.PATTERN_STRENGTH) && (!indicatorInfo.isOverChart() || outputInfo.getType() != com.dukascopy.api.indicators.OutputParameterInfo.Type.INT))
+            {
+                notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, getDrawingStyle for output parameter with index [").append(i).append("] returns style that is possible only with \"over chart\" indicator and should have INT type").toString(), true);
+                return false;
+            }
+            Class indicatorClass = indicator.getClass();
+            if(outputInfo.isDrawnByIndicator())
+                if(!(indicator instanceof IDrawingIndicator))
+                {
+                    NotificationUtilsProvider.getNotificationUtils().postWarningMessage("Please implement IDrawingIndicator interface to define drawOutput method", true);
+                    try
+                    {
+                        indicatorClass.getMethod("drawOutput", new Class[] {
+                            java/awt/Graphics, Integer.TYPE, java/lang/Object, java/awt/Color, com/dukascopy/api/indicators/IIndicatorDrawingSupport, java/util/List, java/util/Map
+                        });
+                    }
+                    catch(NoSuchMethodException e)
+                    {
+                        notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, isDrawnByIndicator for output parameter with index [").append(i).append("] returns true, while indicator doesn't define drawOutput method").toString(), true);
+                        return false;
+                    }
+                    catch(Exception e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                } else
+                {
+                    try
+                    {
+                        indicatorClass.getMethod("drawOutput", new Class[] {
+                            java/awt/Graphics, Integer.TYPE, java/lang/Object, java/awt/Color, java/awt/Stroke, com/dukascopy/api/indicators/IIndicatorDrawingSupport, java/util/List, java/util/Map
+                        });
+                    }
+                    catch(NoSuchMethodException e)
+                    {
+                        notificationUtils.postErrorMessage((new StringBuilder()).append("Cannot enable indicator, isDrawnByIndicator for output parameter with index [").append(i).append("] returns true, while indicator doesn't define drawOutput method").toString(), true);
+                        return false;
+                    }
+                    catch(Exception e)
+                    {
+                        LOGGER.error(e.getMessage(), e);
+                    }
+                }
+            try
+            {
+                indicatorClass.getMethod("getMinMax", new Class[] {
+                    Integer.TYPE, java/lang/Object, Integer.TYPE, Integer.TYPE
+                });
+                if(!(indicator instanceof IMinMax))
+                    NotificationUtilsProvider.getNotificationUtils().postWarningMessage("Please implement IMinMax interface to define getMinMax method", true);
+            }
+            catch(NoSuchMethodException e) { }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+
+        return true;
+    }
+
+    public boolean isCustomIndicatorEnabled(File binaryFile)
+    {
+        return binFileToCustIndName.containsKey(binaryFile);
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/math/indicators/IndicatorsProvider);
+    private static IndicatorsProvider indicatorsProvider;
+    private SettingsStorage settingsStorage;
+    private Collection taLibIndicatorGroups;
+    private Collection dukascopyIndicatorGroups;
+    private Collection customIndicatorGroups;
+    private Map groupToTaLibIndicators;
+    private Map groupToDukascopyIndicators;
+    private Map groupToCustomIndicators;
+    private Set taLibIndicatorNames;
+    private Set dukascopyIndicatorNames;
+    private Set customIndicatorNames;
+    private Map dukascopyIndicatorTitles;
+    private Map customIndicatorTitles;
+    private Map nameToCustIndWrapper;
+    private Map binFileToCustIndName;
+    private Map nameToDukaIndClass;
+
+
+
+
+}

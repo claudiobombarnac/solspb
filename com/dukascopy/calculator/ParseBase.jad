@@ -1,0 +1,377 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:29
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ParseBase.java
+
+package com.dukascopy.calculator;
+
+import com.dukascopy.calculator.complex.Complex;
+import java.io.PrintStream;
+import java.math.BigDecimal;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+// Referenced classes of package com.dukascopy.calculator:
+//            Base
+
+class ParseBase
+{
+    private static class Number
+    {
+
+        public static Number parseSignificand(String s, Base b)
+        {
+            Number number = new Number(b);
+            int end = 15;
+            int shift = 4;
+            if(b == Base.BINARY)
+            {
+                end = 60;
+                shift = 1;
+            } else
+            if(b == Base.OCTAL)
+            {
+                end = 20;
+                shift = 3;
+            }
+            number.negative = s.charAt(0) == '-';
+            int offset = number.negative ? 1 : 0;
+            boolean leading = true;
+            for(int i = 0; i < end; i++)
+            {
+                long digit = 0L;
+                if(i + offset < s.length())
+                    digit = ParseBase.getDigit(s.charAt(i + offset));
+                if(digit < 0L)
+                {
+                    offset++;
+                    i--;
+                    continue;
+                }
+                if(leading)
+                {
+                    if(digit == 0L && offset < end)
+                    {
+                        offset++;
+                        i--;
+                        continue;
+                    }
+                    leading = false;
+                }
+                number.significand <<= shift;
+                number.significand |= digit;
+            }
+
+            return number;
+        }
+
+        private void parseExponent(String s)
+        {
+            int shift = 0;
+            static class _cls1
+            {
+
+                static final int $SwitchMap$com$dukascopy$calculator$Base[];
+
+                static 
+                {
+                    $SwitchMap$com$dukascopy$calculator$Base = new int[Base.values().length];
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$calculator$Base[Base.BINARY.ordinal()] = 1;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$calculator$Base[Base.OCTAL.ordinal()] = 2;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                    try
+                    {
+                        $SwitchMap$com$dukascopy$calculator$Base[Base.HEXADECIMAL.ordinal()] = 3;
+                    }
+                    catch(NoSuchFieldError ex) { }
+                }
+            }
+
+            switch(_cls1..SwitchMap.com.dukascopy.calculator.Base[base.ordinal()])
+            {
+            case 1: // '\001'
+                shift = 1;
+                break;
+
+            case 2: // '\002'
+                shift = 3;
+                break;
+
+            case 3: // '\003'
+            default:
+                shift = 4;
+                break;
+            }
+            exponentNegative = false;
+            char arr$[] = s.toCharArray();
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Character c = Character.valueOf(arr$[i$]);
+                if(c.charValue() == '-')
+                    exponentNegative = !exponentNegative;
+                long digit = ParseBase.getDigit(c.charValue());
+                if(digit < 0L)
+                    continue;
+                exponent <<= shift;
+                if((exponent & 4096L) != 0L)
+                    break;
+                exponent += digit * (long)shift;
+            }
+
+            if(exponentNegative)
+                exponent = -exponent;
+        }
+
+        private void parsePoint(String s)
+        {
+            boolean fraction = false;
+            int leadingZeros = 0;
+            int fractionalZeros = 0;
+            char arr$[] = s.toCharArray();
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Character c = Character.valueOf(arr$[i$]);
+                if(c.charValue() == '.')
+                {
+                    fraction = true;
+                    continue;
+                }
+                if(c.charValue() != '0')
+                    break;
+                if(fraction)
+                    fractionalZeros++;
+                else
+                    leadingZeros++;
+            }
+
+            int leadingDigits = 0;
+            char arr$[] = s.toCharArray();
+            int len$ = arr$.length;
+            int i$ = 0;
+            do
+            {
+                if(i$ >= len$)
+                    break;
+                Character c = Character.valueOf(arr$[i$]);
+                if(c.charValue() == '.')
+                    break;
+                leadingDigits++;
+                i$++;
+            } while(true);
+            int count = leadingDigits - leadingZeros - fractionalZeros - 1;
+            if(base == Base.HEXADECIMAL)
+                count *= 4;
+            else
+            if(base == Base.OCTAL)
+                count *= 3;
+            exponent += count;
+        }
+
+        private static Number parseStrings(String s, String e, Base b)
+        {
+            Number number = parseSignificand(s, b);
+            if(e.length() > 0)
+                number.parseExponent(e);
+            number.parsePoint(s);
+            return number;
+        }
+
+        public static Number parseString(String s, Base b)
+        {
+            Matcher m = pattern.matcher(s);
+            m.matches();
+            return parseStrings(m.group(1), m.group(2), b);
+        }
+
+        public long significand;
+        public long exponent;
+        public boolean negative;
+        public boolean exponentNegative;
+        public Base base;
+        private static Pattern pattern = Pattern.compile("([-|+]?[0-9A-F]+|[-|+]?[0-9A-F]+[.][0-9A-F]*|[-|+]?[0-9A-F]*[.][0-9A-F]+)(e[-|+]?[0-9A-F]+|)");
+
+
+
+        public Number(Base b)
+        {
+            base = b;
+            significand = exponent = 0L;
+        }
+    }
+
+
+    ParseBase()
+    {
+    }
+
+    private static long getDigit(char c)
+    {
+        switch(c)
+        {
+        case 48: // '0'
+            return 0L;
+
+        case 49: // '1'
+            return 1L;
+
+        case 50: // '2'
+            return 2L;
+
+        case 51: // '3'
+            return 3L;
+
+        case 52: // '4'
+            return 4L;
+
+        case 53: // '5'
+            return 5L;
+
+        case 54: // '6'
+            return 6L;
+
+        case 55: // '7'
+            return 7L;
+
+        case 56: // '8'
+            return 8L;
+
+        case 57: // '9'
+            return 9L;
+
+        case 65: // 'A'
+            return 10L;
+
+        case 66: // 'B'
+            return 11L;
+
+        case 67: // 'C'
+            return 12L;
+
+        case 68: // 'D'
+            return 13L;
+
+        case 69: // 'E'
+            return 14L;
+
+        case 70: // 'F'
+            return 15L;
+
+        case 58: // ':'
+        case 59: // ';'
+        case 60: // '<'
+        case 61: // '='
+        case 62: // '>'
+        case 63: // '?'
+        case 64: // '@'
+        default:
+            return -1L;
+        }
+    }
+
+    public static Complex parseString(String s, Base b)
+    {
+        return new Complex(dparseString(s, b));
+    }
+
+    public static double dparseString(String s, Base b)
+    {
+        if(b == Base.DECIMAL)
+        {
+            Matcher m = Number.pattern.matcher(s);
+            m.matches();
+            return (new BigDecimal(s)).doubleValue();
+        }
+        Number number = Number.parseString(s, b);
+        if(number.significand == 0L)
+            return 0.0D;
+        switch(_cls1..SwitchMap.com.dukascopy.calculator.Base[b.ordinal()])
+        {
+        case 3: // '\003'
+            number.significand >>>= 4;
+            break;
+
+        case 2: // '\002'
+            number.significand >>>= 5;
+            break;
+
+        default:
+            number.significand >>>= 7;
+            break;
+        }
+        while((number.significand & 0xffe0000000000000L) != 0L) 
+        {
+            number.significand >>>= 1;
+            number.exponent++;
+        }
+        if(number.exponent > 1023L)
+            return !number.negative ? (1.0D / 0.0D) : (-1.0D / 0.0D);
+        if(number.exponent < -1022L)
+        {
+            if(number.exponent < -1074L)
+                return 0.0D;
+            for(; number.exponent < -1022L; number.exponent++)
+                number.significand >>>= 1;
+
+            number.exponent = -1023L;
+        }
+        long result = number.exponent + 1023L;
+        result <<= 52;
+        if(number.negative)
+            result |= 0x8000000000000000L;
+        else
+            result &= 0x7fffffffffffffffL;
+        result |= number.significand & 0xfffffffffffffL;
+        return Double.longBitsToDouble(result);
+    }
+
+    public static void main(String args[])
+    {
+        System.out.println(parseString("777", Base.OCTAL).real());
+        System.out.println(parseString("77.7", Base.OCTAL).real());
+        System.out.println(parseString("177", Base.OCTAL).real());
+        System.out.println(parseString("077", Base.OCTAL).real());
+        System.out.println(parseString("0.01", Base.HEXADECIMAL).real());
+        System.out.println(parseString("0.01", Base.OCTAL).real());
+        System.out.println(parseString("0.01", Base.BINARY).real());
+        System.out.println(parseString("-0.01", Base.HEXADECIMAL).real());
+        System.out.println(parseString("-0.01", Base.OCTAL).real());
+        System.out.println(parseString("-0.01", Base.BINARY).real());
+        System.out.println(parseString("1e3", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e3", Base.OCTAL).real());
+        System.out.println(parseString("1e11", Base.BINARY).real());
+        System.out.println(parseString("1e-3", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e-3", Base.OCTAL).real());
+        System.out.println(parseString("-1e-11", Base.BINARY).real());
+        System.out.println(parseString("1e-13", Base.OCTAL).real());
+        System.out.println(parseString("1e+1111111111", Base.BINARY).real());
+        System.out.println(parseString("1e+10000000000", Base.BINARY).real());
+        System.out.println(parseString("1e-10000000000", Base.BINARY).real());
+        System.out.println(parseString("1e-10000000000", Base.BINARY).real());
+        System.out.println(parseString("1e-100000000000", Base.BINARY).real());
+        System.out.println(parseString("1e-1000000000000", Base.BINARY).real());
+        System.out.println(parseString("8e+FF", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e+100", Base.HEXADECIMAL).real());
+        System.out.println(parseString("8e2", Base.HEXADECIMAL).real());
+        System.out.println(parseString("8e-FF", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e-108", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e-109", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e-109", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e-10A", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e-10C", Base.HEXADECIMAL).real());
+        System.out.println(parseString("1e+8", Base.HEXADECIMAL).real());
+    }
+
+    public static final long BIAS = 1023L;
+    public static final long E_MAX = 1023L;
+    public static final long E_MIN = -1022L;
+
+}

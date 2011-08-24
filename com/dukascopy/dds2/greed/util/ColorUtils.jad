@@ -1,0 +1,26 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   ColorUtils.java
+
+package com.dukascopy.dds2.greed.util;
+
+import java.awt.Color;
+
+public final class ColorUtils
+{
+
+    private ColorUtils()
+    {
+    }
+
+    public static boolean isVisible(Color colorX, Color colorY)
+    {
+        if(colorX == null)
+            return false;
+        if(colorY == null)
+            return true;
+        else
+            return Math.abs(colorX.getRed() - colorY.getRed()) > 50 || Math.abs(colorX.getGreen() - colorY.getGreen()) > 50 || Math.abs(colorX.getBlue() - colorY.getBlue()) > 50;
+    }
+}

@@ -1,0 +1,3423 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   FeedDataProvider.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.Filter;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
+import com.dukascopy.api.PriceRange;
+import com.dukascopy.api.ReversalAmount;
+import com.dukascopy.api.TickBarSize;
+import com.dukascopy.api.impl.connect.AuthorizationClient;
+import com.dukascopy.charts.data.datacache.intraperiod.IIntraperiodBarsGenerator;
+import com.dukascopy.charts.data.datacache.intraperiod.LastPointAndFigureLiveFeedListener;
+import com.dukascopy.charts.data.datacache.intraperiod.LastPriceRangeLiveFeedListener;
+import com.dukascopy.charts.data.datacache.intraperiod.LastTickBarLiveFeedListener;
+import com.dukascopy.charts.data.datacache.listener.SaveCandlesLiveFeedListener;
+import com.dukascopy.charts.data.datacache.listener.SaveCandlesLoadingProgressListener;
+import com.dukascopy.charts.data.datacache.pnf.IPointAndFigureLiveFeedListener;
+import com.dukascopy.charts.data.datacache.pnf.LoadLatestPointAndFigureAction;
+import com.dukascopy.charts.data.datacache.pnf.LoadNumberOfPointAndFigureAction;
+import com.dukascopy.charts.data.datacache.pnf.LoadPointAndFigureTimeIntervalAction;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
+import com.dukascopy.charts.data.datacache.pnf.PointAndFigureLiveFeedAdapter;
+import com.dukascopy.charts.data.datacache.priceaggregation.AbstractPriceAggregationData;
+import com.dukascopy.charts.data.datacache.rangebar.IPriceRangeLiveFeedListener;
+import com.dukascopy.charts.data.datacache.rangebar.LoadLatestPriceRangeAction;
+import com.dukascopy.charts.data.datacache.rangebar.LoadNumberOfPriceRangeAction;
+import com.dukascopy.charts.data.datacache.rangebar.LoadPriceRangeTimeIntervalAction;
+import com.dukascopy.charts.data.datacache.rangebar.PriceRangeData;
+import com.dukascopy.charts.data.datacache.rangebar.PriceRangeLiveFeedAdapter;
+import com.dukascopy.charts.data.datacache.thread.BackgroundFeedLoadingThread;
+import com.dukascopy.charts.data.datacache.tickbar.ITickBarLiveFeedListener;
+import com.dukascopy.charts.data.datacache.tickbar.LoadLatestTickBarAction;
+import com.dukascopy.charts.data.datacache.tickbar.LoadNumberOfTickBarAction;
+import com.dukascopy.charts.data.datacache.tickbar.LoadTickBarTimeIntervalAction;
+import com.dukascopy.charts.data.datacache.tickbar.TickBarData;
+import com.dukascopy.charts.data.datacache.tickbar.TickBarLiveFeedAdapter;
+import com.dukascopy.charts.data.datacache.wrapper.Weekend;
+import com.dukascopy.charts.data.orders.IOrdersProvider;
+import com.dukascopy.charts.data.orders.OrdersProvider;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import com.dukascopy.dds2.greed.util.IOrderUtils;
+import com.dukascopy.transport.common.model.type.Money;
+import com.dukascopy.transport.common.msg.request.CurrencyMarket;
+import com.dukascopy.transport.common.msg.request.CurrencyOffer;
+import com.dukascopy.transport.util.Hex;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.security.NoSuchAlgorithmException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            TickData, CurvesDataLoader, LocalCacheManager, IntraperiodCandlesGenerator, 
+//            CurvesJsonProtocolHandler, InstrumentSubscriptionListener, IsDataCachedAction, LoadNumberOfCandlesAction, 
+//            LoadDataAction, LoadLastAvailableDataAction, LoadNumberOfLastAvailableDataAction, LoadInProgressCandleDataAction, 
+//            LoadInCacheAction, LiveFeedListener, LiveCandleListener, DataCacheException, 
+//            OrderHistoricalData, LoadProgressingAction, LoadOrdersAction, UpdateCacheDataAction, 
+//            CacheDataUpdatedListener, CandleData, IFeedDataProvider, TickListener, 
+//            OrdersListener, IFeedInfo, ICurvesProtocolHandler, LoadingProgressListener, 
+//            ChunkLoadingListener, IntraPeriodCandleData, DataCacheUtils, IAuthenticator, 
+//            LoadingProgressAdapter
+
+public class FeedDataProvider
+    implements IFeedDataProvider, TickListener, OrdersListener
+{
+    private static class FeedAuthenticator
+        implements IAuthenticator
+    {
+
+        public String authenticate()
+        {
+            AuthorizationClient auClient = AuthorizationClient.getInstance(authServerUrls, version);
+            return auClient.getFeedUrlAndTicket(userName, FeedDataProvider.platformTicket, instanceId);
+            IOException e;
+            e;
+            FeedDataProvider.LOGGER.error(e.getMessage(), e);
+            break MISSING_BLOCK_LABEL_59;
+            e;
+            FeedDataProvider.LOGGER.error(e.getMessage(), e);
+            return null;
+        }
+
+        private final Collection authServerUrls;
+        private final String version;
+        private final String userName;
+        private final String instanceId;
+
+        private FeedAuthenticator(Collection authServerUrls, String version, String userName, String instanceId)
+        {
+            this.authServerUrls = authServerUrls;
+            this.version = version;
+            this.userName = userName;
+            this.instanceId = instanceId;
+        }
+
+    }
+
+    public static class FeedExecutor extends ThreadPoolExecutor
+    {
+
+        protected void beforeExecute(Thread t, Runnable r)
+        {
+            synchronized(currentlyRunningTasks)
+            {
+                currentlyRunningTasks.add(r);
+            }
+            super.beforeExecute(t, r);
+        }
+
+        protected void afterExecute(Runnable r, Throwable t)
+        {
+            synchronized(currentlyRunningTasks)
+            {
+                currentlyRunningTasks.remove(r);
+            }
+            super.afterExecute(r, t);
+        }
+
+        private final List currentlyRunningTasks;
+
+        public FeedExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue workQueue, ThreadFactory threadFactory, 
+                RejectedExecutionHandler handler, List currentlyRunningTasks)
+        {
+            super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
+            this.currentlyRunningTasks = currentlyRunningTasks;
+        }
+    }
+
+    public static class FeedThreadFactory
+        implements ThreadFactory
+    {
+
+        public Thread newThread(Runnable r)
+        {
+            Thread thread = new Thread(r, (new StringBuilder()).append("FeedDataProvider_ActionsThread_").append(threadNumber.getAndIncrement()).toString());
+            if(!thread.isDaemon())
+                thread.setDaemon(true);
+            if(thread.getPriority() != 5)
+                thread.setPriority(5);
+            return thread;
+        }
+
+        final AtomicInteger threadNumber = new AtomicInteger(1);
+
+        public FeedThreadFactory()
+        {
+        }
+    }
+
+
+    protected FeedDataProvider(String cacheName, boolean disableFlatsGenerationByTimeout, IOrdersProvider ordersProvider, IFeedInfo feedInfo)
+        throws DataCacheException
+    {
+        currentTime = 0x8000000000000000L;
+        firstTickLocalTime = 0x8000000000000000L;
+        cachedWeekends = new LinkedList();
+        intraperiodExistsPolicy = CurvesDataLoader.IntraperiodExistsPolicy.DOWNLOAD_CHUNK_IN_BACKGROUND;
+        latencyIndex = 0;
+        connected = true;
+        ThreadFactory threadFactory = new FeedThreadFactory();
+        actionsExecutorService = new FeedExecutor(5, 10, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue(15 + Instrument.values().length * 3, false), threadFactory, new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy(), currentlyRunningTasks);
+        for(int i = 0; i < tickListeners.length; i++)
+            tickListeners[i] = Collections.synchronizedList(new ArrayList());
+
+        for(int i = 0; i < cacheDataChangeListeners.length; i++)
+            cacheDataChangeListeners[i] = Collections.synchronizedList(new ArrayList());
+
+        for(int i = 0; i < currentTimes.length; i++)
+            currentTimes[i] = 0x8000000000000000L;
+
+        for(int i = 0; i < lastAsks.length; i++)
+        {
+            lastAsks[i] = (0.0D / 0.0D);
+            lastBids[i] = (0.0D / 0.0D);
+        }
+
+        localCacheManager = new LocalCacheManager(cacheName, cacheName.equals("LIVE"));
+        instrumentSubscriptionListeners.add(localCacheManager);
+        intraperiodCandlesGenerator = new IntraperiodCandlesGenerator(disableFlatsGenerationByTimeout, this);
+        this.ordersProvider = ordersProvider;
+        this.feedInfo = feedInfo;
+    }
+
+    public static FeedDataProvider getDefaultInstance()
+    {
+        return feedDataProvider;
+    }
+
+    public static void createFeedDataProvider(String cacheName)
+        throws DataCacheException
+    {
+        createFeedDataProvider(cacheName, null, null);
+    }
+
+    public static void createFeedDataProvider(String cacheName, IFeedInfo feedInfo)
+        throws DataCacheException
+    {
+        createFeedDataProvider(cacheName, null, feedInfo);
+    }
+
+    public static void createFeedDataProvider(String cacheName, ICurvesProtocolHandler curvesProtocolHandler, IFeedInfo feedInfo)
+        throws DataCacheException
+    {
+        if(feedDataProvider == null)
+        {
+            OrdersProvider ordersProvider = OrdersProvider.getInstance();
+            feedDataProvider = new FeedDataProvider(cacheName, false, ordersProvider, feedInfo);
+            if(curvesProtocolHandler == null)
+                curvesProtocolHandler = new CurvesJsonProtocolHandler();
+            else
+                curvesProtocolHandler = curvesProtocolHandler;
+            Instrument arr$[] = Instrument.values();
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Instrument instrument = arr$[i$];
+                ordersProvider.addOrdersListener(instrument, feedDataProvider);
+            }
+
+        }
+    }
+
+    public void connectToHistoryServer(Collection authServerUrls, String userName, String instanceId, String historyServerUrl, String encryptionKey, String version)
+    {
+        accountId = userName;
+        if(accountId != null && accountId.equals(userName))
+            ordersProvider.clear();
+        if(encryptionKey == null)
+            encryptionKey = encryptionKey;
+        curvesProtocolHandler.connect(new FeedAuthenticator(authServerUrls, version, userName, instanceId), userName, instanceId, historyServerUrl);
+    }
+
+    public void connectToHistoryServer(IAuthenticator authenticator, String userName, String instanceId, String historyServerUrl, String encryptionKey)
+    {
+        accountId = userName;
+        if(encryptionKey == null)
+            encryptionKey = encryptionKey;
+        curvesProtocolHandler.connect(authenticator, userName, instanceId, historyServerUrl);
+    }
+
+    public IFeedInfo getFeedInfo()
+    {
+        return feedInfo;
+    }
+
+    public static void setPlatformTicket(String platformTicket)
+    {
+        platformTicket = platformTicket;
+    }
+
+    public void subscribeToLiveFeed(Instrument instrument, LiveFeedListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Subscribing one more listener to instrument [").append(instrument).append("]").toString());
+        tickListeners[instrument.ordinal()].add(listener);
+    }
+
+    public void unsubscribeToLiveFeed(Instrument instrument, LiveFeedListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Unsubscribing listener from instrument [").append(instrument).append("]").toString());
+        tickListeners[instrument.ordinal()].remove(listener);
+    }
+
+    private Map getOfferSideMap(Map map, Instrument instrument, Period period)
+    {
+        if(!map.containsKey(instrument))
+            map.put(instrument, new HashMap());
+        Map periodMap = (Map)map.get(instrument);
+        if(!periodMap.containsKey(period))
+            periodMap.put(period, new HashMap());
+        return (Map)periodMap.get(period);
+    }
+
+    private List getPeriodListeners(Map map, Instrument instrument, Period period, OfferSide offerSide)
+    {
+        Map offerSideMap = getOfferSideMap(map, instrument, period);
+        return (List)offerSideMap.get(offerSide);
+    }
+
+    private void putPeriodListeners(Map map, Instrument instrument, Period period, OfferSide offerSide, List listeners)
+    {
+        Map offerSideMap = getOfferSideMap(map, instrument, period);
+        offerSideMap.put(offerSide, listeners);
+    }
+
+    public void subscribeToPeriodNotifications(Instrument instrument, Period period, OfferSide side, LiveFeedListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Subscribing one more listener to instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("]").toString());
+        List listenersList = getPeriodListeners(periodListenersMap, instrument, period, side);
+        if(listenersList == null)
+        {
+            listenersList = Collections.synchronizedList(new ArrayList());
+            putPeriodListeners(periodListenersMap, instrument, period, side, listenersList);
+        }
+        listenersList.add(listener);
+    }
+
+    public void unsubscribeToPeriodNotifications(Instrument instrument, Period period, OfferSide side, LiveFeedListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Unsubscribing listener from instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("]").toString());
+        List listenersList = getPeriodListeners(periodListenersMap, instrument, period, side);
+        if(listenersList != null)
+            listenersList.remove(listener);
+    }
+
+    public void subscribeToAllPeriodNotifications(Instrument instrument, OfferSide side, LiveFeedListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Subscribing one more listener to instrument [").append(instrument).append("], all periods, side [").append(side).append("]").toString());
+        List listenersList = allPeriodListeners[instrument.ordinal()][side != OfferSide.ASK ? 1 : 0];
+        if(listenersList == null)
+        {
+            listenersList = Collections.synchronizedList(new ArrayList());
+            allPeriodListeners[instrument.ordinal()][side != OfferSide.ASK ? 1 : 0] = listenersList;
+        }
+        listenersList.add(listener);
+    }
+
+    public void unsubscribeToAllPeriodNotifications(Instrument instrument, OfferSide side, LiveFeedListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Unsubscribing listener from instrument [").append(instrument).append("], all periods, side [").append(side).append("]").toString());
+        List listenersList = allPeriodListeners[instrument.ordinal()][side != OfferSide.ASK ? 1 : 0];
+        if(listenersList != null)
+            listenersList.remove(listener);
+    }
+
+    public void subscribeToAllCandlePeriods(LiveCandleListener listener)
+    {
+        allCandlePeriodListener.add(listener);
+    }
+
+    public void unsubscribeFromAllCandlePeriods(LiveCandleListener listener)
+    {
+        allCandlePeriodListener.remove(listener);
+    }
+
+    public void addInProgressCandleListener(Instrument instrument, Period period, OfferSide side, LiveFeedListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Subscribing one more inProgressCandle listener to instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("]").toString());
+        if(listener == null)
+            throw new NullPointerException("Listener for in-progress candle is null");
+        List listenersList = getPeriodListeners(inProgressCandleListenersMap, instrument, period, side);
+        if(listenersList == null)
+        {
+            listenersList = Collections.synchronizedList(new ArrayList());
+            putPeriodListeners(inProgressCandleListenersMap, instrument, period, side, listenersList);
+        }
+        listenersList.add(listener);
+        intraperiodCandlesGenerator.inProgressCandleListenerAdded(instrument, period, side, listener);
+    }
+
+    public void removeInProgressCandleListener(Instrument instrument, Period period, OfferSide side, LiveFeedListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Unsubscribing inProgressCandle listener from instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("]").toString());
+        List listenersList = getPeriodListeners(inProgressCandleListenersMap, instrument, period, side);
+        if(listenersList != null)
+            listenersList.remove(listener);
+        intraperiodCandlesGenerator.inProgressCandleListenerRemoved(instrument, period, side, listener);
+    }
+
+    public void setInstrumentNamesSubscribed(Set instrumentNames)
+    {
+        Set instruments = new HashSet();
+        String instrumentStr;
+        for(Iterator i$ = instrumentNames.iterator(); i$.hasNext(); instruments.add(Instrument.fromString(instrumentStr)))
+            instrumentStr = (String)i$.next();
+
+        setInstrumentsSubscribed(instruments);
+    }
+
+    public void addInstrumentNamesSubscribed(Set instrumentNames)
+    {
+        synchronized(subscribedInstruments)
+        {
+            Set instruments = new HashSet(subscribedInstruments);
+            Iterator i$ = instrumentNames.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                String instrumentStr = (String)i$.next();
+                Instrument instrument = Instrument.fromString(instrumentStr);
+                if(!instruments.contains(instrument))
+                    instruments.add(instrument);
+            } while(true);
+            setInstrumentsSubscribed(instruments);
+        }
+    }
+
+    public void setInstrumentNamesSubscribed(List instrumentNames)
+    {
+        Set instruments = new HashSet();
+        String instrumentStr;
+        for(Iterator i$ = instrumentNames.iterator(); i$.hasNext(); instruments.add(Instrument.fromString(instrumentStr)))
+            instrumentStr = (String)i$.next();
+
+        setInstrumentsSubscribed(instruments);
+    }
+
+    public void setInstrumentsSubscribed(Set instruments)
+    {
+        synchronized(subscribedInstruments)
+        {
+            List instrumentsAdded = new ArrayList(instruments);
+            List instrumentsRemoved = new ArrayList(subscribedInstruments);
+            instrumentsAdded.removeAll(subscribedInstruments);
+            instrumentsRemoved.removeAll(instruments);
+            subscribedInstruments.clear();
+            subscribedInstruments.addAll(instruments);
+            try
+            {
+                Instrument instrument;
+                for(Iterator i$ = instrumentsAdded.iterator(); i$.hasNext(); intraperiodCandlesGenerator.addInstrument(instrument))
+                {
+                    instrument = (Instrument)i$.next();
+                    fireInstrumentSubscribed(instrument);
+                }
+
+                Instrument instrument;
+                for(Iterator i$ = instrumentsRemoved.iterator(); i$.hasNext(); unsubscribeListenersFromInstrument(instrument))
+                {
+                    instrument = (Instrument)i$.next();
+                    lastTicks[instrument.ordinal()] = null;
+                    currentTimes[instrument.ordinal()] = 0x8000000000000000L;
+                    fireInstrumentUnsubscribed(instrument);
+                }
+
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+    }
+
+    private void unsubscribeListenersFromInstrument(Instrument instrument)
+    {
+        LOGGER.trace((new StringBuilder()).append("Unsubscribing all listeners from instrument [").append(instrument).append("]").toString());
+        localCacheManager.clearTicksIntraPeriod(instrument);
+        tickListeners[instrument.ordinal()].clear();
+        LOGGER.trace((new StringBuilder()).append("Unsubscribing all listeners from instrument [").append(instrument).append("] for all periods and both sides").toString());
+        intraperiodCandlesGenerator.removeInstrument(instrument);
+        Period arr$[] = Period.values();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Period period = arr$[i$];
+            putPeriodListeners(periodListenersMap, instrument, period, OfferSide.ASK, null);
+            putPeriodListeners(periodListenersMap, instrument, period, OfferSide.BID, null);
+        }
+
+        allPeriodListeners[instrument.ordinal()][0] = null;
+        allPeriodListeners[instrument.ordinal()][1] = null;
+    }
+
+    public void fireInstrumentSubscribed(Instrument instrument)
+    {
+        InstrumentSubscriptionListener listeners[] = (InstrumentSubscriptionListener[])instrumentSubscriptionListeners.toArray(new InstrumentSubscriptionListener[instrumentSubscriptionListeners.size()]);
+        InstrumentSubscriptionListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            InstrumentSubscriptionListener instrumentSubscriptionListener = arr$[i$];
+            instrumentSubscriptionListener.subscribedToInstrument(instrument);
+        }
+
+    }
+
+    public void fireInstrumentUnsubscribed(Instrument instrument)
+    {
+        InstrumentSubscriptionListener listeners[] = (InstrumentSubscriptionListener[])instrumentSubscriptionListeners.toArray(new InstrumentSubscriptionListener[instrumentSubscriptionListeners.size()]);
+        InstrumentSubscriptionListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            InstrumentSubscriptionListener instrumentSubscriptionListener = arr$[i$];
+            instrumentSubscriptionListener.unsubscribedFromInstrument(instrument);
+        }
+
+    }
+
+    public void addInstrumentSubscriptionListener(InstrumentSubscriptionListener listener)
+    {
+        if(listener == null)
+            throw new NullPointerException("listener is null");
+        if(!instrumentSubscriptionListeners.contains(listener))
+            instrumentSubscriptionListeners.add(listener);
+    }
+
+    public List getInstrumentsCurrentlySubscribed()
+    {
+        List list = subscribedInstruments;
+        JVM INSTR monitorenter ;
+        return new ArrayList(subscribedInstruments);
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public boolean isSubscribedToInstrument(Instrument instrument)
+    {
+        List list = subscribedInstruments;
+        JVM INSTR monitorenter ;
+        return subscribedInstruments.contains(instrument);
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public void removeInstrumentSubscriptionListener(InstrumentSubscriptionListener listener)
+    {
+        instrumentSubscriptionListeners.remove(listener);
+    }
+
+    public boolean isDataCached(Instrument instrument, Period period, OfferSide side, long from, long to)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Checking isDataCached for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+        }
+        IsDataCachedAction isDataCachedAction = new IsDataCachedAction(this, instrument, period, side, from, to);
+        return isDataCachedAction.call().booleanValue();
+    }
+
+    public void loadCandlesData(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, false);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadCandlesDataBefore(Instrument instrument, Period period, OfferSide side, int numberOfCandles, long to, Filter filter, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, period, side, numberOfCandles, 0, to, filter, candleListener, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadCandlesDataAfter(Instrument instrument, Period period, OfferSide side, int numberOfCandles, long from, Filter filter, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, period, side, 0, numberOfCandles, from, filter, candleListener, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadCandlesDataBeforeAfter(Instrument instrument, Period period, OfferSide side, int numberOfCandlesBefore, int numberOfCandlesAfter, long time, 
+            Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, period, side, numberOfCandlesBefore, numberOfCandlesAfter, time, filter, candleListener, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadCandlesDataBeforeAfterSynched(Instrument instrument, Period period, OfferSide side, int numberOfCandlesBefore, int numberOfCandlesAfter, long time, 
+            Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, period, side, numberOfCandlesBefore, numberOfCandlesAfter, time, filter, candleListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadCandlesDataBeforeSynched(Instrument instrument, Period period, OfferSide side, int numberOfCandles, long to, Filter filter, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, period, side, numberOfCandles, 0, to, filter, candleListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadCandlesDataAfterSynched(Instrument instrument, Period period, OfferSide side, int numberOfCandles, long from, Filter filter, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, period, side, 0, numberOfCandles, from, filter, candleListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadLastAvailableCandlesDataSynched(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadLastAvailableDataAction loadDataAction = getLoadLastAvailableCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadLastAvailableNumberOfCandlesDataSynched(Instrument instrument, Period period, OfferSide side, int numberOfCandles, long to, Filter filter, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfLastAvailableDataAction loadDataAction = getLoadNumberOfLastAvailableCandlesDataAction(instrument, period, side, numberOfCandles, to, filter, candleListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadCandlesDataSynched(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, false);
+        loadDataAction.run();
+    }
+
+    public void loadCandlesDataSynched(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress, boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, loadFromChunkStart);
+        loadDataAction.run();
+    }
+
+    public void loadCandlesDataBlockingSynched(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, true, false);
+        loadDataAction.run();
+    }
+
+    public void loadInProgressCandleData(Instrument instrument, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadInProgressCandleDataAction loadDataAction = getLoadInProgressCandleDataAction(instrument, to, candleListener, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadInProgressCandleDataSynched(Instrument instrument, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadInProgressCandleDataAction loadDataAction = getLoadInProgressCandleDataAction(instrument, to, candleListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    private LoadNumberOfCandlesAction getLoadNumberOfCandlesAction(Instrument instrument, Period period, OfferSide side, int numberOfCandlesBefore, int numberOfCandlesAfter, long time, 
+            Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading [").append(numberOfCandlesBefore).append("] candles before and [").append(numberOfCandlesAfter).append("] after for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] time [").append(dateFormat.format(new Date(time))).append("]").append(filter != Filter.WEEKENDS ? filter != Filter.ALL_FLATS ? "" : " filtering all flats" : " filtering weekends").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadNumberOfCandlesAction loadDataAction = new LoadNumberOfCandlesAction(this, instrument, period, side, numberOfCandlesBefore, numberOfCandlesAfter, time, filter, candleListener, loadingProgress, intraperiodExistsPolicy, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private LoadNumberOfCandlesAction getLoadNumberOfCandlesAction(Instrument instrument, int numberOfSecondsBefore, int numberOfSecondsAfter, long time, Filter filter, LiveFeedListener candleListener, 
+            LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading [").append(numberOfSecondsBefore).append("] seconds before and [").append(numberOfSecondsAfter).append("] after of ticks for instrument [").append(instrument).append("] time [").append(dateFormat.format(new Date(time))).append("]").append(filter != Filter.WEEKENDS ? filter != Filter.ALL_FLATS ? "" : " filtering all flats" : " filtering weekends").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadNumberOfCandlesAction loadDataAction = new LoadNumberOfCandlesAction(this, instrument, numberOfSecondsBefore, numberOfSecondsAfter, time, filter, candleListener, loadingProgress, intraperiodExistsPolicy, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private LoadDataAction getLoadCandlesDataAction(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress, boolean blocking, boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading candles for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadDataAction loadDataAction = new LoadDataAction(this, instrument, period, side, from, to, candleListener, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null, blocking, intraperiodExistsPolicy, loadFromChunkStart);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private LoadLastAvailableDataAction getLoadLastAvailableCandlesDataAction(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading last available candles for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadLastAvailableDataAction loadDataAction = new LoadLastAvailableDataAction(this, instrument, period, side, from, to, intraperiodExistsPolicy, candleListener, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private LoadNumberOfLastAvailableDataAction getLoadNumberOfLastAvailableCandlesDataAction(Instrument instrument, Period period, OfferSide side, int numberOfCandles, long to, Filter filter, 
+            LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading last available candles for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] number of candles [").append(numberOfCandles).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadNumberOfLastAvailableDataAction loadDataAction = new LoadNumberOfLastAvailableDataAction(this, instrument, period, side, numberOfCandles, to, filter, intraperiodExistsPolicy, candleListener, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private LoadInProgressCandleDataAction getLoadInProgressCandleDataAction(Instrument instrument, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading in-progress candle for instrument [").append(instrument).append("], to time [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadInProgressCandleDataAction loadDataAction = new LoadInProgressCandleDataAction(this, instrument, to, candleListener, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private boolean isAssertionsEnabled()
+    {
+        boolean b = false;
+        if(!$assertionsDisabled && !(b = true))
+            throw new AssertionError();
+        else
+            return b;
+    }
+
+    public void loadCandlesDataInCache(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadCandlesDataInCacheAction(instrument, period, side, from, to, loadingProgress, false);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadCandlesDataInCacheSynched(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadCandlesDataInCacheAction(instrument, period, side, from, to, loadingProgress, false);
+        loadDataAction.run();
+    }
+
+    private LoadDataAction getLoadCandlesDataInCacheAction(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingProgressListener loadingProgress, boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading candles in cache for instrument [").append(instrument).append("], period [").append(period).append("], side [").append(side).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadDataAction loadDataAction = new LoadDataAction(this, instrument, period, side, from, to, null, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null, false, CurvesDataLoader.IntraperiodExistsPolicy.FORCE_CHUNK_DOWNLOADING, loadFromChunkStart);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    public void loadTicksData(Instrument instrument, long from, long to, LiveFeedListener tickListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadTicksDataAction(instrument, from, to, tickListener, loadingProgress, false, false);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadTicksDataBefore(Instrument instrument, int numberOfSeconds, long to, Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, numberOfSeconds, 0, to, filter, candleListener, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadTicksDataAfter(Instrument instrument, int numberOfSeconds, long from, Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, 0, numberOfSeconds, from, filter, candleListener, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadTicksDataBeforeAfter(Instrument instrument, int numberOfSecondsBefore, int numberOfSecondsAfter, long time, Filter filter, LiveFeedListener tickListener, 
+            LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, numberOfSecondsBefore, numberOfSecondsAfter, time, filter, tickListener, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadTicksDataBeforeAfterSynched(Instrument instrument, int numberOfSecondsBefore, int numberOfSecondsAfter, long time, Filter filter, LiveFeedListener tickListener, 
+            LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, numberOfSecondsBefore, numberOfSecondsAfter, time, filter, tickListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadTicksDataBeforeSynched(Instrument instrument, int numberOfSeconds, long to, Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, numberOfSeconds, 0, to, filter, candleListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadTicksDataAfterSynched(Instrument instrument, int numberOfSeconds, long from, Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfCandlesAction loadDataAction = getLoadNumberOfCandlesAction(instrument, 0, numberOfSeconds, from, filter, candleListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadLastAvailableTicksDataSynched(Instrument instrument, long from, long to, LiveFeedListener tickListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadLastAvailableDataAction loadDataAction = getLoadLastAvailableTicksDataAction(instrument, from, to, tickListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadLastAvailableNumberOfTicksDataSynched(Instrument instrument, int numberOfSeconds, long to, Filter filter, LiveFeedListener tickListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadNumberOfLastAvailableDataAction loadDataAction = getLoadNumberOfLastAvailableTicksData(instrument, numberOfSeconds, to, filter, tickListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadTicksDataSynched(Instrument instrument, long from, long to, LiveFeedListener tickListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadTicksDataAction(instrument, from, to, tickListener, loadingProgress, false, false);
+        loadDataAction.run();
+    }
+
+    public void loadTicksDataSynched(Instrument instrument, long from, long to, LiveFeedListener tickListener, LoadingProgressListener loadingProgress, 
+            boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadTicksDataAction(instrument, from, to, tickListener, loadingProgress, false, loadFromChunkStart);
+        loadDataAction.run();
+    }
+
+    public void loadTicksDataBlockingSynched(Instrument instrument, long from, long to, LiveFeedListener tickListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadTicksDataAction(instrument, from, to, tickListener, loadingProgress, true, false);
+        loadDataAction.run();
+    }
+
+    private LoadDataAction getLoadTicksDataAction(Instrument instrument, long from, long to, LiveFeedListener tickListener, LoadingProgressListener loadingProgress, 
+            boolean blocking, boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading ticks for instrument [").append(instrument).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadDataAction loadDataAction = new LoadDataAction(this, instrument, from, to, tickListener, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null, blocking, intraperiodExistsPolicy, loadFromChunkStart);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private LoadLastAvailableDataAction getLoadLastAvailableTicksDataAction(Instrument instrument, long from, long to, LiveFeedListener tickListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading last available ticks for instrument [").append(instrument).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadLastAvailableDataAction loadDataAction = new LoadLastAvailableDataAction(this, instrument, from, to, intraperiodExistsPolicy, tickListener, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private LoadNumberOfLastAvailableDataAction getLoadNumberOfLastAvailableTicksData(Instrument instrument, int numberOfSeconds, long to, Filter filter, LiveFeedListener tickListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading last available ticks for instrument [").append(instrument).append("] number of seconds [").append(numberOfSeconds).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadNumberOfLastAvailableDataAction loadDataAction = new LoadNumberOfLastAvailableDataAction(this, instrument, numberOfSeconds, to, filter, intraperiodExistsPolicy, tickListener, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    public void loadTicksDataInCache(Instrument instrument, long from, long to, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadTicksDataInCacheAction(instrument, from, to, loadingProgress, false);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadTicksDataInCacheSynched(Instrument instrument, long from, long to, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadDataAction loadDataAction = getLoadTicksDataInCacheAction(instrument, from, to, loadingProgress, false);
+        loadDataAction.run();
+    }
+
+    private LoadDataAction getLoadTicksDataInCacheAction(Instrument instrument, long from, long to, LoadingProgressListener loadingProgress, boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading ticks in cache for instrument [").append(instrument).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadDataAction loadDataAction = new LoadDataAction(this, instrument, from, to, null, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null, false, CurvesDataLoader.IntraperiodExistsPolicy.FORCE_CHUNK_DOWNLOADING, loadFromChunkStart);
+        if(stopped)
+            loadDataAction.cancel();
+        return loadDataAction;
+    }
+
+    private LoadInCacheAction getLoadInCacheAction(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingProgressListener loadingProgress, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, boolean loadFromChunkStart, ChunkLoadingListener chunkLoadingListener)
+        throws DataCacheException
+    {
+        LoadInCacheAction loadInCacheAction = new LoadInCacheAction(this, instrument, period, side, from, to, loadingProgress, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null, intraperiodExistsPolicy, loadFromChunkStart, chunkLoadingListener);
+        if(stopped)
+            loadInCacheAction.cancel();
+        return loadInCacheAction;
+    }
+
+    protected Thread loadInCacheAsynch(Instrument instrument, Period period, OfferSide side, long from, long to, 
+            LoadingProgressListener loadingProgress, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, boolean loadFromChunkStart, ChunkLoadingListener chunkLoadingListener)
+        throws DataCacheException
+    {
+        LoadInCacheAction loadInCacheAction = getLoadInCacheAction(instrument, period, side, from, to, loadingProgress, intraperiodExistsPolicy, loadFromChunkStart, chunkLoadingListener);
+        Thread thread = new Thread(loadInCacheAction, (new StringBuilder()).append("FeedDataProvider_LoadInCacheAsynch_").append(instrument).append("_").append(period).append("_").append(side).toString());
+        thread.setDaemon(true);
+        thread.setPriority(5);
+        thread.start();
+        return thread;
+    }
+
+    public CandleData getInProgressCandle(Instrument instrument, Period period, OfferSide side)
+    {
+        return intraperiodCandlesGenerator.getInProgressCandle(instrument, period, side);
+    }
+
+    public CandleData getInProgressCandleBlocking(Instrument instrument, Period period, OfferSide side)
+        throws DataCacheException
+    {
+        return intraperiodCandlesGenerator.getInProgressCandleBlocking(instrument, period, side);
+    }
+
+    public CurvesDataLoader getCurvesDataLoader()
+    {
+        return curvesDataLoader;
+    }
+
+    public LocalCacheManager getLocalCacheManager()
+    {
+        return localCacheManager;
+    }
+
+    public static ICurvesProtocolHandler getCurvesProtocolHandler()
+    {
+        return curvesProtocolHandler;
+    }
+
+    protected void fireNewTick(Instrument instrument, long time, double ask, double bid, 
+            double askVol, double bidVol)
+    {
+        List listeners = tickListeners[instrument.ordinal()];
+        LiveFeedListener listenersArr[] = (LiveFeedListener[])listeners.toArray(new LiveFeedListener[listeners.size()]);
+        LiveFeedListener arr$[] = listenersArr;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            LiveFeedListener liveFeedListener = arr$[i$];
+            liveFeedListener.newTick(instrument, time, ask, bid, askVol, bidVol);
+        }
+
+    }
+
+    protected void fireInProgressCandleUpdated(Instrument instrument, Period period, OfferSide side, CandleData candle)
+    {
+        List listenersList = getPeriodListeners(inProgressCandleListenersMap, instrument, period, side);
+        if(listenersList != null)
+        {
+            LiveFeedListener listeners[] = (LiveFeedListener[])listenersList.toArray(new LiveFeedListener[listenersList.size()]);
+            LiveFeedListener arr$[] = listeners;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                LiveFeedListener liveFeedListener = arr$[i$];
+                liveFeedListener.newCandle(instrument, period, side, candle.time, candle.open, candle.close, candle.low, candle.high, candle.vol);
+            }
+
+        }
+    }
+
+    protected void fireCandlesFormed(Instrument instrument, Period period, IntraPeriodCandleData askCandleData, IntraPeriodCandleData bidCandleData)
+    {
+        long nextCandleStart = DataCacheUtils.getNextCandleStartFast(period, askCandleData == null ? bidCandleData.time : askCandleData.time);
+        if(currentTimes[instrument.ordinal()] < nextCandleStart)
+            currentTimes[instrument.ordinal()] = nextCandleStart;
+        if(currentTime < nextCandleStart)
+            currentTime = nextCandleStart;
+        if(askCandleData != null)
+        {
+            List listenersList = getPeriodListeners(periodListenersMap, instrument, period, OfferSide.ASK);
+            if(listenersList != null)
+            {
+                LiveFeedListener listeners[] = (LiveFeedListener[])listenersList.toArray(new LiveFeedListener[listenersList.size()]);
+                LiveFeedListener arr$[] = listeners;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    LiveFeedListener liveFeedListener = arr$[i$];
+                    liveFeedListener.newCandle(instrument, period, OfferSide.ASK, askCandleData.time, askCandleData.open, askCandleData.close, askCandleData.low, askCandleData.high, askCandleData.vol);
+                }
+
+            }
+        }
+        if(bidCandleData != null)
+        {
+            List listenersList = getPeriodListeners(periodListenersMap, instrument, period, OfferSide.BID);
+            if(listenersList != null)
+            {
+                LiveFeedListener listeners[] = (LiveFeedListener[])listenersList.toArray(new LiveFeedListener[listenersList.size()]);
+                LiveFeedListener arr$[] = listeners;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    LiveFeedListener liveFeedListener = arr$[i$];
+                    liveFeedListener.newCandle(instrument, period, OfferSide.BID, bidCandleData.time, bidCandleData.open, bidCandleData.close, bidCandleData.low, bidCandleData.high, bidCandleData.vol);
+                }
+
+            }
+        }
+        if(askCandleData != null)
+        {
+            List listenersList = allPeriodListeners[instrument.ordinal()][0];
+            if(listenersList != null)
+            {
+                LiveFeedListener listeners[] = (LiveFeedListener[])listenersList.toArray(new LiveFeedListener[listenersList.size()]);
+                LiveFeedListener arr$[] = listeners;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    LiveFeedListener liveFeedListener = arr$[i$];
+                    liveFeedListener.newCandle(instrument, period, OfferSide.ASK, askCandleData.time, askCandleData.open, askCandleData.close, askCandleData.low, askCandleData.high, askCandleData.vol);
+                }
+
+            }
+        }
+        if(bidCandleData != null)
+        {
+            List listenersList = allPeriodListeners[instrument.ordinal()][1];
+            if(listenersList != null)
+            {
+                LiveFeedListener listeners[] = (LiveFeedListener[])listenersList.toArray(new LiveFeedListener[listenersList.size()]);
+                LiveFeedListener arr$[] = listeners;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    LiveFeedListener liveFeedListener = arr$[i$];
+                    liveFeedListener.newCandle(instrument, period, OfferSide.BID, bidCandleData.time, bidCandleData.open, bidCandleData.close, bidCandleData.low, bidCandleData.high, bidCandleData.vol);
+                }
+
+            }
+        }
+        if(askCandleData != null && bidCandleData != null)
+        {
+            LiveCandleListener listeners[] = (LiveCandleListener[])allCandlePeriodListener.toArray(new LiveCandleListener[allCandlePeriodListener.size()]);
+            LiveCandleListener arr$[] = listeners;
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                LiveCandleListener liveFeedListener = arr$[i$];
+                liveFeedListener.newCandle(instrument, period, askCandleData, bidCandleData);
+            }
+
+        }
+    }
+
+    public long getFirstTickLocalTime()
+    {
+        return firstTickLocalTime;
+    }
+
+    public void tickReceived(CurrencyMarket tick)
+    {
+        Instrument instrument;
+        long time;
+        double ask;
+        double bid;
+        double askVol;
+        double bidVol;
+label0:
+        {
+            instrument = Instrument.fromString(tick.getInstrument());
+            time = tick.getCreationTimestamp().longValue();
+            askVol = 0.0D;
+            bidVol = 0.0D;
+            synchronized(this)
+            {
+                if(!tick.isBackup())
+                    addTickToLatency(time);
+                if(firstTickLocalTime == 0x8000000000000000L)
+                    firstTickLocalTime = System.currentTimeMillis();
+                CurrencyOffer currencyOffer = tick.getBestOffer(com.dukascopy.transport.common.model.type.OfferSide.ASK);
+                ask = lastAsks[instrument.ordinal()];
+                if(currencyOffer != null)
+                {
+                    ask = currencyOffer.getPrice().getValue().doubleValue();
+                    lastAsks[instrument.ordinal()] = ask;
+                    askVol = StratUtils.roundHalfEven(currencyOffer.getAmount().getValue().doubleValue() / 1000000D, 2);
+                }
+                currencyOffer = tick.getBestOffer(com.dukascopy.transport.common.model.type.OfferSide.BID);
+                bid = lastBids[instrument.ordinal()];
+                if(currencyOffer != null)
+                {
+                    bid = currencyOffer.getPrice().getValue().doubleValue();
+                    lastBids[instrument.ordinal()] = bid;
+                    bidVol = StratUtils.roundHalfEven(currencyOffer.getAmount().getValue().doubleValue() / 1000000D, 2);
+                }
+                if(!Double.isNaN(ask) && !Double.isNaN(bid))
+                    break label0;
+            }
+            return;
+        }
+        if(lastTicks[instrument.ordinal()] == null || time >= lastTicks[instrument.ordinal()].time)
+            break MISSING_BLOCK_LABEL_261;
+        LOGGER.warn("Receved tick has time older than previous tick, ignoring");
+        feeddataprovider;
+        JVM INSTR monitorexit ;
+        return;
+        List askOffers = tick.getAsks();
+        double asks[] = new double[askOffers.size() <= 0 ? 1 : askOffers.size()];
+        double askVols[] = new double[asks.length];
+        if(askOffers.size() > 0)
+        {
+            int i = 0;
+            for(Iterator i$ = askOffers.iterator(); i$.hasNext();)
+            {
+                CurrencyOffer askOffer = (CurrencyOffer)i$.next();
+                asks[i] = askOffer.getPrice().getValue().doubleValue();
+                askVols[i] = StratUtils.roundHalfEven(askOffer.getAmount().getValue().doubleValue() / 1000000D, 2);
+                i++;
+            }
+
+        } else
+        {
+            asks[0] = ask;
+            askVols[0] = askVol;
+        }
+        List bidOffers = tick.getBids();
+        double bids[] = new double[bidOffers.size() <= 0 ? 1 : bidOffers.size()];
+        double bidVols[] = new double[bids.length];
+        if(bidOffers.size() > 0)
+        {
+            int i = 0;
+            for(Iterator i$ = bidOffers.iterator(); i$.hasNext();)
+            {
+                CurrencyOffer bidOffer = (CurrencyOffer)i$.next();
+                bids[i] = bidOffer.getPrice().getValue().doubleValue();
+                bidVols[i] = StratUtils.roundHalfEven(bidOffer.getAmount().getValue().doubleValue() / 1000000D, 2);
+                i++;
+            }
+
+        } else
+        {
+            bids[0] = bid;
+            bidVols[0] = bidVol;
+        }
+        TickData tickData = new TickData(time, ask, bid, askVol, bidVol, asks, bids, askVols, bidVols);
+        if(LOGGER.isDebugEnabled() && lastTicks[instrument.ordinal()] == null)
+            LOGGER.debug((new StringBuilder()).append("First tick received for [").append(instrument).append("] - [").append(tickData).append("]").toString());
+        lastTicks[instrument.ordinal()] = tickData;
+        currentTimes[instrument.ordinal()] = time;
+        currentTime = time;
+        feeddataprovider;
+        JVM INSTR monitorexit ;
+          goto _L1
+        exception;
+        throw exception;
+_L1:
+        localCacheManager.newTick(instrument, time, ask, bid, askVol, bidVol, false);
+        intraperiodCandlesGenerator.newTick(instrument, time, ask, bid, askVol, bidVol);
+        fireNewTick(instrument, time, ask, bid, askVol, bidVol);
+        return;
+    }
+
+    public void newOrder(Instrument instrument1, OrderHistoricalData orderhistoricaldata)
+    {
+    }
+
+    public void orderChange(Instrument instrument, OrderHistoricalData orderData)
+    {
+        if((orderData.getMergedToGroupId() != null || orderData.isClosed()) && orderData.isOpened() && accountId != null)
+        {
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Saving closed order [").append(orderData).append("]").toString());
+            try
+            {
+                localCacheManager.saveOrderData(accountId, instrument, orderData);
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+    }
+
+    public void orderMerge(Instrument instrument, OrderHistoricalData resultingOrderData, List mergedOrdersData)
+    {
+        if((resultingOrderData.getMergedToGroupId() != null || resultingOrderData.isClosed()) && resultingOrderData.isOpened() && accountId != null)
+        {
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Saving closed order [").append(resultingOrderData).append("]").toString());
+            try
+            {
+                localCacheManager.saveOrderData(accountId, instrument, resultingOrderData);
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+        for(Iterator i$ = mergedOrdersData.iterator(); i$.hasNext();)
+        {
+            OrderHistoricalData mergedOrder = (OrderHistoricalData)i$.next();
+            if(LOGGER.isDebugEnabled())
+                LOGGER.debug((new StringBuilder()).append("Saving merged order [").append(mergedOrder).append("]").toString());
+            try
+            {
+                localCacheManager.saveOrderData(accountId, instrument, mergedOrder);
+            }
+            catch(DataCacheException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+
+    }
+
+    public void ordersInvalidated(Instrument instrument1)
+    {
+    }
+
+    public synchronized double getLastAsk(Instrument instrument)
+    {
+        return lastAsks[instrument.ordinal()];
+    }
+
+    public synchronized double getLastBid(Instrument instrument)
+    {
+        return lastBids[instrument.ordinal()];
+    }
+
+    public synchronized long getCurrentTime(Instrument instrument)
+    {
+        return currentTimes[instrument.ordinal()];
+    }
+
+    public synchronized long getLastTickTime(Instrument instrument)
+    {
+        TickData tickData = lastTicks[instrument.ordinal()];
+        if(tickData == null)
+            return 0x8000000000000000L;
+        else
+            return tickData.time;
+    }
+
+    public synchronized long getLastTickTime()
+    {
+        long ret = 0x8000000000000000L;
+        TickData arr$[] = lastTicks;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            TickData lastTick = arr$[i$];
+            if(lastTick != null && lastTick.time > ret)
+                ret = lastTick.time;
+        }
+
+        return ret;
+    }
+
+    public synchronized TickData getLastTick(Instrument instrument)
+    {
+        return lastTicks[instrument.ordinal()];
+    }
+
+    public void setCurrentTime(long currentTime)
+    {
+        this.currentTime = currentTime;
+    }
+
+    public long getCurrentTime()
+    {
+        return currentTime;
+    }
+
+    public long getTimeOfFirstCandle(Instrument instrument, Period period)
+    {
+        Period basicPeriod = Period.getBasicPeriodForCustom(period);
+        return timesOfTheFirstCandle[instrument.ordinal()][basicPeriod.ordinal()];
+    }
+
+    public static long getTimeOfFirstCandleStatic(Instrument instrument, Period period)
+    {
+        return timesOfTheFirstCandle[instrument.ordinal()][period.ordinal()];
+    }
+
+    public static long getTimeOfFirstOurCandle(Instrument instrument, Period period)
+    {
+        return timesOfTheFirstOurCandle[instrument.ordinal()][period.ordinal()];
+    }
+
+    public void runTask(Runnable task)
+    {
+        actionsExecutorService.submit(task);
+    }
+
+    protected void finalize()
+        throws Throwable
+    {
+        super.finalize();
+        if(!stopped)
+            close();
+    }
+
+    public void close()
+    {
+        stopped = true;
+        actionsExecutorService.shutdown();
+        synchronized(currentlyRunningTasks)
+        {
+            Iterator i$ = currentlyRunningTasks.iterator();
+            do
+            {
+                if(!i$.hasNext())
+                    break;
+                Runnable currentlyRunningTask = (Runnable)i$.next();
+                if(currentlyRunningTask instanceof LoadProgressingAction)
+                    ((LoadProgressingAction)currentlyRunningTask).cancel();
+            } while(true);
+        }
+        try
+        {
+            if(!actionsExecutorService.awaitTermination(15L, TimeUnit.SECONDS))
+                actionsExecutorService.shutdownNow();
+        }
+        catch(InterruptedException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            actionsExecutorService.shutdownNow();
+        }
+        intraperiodCandlesGenerator.stop();
+        try
+        {
+            localCacheManager.closeHandles();
+            if(localCacheManager.cacheLock != null && localCacheManager.cacheLock.isValid())
+            {
+                localCacheManager.cacheLock.release();
+                localCacheManager.cacheLock.channel().close();
+            }
+            localCacheManager = null;
+        }
+        catch(IOException e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        instrumentSubscriptionListeners.clear();
+        Instrument arr$[] = Instrument.values();
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            Instrument instrument = arr$[i$];
+            Period arr$[] = Period.values();
+            int len$ = arr$.length;
+            for(int i$ = 0; i$ < len$; i$++)
+            {
+                Period period = arr$[i$];
+                List askInProgressCandleListeners = getPeriodListeners(inProgressCandleListenersMap, instrument, period, OfferSide.ASK);
+                List bidInProgressCandleListeners = getPeriodListeners(inProgressCandleListenersMap, instrument, period, OfferSide.BID);
+                if(askInProgressCandleListeners != null)
+                    askInProgressCandleListeners.clear();
+                if(bidInProgressCandleListeners != null)
+                    bidInProgressCandleListeners.clear();
+            }
+
+        }
+
+        allCandlePeriodListener.clear();
+        for(int i = 0; i < Instrument.values().length; i++)
+        {
+            for(int j = 0; j < Period.values().length; j++)
+            {
+                Instrument instrument = Instrument.values()[i];
+                Period period = Period.values()[j];
+                List askPeriodListeners = getPeriodListeners(periodListenersMap, instrument, period, OfferSide.ASK);
+                List bidPeriodListeners = getPeriodListeners(periodListenersMap, instrument, period, OfferSide.BID);
+                if(askPeriodListeners != null)
+                    askPeriodListeners.clear();
+                if(bidPeriodListeners != null)
+                    bidPeriodListeners.clear();
+            }
+
+            if(allPeriodListeners[i][0] != null)
+                allPeriodListeners[i][0].clear();
+            if(allPeriodListeners[i][1] != null)
+                allPeriodListeners[i][1].clear();
+        }
+
+        i = tickListeners;
+        j = i.length;
+        for(int i$ = 0; i$ < j; i$++)
+        {
+            List tickListener = i[i$];
+            tickListener.clear();
+        }
+
+        i = cacheDataChangeListeners;
+        j = i.length;
+        for(int i$ = 0; i$ < j; i$++)
+        {
+            List cacheDataChangeListener = i[i$];
+            cacheDataChangeListener.clear();
+        }
+
+        ordersProvider.close();
+        if(this == getDefaultInstance())
+        {
+            feedDataProvider = null;
+            curvesProtocolHandler.close();
+            curvesProtocolHandler = null;
+        }
+        if(backgroundFeedLoadingThread != null)
+            backgroundFeedLoadingThread.setFinished(true);
+    }
+
+    protected LoadOrdersAction getLoadOrdersAction(Instrument instrument, long from, long to, OrdersListener ordersListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        if(LOGGER.isTraceEnabled())
+        {
+            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+            LOGGER.trace((new StringBuilder()).append("Loading orders instrument [").append(instrument).append("] from [").append(dateFormat.format(new Date(from))).append("] to [").append(dateFormat.format(new Date(to))).append("]").toString());
+            final LoadingProgressListener originalLoadingProgressListener = loadingProgress;
+            loadingProgress = new LoadingProgressListener() {
+
+                public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+                {
+                    lastCurrentTime = currentTime;
+                    FeedDataProvider.LOGGER.trace(information);
+                    originalLoadingProgressListener.dataLoaded(startTime, endTime, currentTime, information);
+                }
+
+                public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                        Exception e)
+                {
+                    FeedDataProvider.LOGGER.trace((new StringBuilder()).append("Loading fineshed with ").append(allDataLoaded ? "OK" : "ERROR").append(" status").toString());
+                    originalLoadingProgressListener.loadingFinished(allDataLoaded, startTime, endTime, allDataLoaded ? currentTime : lastCurrentTime, e);
+                }
+
+                public boolean stopJob()
+                {
+                    return originalLoadingProgressListener.stopJob();
+                }
+
+                private long lastCurrentTime;
+                final LoadingProgressListener val$originalLoadingProgressListener;
+                final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                originalLoadingProgressListener = loadingprogresslistener;
+                super();
+            }
+            };
+        }
+        LoadOrdersAction loadOrdersAction = new LoadOrdersAction(this, accountId, instrument, from, to, ordersListener, loadingProgress, intraperiodExistsPolicy, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+        if(stopped)
+            loadOrdersAction.cancel();
+        return loadOrdersAction;
+    }
+
+    public void loadOrdersHistoricalData(Instrument instrument, long from, long to, OrdersListener ordersListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadOrdersAction loadDataAction = getLoadOrdersAction(instrument, from, to, ordersListener, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadOrdersHistoricalDataSynched(Instrument instrument, long from, long to, OrdersListener ordersListener, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadOrdersAction loadDataAction = getLoadOrdersAction(instrument, from, to, ordersListener, loadingProgress);
+        loadDataAction.run();
+    }
+
+    public void loadOrdersHistoricalDataInCache(Instrument instrument, long from, long to, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadOrdersAction loadDataAction = getLoadOrdersAction(instrument, from, to, null, loadingProgress);
+        actionsExecutorService.submit(loadDataAction);
+    }
+
+    public void loadOrdersHistoricalDataInCacheSynched(Instrument instrument, long from, long to, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        LoadOrdersAction loadDataAction = getLoadOrdersAction(instrument, from, to, null, loadingProgress);
+        loadDataAction.run();
+    }
+
+    protected static String getEncryptionKey()
+    {
+        if(encryptionKey == null)
+        {
+            LOGGER.warn("Encryption key was not found, creation temporary key");
+            try
+            {
+                KeyGenerator kgen = KeyGenerator.getInstance("AES");
+                kgen.init(128);
+                SecretKey skey = kgen.generateKey();
+                byte raw[] = skey.getEncoded();
+                encryptionKey = Hex.encodeHexString(raw);
+            }
+            catch(NoSuchAlgorithmException e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        }
+        return encryptionKey;
+    }
+
+    public void subscribeToOrdersNotifications(Instrument instrument, OrdersListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Subscribing one more listener for orders notifications to instrument [").append(instrument).append("]").toString());
+        ordersProvider.addOrdersListener(instrument, listener);
+    }
+
+    public void unsubscribeToOrdersNotifications(Instrument instrument, OrdersListener listener)
+    {
+        LOGGER.trace((new StringBuilder()).append("Unsubscribing orders notifications listener from instrument [").append(instrument).append("]").toString());
+        ordersProvider.removeOrdersListener(listener);
+    }
+
+    public IOrdersProvider getOrdersProvider()
+    {
+        return ordersProvider;
+    }
+
+    public IOrderUtils getOrderUtils()
+    {
+        return ordersProvider.getOrderUtils();
+    }
+
+    public synchronized void disconnected()
+    {
+        if(connected)
+        {
+            connected = false;
+            long lastTickTime = getLastTickTime();
+            if(lastTickTime == 0x8000000000000000L)
+                lastTickTime = System.currentTimeMillis();
+            disconnectTime = lastTickTime - 0x493e0L;
+            for(int i = 0; i < lastAsks.length; i++)
+            {
+                lastAsks[i] = (0.0D / 0.0D);
+                lastBids[i] = (0.0D / 0.0D);
+            }
+
+            for(int i = 0; i < lastTicks.length; i++)
+                lastTicks[i] = null;
+
+            localCacheManager.resetLastOrderUpdateTimes();
+        }
+    }
+
+    public synchronized void connected()
+    {
+        if(!connected)
+        {
+            UpdateCacheDataAction action = new UpdateCacheDataAction(this, disconnectTime, isAssertionsEnabled() ? Thread.currentThread().getStackTrace() : null);
+            actionsExecutorService.submit(action);
+            connected = true;
+        }
+    }
+
+    public void addCacheDataUpdatedListener(Instrument instrument, CacheDataUpdatedListener listener)
+    {
+        cacheDataChangeListeners[instrument.ordinal()].add(listener);
+    }
+
+    public void removeCacheDataUpdatedListener(Instrument instrument, CacheDataUpdatedListener listener)
+    {
+        cacheDataChangeListeners[instrument.ordinal()].remove(listener);
+    }
+
+    protected void fireCacheDataChanged(Instrument instrument, long disconnectedTime, long connectedTime)
+    {
+        CacheDataUpdatedListener listeners[] = (CacheDataUpdatedListener[])cacheDataChangeListeners[instrument.ordinal()].toArray(new CacheDataUpdatedListener[cacheDataChangeListeners[instrument.ordinal()].size()]);
+        CacheDataUpdatedListener arr$[] = listeners;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            CacheDataUpdatedListener listener = arr$[i$];
+            listener.cacheUpdated(instrument, disconnectedTime, connectedTime);
+        }
+
+    }
+
+    public boolean isPeriodSubscribedInProgressCandle(Instrument instrument, Period period)
+    {
+        List askListenersList = getPeriodListeners(inProgressCandleListenersMap, instrument, period, OfferSide.ASK);
+        List bidListenersList = getPeriodListeners(inProgressCandleListenersMap, instrument, period, OfferSide.BID);
+        return askListenersList != null && !askListenersList.isEmpty() || bidListenersList != null && !bidListenersList.isEmpty();
+    }
+
+    public void loadPriceRangeData(Instrument instrument, OfferSide offerSide, int numberOfPriceRangesBefore, long time, int numberOfPriceRangesAfter, PriceRange priceRange, 
+            IPriceRangeLiveFeedListener priceRangeLiveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        LoadNumberOfPriceRangeAction loadPriceRangesAction = createLoadPriceRangeAction(instrument, offerSide, numberOfPriceRangesBefore, time, numberOfPriceRangesAfter, priceRange, priceRangeLiveFeedListener, loadingProgressListener);
+        actionsExecutorService.submit(loadPriceRangesAction);
+    }
+
+    public void loadPriceRangeDataSynched(Instrument instrument, OfferSide offerSide, int numberOfPriceRangesBefore, long time, int numberOfPriceRangesAfter, PriceRange priceRange, 
+            IPriceRangeLiveFeedListener priceRangeLiveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        LoadNumberOfPriceRangeAction loadPriceRangesAction = createLoadPriceRangeAction(instrument, offerSide, numberOfPriceRangesBefore, time, numberOfPriceRangesAfter, priceRange, priceRangeLiveFeedListener, loadingProgressListener);
+        loadPriceRangesAction.run();
+    }
+
+    public List loadPriceRangeData(Instrument instrument, OfferSide offerSide, int numberOfPriceRangesBefore, long time, int numberOfPriceRangesAfter, PriceRange priceRange)
+    {
+        final List result = new ArrayList();
+        loadPriceRangeDataSynched(instrument, offerSide, numberOfPriceRangesBefore, time, numberOfPriceRangesAfter, priceRange, new PriceRangeLiveFeedAdapter() {
+
+            public void newPriceDatas(PriceRangeData priceRanges[], int loadedNumberBefore, int loadedNumberAfter)
+            {
+                result.addAll(Arrays.asList(priceRanges));
+            }
+
+            public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+            {
+                newPriceDatas((PriceRangeData[])x0, x1, x2);
+            }
+
+            final List val$result;
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                result = list;
+                super();
+            }
+        }, new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        });
+        return result;
+    }
+
+    public PriceRangeData loadLastPriceRangeDataSynched(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        LastPriceRangeLiveFeedListener liveFeedListener = new LastPriceRangeLiveFeedListener();
+        LoadingProgressListener loadingProgressListener = new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        };
+        LoadLatestPriceRangeAction action = new LoadLatestPriceRangeAction(this, instrument, offerSide, priceRange, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        action.run();
+        return liveFeedListener.getLastData();
+    }
+
+    private LoadNumberOfPriceRangeAction createLoadPriceRangeAction(Instrument instrument, OfferSide offerSide, int numberOfPriceRangesBefore, long time, int numberOfPriceRangesAfter, PriceRange priceRange, 
+            IPriceRangeLiveFeedListener priceRangeLiveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        LoadNumberOfPriceRangeAction loadPriceRangesAction = new LoadNumberOfPriceRangeAction(instrument, offerSide, numberOfPriceRangesBefore, time, numberOfPriceRangesAfter, priceRange, this, priceRangeLiveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        return loadPriceRangesAction;
+    }
+
+    public void loadPointAndFigureData(Instrument instrument, OfferSide offerSide, int beforeTimeCandlesCount, long time, int afterTimeCandlesCount, PriceRange boxSize, 
+            ReversalAmount reversalAmount, IPointAndFigureLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = createLoadPointAndFigureAction(this, instrument, offerSide, time, beforeTimeCandlesCount, afterTimeCandlesCount, boxSize, reversalAmount, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        actionsExecutorService.submit(action);
+    }
+
+    public void loadPointAndFigureDataSynched(Instrument instrument, OfferSide offerSide, long time, int beforeTimeCandlesCount, int afterTimeCandlesCount, PriceRange boxSize, 
+            ReversalAmount reversalAmount, IPointAndFigureLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = createLoadPointAndFigureAction(this, instrument, offerSide, time, beforeTimeCandlesCount, afterTimeCandlesCount, boxSize, reversalAmount, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        action.run();
+    }
+
+    public List loadPointAndFigureData(Instrument instrument, OfferSide offerSide, long time, int beforeTimeCandlesCount, int afterTimeCandlesCount, PriceRange boxSize, 
+            ReversalAmount reversalAmount)
+    {
+        final List result = new ArrayList();
+        loadPointAndFigureDataSynched(instrument, offerSide, time, beforeTimeCandlesCount, afterTimeCandlesCount, boxSize, reversalAmount, new PointAndFigureLiveFeedAdapter() {
+
+            public void newPriceDatas(PointAndFigureData pointAndFigures[], int loadedNumberBefore, int loadedNumberAfter)
+            {
+                result.addAll(Arrays.asList(pointAndFigures));
+            }
+
+            public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+            {
+                newPriceDatas((PointAndFigureData[])x0, x1, x2);
+            }
+
+            final List val$result;
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                result = list;
+                super();
+            }
+        }, new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        });
+        return result;
+    }
+
+    private Runnable createLoadPointAndFigureAction(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, long time, int beforeTimeCandlesCount, int afterTimeCandlesCount, 
+            PriceRange boxSize, ReversalAmount reversalAmount, IPointAndFigureLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy)
+    {
+        Runnable action = new LoadNumberOfPointAndFigureAction(feedDataProvider, instrument, offerSide, beforeTimeCandlesCount, time, afterTimeCandlesCount, boxSize, reversalAmount, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        return action;
+    }
+
+    public PointAndFigureData loadLastPointAndFigureDataSynched(Instrument instrument, OfferSide offerSide, PriceRange boxSize, ReversalAmount reversalAmount)
+    {
+        LastPointAndFigureLiveFeedListener liveFeedListener = new LastPointAndFigureLiveFeedListener();
+        LoadingProgressListener loadingProgressListener = new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        };
+        LoadLatestPointAndFigureAction action = new LoadLatestPointAndFigureAction(this, instrument, offerSide, boxSize, reversalAmount, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        action.run();
+        return liveFeedListener.getLastData();
+    }
+
+    public void loadTickBarData(Instrument instrument, OfferSide offerSide, int beforeTimeBarsCount, long time, int afterTimeBarsCount, TickBarSize tickBarSize, 
+            ITickBarLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = createLoadTickBarAction(this, instrument, offerSide, beforeTimeBarsCount, time, afterTimeBarsCount, tickBarSize, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        actionsExecutorService.submit(action);
+    }
+
+    public void loadTickBarDataSynched(Instrument instrument, OfferSide offerSide, int beforeTimeBarsCount, long time, int afterTimeBarsCount, TickBarSize tickBarSize, 
+            ITickBarLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = createLoadTickBarAction(this, instrument, offerSide, beforeTimeBarsCount, time, afterTimeBarsCount, tickBarSize, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        action.run();
+    }
+
+    public List loadTickBarData(Instrument instrument, OfferSide offerSide, int beforeTimeBarsCount, long time, int afterTimeBarsCount, TickBarSize tickBarSize)
+    {
+        final List result = new ArrayList();
+        loadTickBarDataSynched(instrument, offerSide, beforeTimeBarsCount, time, afterTimeBarsCount, tickBarSize, new TickBarLiveFeedAdapter() {
+
+            public void newPriceDatas(TickBarData tickBars[], int loadedNumberBefore, int loadedNumberAfter)
+            {
+                result.addAll(Arrays.asList(tickBars));
+            }
+
+            public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+            {
+                newPriceDatas((TickBarData[])x0, x1, x2);
+            }
+
+            final List val$result;
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                result = list;
+                super();
+            }
+        }, new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        });
+        return result;
+    }
+
+    public TickBarData loadLastTickBarDataSynched(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        LastTickBarLiveFeedListener liveFeedListener = new LastTickBarLiveFeedListener();
+        LoadingProgressListener loadingProgressListener = new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        };
+        LoadLatestTickBarAction action = new LoadLatestTickBarAction(this, instrument, offerSide, tickBarSize, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        action.run();
+        return liveFeedListener.getLastData();
+    }
+
+    private Runnable createLoadTickBarAction(FeedDataProvider feedDataProvider, Instrument instrument, OfferSide offerSide, int beforeTimeBarsCount, long time, int afterTimeBarsCount, 
+            TickBarSize tickBarSize, ITickBarLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy)
+    {
+        return new LoadNumberOfTickBarAction(instrument, offerSide, beforeTimeBarsCount, time, afterTimeBarsCount, tickBarSize, feedDataProvider, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+    }
+
+    private void addTickToLatency(long time)
+    {
+        int latency = (int)(System.currentTimeMillis() - time);
+        networkLatency[latencyIndex] = latency;
+        latencyIndex++;
+        if(latencyIndex >= networkLatency.length)
+            latencyIndex = 0;
+    }
+
+    public synchronized int getLatency()
+    {
+        int latencySum = 0;
+        int arr$[] = networkLatency;
+        int len$ = arr$.length;
+        for(int i$ = 0; i$ < len$; i$++)
+        {
+            int aNetworkLatency = arr$[i$];
+            latencySum += aNetworkLatency;
+        }
+
+        return latencySum / networkLatency.length;
+    }
+
+    public long getEstimatedServerTime()
+    {
+        return System.currentTimeMillis() - (long)getLatency();
+    }
+
+    public void fireInProgressTickBarFormed(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, TickBarData bar)
+    {
+        List listeners = getTickBarLiveFeedListeners(tickBarNotificationListenersMap, instrument, offerSide, tickBarSize);
+        ITickBarLiveFeedListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.newPriceData(bar))
+            listener = (ITickBarLiveFeedListener)i$.next();
+
+    }
+
+    public void fireInProgressTickBarUpdated(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, TickBarData bar)
+    {
+        List listeners = getTickBarLiveFeedListeners(inProgressTickBarLiveFeedListenersMap, instrument, offerSide, tickBarSize);
+        ITickBarLiveFeedListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.newPriceData(bar))
+            listener = (ITickBarLiveFeedListener)i$.next();
+
+    }
+
+    public void fireInProgressPointAndFigureFormed(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, PointAndFigureData bar)
+    {
+        List listeners = getPointAndFigureLiveFeedListeners(pointAndFigureNotificationListenersMap, instrument, offerSide, priceRange, reversalAmount);
+        IPointAndFigureLiveFeedListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.newPriceData(bar))
+            listener = (IPointAndFigureLiveFeedListener)i$.next();
+
+    }
+
+    public void fireInProgressPointAndFigureUpdated(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, PointAndFigureData bar)
+    {
+        List listeners = getPointAndFigureLiveFeedListeners(inProgressPointAndFigureListenersMap, instrument, offerSide, priceRange, reversalAmount);
+        IPointAndFigureLiveFeedListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.newPriceData(bar))
+            listener = (IPointAndFigureLiveFeedListener)i$.next();
+
+    }
+
+    public void fireInProgressPriceRangeUpdated(Instrument instrument, OfferSide offerSide, PriceRange priceRange, PriceRangeData bar)
+    {
+        List listeners = getPriceRangeLiveFeedListeners(inProgressPriceRangeLiveFeedListenersMap, instrument, offerSide, priceRange);
+        IPriceRangeLiveFeedListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.newPriceData(bar))
+            listener = (IPriceRangeLiveFeedListener)i$.next();
+
+    }
+
+    public void fireInProgressPriceRangeFormed(Instrument instrument, OfferSide offerSide, PriceRange priceRange, PriceRangeData bar)
+    {
+        List listeners = getPriceRangeLiveFeedListeners(priceRangeNotificationListenersMap, instrument, offerSide, priceRange);
+        IPriceRangeLiveFeedListener listener;
+        for(Iterator i$ = listeners.iterator(); i$.hasNext(); listener.newPriceData(bar))
+            listener = (IPriceRangeLiveFeedListener)i$.next();
+
+    }
+
+    public void addInProgressPriceRangeListener(Instrument instrument, OfferSide offerSide, PriceRange priceRange, IPriceRangeLiveFeedListener listener)
+    {
+        List listeners = getPriceRangeLiveFeedListeners(inProgressPriceRangeLiveFeedListenersMap, instrument, offerSide, priceRange);
+        listeners.add(listener);
+        intraperiodCandlesGenerator.getIntraperiodBarsGenerator().startToFillInProgressPriceRange(instrument, offerSide, priceRange);
+    }
+
+    public void removeInProgressPriceRangeListener(IPriceRangeLiveFeedListener listener)
+    {
+        removePriceRangeLiveFeedListener(inProgressPriceRangeLiveFeedListenersMap, listener);
+    }
+
+    public void addPriceRangeNotificationListener(Instrument instrument, OfferSide offerSide, PriceRange priceRange, IPriceRangeLiveFeedListener listener)
+    {
+        List listeners = getPriceRangeLiveFeedListeners(priceRangeNotificationListenersMap, instrument, offerSide, priceRange);
+        listeners.add(listener);
+        intraperiodCandlesGenerator.getIntraperiodBarsGenerator().startToFillInProgressPriceRange(instrument, offerSide, priceRange);
+    }
+
+    public void removePriceRangeNotificationListener(IPriceRangeLiveFeedListener listener)
+    {
+        removePriceRangeLiveFeedListener(priceRangeNotificationListenersMap, listener);
+    }
+
+    public void addInProgressPointAndFigureListener(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, IPointAndFigureLiveFeedListener listener)
+    {
+        List listeners = getPointAndFigureLiveFeedListeners(inProgressPointAndFigureListenersMap, instrument, offerSide, priceRange, reversalAmount);
+        listeners.add(listener);
+        intraperiodCandlesGenerator.getIntraperiodBarsGenerator().startToFillInProgressPointAndFigure(instrument, offerSide, priceRange, reversalAmount);
+    }
+
+    public void removeInProgressPointAndFigureListener(IPointAndFigureLiveFeedListener listener)
+    {
+        removePointAndFigureLiveFeedListener(inProgressPointAndFigureListenersMap, listener);
+    }
+
+    public void addPointAndFigureNotificationListener(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, IPointAndFigureLiveFeedListener listener)
+    {
+        List listeners = getPointAndFigureLiveFeedListeners(pointAndFigureNotificationListenersMap, instrument, offerSide, priceRange, reversalAmount);
+        listeners.add(listener);
+        intraperiodCandlesGenerator.getIntraperiodBarsGenerator().startToFillInProgressPointAndFigure(instrument, offerSide, priceRange, reversalAmount);
+    }
+
+    public void removePointAndFigureNotificationListener(IPointAndFigureLiveFeedListener listener)
+    {
+        removePointAndFigureLiveFeedListener(pointAndFigureNotificationListenersMap, listener);
+    }
+
+    public void addInProgressTickBarListener(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, ITickBarLiveFeedListener listener)
+    {
+        List listeners = getTickBarLiveFeedListeners(inProgressTickBarLiveFeedListenersMap, instrument, offerSide, tickBarSize);
+        listeners.add(listener);
+        intraperiodCandlesGenerator.getIntraperiodBarsGenerator().startToFillInProgressTickBar(instrument, offerSide, tickBarSize);
+    }
+
+    public void removeInProgressTickBarListener(ITickBarLiveFeedListener listener)
+    {
+        removeTickBarLiveFeedListener(inProgressTickBarLiveFeedListenersMap, listener);
+    }
+
+    public void addTickBarNotificationListener(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, ITickBarLiveFeedListener listener)
+    {
+        List listeners = getTickBarLiveFeedListeners(tickBarNotificationListenersMap, instrument, offerSide, tickBarSize);
+        listeners.add(listener);
+        intraperiodCandlesGenerator.getIntraperiodBarsGenerator().startToFillInProgressTickBar(instrument, offerSide, tickBarSize);
+    }
+
+    public void removeTickBarNotificationListener(ITickBarLiveFeedListener listener)
+    {
+        removeTickBarLiveFeedListener(tickBarNotificationListenersMap, listener);
+    }
+
+    private List getPriceRangeLiveFeedListeners(Map map, Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        Map instrumentMap = (Map)map.get(instrument);
+        if(instrumentMap == null)
+        {
+            instrumentMap = new HashMap();
+            map.put(instrument, instrumentMap);
+        }
+        Map offerSideMap = (Map)instrumentMap.get(offerSide);
+        if(offerSideMap == null)
+        {
+            offerSideMap = new HashMap();
+            instrumentMap.put(offerSide, offerSideMap);
+        }
+        List list = (List)offerSideMap.get(priceRange);
+        if(list == null)
+        {
+            list = new ArrayList();
+            offerSideMap.put(priceRange, list);
+        }
+        return list;
+    }
+
+    private void removePriceRangeLiveFeedListener(Map map, IPriceRangeLiveFeedListener listener)
+    {
+        if(listener == null)
+            return;
+        for(Iterator i$ = map.keySet().iterator(); i$.hasNext();)
+        {
+            Instrument instrument = (Instrument)i$.next();
+            Map instrumentMap = (Map)map.get(instrument);
+            if(instrumentMap != null)
+            {
+                Iterator i$ = instrumentMap.keySet().iterator();
+                while(i$.hasNext()) 
+                {
+                    OfferSide offerSide = (OfferSide)i$.next();
+                    Map offerSideMap = (Map)instrumentMap.get(offerSide);
+                    if(offerSideMap != null)
+                    {
+                        Iterator i$ = offerSideMap.keySet().iterator();
+                        while(i$.hasNext()) 
+                        {
+                            PriceRange priceRange = (PriceRange)i$.next();
+                            List list = (List)offerSideMap.get(priceRange);
+                            if(list != null && list.contains(listener))
+                            {
+                                list.remove(listener);
+                                if(list.isEmpty())
+                                    intraperiodCandlesGenerator.getIntraperiodBarsGenerator().stopToFillInProgressPriceRange(instrument, offerSide, priceRange);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    private List getPointAndFigureLiveFeedListeners(Map map, Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        Map instrumentMap = (Map)map.get(instrument);
+        if(instrumentMap == null)
+        {
+            instrumentMap = new HashMap();
+            map.put(instrument, instrumentMap);
+        }
+        Map offerSideMap = (Map)instrumentMap.get(offerSide);
+        if(offerSideMap == null)
+        {
+            offerSideMap = new HashMap();
+            instrumentMap.put(offerSide, offerSideMap);
+        }
+        Map priceRangeMap = (Map)offerSideMap.get(priceRange);
+        if(priceRangeMap == null)
+        {
+            priceRangeMap = new HashMap();
+            offerSideMap.put(priceRange, priceRangeMap);
+        }
+        List list = (List)priceRangeMap.get(reversalAmount);
+        if(list == null)
+        {
+            list = new ArrayList();
+            priceRangeMap.put(reversalAmount, list);
+        }
+        return list;
+    }
+
+    private void removePointAndFigureLiveFeedListener(Map map, IPointAndFigureLiveFeedListener listener)
+    {
+        if(listener == null)
+            return;
+        for(Iterator i$ = map.keySet().iterator(); i$.hasNext();)
+        {
+            Instrument instrument = (Instrument)i$.next();
+            Map instrumentMap = (Map)map.get(instrument);
+            if(instrumentMap != null)
+            {
+                Iterator i$ = instrumentMap.keySet().iterator();
+                while(i$.hasNext()) 
+                {
+                    OfferSide offerSide = (OfferSide)i$.next();
+                    Map offerSideMap = (Map)instrumentMap.get(offerSide);
+                    if(offerSideMap != null)
+                    {
+                        Iterator i$ = offerSideMap.keySet().iterator();
+                        while(i$.hasNext()) 
+                        {
+                            PriceRange priceRange = (PriceRange)i$.next();
+                            Map priceRangeMap = (Map)offerSideMap.get(priceRange);
+                            if(priceRangeMap != null)
+                            {
+                                Iterator i$ = priceRangeMap.keySet().iterator();
+                                while(i$.hasNext()) 
+                                {
+                                    ReversalAmount reversalAmount = (ReversalAmount)i$.next();
+                                    List list = (List)priceRangeMap.get(reversalAmount);
+                                    if(list != null && list.contains(listener))
+                                    {
+                                        list.remove(listener);
+                                        if(list.isEmpty())
+                                            intraperiodCandlesGenerator.getIntraperiodBarsGenerator().stopToFillInProgressPointAndFigure(instrument, offerSide, priceRange, reversalAmount);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    private List getTickBarLiveFeedListeners(Map map, Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        Map instrumentMap = (Map)map.get(instrument);
+        if(instrumentMap == null)
+        {
+            instrumentMap = new HashMap();
+            map.put(instrument, instrumentMap);
+        }
+        Map offerSideMap = (Map)instrumentMap.get(offerSide);
+        if(offerSideMap == null)
+        {
+            offerSideMap = new HashMap();
+            instrumentMap.put(offerSide, offerSideMap);
+        }
+        List list = (List)offerSideMap.get(tickBarSize);
+        if(list == null)
+        {
+            list = new ArrayList();
+            offerSideMap.put(tickBarSize, list);
+        }
+        return list;
+    }
+
+    private void removeTickBarLiveFeedListener(Map map, ITickBarLiveFeedListener listener)
+    {
+        if(listener == null)
+            return;
+        for(Iterator i$ = map.keySet().iterator(); i$.hasNext();)
+        {
+            Instrument instrument = (Instrument)i$.next();
+            Map instrumentMap = (Map)map.get(instrument);
+            if(instrumentMap != null)
+            {
+                Iterator i$ = instrumentMap.keySet().iterator();
+                while(i$.hasNext()) 
+                {
+                    OfferSide offerSide = (OfferSide)i$.next();
+                    Map offerSideMap = (Map)instrumentMap.get(offerSide);
+                    if(offerSideMap != null)
+                    {
+                        Iterator i$ = offerSideMap.keySet().iterator();
+                        while(i$.hasNext()) 
+                        {
+                            TickBarSize tickBarSize = (TickBarSize)i$.next();
+                            List list = (List)offerSideMap.get(tickBarSize);
+                            if(list != null && list.contains(listener))
+                            {
+                                list.remove(listener);
+                                if(list.isEmpty())
+                                    intraperiodCandlesGenerator.getIntraperiodBarsGenerator().stopToFillInProgressTickBar(instrument, offerSide, tickBarSize);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+
+    public PointAndFigureData getInProgressPointAndFigure(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        return intraperiodCandlesGenerator.getIntraperiodBarsGenerator().getInProgressPointAndFigure(instrument, offerSide, priceRange, reversalAmount);
+    }
+
+    public PointAndFigureData getOrLoadInProgressPointAndFigure(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        PointAndFigureData bar = getInProgressPointAndFigure(instrument, offerSide, priceRange, reversalAmount);
+        if(bar == null)
+            bar = loadLastPointAndFigureDataSynched(instrument, offerSide, priceRange, reversalAmount);
+        return bar;
+    }
+
+    public PriceRangeData getInProgressPriceRange(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        return intraperiodCandlesGenerator.getIntraperiodBarsGenerator().getInProgressPriceRange(instrument, offerSide, priceRange);
+    }
+
+    public PriceRangeData getOrLoadInProgressPriceRange(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        PriceRangeData bar = getInProgressPriceRange(instrument, offerSide, priceRange);
+        if(bar == null)
+            bar = loadLastPriceRangeDataSynched(instrument, offerSide, priceRange);
+        return bar;
+    }
+
+    public TickBarData getInProgressTickBar(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        return intraperiodCandlesGenerator.getIntraperiodBarsGenerator().getInProgressTickBar(instrument, offerSide, tickBarSize);
+    }
+
+    public TickBarData getOrLoadInProgressTickBar(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        TickBarData bar = getInProgressTickBar(instrument, offerSide, tickBarSize);
+        if(bar == null)
+            bar = loadLastTickBarDataSynched(instrument, offerSide, tickBarSize);
+        return bar;
+    }
+
+    public long getLatestKnownTimeOrCurrentGMTTime(Instrument instrument)
+    {
+        if(instrument == null)
+            throw new NullPointerException("Params are not correct!");
+        long time = getLastTickTime(instrument);
+        if(0x8000000000000000L == time)
+            time = Calendar.getInstance(TimeZone.getTimeZone("GMT 0")).getTimeInMillis();
+        return time;
+    }
+
+    public boolean isInProgressPriceRangeLoadingNow(Instrument instrument, OfferSide offerSide, PriceRange priceRange)
+    {
+        return intraperiodCandlesGenerator.getIntraperiodBarsGenerator().isInProgressPriceRangeLoadingNow(instrument, offerSide, priceRange);
+    }
+
+    public boolean isInProgressTickBarLoadingNow(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize)
+    {
+        return intraperiodCandlesGenerator.getIntraperiodBarsGenerator().isInProgressTickBarLoadingNow(instrument, offerSide, tickBarSize);
+    }
+
+    public boolean isInProgressPointAndFigureLoadingNow(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        return intraperiodCandlesGenerator.getIntraperiodBarsGenerator().isInProgressPointAndFigureLoadingNow(instrument, offerSide, priceRange, reversalAmount);
+    }
+
+    public void loadPriceRangeTimeIntervalSynched(Instrument instrument, OfferSide offerSide, PriceRange priceRange, long fromTime, long toTime, 
+            IPriceRangeLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = new LoadPriceRangeTimeIntervalAction(instrument, offerSide, priceRange, fromTime, toTime, this, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        action.run();
+    }
+
+    public void loadPriceRangeTimeInterval(Instrument instrument, OfferSide offerSide, PriceRange priceRange, long fromTime, long toTime, 
+            IPriceRangeLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = new LoadPriceRangeTimeIntervalAction(instrument, offerSide, priceRange, fromTime, toTime, this, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        actionsExecutorService.submit(action);
+    }
+
+    public void loadPointAndFigureTimeIntervalSynched(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, long fromTime, long toTime, IPointAndFigureLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = new LoadPointAndFigureTimeIntervalAction(instrument, offerSide, priceRange, reversalAmount, fromTime, toTime, this, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        action.run();
+    }
+
+    public void loadPointAndFigureTimeInterval(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, long fromTime, long toTime, IPointAndFigureLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = new LoadPointAndFigureTimeIntervalAction(instrument, offerSide, priceRange, reversalAmount, fromTime, toTime, this, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        actionsExecutorService.submit(action);
+    }
+
+    public void loadTickBarTimeIntervalSynched(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, long fromTime, long toTime, 
+            ITickBarLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = new LoadTickBarTimeIntervalAction(instrument, offerSide, tickBarSize, fromTime, toTime, this, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        action.run();
+    }
+
+    public void loadTickBarTimeInterval(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, long fromTime, long toTime, 
+            ITickBarLiveFeedListener liveFeedListener, LoadingProgressListener loadingProgressListener)
+    {
+        Runnable action = new LoadTickBarTimeIntervalAction(instrument, offerSide, tickBarSize, fromTime, toTime, this, liveFeedListener, loadingProgressListener, intraperiodExistsPolicy);
+        actionsExecutorService.submit(action);
+    }
+
+    public List loadTicksBefore(Instrument instrument, int itemsCount, long toDateMs)
+        throws Exception
+    {
+        return null;
+    }
+
+    public List loadTicksAfter(Instrument instrument, long fromDateMs, int i)
+        throws Exception
+    {
+        return null;
+    }
+
+    public List loadCandlesBefore(Instrument instrument, Period period, OfferSide side, int i, long l)
+        throws Exception
+    {
+        return null;
+    }
+
+    public List loadCandlesAfter(Instrument instrument, Period period, OfferSide side, long l, int i)
+        throws Exception
+    {
+        return null;
+    }
+
+    public void startInBackgroundFeedPreloadingToLocalCache()
+    {
+        if(backgroundFeedLoadingThread == null)
+        {
+            backgroundFeedLoadingThread = new BackgroundFeedLoadingThread(this);
+            backgroundFeedLoadingThread.start();
+        }
+    }
+
+    public List calculateWeekends(Period period, int expectedNumberOfCandles, long expectedFrom, long expectedTo, LoadingProgressListener loadingProgress)
+        throws DataCacheException
+    {
+        Instrument instrument = Instrument.EURUSD;
+        List weekends = getApproximateWeekends(expectedFrom, expectedTo);
+        if(period.getInterval() < Period.FOUR_HOURS.getInterval())
+        {
+            List weekendsCopy = new ArrayList(weekends);
+            synchronized(cachedWeekends)
+            {
+                Iterator iterator = weekendsCopy.iterator();
+label0:
+                do
+                {
+                    if(!iterator.hasNext())
+                        break;
+                    Weekend weekend = (Weekend)iterator.next();
+                    Iterator cachedWeekendIterator = cachedWeekends.iterator();
+                    Weekend cachedWeekend;
+                    do
+                    {
+                        if(!cachedWeekendIterator.hasNext())
+                            continue label0;
+                        cachedWeekend = (Weekend)cachedWeekendIterator.next();
+                    } while(cachedWeekend.getStart() > weekend.getStart() || cachedWeekend.getEnd() < weekend.getEnd());
+                    weekend.setStart(cachedWeekend.getStart());
+                    weekend.setEnd(cachedWeekend.getEnd());
+                    iterator.remove();
+                    cachedWeekendIterator.remove();
+                    cachedWeekends.addFirst(cachedWeekend);
+                } while(true);
+            }
+            SaveCandlesLoadingProgressListener c10MinProgressListener = new SaveCandlesLoadingProgressListener(loadingProgress);
+            SaveCandlesLiveFeedListener c10MinLiveFeedListener = new SaveCandlesLiveFeedListener();
+            Iterator i$ = weekendsCopy.iterator();
+label1:
+            do
+            {
+                Weekend weekend;
+                boolean allFlats;
+                boolean cache;
+label2:
+                {
+                    if(!i$.hasNext())
+                        break label1;
+                    weekend = (Weekend)i$.next();
+                    if(loadingProgress.stopJob())
+                    {
+                        loadingProgress.loadingFinished(false, 0L, expectedNumberOfCandles, expectedNumberOfCandles, null);
+                        return null;
+                    }
+                    c10MinLiveFeedListener.getSavedCandles().clear();
+                    LoadDataAction loadDataAction = new LoadDataAction(this, instrument, Period.TEN_MINS, OfferSide.BID, weekend.getStart() - 0x2dc6c0L, weekend.getStart() - 0x927c0L, c10MinLiveFeedListener, c10MinProgressListener, null, false, intraperiodExistsPolicy, false);
+                    loadDataAction.run();
+                    if(!c10MinProgressListener.isLoadedSuccessfully())
+                    {
+                        loadingProgress.loadingFinished(false, 0L, expectedNumberOfCandles, expectedNumberOfCandles, c10MinProgressListener.getException());
+                        return null;
+                    }
+                    allFlats = true;
+                    cache = true;
+                    if(c10MinLiveFeedListener.getSavedCandles().size() < 5)
+                    {
+                        cache = false;
+                        allFlats = false;
+                        break label2;
+                    }
+                    Iterator i$ = c10MinLiveFeedListener.getSavedCandles().iterator();
+                    CandleData candle;
+                    do
+                    {
+                        if(!i$.hasNext())
+                            break label2;
+                        candle = (CandleData)i$.next();
+                    } while(candle.open == candle.close && candle.close == candle.low && candle.low == candle.high && candle.vol == 0.0D);
+                    allFlats = false;
+                }
+label3:
+                {
+                    if(allFlats)
+                        weekend.setStart(weekend.getStart() - 0x36ee80L);
+                    if(loadingProgress.stopJob())
+                    {
+                        loadingProgress.loadingFinished(false, 0L, expectedNumberOfCandles, expectedNumberOfCandles, null);
+                        return null;
+                    }
+                    c10MinLiveFeedListener.getSavedCandles().clear();
+                    LoadDataAction loadDataAction = new LoadDataAction(this, instrument, Period.TEN_MINS, OfferSide.BID, weekend.getEnd(), weekend.getEnd() + 0x249f00L, c10MinLiveFeedListener, c10MinProgressListener, null, false, intraperiodExistsPolicy, false);
+                    loadDataAction.run();
+                    if(!c10MinProgressListener.isLoadedSuccessfully())
+                    {
+                        loadingProgress.loadingFinished(false, 0L, expectedNumberOfCandles, expectedNumberOfCandles, c10MinProgressListener.getException());
+                        return null;
+                    }
+                    allFlats = true;
+                    if(c10MinLiveFeedListener.getSavedCandles().size() < 5)
+                    {
+                        cache = false;
+                        allFlats = false;
+                        break label3;
+                    }
+                    Iterator i$ = c10MinLiveFeedListener.getSavedCandles().iterator();
+                    CandleData candle;
+                    do
+                    {
+                        if(!i$.hasNext())
+                            break label3;
+                        candle = (CandleData)i$.next();
+                    } while(candle.open == candle.close && candle.close == candle.low && candle.low == candle.high && candle.vol == 0.0D);
+                    allFlats = false;
+                }
+                if(allFlats)
+                    weekend.setEnd(weekend.getEnd() + 0x36ee80L);
+                if(cache)
+                    synchronized(cachedWeekends)
+                    {
+                        cachedWeekends.addFirst(new Weekend(weekend.getStart(), weekend.getEnd()));
+                        for(; cachedWeekends.size() > 40; cachedWeekends.removeLast());
+                    }
+            } while(true);
+        }
+        Period calcPeriod = period;
+        if(period == Period.TICK)
+            calcPeriod = Period.ONE_SEC;
+        for(Iterator iterator = weekends.iterator(); iterator.hasNext();)
+        {
+            Weekend weekendTimes = (Weekend)iterator.next();
+            long weekendStartCandle = DataCacheUtils.getCandleStartFast(calcPeriod, weekendTimes.getStart());
+            if(weekendStartCandle < weekendTimes.getStart())
+                weekendStartCandle = DataCacheUtils.getNextCandleStartFast(calcPeriod, weekendStartCandle);
+            long weekendEndCandle;
+            if(period == Period.DAILY_SKIP_SUNDAY || period == Period.DAILY_SUNDAY_IN_MONDAY)
+                weekendEndCandle = DataCacheUtils.getCandleStartFast(calcPeriod, weekendTimes.getEnd());
+            else
+                weekendEndCandle = DataCacheUtils.getPreviousCandleStartFast(calcPeriod, DataCacheUtils.getCandleStartFast(calcPeriod, weekendTimes.getEnd()));
+            if(weekendStartCandle > weekendEndCandle)
+                iterator.remove();
+            else
+            if(DataCacheUtils.getNextCandleStartFast(calcPeriod, weekendStartCandle) > weekendTimes.getEnd())
+            {
+                iterator.remove();
+            } else
+            {
+                weekendTimes.setStart(weekendStartCandle);
+                weekendTimes.setEnd(weekendEndCandle);
+            }
+        }
+
+        return weekends;
+    }
+
+    public List getApproximateWeekends(long expectedFrom, long expectedTo)
+    {
+        List result = new ArrayList();
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+        cal.setFirstDayOfWeek(2);
+        cal.setTimeInMillis(expectedFrom);
+        cal.set(11, 22);
+        cal.set(12, 0);
+        cal.set(13, 0);
+        cal.set(14, 0);
+        cal.set(7, 1);
+        if(cal.getTimeInMillis() < expectedFrom)
+            cal.add(4, 1);
+        cal.set(7, 6);
+        cal.set(11, 21);
+        for(; cal.getTimeInMillis() <= expectedTo; cal.add(4, 1))
+        {
+            cal.set(11, 22);
+            Weekend weekend = new Weekend();
+            weekend.setStart(cal.getTimeInMillis());
+            cal.set(7, 1);
+            cal.set(11, 21);
+            weekend.setEnd(cal.getTimeInMillis());
+            result.add(weekend);
+            cal.set(7, 6);
+        }
+
+        return result;
+    }
+
+    public List loadPointAndFigureTimeInterval(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, long fromTime, long toTime)
+    {
+        final List result = new ArrayList();
+        loadPointAndFigureTimeIntervalSynched(instrument, offerSide, priceRange, reversalAmount, fromTime, toTime, new IPointAndFigureLiveFeedListener() {
+
+            public void newPriceDatas(PointAndFigureData pointAndFigures[], int loadedNumberBefore, int loadedNumberAfter)
+            {
+                result.addAll(Arrays.asList(pointAndFigures));
+            }
+
+            public void newPriceData(PointAndFigureData pointandfiguredata)
+            {
+            }
+
+            public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+            {
+                newPriceDatas((PointAndFigureData[])x0, x1, x2);
+            }
+
+            public volatile void newPriceData(AbstractPriceAggregationData x0)
+            {
+                newPriceData((PointAndFigureData)x0);
+            }
+
+            final List val$result;
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                result = list;
+                super();
+            }
+        }, new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        });
+        return result;
+    }
+
+    public List loadPriceRangeTimeInterval(Instrument instrument, OfferSide offerSide, PriceRange priceRange, long fromTime, long toTime)
+    {
+        final List result = new ArrayList();
+        feedDataProvider.loadPriceRangeTimeIntervalSynched(instrument, offerSide, priceRange, fromTime, toTime, new IPriceRangeLiveFeedListener() {
+
+            public void newPriceDatas(PriceRangeData priceRanges[], int loadedNumberBefore, int loadedNumberAfter)
+            {
+                result.addAll(Arrays.asList(priceRanges));
+            }
+
+            public void newPriceData(PriceRangeData pricerangedata)
+            {
+            }
+
+            public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+            {
+                newPriceDatas((PriceRangeData[])x0, x1, x2);
+            }
+
+            public volatile void newPriceData(AbstractPriceAggregationData x0)
+            {
+                newPriceData((PriceRangeData)x0);
+            }
+
+            final List val$result;
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                result = list;
+                super();
+            }
+        }, new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        });
+        return result;
+    }
+
+    public List loadTickBarTimeInterval(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, long fromTime, long toTime)
+    {
+        final List result = new ArrayList();
+        loadTickBarTimeIntervalSynched(instrument, offerSide, tickBarSize, fromTime, toTime, new ITickBarLiveFeedListener() {
+
+            public void newPriceDatas(TickBarData tickBars[], int loadedNumberBefore, int loadedNumberAfter)
+            {
+                result.addAll(Arrays.asList(tickBars));
+            }
+
+            public void newPriceData(TickBarData tickbardata)
+            {
+            }
+
+            public volatile void newPriceDatas(AbstractPriceAggregationData x0[], int x1, int x2)
+            {
+                newPriceDatas((TickBarData[])x0, x1, x2);
+            }
+
+            public volatile void newPriceData(AbstractPriceAggregationData x0)
+            {
+                newPriceData((TickBarData)x0);
+            }
+
+            final List val$result;
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                result = list;
+                super();
+            }
+        }, new LoadingProgressAdapter() {
+
+            final FeedDataProvider this$0;
+
+            
+            {
+                this$0 = FeedDataProvider.this;
+                super();
+            }
+        });
+        return result;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/FeedDataProvider);
+    public static final int WEEKENDS_CACHE_SIZE = 40;
+    private static FeedDataProvider feedDataProvider;
+    private final ExecutorService actionsExecutorService;
+    private final List currentlyRunningTasks = new ArrayList();
+    private final List tickListeners[] = new List[Instrument.values().length];
+    private final Map periodListenersMap = new HashMap();
+    private final List allPeriodListeners[][] = new List[Instrument.values().length][2];
+    private final List allCandlePeriodListener = Collections.synchronizedList(new ArrayList());
+    private final Map inProgressCandleListenersMap = new HashMap();
+    private final List cacheDataChangeListeners[] = new List[Instrument.values().length];
+    protected final double lastAsks[] = new double[Instrument.values().length];
+    protected final double lastBids[] = new double[Instrument.values().length];
+    protected final TickData lastTicks[] = new TickData[Instrument.values().length];
+    protected final long currentTimes[] = new long[Instrument.values().length];
+    protected volatile long currentTime;
+    protected volatile long firstTickLocalTime;
+    protected Deque cachedWeekends;
+    private final CurvesDataLoader curvesDataLoader = new CurvesDataLoader(this);
+    protected LocalCacheManager localCacheManager;
+    private static ICurvesProtocolHandler curvesProtocolHandler;
+    private static String accountId;
+    protected IntraperiodCandlesGenerator intraperiodCandlesGenerator;
+    private final IOrdersProvider ordersProvider;
+    private final IFeedInfo feedInfo;
+    private final List subscribedInstruments = new ArrayList();
+    private final List instrumentSubscriptionListeners = Collections.synchronizedList(new ArrayList());
+    protected CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    private static final long timesOfTheFirstCandle[][] = {
+        {
+            0x111a394478fL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf927b41510L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf92e7e8420L, 0x103484dfc00L, 0xf92792f880L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf93d082280L, 0x103484dfc00L, 0xfb27c4cc00L, 0xf90b091000L, 0xf89496cc00L, 0x7fffffffffffffffL
+        }, {
+            0x11e5f7b4b73L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10f6f9d0a60L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10f6f9d0a60L, 0x10f6f9d0a60L, 0x10f6f987680L, 0x10f6f9d0a60L, 
+            0x7fffffffffffffffL, 0x10f6f8f4ec0L, 0x10f6f73d780L, 0x10f6ecf0c00L, 0x10f6ecf0c00L, 0x10f6ecf0c00L, 0x10f3b4f7400L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944a63L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf6ddfe8600L, 0x103484dfc00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x111a39448faL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x103484dfc00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1052fc05c80L, 0x103484dfc00L, 0x103484dfc00L, 0x103484dfc00L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x10535d4c200L, 0x103484dfc00L, 0x1054b49ec00L, 0x1032e8e3000L, 0x102fb0e9800L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944810L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf6ddfe8600L, 0x103484dfc00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x111a3945633L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x106c9a42790L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x106c9a49cc0L, 0x106c9a0f340L, 0x106c9aa1b00L, 0x106c99c5f60L, 
+            0x7fffffffffffffffL, 0x106c9aa1b00L, 0x106c9aa1b00L, 0x106c93c3e00L, 0x108d5a92c00L, 0x106fbe01c00L, 0x107491f8000L, 0x7fffffffffffffffL
+        }, {
+            0x11c8efb0b95L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x103484dfc00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10351f5e880L, 0x103484dfc00L, 0x103484dfc00L, 0x103484dfc00L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x1035dc32600L, 0x103484dfc00L, 0x1054b49ec00L, 0x1032e8e3000L, 0x102fb0e9800L, 0x7fffffffffffffffL
+        }, {
+            0x111a39448b9L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf6ddfe8600L, 0x103484dfc00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x111a3944f27L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf6ddfe8600L, 0x103484dfc00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x111a3944a54L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf6ddfe8600L, 0x103484dfc00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x111a394576dL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x103484dfc00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x107db2da300L, 0x103484dfc00L, 0x103484dfc00L, 0x103484dfc00L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x107e47a0200L, 0x103484dfc00L, 0x10d5739ac00L, 0x1032e8e3000L, 0x102fb0e9800L, 0x7fffffffffffffffL
+        }, {
+            0x111a39484c5L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10081a06400L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x100428a7d00L, 0x103484dfc00L, 0x100428a7d00L, 0x100428a7d00L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x100428a7d00L, 0x103484dfc00L, 0x10043d41400L, 0x1005d93e000L, 0xfd78002000L, 0x7fffffffffffffffL
+        }, {
+            0x111a39447a8L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6a4951af0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf67663b240L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf505ecea00L, 0x103484dfc00L, 0xce896bb400L, 0x78324d4400L, 0x78994c7400L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944871L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf704e2e220L, 0x103484dfc00L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf71e5e0400L, 0x103484dfc00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944843L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf6ddfe8600L, 0x103484dfc00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x111a39447a4L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6a4951af0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf67663b240L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf505ecea00L, 0x103484dfc00L, 0xd4925f8400L, 0xc3d08e2800L, 0xcb47257c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a394da37L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x106c9a0f340L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x106c98ea3c0L, 0xf6ddfe8600L, 0x106c93c3e00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944a5eL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf6ddfe8600L, 0x103484dfc00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x111a39447f4L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6a4951af0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf67663b240L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf505ecea00L, 0x103484dfc00L, 0xd4925f8400L, 0xc31c4f9400L, 0xcb47257c00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x111a394487dL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6a4951af0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x103484dfc00L, 0xf67663b240L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0xf505ecea00L, 0x103484dfc00L, 0xd4925f8400L, 0xc16bb96400L, 0xcb47257c00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x11caafe28a1L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x11c2dee3d20L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x11bd6546580L, 0xf6ddfe8600L, 0x11bd5af9a00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x11cab4c88b6L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6c8a19ef0L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x11c2dee3d20L, 0xf6c89bab80L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x11bd6546580L, 0xf6ddfe8600L, 0x11bd5af9a00L, 0xf6c51a7400L, 0xf6a6344c00L, 0xf6bacdbc00L, 0x7fffffffffffffffL
+        }, {
+            0x11cab491e81L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10081a06400L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10044544080L, 0x11c2dee3d20L, 0x100428a7d00L, 0x100428a7d00L, 
+            0x7fffffffffffffffL, 0x11bd6546580L, 0x100428a7d00L, 0x11bd5af9a00L, 0x10043d41400L, 0x1005d93e000L, 0xfd78002000L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x126d680bc46L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d684158eL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68854a1L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68907daL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d6894ee1L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d689cbdaL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68a3600L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68a913aL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68ad712L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68b8014L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x12c3bb3668eL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6a5143600L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x121da21d980L, 0xf67663b240L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x121da21d980L, 0xf505ecea00L, 0x121d97d0e00L, 0xd08c67a400L, 0xcb2318f800L, 0xcb47257c00L, 0x7fffffffffffffffL
+        }, {
+            0x12c3bb3357bL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6a5143600L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0xf6e23244a0L, 0x121da21d980L, 0xf67663b240L, 0xffcd61d000L, 
+            0x7fffffffffffffffL, 0x121da21d980L, 0xf505ecea00L, 0x121d97d0e00L, 0xd08c67a400L, 0xcaff0c7400L, 0xcb47257c00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }
+    };
+    private static final long timesOfTheFirstOurCandle[][] = {
+        {
+            0x111a394478fL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1052fe4fb80L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x1055829d200L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x11e5f7b4b73L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10f6f9d0a60L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10f6f9d0a60L, 0x10f6f9d0a60L, 0x10f6f987680L, 0x10f6f9d0a60L, 
+            0x7fffffffffffffffL, 0x10f6f8f4ec0L, 0x10f6f73d780L, 0x10f6ecf0c00L, 0x10f6ecf0c00L, 0x10f6ecf0c00L, 0x10f3b4f7400L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944a63L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352d1a280L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a39448faL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x103484dfc00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1052fc05c80L, 0x103484dfc00L, 0x103484dfc00L, 0x103484dfc00L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x10535d4c200L, 0x103484dfc00L, 0x1054b49ec00L, 0x1032e8e3000L, 0x102fb0e9800L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944810L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1052fe4fb80L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x1055829d200L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a3945633L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x106c9a42790L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x106c9a49cc0L, 0x106c9a0f340L, 0x106c9aa1b00L, 0x106c99c5f60L, 
+            0x7fffffffffffffffL, 0x106c9aa1b00L, 0x106c9aa1b00L, 0x106c93c3e00L, 0x108d5a92c00L, 0x106fbe01c00L, 0x107491f8000L, 0x7fffffffffffffffL
+        }, {
+            0x11c8efb0b95L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x103484dfc00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10351f5e880L, 0x103484dfc00L, 0x103484dfc00L, 0x103484dfc00L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x1035dc32600L, 0x103484dfc00L, 0x1054b49ec00L, 0x1032e8e3000L, 0x102fb0e9800L, 0x7fffffffffffffffL
+        }, {
+            0x111a39448b9L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352761500L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x111a3944f27L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352761500L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x111a3944a54L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352761500L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a394576dL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x103484dfc00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x107db2da300L, 0x103484dfc00L, 0x103484dfc00L, 0x103484dfc00L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x107e47a0200L, 0x103484dfc00L, 0x10d5739ac00L, 0x1032e8e3000L, 0x102fb0e9800L, 0x7fffffffffffffffL
+        }, {
+            0x111a39484c5L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x111b1610f80L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x1107e08a400L, 0x103484dfc00L, 0x11ea416bc00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a39447a8L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352761500L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944871L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10703abf580L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x10705511a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944843L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1052fe4fb80L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x1055829d200L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a39447a4L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352761500L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a394da37L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x106cd86e000L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x106dd433200L, 0x106c9a0f340L, 0x107491f8000L, 0x107491f8000L, 
+            0x7fffffffffffffffL, 0x106c98ea3c0L, 0x107491f8000L, 0x106c93c3e00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a3944a5eL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352d1a280L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x111a39447f4L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352761500L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x111a394487dL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1034d745800L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10352761500L, 0x103484dfc00L, 0x103958d6000L, 0x103958d6000L, 
+            0x7fffffffffffffffL, 0x103484dfc00L, 0x103ab028a00L, 0x103484dfc00L, 0x10a863f5c00L, 0x108645d4400L, 0x10883436c00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x11caafe28a1L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x11cab678400L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x11cab678400L, 0x11cab678400L, 0x11c1b357400L, 0x11cb5b43c00L, 
+            0x7fffffffffffffffL, 0x11bd6546580L, 0x11d479dc000L, 0x11bd5af9a00L, 0x11e8f7d4c00L, 0x11e800a3800L, 0x11e8f7d4c00L, 0x7fffffffffffffffL
+        }, {
+            0x11cab4c88b6L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x11cab678400L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x11cab678400L, 0x11cab678400L, 0x11c1b357400L, 0x11cb5b43c00L, 
+            0x7fffffffffffffffL, 0x11bd6546580L, 0x11d479dc000L, 0x11bd5af9a00L, 0x11e8f7d4c00L, 0x11e800a3800L, 0x11e8f7d4c00L, 0x7fffffffffffffffL
+        }, {
+            0x11cab491e81L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x11cab678400L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x11cabc31180L, 0x11cab678400L, 0x11c1b357400L, 0x11cb5b43c00L, 
+            0x7fffffffffffffffL, 0x11bd6546580L, 0x11d479dc000L, 0x11bd5af9a00L, 0x10a863f5c00L, 0x11e800a3800L, 0x11e8f7d4c00L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x126d680bc46L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d684158eL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68854a1L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68907daL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d6894ee1L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d689cbdaL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68a3600L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68a913aL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68ad712L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088d46e600L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x126d68b8014L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x10883436c00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x1088da27380L, 0x10883436c00L, 0x10883436c00L, 0x10883436c00L, 
+            0x7fffffffffffffffL, 0x10883436c00L, 0x10898b89600L, 0x10883436c00L, 0x10a863f5c00L, 0x108645d4400L, 0x1060efb9400L, 0x7fffffffffffffffL
+        }, {
+            0x12c3bb3668eL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x12c3d61ac00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x12c3d61ac00L, 0x12c3d61ac00L, 0x12c9f3a8000L, 0x12c9f3a8000L, 
+            0x7fffffffffffffffL, 0x12c9f3a8000L, 0x12c9f3a8000L, 0x12d3edfa400L, 0x12f41db9400L, 0x12d251fd800L, 0x12d3edfa400L, 0x7fffffffffffffffL
+        }, {
+            0x12c3bb3357bL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x12c3d61ac00L, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x12c3dbd3980L, 0x12c3d61ac00L, 0x12c9f3a8000L, 0x12c9f3a8000L, 
+            0x7fffffffffffffffL, 0x12c9f3a8000L, 0x12e4c61c800L, 0x12d3edfa400L, 0x12f41db9400L, 0x12d251fd800L, 0x12d3edfa400L, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }, {
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 
+            0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL, 0x7fffffffffffffffL
+        }
+    };
+    private final int networkLatency[] = new int[15];
+    private int latencyIndex;
+    private static String platformTicket;
+    private static String encryptionKey;
+    private volatile boolean connected;
+    private volatile long disconnectTime;
+    private volatile boolean stopped;
+    private final Map inProgressPriceRangeLiveFeedListenersMap = new HashMap();
+    private final Map inProgressPointAndFigureListenersMap = new HashMap();
+    private final Map inProgressTickBarLiveFeedListenersMap = new HashMap();
+    private final Map priceRangeNotificationListenersMap = new HashMap();
+    private final Map pointAndFigureNotificationListenersMap = new HashMap();
+    private final Map tickBarNotificationListenersMap = new HashMap();
+    private BackgroundFeedLoadingThread backgroundFeedLoadingThread;
+    static final boolean $assertionsDisabled = !com/dukascopy/charts/data/datacache/FeedDataProvider.desiredAssertionStatus();
+
+
+
+}

@@ -1,0 +1,26 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   IDataLoadingThread.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester.dataload;
+
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import java.util.concurrent.BlockingQueue;
+
+public interface IDataLoadingThread
+    extends Runnable
+{
+
+    public abstract void stopThread();
+
+    public abstract BlockingQueue getQueue();
+
+    public abstract JForexPeriod getJForexPeriod();
+
+    public abstract Instrument getInstrument();
+
+    public abstract OfferSide getOfferSide();
+}

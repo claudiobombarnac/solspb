@@ -1,0 +1,506 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   StratUtils.java
+
+package com.dukascopy.dds2.greed.agent.strategy;
+
+import java.awt.*;
+import java.io.*;
+import java.math.*;
+import java.net.URL;
+import java.text.DecimalFormat;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class StratUtils
+{
+
+    public StratUtils()
+    {
+    }
+
+    public static double pipValue(String instrument)
+    {
+        return instrument == null || !instrument.endsWith("/JPY") ? 0.0001D : 0.01D;
+    }
+
+    public static double pipValue(double basePrice)
+    {
+        return basePrice > 20D ? 0.01D : 0.0001D;
+    }
+
+    public static BigDecimal pipValueBigDecimal(String instrument)
+    {
+        if(instrument != null && instrument.endsWith("/JPY"))
+            return new BigDecimal("0.01");
+        else
+            return new BigDecimal("0.0001");
+    }
+
+    public static BigDecimal pipValueBigDecimal(double basePrice)
+    {
+        return basePrice > 20D ? new BigDecimal("0.01") : new BigDecimal("0.0001");
+    }
+
+    public static Image loadImage(String path)
+    {
+        Image rc = null;
+        try
+        {
+            InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
+            ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream();
+            turboPipe(inputStream, arrayOutputStream);
+            rc = Toolkit.getDefaultToolkit().createImage(arrayOutputStream.toByteArray());
+            inputStream.close();
+        }
+        catch(Throwable e)
+        {
+            LOGGER.warn((new StringBuilder()).append(" Can't load icon image with name: ").append(path).toString());
+        }
+        return rc;
+    }
+
+    public static ImageIcon loadImageIcon(String path)
+    {
+        return new ImageIcon(loadImage(path));
+    }
+
+    public static byte[] loadResource(String path)
+    {
+        byte rc[] = null;
+        try
+        {
+            InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
+            ByteArrayOutputStream arrayOutputStream = new ByteArrayOutputStream();
+            turboPipe(inputStream, arrayOutputStream);
+            rc = arrayOutputStream.toByteArray();
+            inputStream.close();
+        }
+        catch(Throwable e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        return rc;
+    }
+
+    public static int turboPipe(InputStream inputStream, OutputStream outputStream)
+    {
+        if(inputStream == null || outputStream == null)
+            return 0;
+        byte buffer[] = new byte[4096];
+        int counter = 0;
+        try
+        {
+            do
+            {
+                int bytes_read = inputStream.read(buffer);
+                if(bytes_read == -1)
+                    break;
+                outputStream.write(buffer, 0, bytes_read);
+                counter += bytes_read;
+            } while(true);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        finally
+        {
+            throw exception;
+        }
+        return counter;
+    }
+
+    public static byte[] readFile(String fileFullPath)
+    {
+        File f = new File(fileFullPath);
+        if(!f.exists())
+            return new byte[0];
+        int size = (int)f.length();
+        if(size <= 0)
+            return new byte[0];
+        byte data[] = new byte[size];
+        try
+        {
+            FileInputStream fis = new FileInputStream(f);
+            for(int bytes_read = 0; bytes_read < size; bytes_read += fis.read(data, bytes_read, size - bytes_read));
+            fis.close();
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            return new byte[0];
+        }
+        return data;
+    }
+
+    public static Icon loadIcon(String path)
+    {
+        Icon icon = new ImageIcon(loadImage(path));
+        if(icon == null)
+            icon = new Icon() {
+
+                public int getIconHeight()
+                {
+                    return 16;
+                }
+
+                public int getIconWidth()
+                {
+                    return 30;
+                }
+
+                public void paintIcon(Component c, Graphics g, int x, int y)
+                {
+                    g.setColor(Color.LIGHT_GRAY);
+                    g.setColor(Color.DARK_GRAY);
+                    g.drawString("+++", x + 2, y + 10);
+                }
+
+            };
+        return icon;
+    }
+
+    public static boolean copyFileFromResource(InputStream inputStream, File outFile)
+    {
+        FileOutputStream to = null;
+        to = new FileOutputStream(outFile);
+        byte buffer[] = new byte[4096];
+        int bytesRead;
+        while((bytesRead = inputStream.read(buffer)) != -1) 
+            to.write(buffer, 0, bytesRead);
+        if(inputStream != null)
+            try
+            {
+                inputStream.close();
+            }
+            catch(IOException e) { }
+        if(to != null)
+            try
+            {
+                to.close();
+            }
+            catch(IOException e) { }
+        break MISSING_BLOCK_LABEL_98;
+        Exception exception;
+        exception;
+        if(inputStream != null)
+            try
+            {
+                inputStream.close();
+            }
+            catch(IOException e) { }
+        if(to != null)
+            try
+            {
+                to.close();
+            }
+            catch(IOException e) { }
+        throw exception;
+        return true;
+        Exception e;
+        e;
+        LOGGER.error(e.getMessage(), e);
+        return false;
+    }
+
+    public static String getTempDirectory()
+    {
+        if(tempDirectory == null)
+            tempDirectory = System.getProperty("java.io.tmpdir");
+        return tempDirectory;
+    }
+
+    public static double roundHalfUp(double value, int scale)
+    {
+        return round(value, scale);
+    }
+
+    public static double round(double value, int scale)
+    {
+        boolean negative = false;
+        if(value < 0.0D)
+        {
+            negative = true;
+            value = -value;
+        }
+        if(value == 0.0D)
+            return value;
+        double multiplier = 1.0D;
+        for(; scale > 0; scale--)
+            multiplier *= 10D;
+
+        for(; scale < 0 && (value * multiplier) / 10D >= 1.0D; scale++)
+            multiplier /= 10D;
+
+        for(; value * multiplier < 1.0D; multiplier *= 10D);
+        value *= multiplier;
+        long longValue = (long)(value + 0.5D);
+        value = (double)longValue / multiplier;
+        return negative ? -value : value;
+    }
+
+    public static BigDecimal roundHalfUp(BigDecimal value, int precision)
+    {
+        return round(value, precision);
+    }
+
+    public static BigDecimal round(BigDecimal value, int precision)
+    {
+        int diff = value.precision() - value.scale();
+        precision = diff + precision;
+        if(precision <= 0)
+            precision = 1;
+        value = value.round(new MathContext(precision, RoundingMode.HALF_UP));
+        return value.stripTrailingZeros();
+    }
+
+    public static double roundHalfDown(double value, int scale)
+    {
+        boolean negative = false;
+        if(value < 0.0D)
+        {
+            negative = true;
+            value = -value;
+        }
+        if(value == 0.0D)
+            return value;
+        double multiplier = 1.0D;
+        for(; scale > 0; scale--)
+            multiplier *= 10D;
+
+        for(; scale < 0 && (value * multiplier) / 10D >= 1.0D; scale++)
+            multiplier /= 10D;
+
+        for(; value * multiplier < 1.0D; multiplier *= 10D);
+        value *= multiplier;
+        value = Math.ceil(value - 0.5D);
+        value /= multiplier;
+        return negative ? -value : value;
+    }
+
+    public static BigDecimal roundHalfDown(BigDecimal value, int precision)
+    {
+        int diff = value.precision() - value.scale();
+        precision = diff + precision;
+        if(precision <= 0)
+            precision = 1;
+        value = value.round(new MathContext(precision, RoundingMode.HALF_DOWN));
+        return value.stripTrailingZeros();
+    }
+
+    public static double roundHalfEven(double value, int scale)
+    {
+        boolean negative = false;
+        if(value < 0.0D)
+        {
+            negative = true;
+            value = -value;
+        }
+        if(value == 0.0D)
+            return value;
+        double multiplier = 1.0D;
+        for(; scale > 0; scale--)
+            multiplier *= 10D;
+
+        for(; scale < 0 && (value * multiplier) / 10D >= 1.0D; scale++)
+            multiplier /= 10D;
+
+        for(; value * multiplier < 1.0D; multiplier *= 10D);
+        value *= multiplier;
+        double twoToThe52 = 4503599627370496D;
+        if(value < 4503599627370496D)
+            value = (4503599627370496D + value) - 4503599627370496D;
+        value /= multiplier;
+        return negative ? -value : value;
+    }
+
+    public static BigDecimal roundHalfEven(BigDecimal value, int precision)
+    {
+        int diff = value.precision() - value.scale();
+        precision = diff + precision;
+        if(precision <= 0)
+            precision = 1;
+        value = value.round(new MathContext(precision, RoundingMode.HALF_EVEN));
+        return value.stripTrailingZeros();
+    }
+
+    public static BigDecimal round05(BigDecimal value, int scale)
+    {
+        BigDecimal bd2 = BigDecimal.valueOf(2L);
+        value = value.multiply(bd2);
+        int diff = value.precision() - value.scale();
+        int precision = diff + scale;
+        if(precision <= 0)
+            precision = 1;
+        value = value.round(new MathContext(precision, RoundingMode.HALF_UP));
+        value = value.divide(bd2, scale >= 0 ? scale + 1 : 0, RoundingMode.CEILING);
+        return value;
+    }
+
+    public static double round05Pips(double value)
+    {
+        int pipsMultiplier = value > 20D ? 100 : 10000;
+        int rounded = (int)(value * (double)pipsMultiplier * 10D + 0.5D);
+        rounded *= 2;
+        rounded = (int)((double)rounded / 10D + 0.5D);
+        value = (double)rounded / 2D;
+        value /= pipsMultiplier;
+        return value;
+    }
+
+    public static double round05(double value, int scale)
+    {
+        boolean negative = false;
+        if(value < 0.0D)
+        {
+            negative = true;
+            value = -value;
+        }
+        if(value == 0.0D)
+            return value;
+        double multiplier = 1.0D;
+        for(; scale > 0; scale--)
+            multiplier *= 10D;
+
+        for(; scale < 0 && (value * multiplier) / 10D >= 1.0D; scale++)
+            multiplier /= 10D;
+
+        for(; value * multiplier < 1.0D; multiplier *= 10D);
+        value *= multiplier;
+        value *= 2D;
+        value = (long)(value + 0.5D);
+        value /= 2D;
+        value /= multiplier;
+        return negative ? -value : value;
+    }
+
+    public static double parseDouble(String str)
+    {
+        if(str == null)
+            return 0.0D;
+        else
+            return Double.parseDouble(str);
+    }
+
+    public static long parseLong(String str)
+    {
+        if(str == null)
+            return 0L;
+        else
+            return Long.parseLong(str);
+    }
+
+    public static int parseInt(String str)
+    {
+        if(str == null)
+            return 0;
+        else
+            return Integer.parseInt(str);
+    }
+
+    public static String normalizeSymbol(String symbol)
+    {
+        symbol = symbol.toUpperCase();
+        if(symbol.indexOf("/") == -1 && symbol.length() == 6)
+            symbol = (new StringBuilder()).append(symbol.substring(0, 3)).append("/").append(symbol.substring(3, 6)).toString();
+        if(symbol.indexOf("/") != -1 && symbol.length() > 10)
+            try
+            {
+                int index = symbol.indexOf("/");
+                symbol = symbol.substring(index - 3, index + 4);
+            }
+            catch(Exception e)
+            {
+                LOGGER.error(e.getMessage(), e);
+            }
+        int hash = symbol.hashCode();
+        String temp = (String)symbolsMap.get(Integer.valueOf(hash));
+        if(temp == null)
+            symbolsMap.put(Integer.valueOf(hash), symbol);
+        symbol = (String)symbolsMap.get(Integer.valueOf(hash));
+        return symbol;
+    }
+
+    public static void returnURL(URL url, OutputStream out)
+        throws IOException
+    {
+        InputStream in = url.openStream();
+        byte buf[] = new byte[4096];
+        int bytesRead;
+        while((bytesRead = in.read(buf)) != -1) 
+            out.write(buf, 0, bytesRead);
+    }
+
+    public static String regex(String regexp, String source)
+    {
+        String rc = null;
+        Pattern urlPattern = Pattern.compile(regexp);
+        Matcher matcher = urlPattern.matcher(source);
+        if(matcher.find())
+            rc = matcher.group(1);
+        return rc;
+    }
+
+    public static String generateLabel()
+    {
+        String label;
+        for(label = "JF"; label.length() < 10; label = (new StringBuilder()).append(label).append(Integer.toString(random.nextInt(0x5f5e100), 36)).toString());
+        label = label.substring(0, 9);
+        label = label.toLowerCase();
+        return label;
+    }
+
+    public static String getExtension(String fileName)
+    {
+        String ext = null;
+        int i = fileName.lastIndexOf('.');
+        if(i > 0 && i < fileName.length() - 1)
+            ext = fileName.substring(i + 1).toLowerCase();
+        return ext;
+    }
+
+    public static int compare(double d1, double d2, double precision)
+    {
+        double diff = d1 - d2;
+        if(Math.abs(diff) <= precision)
+            return 0;
+        if(diff > 0.0D)
+            return 1;
+        if(diff < 0.0D)
+        {
+            return -1;
+        } else
+        {
+            long d1Bits = Double.doubleToLongBits(d1);
+            long d2Bits = Double.doubleToLongBits(d2);
+            return d1Bits != d2Bits ? d1Bits <= d2Bits ? 1 : -1 : 0;
+        }
+    }
+
+    public static int compare(double d1, double d2)
+    {
+        return compare(d1, d2, 1E-010D);
+    }
+
+    public static int div2(int val)
+    {
+        if(val < 0)
+            return -(-val >> 1);
+        else
+            return val >> 1;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/dds2/greed/agent/strategy/StratUtils);
+    private static final Random random = new Random();
+    private static String tempDirectory = null;
+    static DecimalFormat df = new DecimalFormat("#,##0.#");
+    private static Map symbolsMap = new HashMap();
+
+}

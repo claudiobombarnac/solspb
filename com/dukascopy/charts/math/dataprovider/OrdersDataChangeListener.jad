@@ -1,0 +1,18 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   OrdersDataChangeListener.java
+
+package com.dukascopy.charts.math.dataprovider;
+
+import com.dukascopy.api.Instrument;
+
+public interface OrdersDataChangeListener
+{
+
+    public abstract void dataChanged(Instrument instrument, long l, long l1);
+
+    public abstract void loadingStarted(Instrument instrument);
+
+    public abstract void loadingFinished(Instrument instrument);
+}

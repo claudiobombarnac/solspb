@@ -1,0 +1,196 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JRoundedBorder.java
+
+package com.dukascopy.dds2.greed.gui.component;
+
+import java.awt.*;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.border.Border;
+
+public class JRoundedBorder
+    implements Border
+{
+
+    public JRoundedBorder(JComponent parent, String text, int topInset, int leftInset, int bottomInset, int rightInset)
+    {
+        this(parent, text);
+        this.topInset = topInset;
+        this.leftInset = leftInset;
+        this.bottomInset = bottomInset;
+        this.rightInset = rightInset;
+    }
+
+    public JRoundedBorder(JComponent parent, String textKey)
+    {
+        this(parent);
+        label = new JLabel(textKey);
+    }
+
+    public JRoundedBorder(JComponent parent)
+    {
+        rightBorder = 6;
+        topBorder = 7;
+        leftBorder = 6;
+        bottomBorder = 7;
+        radius = 10;
+        topInset = 18;
+        leftInset = 15;
+        bottomInset = 18;
+        rightInset = 15;
+        this.parent = parent;
+    }
+
+    public void paintBorder(Component c, Graphics g, int x, int y, int width, int height)
+    {
+        Graphics2D g2 = (Graphics2D)g;
+        Object hint = g2.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        int w = width - (rightBorder + leftBorder);
+        int h = height - (topBorder + bottomBorder);
+        g.setColor(Color.LIGHT_GRAY);
+        g.drawRoundRect(leftBorder, topBorder, w, h, radius, radius);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, hint);
+        if(label != null && label.getText() != null && !label.getText().equals(""))
+        {
+            Dimension preferredSize = label.getPreferredSize();
+            label.setBounds(0, 0, preferredSize.width, preferredSize.height);
+            int stringWidth = label.getWidth();
+            g.setColor(parent.getBackground());
+            g.fillRect(w / 2 - stringWidth / 2 - 3, topBorder - 1, stringWidth + 4, 2);
+            Graphics lg = g.create(w / 2 - preferredSize.width / 2, topBorder - label.getHeight() / 2, preferredSize.width, preferredSize.height);
+            label.paint(lg);
+        }
+    }
+
+    public Insets getBorderInsets(Component c)
+    {
+        return new Insets(topInset, leftInset, bottomInset, rightInset);
+    }
+
+    public boolean isBorderOpaque()
+    {
+        return true;
+    }
+
+    public void setHeaderText(String text)
+    {
+        if(label == null)
+            label = new JLabel();
+        label.setText(text);
+    }
+
+    public String getHeaderText()
+    {
+        return label.getText();
+    }
+
+    public Font getHeaderFont()
+    {
+        if(label == null)
+            return null;
+        else
+            return label.getFont();
+    }
+
+    public void setHeaderFont(Font font)
+    {
+        label.setFont(font);
+    }
+
+    public void setTopBorder(int topBorder)
+    {
+        this.topBorder = topBorder;
+    }
+
+    public int getTopBorder()
+    {
+        return topBorder;
+    }
+
+    public void setRightBorder(int rightBorder)
+    {
+        this.rightBorder = rightBorder;
+    }
+
+    public int getRightBorder()
+    {
+        return rightBorder;
+    }
+
+    public void setLeftBorder(int leftBorder)
+    {
+        this.leftBorder = leftBorder;
+    }
+
+    public int getLeftBorder()
+    {
+        return leftBorder;
+    }
+
+    public void setBottomBorder(int bottomBorder)
+    {
+        this.bottomBorder = bottomBorder;
+    }
+
+    public int getBottomBorder()
+    {
+        return bottomBorder;
+    }
+
+    public void setTopInset(int topInset)
+    {
+        this.topInset = topInset;
+        parent.repaint();
+    }
+
+    public int getTopInset()
+    {
+        return topInset;
+    }
+
+    public void setLeftInset(int leftInset)
+    {
+        this.leftInset = leftInset;
+    }
+
+    public int getLeftInset()
+    {
+        return leftInset;
+    }
+
+    public void setBottomInset(int bottomInset)
+    {
+        this.bottomInset = bottomInset;
+        parent.repaint();
+    }
+
+    public int getBottomInset()
+    {
+        return bottomInset;
+    }
+
+    public void setRightInset(int rightInset)
+    {
+        this.rightInset = rightInset;
+    }
+
+    public int getRightInset()
+    {
+        return rightInset;
+    }
+
+    protected final JComponent parent;
+    private JLabel label;
+    private int rightBorder;
+    private int topBorder;
+    private int leftBorder;
+    private int bottomBorder;
+    private int radius;
+    private int topInset;
+    private int leftInset;
+    private int bottomInset;
+    private int rightInset;
+}

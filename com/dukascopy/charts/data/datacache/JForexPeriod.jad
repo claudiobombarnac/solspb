@@ -1,0 +1,176 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   JForexPeriod.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+
+public class JForexPeriod
+{
+
+    public JForexPeriod(DataType dataType, Period period, PriceRange priceRange, ReversalAmount reversalAmount, TickBarSize tickBarSize)
+    {
+        this.period = period;
+        this.dataType = dataType;
+        this.priceRange = priceRange;
+        this.reversalAmount = reversalAmount;
+        this.tickBarSize = tickBarSize;
+    }
+
+    public JForexPeriod(DataType dataType, Period period, PriceRange priceRange, ReversalAmount reversalAmount)
+    {
+        this(dataType, period, priceRange, reversalAmount, null);
+    }
+
+    public JForexPeriod(DataType dataType, Period period, PriceRange priceRange)
+    {
+        this(dataType, period, priceRange, null);
+    }
+
+    public JForexPeriod(DataType dataType, Period period)
+    {
+        this(dataType, period, null, null);
+    }
+
+    public JForexPeriod(Period period)
+    {
+        this(null, period, null, null);
+    }
+
+    public JForexPeriod(DataType dataType)
+    {
+        this(dataType, null, null, null);
+    }
+
+    public JForexPeriod(PriceRange priceRange)
+    {
+        this(null, null, priceRange, null);
+    }
+
+    public JForexPeriod(ReversalAmount reversalAmount)
+    {
+        this(null, null, null, reversalAmount);
+    }
+
+    public JForexPeriod()
+    {
+        this(null, null, null, null);
+    }
+
+    public JForexPeriod(DataType dataType, Period period, TickBarSize tickBarSize)
+    {
+        this(dataType, period, null, null, tickBarSize);
+    }
+
+    public Period getPeriod()
+    {
+        return period;
+    }
+
+    public void setPeriod(Period period)
+    {
+        this.period = period;
+    }
+
+    public DataType getDataType()
+    {
+        return dataType;
+    }
+
+    public void setDataType(DataType dataType)
+    {
+        this.dataType = dataType;
+    }
+
+    public PriceRange getPriceRange()
+    {
+        return priceRange;
+    }
+
+    public void setPriceRange(PriceRange priceRange)
+    {
+        this.priceRange = priceRange;
+    }
+
+    public ReversalAmount getReversalAmount()
+    {
+        return reversalAmount;
+    }
+
+    public void setReversalAmount(ReversalAmount reversalAmount)
+    {
+        this.reversalAmount = reversalAmount;
+    }
+
+    public TickBarSize getTickBarSize()
+    {
+        return tickBarSize;
+    }
+
+    public void setTickBarSize(TickBarSize tickBarSize)
+    {
+        this.tickBarSize = tickBarSize;
+    }
+
+    public boolean equals(Object object)
+    {
+        if(object instanceof JForexPeriod)
+        {
+            JForexPeriod dtpw = (JForexPeriod)object;
+            if(dtpw.getDataType() != null && dtpw.getPeriod() != null && dtpw.getDataType().equals(getDataType()) && dtpw.getPeriod().equals(getPeriod()))
+                if(DataType.PRICE_RANGE_AGGREGATION.equals(dtpw.getDataType()))
+                {
+                    if(dtpw.getPriceRange() != null && dtpw.getPriceRange().equals(getPriceRange()))
+                        return true;
+                } else
+                if(DataType.POINT_AND_FIGURE.equals(dtpw.getDataType()))
+                {
+                    if(dtpw.getPriceRange() != null && dtpw.getPriceRange().equals(getPriceRange()) && dtpw.getReversalAmount() != null && dtpw.getReversalAmount().equals(getReversalAmount()))
+                        return true;
+                } else
+                if(DataType.TICK_BAR.equals(dtpw.getDataType()))
+                {
+                    if(dtpw.getTickBarSize() != null && dtpw.getTickBarSize().equals(getTickBarSize()))
+                        return true;
+                } else
+                {
+                    return true;
+                }
+        }
+        return false;
+    }
+
+    public String toString()
+    {
+        if(DataType.PRICE_RANGE_AGGREGATION.equals(getDataType()))
+            return getPriceRange() != null ? getPriceRange().getName() : DataType.PRICE_RANGE_AGGREGATION.toString();
+        if(DataType.POINT_AND_FIGURE.equals(getDataType()))
+            return (new StringBuilder()).append(getPeriod()).append("(").append(getPriceRange()).append("; x").append(getReversalAmount()).append(")").toString();
+        if(DataType.TICKS.equals(getDataType()) || DataType.TIME_PERIOD_AGGREGATION.equals(getDataType()))
+            return getPeriod().toString();
+        if(DataType.TICK_BAR.equals(getDataType()))
+            return getTickBarSize() == null ? "" : (new StringBuilder()).append(" ").append(String.valueOf(getTickBarSize().getSize())).toString();
+        else
+            return super.toString();
+    }
+
+    public int hashCode()
+    {
+        int prime = 31;
+        int result = 1;
+        result = 31 * result + (dataType != null ? dataType.hashCode() : 0);
+        result = 31 * result + (period != null ? period.hashCode() : 0);
+        result = 31 * result + (priceRange != null ? priceRange.hashCode() : 0);
+        result = 31 * result + (reversalAmount != null ? reversalAmount.hashCode() : 0);
+        result = 31 * result + (tickBarSize != null ? tickBarSize.hashCode() : 0);
+        return result;
+    }
+
+    private Period period;
+    private DataType dataType;
+    private PriceRange priceRange;
+    private ReversalAmount reversalAmount;
+    private TickBarSize tickBarSize;
+}

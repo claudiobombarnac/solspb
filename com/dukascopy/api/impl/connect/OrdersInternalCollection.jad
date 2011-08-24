@@ -1,0 +1,249 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:25
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   OrdersInternalCollection.java
+
+package com.dukascopy.api.impl.connect;
+
+import com.dukascopy.api.*;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.connect:
+//            PlatformOrderImpl, JForexTaskManager
+
+public class OrdersInternalCollection
+{
+
+    public OrdersInternalCollection(JForexTaskManager taskManager)
+    {
+        orders = new ArrayList();
+        removedIds = new ArrayList(30);
+        this.taskManager = taskManager;
+        synchronized(instances)
+        {
+            instances.add(this);
+        }
+    }
+
+    public synchronized PlatformOrderImpl getOrderByLabel(String label)
+    {
+        for(Iterator i$ = orders.iterator(); i$.hasNext();)
+        {
+            PlatformOrderImpl platformOrderImpl = (PlatformOrderImpl)i$.next();
+            String posLabel = platformOrderImpl.getLabel();
+            if(posLabel != null && posLabel.equals(label))
+                return platformOrderImpl;
+        }
+
+        return null;
+    }
+
+    public synchronized PlatformOrderImpl removeByLabel(String label)
+    {
+        for(Iterator iterator = orders.iterator(); iterator.hasNext();)
+        {
+            PlatformOrderImpl platformOrderImpl = (PlatformOrderImpl)iterator.next();
+            String posLabel = platformOrderImpl.getLabel();
+            if(posLabel != null && posLabel.equals(label))
+            {
+                iterator.remove();
+                return platformOrderImpl;
+            }
+        }
+
+        return null;
+    }
+
+    public synchronized PlatformOrderImpl removeById(String positionId)
+    {
+        for(Iterator iterator = orders.iterator(); iterator.hasNext();)
+        {
+            PlatformOrderImpl platformOrderImpl = (PlatformOrderImpl)iterator.next();
+            String posId = platformOrderImpl.getId();
+            if(posId != null && posId.equals(positionId))
+            {
+                if(removedIds.size() >= 29)
+                    removedIds.remove(0);
+                removedIds.add(posId);
+                iterator.remove();
+                return platformOrderImpl;
+            }
+        }
+
+        return null;
+    }
+
+    public void put(String label, PlatformOrderImpl platformOrderImpl, boolean checkLabel)
+        throws JFException
+    {
+        synchronized(instances)
+        {
+label0:
+            {
+                if(!checkLabel)
+                    break label0;
+                if(getOrderByLabel(label) != null)
+                    throw new JFException(com.dukascopy.api.JFException.Error.LABEL_NOT_UNIQUE, (new StringBuilder()).append("Label not unique(code 1). (Order already exists) [").append(label).append("]").append(":").append(getOrderByLabel(label).toStringDetail()).toString());
+                Iterator i$ = instances.iterator();
+                PlatformOrderImpl otherInstanceOrder;
+                do
+                {
+                    OrdersInternalCollection instance;
+                    boolean flushed;
+                    do
+                    {
+                        do
+                        {
+                            do
+                            {
+                                if(!i$.hasNext())
+                                    break label0;
+                                instance = (OrdersInternalCollection)i$.next();
+                            } while(instance == this);
+                            otherInstanceOrder = instance.getOrderByLabel(label);
+                        } while(otherInstanceOrder == null);
+                        if(otherInstanceOrder.getState() == com.dukascopy.api.IOrder.State.CREATED)
+                            throw new JFException(com.dukascopy.api.JFException.Error.LABEL_NOT_UNIQUE, (new StringBuilder()).append("Label not unique(code 2). (Order already exists) [").append(label).append("]").append(":").append(otherInstanceOrder.toStringDetail()).toString());
+                        flushed = instance.taskManager.flushQueue(200L);
+                    } while(instance.taskManager.isStrategyStopping() || instance.getOrderByLabel(label) == null);
+                    if(flushed)
+                        throw new JFException(com.dukascopy.api.JFException.Error.LABEL_NOT_UNIQUE, (new StringBuilder()).append("Label not unique(code 3). (Order already exists) [").append(label).append("]").append(":").append(otherInstanceOrder.toStringDetail()).toString());
+                } while(removedIds.contains(otherInstanceOrder.getId()));
+                LOGGER.warn((new StringBuilder()).append("Rejecting order submit with label [").append(label).append("] while not completely ").append("sure it exists, another strategy too slow with processing messages").toString());
+                throw new JFException(com.dukascopy.api.JFException.Error.LABEL_NOT_UNIQUE, (new StringBuilder()).append("Label not unique(code 4). (Order already exists) [").append(label).append("]").append(":").append(otherInstanceOrder.toStringDetail()).toString());
+            }
+            synchronized(this)
+            {
+                if(checkLabel && getOrderByLabel(label) != null)
+                    throw new JFException(com.dukascopy.api.JFException.Error.LABEL_NOT_UNIQUE, (new StringBuilder()).append("Label not unique(code 5). (Order already exists) [").append(label).append("]").append(":").append(getOrderByLabel(label).toStringDetail()).toString());
+                if(platformOrderImpl != null)
+                {
+                    orders.add(platformOrderImpl);
+                    removedIds.remove(platformOrderImpl.getId());
+                }
+            }
+        }
+        break MISSING_BLOCK_LABEL_502;
+        exception1;
+        throw exception1;
+    }
+
+    public synchronized boolean isLongExposure(Instrument instrument)
+    {
+        double exposure = 0.0D;
+        Iterator i$ = orders.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            PlatformOrderImpl platformOrderImpl = (PlatformOrderImpl)i$.next();
+            if(platformOrderImpl.getState() == com.dukascopy.api.IOrder.State.FILLED)
+                if(platformOrderImpl.getOrderCommand().isLong())
+                    exposure += platformOrderImpl.getAmount();
+                else
+                    exposure -= platformOrderImpl.getAmount();
+        } while(true);
+        double placeBidsAmount = 0.0D;
+        double placeOffersAmount = 0.0D;
+        Iterator i$ = orders.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            PlatformOrderImpl order = (PlatformOrderImpl)i$.next();
+            if(order.getState() == com.dukascopy.api.IOrder.State.OPENED)
+                if(order.getOrderCommand() == com.dukascopy.api.IEngine.OrderCommand.PLACE_BID)
+                    placeBidsAmount += order.getAmount();
+                else
+                if(order.getOrderCommand() == com.dukascopy.api.IEngine.OrderCommand.PLACE_OFFER)
+                    placeOffersAmount -= order.getAmount();
+        } while(true);
+        placeBidsAmount += exposure;
+        placeOffersAmount += exposure;
+        if((placeBidsAmount > 0.0D ? placeBidsAmount : -placeBidsAmount) > (placeOffersAmount > 0.0D ? placeOffersAmount : -placeOffersAmount))
+            exposure = placeBidsAmount;
+        else
+            exposure = placeOffersAmount;
+        return StratUtils.roundHalfEven(exposure, 2) > 0.0D;
+    }
+
+    public synchronized void add(PlatformOrderImpl platformOrderImpl)
+    {
+        if(platformOrderImpl != null)
+        {
+            orders.add(platformOrderImpl);
+            removedIds.remove(platformOrderImpl.getId());
+        }
+    }
+
+    public synchronized List allAsOrders()
+    {
+        if(orders == null)
+            return new ArrayList(0);
+        else
+            return new ArrayList(orders);
+    }
+
+    public synchronized PlatformOrderImpl getOrderById(String positionId)
+    {
+        for(Iterator i$ = orders.iterator(); i$.hasNext();)
+        {
+            PlatformOrderImpl platformOrderImpl = (PlatformOrderImpl)i$.next();
+            String posId = platformOrderImpl.getId();
+            if(posId != null && posId.equals(positionId))
+                return platformOrderImpl;
+        }
+
+        return null;
+    }
+
+    public synchronized PlatformOrderImpl getOrderByOpeningOrderId(String positionId)
+    {
+        for(Iterator i$ = orders.iterator(); i$.hasNext();)
+        {
+            PlatformOrderImpl platformOrderImpl = (PlatformOrderImpl)i$.next();
+            String orderId = platformOrderImpl.getOpeningOrderId();
+            if(orderId != null && orderId.equals(positionId))
+                return platformOrderImpl;
+        }
+
+        return null;
+    }
+
+    public synchronized List getAllMergeTargets()
+    {
+        List rc = new ArrayList();
+        Iterator i$ = orders.iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            PlatformOrderImpl platformOrderImpl = (PlatformOrderImpl)i$.next();
+            if(platformOrderImpl.lastServerRequest == PlatformOrderImpl.ServerRequest.MERGE_TARGET)
+                rc.add(platformOrderImpl);
+        } while(true);
+        return rc;
+    }
+
+    public void dispose()
+    {
+        synchronized(instances)
+        {
+            instances.remove(this);
+            synchronized(this)
+            {
+                orders = null;
+            }
+        }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/connect/OrdersInternalCollection);
+    private static final List instances = new ArrayList();
+    private List orders;
+    private List removedIds;
+    private JForexTaskManager taskManager;
+
+}

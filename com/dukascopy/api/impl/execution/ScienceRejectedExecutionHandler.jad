@@ -1,0 +1,90 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:26
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   ScienceRejectedExecutionHandler.java
+
+package com.dukascopy.api.impl.execution;
+
+import com.dukascopy.api.IConsole;
+import com.dukascopy.api.IContext;
+import java.io.PrintStream;
+import java.util.Iterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.api.impl.execution:
+//            ScienceQueue, ScienceFuture, ScienceThreadPoolExecutor, Task
+
+public class ScienceRejectedExecutionHandler
+{
+
+    public ScienceRejectedExecutionHandler(IContext context, Thread thread)
+    {
+        this.context = null;
+        this.context = context;
+        this.thread = thread;
+    }
+
+    public void rejectedExecution(Runnable r, ScienceThreadPoolExecutor executor)
+    {
+        if(context != null)
+        {
+            if(context.getConsole() != null)
+            {
+                ScienceQueue queue = (ScienceQueue)executor.getQueue();
+                int ticks = 0;
+                int bars = 0;
+                int tasks = 0;
+                for(Iterator i$ = queue.iterator(); i$.hasNext();)
+                {
+                    ScienceFuture future = (ScienceFuture)i$.next();
+                    Task queueTask = future.getTask();
+                    if(queueTask.getType() == Task.Type.TICK)
+                        ticks++;
+                    else
+                    if(queueTask.getType() == Task.Type.BAR)
+                    {
+                        bars++;
+                    } else
+                    {
+                        tasks++;
+                        context.getConsole().getErr().println(queueTask);
+                        LOGGER.debug(queueTask.getType().toString());
+                    }
+                }
+
+                StackTraceElement stackTrace[] = thread.getStackTrace();
+                context.getConsole().getErr().println((new StringBuilder()).append("Task rejected. Ticks in queue - ").append(ticks).append(", bars - ").append(bars).append(", other tasks - ").append(tasks).append(", ThreadPoolExecutor.isShutdown() - ").append(executor.isShutdown()).append(" Strategy thread in [").append(stackTrace.length <= 0 ? "stack trace element array is empty" : stackTrace[0].toString()).append("]").toString());
+                LOGGER.error((new StringBuilder()).append("Task rejected. Ticks in queue - ").append(ticks).append(", bars - ").append(bars).append(", other tasks - ").append(tasks).append(", ThreadPoolExecutor.isShutdown - ").append(executor.isShutdown()).toString());
+                StringBuilder traceMessage = new StringBuilder("Strategy thread stack trace:\n");
+                StackTraceElement arr$[] = stackTrace;
+                int len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    StackTraceElement stackTraceElement = arr$[i$];
+                    traceMessage.append("\t at ").append(stackTraceElement).append("\n");
+                }
+
+                LOGGER.error(traceMessage.toString());
+                traceMessage = new StringBuilder("Rejected thread stack trace:\n");
+                stackTrace = Thread.currentThread().getStackTrace();
+                arr$ = stackTrace;
+                len$ = arr$.length;
+                for(int i$ = 0; i$ < len$; i$++)
+                {
+                    StackTraceElement stackTraceElement = arr$[i$];
+                    traceMessage.append("\t at ").append(stackTraceElement).append("\n");
+                }
+
+                LOGGER.error(traceMessage.toString());
+            }
+            if(context != null)
+                context.stop();
+        }
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/api/impl/execution/ScienceRejectedExecutionHandler);
+    private IContext context;
+    private Thread thread;
+
+}

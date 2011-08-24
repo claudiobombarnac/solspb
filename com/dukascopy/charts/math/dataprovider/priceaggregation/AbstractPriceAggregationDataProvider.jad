@@ -1,0 +1,852 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   AbstractPriceAggregationDataProvider.java
+
+package com.dukascopy.charts.math.dataprovider.priceaggregation;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.impl.IndicatorWrapper;
+import com.dukascopy.api.indicators.*;
+import com.dukascopy.charts.data.datacache.*;
+import com.dukascopy.charts.data.datacache.priceaggregation.*;
+import com.dukascopy.charts.math.dataprovider.*;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.buffer.IPriceAggregationShiftableBuffer;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.buffer.IShiftableBuffer;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.buffer.PriceAggregationShiftableBuffer;
+import com.dukascopy.charts.math.dataprovider.priceaggregation.buffer.ShiftableBuffer;
+import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.math.dataprovider.priceaggregation:
+//            AbstractPriceAggregationDataSequence
+
+public abstract class AbstractPriceAggregationDataProvider extends AbstractDataProvider
+{
+
+    public AbstractPriceAggregationDataProvider(Instrument instrument, Period period, OfferSide side, int maxNumberOfCandles, int bufferSizeMultiplier, long lastTime, 
+            Filter filter, IFeedDataProvider feedDataProvider)
+    {
+        super(instrument, period, side, maxNumberOfCandles, bufferSizeMultiplier, filter, feedDataProvider);
+        this.lastTime = 0x8000000000000000L;
+        lastBarsBeforeCount = -1;
+        lastBarsAfterCount = -1;
+        latestBars = new PriceAggregationShiftableBuffer(10);
+        this.lastTime = lastTime;
+        reset();
+    }
+
+    protected abstract AbstractPriceAggregationData[] createArray(int i);
+
+    protected abstract AbstractPriceAggregationData[] createArray(AbstractPriceAggregationData abstractpriceaggregationdata);
+
+    protected abstract AbstractPriceAggregationData getInProgressBar();
+
+    protected abstract AbstractPriceAggregationDataSequence createDataSequence(long l, long l1, int i, int j, AbstractPriceAggregationData aabstractpriceaggregationdata[], 
+            long al[][], Map map, Map map1, boolean flag, boolean flag1);
+
+    protected abstract void performDataLoad(int i, long l, int j)
+        throws DataCacheException;
+
+    protected abstract void removeInProgressBarListeners();
+
+    protected abstract void addInProgressBarListeners();
+
+    protected abstract long getMaxTimeIntervalBetweenTwoBars();
+
+    protected abstract Period getBarsBasedOnCandlesPeriod();
+
+    protected void dataLoaded(boolean allDataLoaded, com.dukascopy.charts.math.dataprovider.AbstractDataProvider.AbstractDataCacheRequestData requestData, Exception e, ISynchronizeIndicators synchronizeIndicators)
+    {
+        Exception exception;
+        if(requestData.cancel || currentHistoryRequestDataSubBuffer == null)
+        {
+            loadingStarted = true;
+            fireLoadingFinished();
+            return;
+        }
+        try
+        {
+            checkAndAddLatestInProgressBarsNoFire(currentHistoryRequestDataSubBuffer);
+            if(mainCyclicBuffer.isEmpty())
+            {
+                mainCyclicBuffer.setUp(currentHistoryRequestDataSubBuffer);
+                fireMainBufferChanged();
+            } else
+            {
+                long historyDataStartTime = currentHistoryRequestDataSubBuffer[0].getTime();
+                long historyDataEndTime = currentHistoryRequestDataSubBuffer[currentHistoryRequestDataSubBuffer.length - 1].getTime();
+                long bufferStartTime = getFirstTime().longValue();
+                long bufferEndTime = getLastDataTime().longValue();
+                if(historyDataStartTime < bufferStartTime)
+                {
+                    AbstractPriceAggregationData array[] = (AbstractPriceAggregationData[])mainCyclicBuffer.getAll(createArray(mainCyclicBuffer.getSize()));
+                    if(array.length < currentHistoryRequestDataSubBuffer.length)
+                        array = currentHistoryRequestDataSubBuffer;
+                    else
+                        performBufferRightShiftNoFire(array, currentHistoryRequestDataSubBuffer);
+                    mainCyclicBuffer.setUp(array);
+                    fireMainBufferChanged();
+                } else
+                if(historyDataEndTime > bufferEndTime)
+                {
+                    AbstractPriceAggregationData array[] = (AbstractPriceAggregationData[])mainCyclicBuffer.getAll(createArray(mainCyclicBuffer.getSize()));
+                    if(array.length < currentHistoryRequestDataSubBuffer.length)
+                        array = currentHistoryRequestDataSubBuffer;
+                    else
+                        performBufferLeftShiftNoFire(array, currentHistoryRequestDataSubBuffer);
+                    mainCyclicBuffer.setUp(array);
+                    fireMainBufferChanged();
+                } else
+                {
+                    fireMainBufferChanged();
+                }
+            }
+        }
+        catch(RuntimeException t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            throw t;
+        }
+        finally
+        {
+            loadingStarted = true;
+        }
+        loadingStarted = true;
+        fireLoadingFinished();
+        break MISSING_BLOCK_LABEL_326;
+        fireLoadingFinished();
+        throw exception;
+    }
+
+    private void checkAndAddLatestInProgressBarsNoFire(AbstractPriceAggregationData buffer[])
+    {
+        if(buffer == null)
+            return;
+        AbstractPriceAggregationData lastData = buffer[buffer.length - 1];
+        if(lastData != null)
+        {
+            long lastTime = lastData.getEndTime();
+            List latestGatheredWhileHistoryLoadingData = null;
+            if(latestBars.containsTime(lastTime))
+            {
+                latestGatheredWhileHistoryLoadingData = latestBars.getAfterTimeInclude(lastTime);
+                latestGatheredWhileHistoryLoadingData.remove(0);
+            } else
+            {
+                AbstractPriceAggregationData firstKnownInProgressHistoricalBar = (AbstractPriceAggregationData)latestBars.getFirst();
+                long longMaxTimeIntervalBetweeTwoBars = getMaxTimeIntervalBetweenTwoBars();
+                if(firstKnownInProgressHistoricalBar != null && Math.abs(firstKnownInProgressHistoricalBar.getTime() - lastTime) <= longMaxTimeIntervalBetweeTwoBars)
+                    latestGatheredWhileHistoryLoadingData = latestBars.getAfterTimeInclude(firstKnownInProgressHistoricalBar.getTime());
+            }
+            if(latestGatheredWhileHistoryLoadingData != null && !latestGatheredWhileHistoryLoadingData.isEmpty())
+            {
+                AbstractPriceAggregationData array[] = (AbstractPriceAggregationData[])latestGatheredWhileHistoryLoadingData.toArray(createArray(latestGatheredWhileHistoryLoadingData.size()));
+                performBufferLeftShiftNoFire(buffer, array);
+            }
+        }
+    }
+
+    private void fireMainBufferChanged()
+    {
+        if(!mainCyclicBuffer.isEmpty())
+        {
+            loadingStarted = false;
+            firstData = (Data)mainCyclicBuffer.getLast();
+            recalculateIndicators();
+            long dataChangedFrom = ((AbstractPriceAggregationData)mainCyclicBuffer.getFirst()).getTime();
+            long dataChangedTo = ((AbstractPriceAggregationData)mainCyclicBuffer.getLast()).getTime();
+            fireDataChanged(dataChangedFrom, dataChangedTo, false);
+        }
+    }
+
+    protected void performBufferLeftShiftNoFire(AbstractPriceAggregationData targetBuffer[], AbstractPriceAggregationData sourceBuffer[])
+    {
+        int indexStartFrom = 0;
+        if(targetBuffer[targetBuffer.length - 1].getTime() >= sourceBuffer[0].getTime())
+        {
+            int i = 0;
+            do
+            {
+                if(i >= sourceBuffer.length)
+                    break;
+                if(targetBuffer[targetBuffer.length - 1].getTime() < sourceBuffer[i].getTime())
+                {
+                    indexStartFrom = i;
+                    break;
+                }
+                i++;
+            } while(true);
+        }
+        TimeDataUtils.shiftBufferLeft(targetBuffer, sourceBuffer, indexStartFrom);
+    }
+
+    private void performBufferRightShiftNoFire(AbstractPriceAggregationData targetBuffer[], AbstractPriceAggregationData sourceBuffer[])
+    {
+        int historyRequestDataSubBufferLength = sourceBuffer.length;
+        if(sourceBuffer[sourceBuffer.length - 1].getTime() >= targetBuffer[0].getTime())
+        {
+            int i = sourceBuffer.length - 1;
+            do
+            {
+                if(i < 0)
+                    break;
+                if(sourceBuffer[i].getTime() < targetBuffer[0].getTime())
+                {
+                    historyRequestDataSubBufferLength = i + 1;
+                    break;
+                }
+                i--;
+            } while(true);
+        }
+        TimeDataUtils.shiftBufferRight(targetBuffer, sourceBuffer, historyRequestDataSubBufferLength);
+    }
+
+    public IDataSequence getDataSequence(int numBefore, long to, int numAfter)
+    {
+        to = checkTime(to);
+        boolean dataExists = false;
+        int visibleBufferDataStartIndex = -1;
+        int visibleBufferDataEndIndex = -1;
+        if(mainCyclicBuffer.isEmpty())
+        {
+            AbstractPriceAggregationData priceRangeDataToShow[] = createArray(0);
+            return createDataSequence(to, to, 0, 0, priceRangeDataToShow, (long[][])null, null, null, false, false);
+        }
+        lastDataIsShowing = false;
+        Integer timeIndex = findBufferIndexForTime(to);
+        if(timeIndex == null)
+            if(!dataExistsAfter(to))
+            {
+                visibleBufferDataStartIndex = mainCyclicBuffer.getSize() - numBefore;
+                visibleBufferDataEndIndex = mainCyclicBuffer.getLastIndex();
+                dataExists = true;
+                lastDataIsShowing = true;
+            } else
+            {
+                doHistoryRequests(numBefore, to, numAfter);
+            }
+        if(timeIndex != null)
+        {
+            Integer timeIndexBefore = dataExistBeforeTimeIndex(timeIndex.intValue(), numBefore);
+            Integer timeIndexAfter = dataExistAfterTimeIndex(timeIndex.intValue(), numAfter);
+            if(timeIndexBefore != null && timeIndexAfter != null)
+            {
+                visibleBufferDataStartIndex = timeIndex.intValue() - numBefore;
+                visibleBufferDataEndIndex = (visibleBufferDataStartIndex + numBefore + numAfter) - 1;
+                dataExists = true;
+            } else
+            if(timeIndexBefore == null && timeIndexAfter == null)
+            {
+                if(getFirstTime() != null && dataExistsBefore(getFirstTime().longValue()) && getLastDataEndTime() != null && dataExistsAfter(getLastDataEndTime().longValue()))
+                {
+                    reset();
+                    doHistoryRequests(numBefore, to, numAfter);
+                } else
+                {
+                    visibleBufferDataStartIndex = 0;
+                    visibleBufferDataEndIndex = Math.min(mainCyclicBuffer.getLastIndex(), (numBefore + numAfter) - 1);
+                    dataExists = true;
+                    lastDataIsShowing = true;
+                }
+            } else
+            if(timeIndexBefore == null)
+            {
+                to = getFirstTime().longValue();
+                if(!dataExistsBefore(to))
+                {
+                    visibleBufferDataStartIndex = 0;
+                    visibleBufferDataEndIndex = Math.min(mainCyclicBuffer.getLastIndex(), (numBefore + numAfter) - 1);
+                    dataExists = true;
+                } else
+                {
+                    doHistoryRequests(numBefore, to, numAfter);
+                }
+            } else
+            if(timeIndexAfter == null)
+            {
+                to = getLastDataEndTime().longValue();
+                boolean canLoadDataAfterTime = dataExistsAfter(to);
+                if(!canLoadDataAfterTime)
+                {
+                    visibleBufferDataStartIndex = mainCyclicBuffer.getSize() - numBefore;
+                    visibleBufferDataEndIndex = mainCyclicBuffer.getLastIndex();
+                    dataExists = true;
+                    lastDataIsShowing = true;
+                } else
+                {
+                    int priceRangesLack = getLackOfPriceRangesAfterTime(timeIndex.intValue(), numAfter);
+                    numAfter = Math.round((float)maxNumberOfCandles * 0.5F) + priceRangesLack;
+                    doHistoryRequests(numBefore, to, numAfter);
+                }
+            }
+        }
+        lastTime = to;
+        lastBarsBeforeCount = numBefore;
+        lastBarsAfterCount = numAfter;
+        int extraBefore = 0;
+        int extraAfter = 0;
+        int outputBufferSize = 0;
+        int outputBufferStartIndex = 0;
+        if(dataExists)
+            if(sparceIndicator)
+            {
+                outputBufferSize = mainCyclicBuffer.getSize();
+                extraBefore = visibleBufferDataStartIndex;
+                extraAfter = outputBufferSize - visibleBufferDataEndIndex - 1;
+            } else
+            {
+                outputBufferStartIndex = visibleBufferDataStartIndex;
+                outputBufferSize = (visibleBufferDataEndIndex - visibleBufferDataStartIndex) + 1;
+            }
+        Map formulaOutputs = null;
+        Map indicators = null;
+        Iterator i$ = formulas.entrySet().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            java.util.Map.Entry entry = (java.util.Map.Entry)i$.next();
+            com.dukascopy.charts.math.dataprovider.AbstractDataProvider.IndicatorData formulaData = (com.dukascopy.charts.math.dataprovider.AbstractDataProvider.IndicatorData)entry.getValue();
+            if(!formulaData.disabledIndicator)
+            {
+                IIndicator indicator = formulaData.indicatorWrapper.getIndicator();
+                if(formulaOutputs == null)
+                {
+                    formulaOutputs = new HashMap();
+                    indicators = new HashMap();
+                }
+                indicators.put(entry.getKey(), formulaData.indicatorWrapper);
+                Object outputs[] = new Object[formulaData.outputDataInt.length];
+                formulaOutputs.put(entry.getKey(), ((Object) (outputs)));
+                for(int i = 0; i < outputs.length; i++)
+                {
+                    static class _cls1
+                    {
+
+                        static final int $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[];
+
+                        static 
+                        {
+                            $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type = new int[com.dukascopy.api.indicators.OutputParameterInfo.Type.values().length];
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.INT.ordinal()] = 1;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.DOUBLE.ordinal()] = 2;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                            try
+                            {
+                                $SwitchMap$com$dukascopy$api$indicators$OutputParameterInfo$Type[com.dukascopy.api.indicators.OutputParameterInfo.Type.OBJECT.ordinal()] = 3;
+                            }
+                            catch(NoSuchFieldError ex) { }
+                        }
+                    }
+
+                    switch(_cls1..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[indicator.getOutputParameterInfo(i).getType().ordinal()])
+                    {
+                    default:
+                        break;
+
+                    case 1: // '\001'
+                        if(dataExists)
+                        {
+                            outputs[i] = new int[outputBufferSize];
+                            System.arraycopy(formulaData.outputDataInt[i], outputBufferStartIndex, outputs[i], 0, outputBufferSize);
+                        } else
+                        {
+                            outputs[i] = new int[0];
+                        }
+                        break;
+
+                    case 2: // '\002'
+                        if(dataExists)
+                        {
+                            outputs[i] = new double[outputBufferSize];
+                            System.arraycopy(formulaData.outputDataDouble[i], outputBufferStartIndex, outputs[i], 0, outputBufferSize);
+                        } else
+                        {
+                            outputs[i] = new double[0];
+                        }
+                        break;
+
+                    case 3: // '\003'
+                        if(dataExists)
+                        {
+                            outputs[i] = ((Object) (new Object[outputBufferSize]));
+                            System.arraycopy(((Object) (formulaData.outputDataObject[i])), outputBufferStartIndex, outputs[i], 0, outputBufferSize);
+                        } else
+                        {
+                            outputs[i] = ((Object) (new Object[0]));
+                        }
+                        break;
+                    }
+                }
+
+                if(formulaData.inputDataProviders != null)
+                {
+                    AbstractDataProvider arr$[] = formulaData.inputDataProviders;
+                    int len$ = arr$.length;
+                    int i$ = 0;
+                    while(i$ < len$) 
+                    {
+                        AbstractDataProvider indicatorDataProvider = arr$[i$];
+                        if(indicatorDataProvider != null)
+                        {
+                            long indicatorTo = to;
+                            int indicatorBefore = 1;
+                            int indicatorAfter = numAfter <= 0 ? 0 : 1;
+                            if(dataExists)
+                            {
+                                indicatorBefore = numBefore;
+                                if(indicatorBefore < 0)
+                                    indicatorBefore = 1;
+                                indicatorAfter = numAfter;
+                                if(indicatorAfter < 0)
+                                    indicatorAfter = 0;
+                            }
+                            synchronized(indicatorDataProvider)
+                            {
+                                try
+                                {
+                                    Period forPeriod = Period.TICK.equals(indicatorDataProvider.getPeriod()) ? Period.ONE_SEC : indicatorDataProvider.getPeriod();
+                                    indicatorTo = DataCacheUtils.getCandleStart(forPeriod, indicatorTo);
+                                }
+                                catch(DataCacheException e)
+                                {
+                                    LOGGER.error(e.getLocalizedMessage(), e);
+                                }
+                                indicatorDataProvider.doHistoryRequests(indicatorBefore, indicatorTo, indicatorAfter);
+                            }
+                        }
+                        i$++;
+                    }
+                }
+            }
+        } while(true);
+        long fromTime = to;
+        long toTime = to;
+        AbstractPriceAggregationData bufferToShow[] = null;
+        if(dataExists)
+        {
+            bufferToShow = createArray(outputBufferSize);
+            AbstractPriceAggregationData buffer[] = (AbstractPriceAggregationData[])mainCyclicBuffer.getAll(createArray(mainCyclicBuffer.getSize()));
+            System.arraycopy(buffer, outputBufferStartIndex, bufferToShow, 0, bufferToShow.length);
+            fromTime = buffer[visibleBufferDataStartIndex].getTime();
+            toTime = buffer[visibleBufferDataEndIndex].getTime();
+        } else
+        {
+            bufferToShow = createArray(0);
+        }
+        IDataSequence dataSequence = createDataSequence(fromTime, toTime, extraBefore, extraAfter, bufferToShow, (long[][])null, formulaOutputs, indicators, lastDataIsShowing, lastDataIsShowing);
+        return dataSequence;
+    }
+
+    public com.dukascopy.charts.math.dataprovider.AbstractDataProvider.LoadDataProgressListener doHistoryRequests(int numOfCandlesBefore, long reqTime, int numOfCandlesAfter)
+    {
+        reqTime = checkTime(reqTime);
+        Integer timeIndex;
+        Integer timeIndexForBefore;
+        stopPreviousDataLoading();
+        dataCacheRequestData = new com.dukascopy.charts.math.dataprovider.AbstractDataProvider.AbstractDataCacheRequestData();
+        loadingProgressListener = new com.dukascopy.charts.math.dataprovider.AbstractDataProvider.LoadDataProgressListener(this, dataCacheRequestData);
+        boolean isBufferEmpty = mainCyclicBuffer.isEmpty();
+        if(isBufferEmpty)
+        {
+            numOfCandlesBefore = getMaxBufferSize() / 2;
+            numOfCandlesAfter = getMaxBufferSize() - numOfCandlesBefore;
+            break MISSING_BLOCK_LABEL_252;
+        }
+        timeIndex = findBufferIndexForTime(reqTime);
+        if(timeIndex == null)
+        {
+            numOfCandlesBefore = getMaxBufferSize() / 2;
+            numOfCandlesAfter = getMaxBufferSize() - numOfCandlesBefore;
+            break MISSING_BLOCK_LABEL_252;
+        }
+        Integer timeIndexForAfter = dataExistAfterTimeIndex(timeIndex.intValue(), numOfCandlesAfter);
+        timeIndexForBefore = dataExistBeforeTimeIndex(timeIndex.intValue(), numOfCandlesBefore);
+        if(timeIndexForAfter == null && timeIndexForBefore == null)
+            throw new IllegalArgumentException("That is very strange, looks like no data in buffer, so why isBufferEmpty check did not work before this code?");
+        if(timeIndexForAfter != null)
+        {
+            numOfCandlesAfter = 0;
+            break MISSING_BLOCK_LABEL_207;
+        }
+        reqTime = getLastDataTime().longValue();
+        if(!dataExistsAfter(reqTime))
+            return loadingProgressListener;
+        int priceRangesLack = getLackOfPriceRangesAfterTime(timeIndex.intValue(), numOfCandlesAfter);
+        numOfCandlesAfter = Math.round((float)maxNumberOfCandles * 0.5F) + priceRangesLack;
+        if(timeIndexForBefore != null)
+        {
+            numOfCandlesBefore = 0;
+        } else
+        {
+            reqTime = getFirstTime().longValue();
+            int priceRangesLack = getLackOfPriceRangesBeforeTime(timeIndex.intValue(), numOfCandlesBefore);
+            numOfCandlesBefore = Math.round((float)maxNumberOfCandles * 0.5F) + priceRangesLack;
+        }
+        if(numOfCandlesBefore != 0 || numOfCandlesAfter != 0)
+            break MISSING_BLOCK_LABEL_270;
+        fireMainBufferChanged();
+        return loadingProgressListener;
+        if(loadingStarted)
+            return loadingProgressListener;
+        try
+        {
+            fireLoadingStarted();
+            currentHistoryRequestDataSubBuffer = createArray(numOfCandlesBefore + numOfCandlesAfter);
+            performDataLoad(numOfCandlesBefore, reqTime, numOfCandlesAfter);
+        }
+        catch(Throwable e)
+        {
+            LOGGER.error(e.getMessage(), e);
+        }
+        return loadingProgressListener;
+    }
+
+    public long getLastLoadedDataTime()
+    {
+        Long time = getLastDataTime();
+        return time != null ? time.longValue() : -1L;
+    }
+
+    protected void initIndicatorDataOutputBuffers(com.dukascopy.charts.math.dataprovider.AbstractDataProvider.IndicatorData formulaData)
+    {
+        IndicatorInfo indicatorInfo = formulaData.indicatorWrapper.getIndicator().getIndicatorInfo();
+        for(int i = 0; i < indicatorInfo.getNumberOfOutputs(); i++)
+        {
+            OutputParameterInfo outputParameterInfo = formulaData.indicatorWrapper.getIndicator().getOutputParameterInfo(i);
+            switch(_cls1..SwitchMap.com.dukascopy.api.indicators.OutputParameterInfo.Type[outputParameterInfo.getType().ordinal()])
+            {
+            case 1: // '\001'
+                formulaData.outputDataInt[i] = new int[mainCyclicBuffer.getMaxSize()];
+                break;
+
+            case 2: // '\002'
+                formulaData.outputDataDouble[i] = new double[mainCyclicBuffer.getMaxSize()];
+                break;
+
+            case 3: // '\003'
+                formulaData.outputDataObject[i] = new Object[mainCyclicBuffer.getMaxSize()];
+                break;
+            }
+        }
+
+    }
+
+    protected void recalculateIndicator(com.dukascopy.charts.math.dataprovider.AbstractDataProvider.IndicatorData indicatorData)
+    {
+        int indexFrom = 0;
+        int indexTo = mainCyclicBuffer.getLastIndex();
+        Collection indicators = new ArrayList(1);
+        indicators.add(indicatorData);
+        recalculateIndicators(indexFrom, indexTo, indicators, indexTo, (com.dukascopy.charts.data.datacache.CandleData[])mainCyclicBuffer.getAll(createArray(mainCyclicBuffer.getSize())), null);
+    }
+
+    protected void recalculateIndicators()
+    {
+        int indexFrom = 0;
+        int indexTo = mainCyclicBuffer.getLastIndex();
+        recalculateIndicators(indexFrom, indexTo);
+    }
+
+    protected void recalculateIndicators(int from, int to)
+    {
+        if(!active)
+            return;
+        int lastIndex = to;
+        boolean split = false;
+        Iterator i$ = formulas.values().iterator();
+        do
+        {
+            if(!i$.hasNext())
+                break;
+            com.dukascopy.charts.math.dataprovider.AbstractDataProvider.IndicatorData formulaData = (com.dukascopy.charts.math.dataprovider.AbstractDataProvider.IndicatorData)i$.next();
+            if(!formulaData.indicatorWrapper.getIndicator().getIndicatorInfo().isRecalculateAll())
+                continue;
+            split = true;
+            break;
+        } while(true);
+        if(split)
+        {
+            Collection recalculateAllFormulas = new ArrayList(formulas.size());
+            Collection restOfTheFormulas = new ArrayList(formulas.size());
+            for(Iterator i$ = formulas.values().iterator(); i$.hasNext();)
+            {
+                com.dukascopy.charts.math.dataprovider.AbstractDataProvider.IndicatorData formulaData = (com.dukascopy.charts.math.dataprovider.AbstractDataProvider.IndicatorData)i$.next();
+                if(formulaData.indicatorWrapper.getIndicator().getIndicatorInfo().isRecalculateAll())
+                    recalculateAllFormulas.add(formulaData);
+                else
+                    restOfTheFormulas.add(formulaData);
+            }
+
+            if(!recalculateAllFormulas.isEmpty())
+                recalculateIndicators(0, lastIndex, recalculateAllFormulas, lastIndex, (com.dukascopy.charts.data.datacache.CandleData[])mainCyclicBuffer.getAll(createArray(mainCyclicBuffer.getSize())), null);
+            if(!restOfTheFormulas.isEmpty())
+                recalculateIndicators(from, to, restOfTheFormulas, lastIndex, (com.dukascopy.charts.data.datacache.CandleData[])mainCyclicBuffer.getAll(createArray(mainCyclicBuffer.getSize())), null);
+        } else
+        if(!formulas.isEmpty())
+            recalculateIndicators(from, to, formulas.values(), lastIndex, (com.dukascopy.charts.data.datacache.CandleData[])mainCyclicBuffer.getAll(createArray(mainCyclicBuffer.getSize())), null);
+    }
+
+    public Filter getFilter()
+    {
+        return filter;
+    }
+
+    public void start()
+    {
+        lastTime = checkTime(lastTime);
+        addInProgressBarListeners();
+        doHistoryRequests(0, lastTime, 0);
+    }
+
+    public void dispose()
+    {
+        reset();
+        super.dispose();
+        removeInProgressBarListeners();
+        stopPreviousDataLoading();
+    }
+
+    private boolean dataExistsAfter(long time)
+    {
+        AbstractPriceAggregationData lastBar = (AbstractPriceAggregationData)latestBars.getLast();
+        if(lastBar != null)
+            return !latestBars.containsTime(time) && time < lastBar.getTime() - getMaxTimeIntervalBetweenTwoBars();
+        else
+            return false;
+    }
+
+    private boolean dataExistsBefore(long time)
+    {
+        long firstKnownTime = feedDataProvider.getTimeOfFirstCandle(getInstrument(), getBarsBasedOnCandlesPeriod());
+        return time > firstKnownTime;
+    }
+
+    protected void reset()
+    {
+        mainCyclicBuffer.clear();
+        latestBars.clear();
+    }
+
+    private Integer findBufferIndexForTime(long time)
+    {
+        AbstractPriceAggregationData mainBuffer[] = (AbstractPriceAggregationData[])mainCyclicBuffer.getAll(createArray(mainCyclicBuffer.getSize()));
+        int index = TimeDataUtils.timeIndex(mainBuffer, time);
+        if(index > -1)
+            return new Integer(index);
+        else
+            return null;
+    }
+
+    private int getLackOfPriceRangesBeforeTime(int timeIndex, int priceRangesBeforeCount)
+    {
+        if(dataExistBeforeTimeIndex(timeIndex, priceRangesBeforeCount) == null)
+            return priceRangesBeforeCount - timeIndex;
+        else
+            return 0;
+    }
+
+    private int getLackOfPriceRangesAfterTime(int timeIndex, int priceRangesAfter)
+    {
+        if(dataExistAfterTimeIndex(timeIndex, priceRangesAfter) == null)
+            return priceRangesAfter - (mainCyclicBuffer.getSize() - timeIndex);
+        else
+            return 0;
+    }
+
+    private Integer dataExistBeforeTimeIndex(int timeIndex, int priceRangesBefore)
+    {
+        if(timeIndex - priceRangesBefore >= 0)
+            return new Integer(timeIndex);
+        else
+            return null;
+    }
+
+    private Integer dataExistAfterTimeIndex(int timeIndex, int priceRangesAfter)
+    {
+        if(timeIndex + priceRangesAfter < mainCyclicBuffer.getSize())
+            return new Integer(timeIndex);
+        else
+            return null;
+    }
+
+    private Long getFirstTime()
+    {
+        AbstractPriceAggregationData firstData = (AbstractPriceAggregationData)mainCyclicBuffer.getFirst();
+        if(firstData == null)
+            return null;
+        else
+            return new Long(firstData.getTime());
+    }
+
+    private Long getLastDataTime()
+    {
+        AbstractPriceAggregationData lastData = (AbstractPriceAggregationData)mainCyclicBuffer.getLast();
+        if(lastData == null)
+            return null;
+        else
+            return new Long(lastData.getTime());
+    }
+
+    private Long getLastDataEndTime()
+    {
+        AbstractPriceAggregationData lastData = (AbstractPriceAggregationData)mainCyclicBuffer.getLast();
+        if(lastData == null)
+            return null;
+        else
+            return new Long(lastData.getEndTime());
+    }
+
+    private long checkTime(long time)
+    {
+        long lastTickTime = feedDataProvider.getCurrentTime();
+        if(time <= 0L)
+            time = lastTickTime;
+        if(time > lastTickTime)
+            time = lastTickTime;
+        long firstTickTime = feedDataProvider.getTimeOfFirstCandle(getInstrument(), getBarsBasedOnCandlesPeriod());
+        if(time < firstTickTime)
+            time = firstTickTime;
+        long latestKnownTime = getInProgressBarStartTime();
+        long latestPossibleTime = DataCacheUtils.getPreviousPriceAggregationBarStart(latestKnownTime);
+        if(time > latestPossibleTime)
+            time = latestPossibleTime;
+        return time;
+    }
+
+    public DataType getDataType()
+    {
+        return DataType.TIME_PERIOD_AGGREGATION;
+    }
+
+    protected void synchronizeParams(Instrument instrument, Period period, Filter filter, OfferSide side, boolean isAnyParamChanged)
+    {
+        if(isAnyParamChanged)
+            removeInProgressBarListeners();
+        this.period = period;
+        this.side = side;
+        this.filter = filter;
+        this.instrument = instrument;
+        if(lastBarsBeforeCount > -1 && lastTime > -1L && lastBarsAfterCount > -1)
+        {
+            dataCacheRequestData.cancel = true;
+            fireLoadingFinished();
+            if(isAnyParamChanged)
+            {
+                reset();
+                addInProgressBarListeners();
+            }
+            doHistoryRequests(lastBarsBeforeCount, lastTime, lastBarsAfterCount);
+        } else
+        if(isAnyParamChanged)
+            addInProgressBarListeners();
+    }
+
+    protected void latestBarArrived(AbstractPriceAggregationData bar)
+    {
+        performLatestBar(bar);
+    }
+
+    protected void inProgressBarUpdated(AbstractPriceAggregationData bar)
+    {
+        performLatestBar(bar);
+    }
+
+    protected void performLatestBar(AbstractPriceAggregationData bar)
+    {
+        if(!latestBars.addOrReplace(bar))
+            return;
+        if(!canPerformLatestBar())
+            return;
+        firstData = latestData = bar;
+        if(mainCyclicBuffer.getLast() != null)
+            if(latestData.getTime() != ((AbstractPriceAggregationData)mainCyclicBuffer.getLast()).getTime())
+            {
+                if(lastDataIsShowing)
+                {
+                    mainCyclicBuffer.addToEnd(latestData);
+                    fireMainBufferChanged();
+                } else
+                if(Math.abs(((AbstractPriceAggregationData)mainCyclicBuffer.getLast()).getEndTime() - latestData.getTime()) < getMaxTimeIntervalBetweenTwoBars())
+                {
+                    mainCyclicBuffer.addToEnd(latestData);
+                    recalculateIndicators();
+                }
+            } else
+            {
+                setLastData(latestData);
+            }
+        if(lastDataIsShowing)
+            fireDataChanged(latestData.getTime(), latestData.getEndTime(), true);
+    }
+
+    private void setLastData(AbstractPriceAggregationData bar)
+    {
+        mainCyclicBuffer.set(bar, mainCyclicBuffer.getLastIndex());
+    }
+
+    private boolean canPerformLatestBar()
+    {
+        Long latestMainBufferTime = getLastDataEndTime();
+        if(latestMainBufferTime != null)
+        {
+            boolean latestBufferContainsTime = latestBars.containsTime(latestMainBufferTime.longValue());
+            if(latestBufferContainsTime)
+                return true;
+            AbstractPriceAggregationData lastBar = (AbstractPriceAggregationData)latestBars.getLast();
+            if(lastBar != null && Math.abs(lastBar.getTime() - latestMainBufferTime.longValue()) < getMaxTimeIntervalBetweenTwoBars())
+                return true;
+        }
+        return false;
+    }
+
+    protected void historicalBarsArived(AbstractPriceAggregationData bars[])
+    {
+        currentHistoryRequestDataSubBuffer = bars;
+    }
+
+    private int getMaxBufferSize()
+    {
+        return maxNumberOfCandles * bufferSizeMultiplier;
+    }
+
+    private void stopPreviousDataLoading()
+    {
+        if(dataCacheRequestData != null)
+            dataCacheRequestData.cancel = true;
+        loadingStarted = false;
+    }
+
+    protected long getInProgressBarStartTime()
+    {
+        AbstractPriceAggregationData bar = getInProgressBar();
+        return bar == null ? feedDataProvider.getLatestKnownTimeOrCurrentGMTTime(getInstrument()) : bar.getTime();
+    }
+
+    protected static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/math/dataprovider/priceaggregation/AbstractPriceAggregationDataProvider);
+    private static final float INCREASING_PERCENT = 0.5F;
+    public static final long MAX_TIME_INTERVAL_BETWEEN_TWO_BARS = 60000L;
+    protected com.dukascopy.charts.math.dataprovider.AbstractDataProvider.AbstractDataCacheRequestData dataCacheRequestData;
+    protected com.dukascopy.charts.math.dataprovider.AbstractDataProvider.LoadDataProgressListener loadingProgressListener;
+    protected final IShiftableBuffer mainCyclicBuffer = new ShiftableBuffer(getMaxBufferSize());
+    protected AbstractPriceAggregationData currentHistoryRequestDataSubBuffer[];
+    protected long lastTime;
+    protected int lastBarsBeforeCount;
+    protected int lastBarsAfterCount;
+    protected AbstractPriceAggregationData latestData;
+    protected IPriceAggregationLiveFeedListener latestBarNotificationListener;
+    protected IPriceAggregationLiveFeedListener inProgressBarListener;
+    protected boolean lastDataIsShowing;
+    private final int LATEST_BARS_COUNT = 10;
+    protected IPriceAggregationShiftableBuffer latestBars;
+
+}

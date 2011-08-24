@@ -1,0 +1,23 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:27
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   InputParameterInfoHolder.java
+
+package com.dukascopy.api.impl.talib;
+
+import com.tictactec.ta.lib.meta.annotation.InputParameterType;
+
+// Referenced classes of package com.dukascopy.api.impl.talib:
+//            Holder
+
+public class InputParameterInfoHolder extends Holder
+{
+
+    public InputParameterInfoHolder()
+    {
+    }
+
+    public InputParameterType type;
+    public String paramName;
+    public int flags;
+}

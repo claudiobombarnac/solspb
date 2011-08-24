@@ -1,0 +1,337 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   LoadDataAction.java
+
+package com.dukascopy.charts.data.datacache;
+
+import com.dukascopy.api.*;
+import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+// Referenced classes of package com.dukascopy.charts.data.datacache:
+//            LoadProgressingAction, DataCacheException, LoadCustomPeriodDataAction, DailyFilterListener, 
+//            FeedDataProvider, LiveFeedListener, LoadingProgressListener, CurvesDataLoader, 
+//            ChunkLoadingListener, LocalCacheManager, CandleData, DataCacheUtils, 
+//            IFeedInfo
+
+public class LoadDataAction extends LoadProgressingAction
+    implements Runnable
+{
+    private static class CacheLoadingProgressListener
+        implements LoadingProgressListener
+    {
+
+        public void dataLoaded(long startTime, long endTime, long currentTime, String information)
+        {
+            loadingProgress.dataLoaded(startTime, endTime, currentTime, information);
+        }
+
+        public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime, 
+                Exception e)
+        {
+            if(!allDataLoaded)
+            {
+                loadingProgress.loadingFinished(allDataLoaded, startTime, endTime, currentTime, e);
+                done = 2;
+            } else
+            {
+                done = 1;
+            }
+            try
+            {
+                processedChunks.put(new long[0]);
+            }
+            catch(InterruptedException e1)
+            {
+                LoadDataAction.LOGGER.error(e1.getMessage(), e1);
+            }
+        }
+
+        public boolean stopJob()
+        {
+            return loadingProgress.stopJob();
+        }
+
+        public volatile int done;
+        private LoadingProgressListener loadingProgress;
+        private LinkedBlockingQueue processedChunks;
+
+        public CacheLoadingProgressListener(LinkedBlockingQueue processedChunks, LoadingProgressListener loadingProgress)
+        {
+            this.processedChunks = processedChunks;
+            this.loadingProgress = loadingProgress;
+        }
+    }
+
+
+    public LoadDataAction(FeedDataProvider feedDataProvider, Instrument instrument, Period period, OfferSide side, long from, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress, StackTraceElement stackTrace[], boolean blocking, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        super(loadingProgress);
+        this.instrument = instrument;
+        this.period = period;
+        this.side = side;
+        this.from = from;
+        this.to = to;
+        listener = candleListener;
+        this.stackTrace = stackTrace;
+        this.blocking = blocking;
+        this.feedDataProvider = feedDataProvider;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        this.loadFromChunkStart = loadFromChunkStart;
+        if(instrument == null || period == null || from > to || loadingProgress == null || period == Period.TICK)
+            throw new DataCacheException((new StringBuilder()).append("Wrong parameters: instrument=").append(instrument).append(" / period=").append(period).append(" / ").append(from).append(", ").append(to).append(" / ").append(loadingProgress).toString());
+        if(!DataCacheUtils.isIntervalValid(period, from, to))
+            throw new DataCacheException((new StringBuilder()).append("Time interval[").append(formatter.format(Long.valueOf(from))).append(", ").append(formatter.format(Long.valueOf(to))).append("] is not valid for period [").append(period).append("]").toString());
+        if(Period.isPeriodBasic(period) == null)
+            loadCustomPeriodDataAction = new LoadCustomPeriodDataAction(feedDataProvider, instrument, period, side, from, to, listener, loadingProgress, stackTrace, blocking, intraperiodExistsPolicy, loadFromChunkStart);
+        else
+            loadCustomPeriodDataAction = null;
+    }
+
+    public LoadDataAction(FeedDataProvider feedDataProvider, Instrument instrument, long from, long to, LiveFeedListener tickListener, 
+            LoadingProgressListener loadingProgress, StackTraceElement stackTrace[], boolean blocking, CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy, boolean loadFromChunkStart)
+        throws DataCacheException
+    {
+        super(loadingProgress);
+        this.instrument = instrument;
+        period = Period.TICK;
+        side = null;
+        this.from = from;
+        this.to = to;
+        listener = tickListener;
+        this.stackTrace = stackTrace;
+        this.blocking = blocking;
+        this.feedDataProvider = feedDataProvider;
+        this.intraperiodExistsPolicy = intraperiodExistsPolicy;
+        this.loadFromChunkStart = loadFromChunkStart;
+        if(instrument == null || from > to || loadingProgress == null)
+        {
+            throw new DataCacheException((new StringBuilder()).append("Wrong parameters: ").append(instrument).append(" / ").append(from).append(", ").append(to).append(" / ").append(loadingProgress).toString());
+        } else
+        {
+            loadCustomPeriodDataAction = null;
+            return;
+        }
+    }
+
+    public void run()
+    {
+        if(Period.isPeriodBasic(period) == null)
+        {
+            loadCustomPeriodDataAction.run();
+            break MISSING_BLOCK_LABEL_1044;
+        }
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, from, to, to, null);
+            return;
+        }
+        loadingProgress.dataLoaded(from, to, from, "Downloading data into cache...");
+        CurvesDataLoader curvesDataLoader;
+        long lastTickTime;
+        long correctedFrom;
+        long correctedTo;
+        final long timeOfFirstCandle;
+        curvesDataLoader = feedDataProvider.getCurvesDataLoader();
+        lastTickTime = feedDataProvider.getCurrentTime(instrument);
+        lastTickTime = lastTickTime != 0x8000000000000000L ? lastTickTime : System.currentTimeMillis();
+        correctedFrom = from;
+        correctedTo = to;
+        timeOfFirstCandle = feedDataProvider.getTimeOfFirstCandle(instrument, period);
+        if(timeOfFirstCandle == 0x7fffffffffffffffL)
+        {
+            loadingProgress.dataLoaded(from, to, to, "Data loaded!");
+            loadingProgress.loadingFinished(true, from, to, to, null);
+            return;
+        }
+        if(period == Period.TICK)
+        {
+            if(correctedFrom < timeOfFirstCandle)
+                correctedFrom = timeOfFirstCandle;
+            if(lastTickTime != 0x8000000000000000L && correctedTo > lastTickTime + 500L)
+                correctedTo = lastTickTime + 500L;
+        } else
+        {
+            if(correctedFrom < timeOfFirstCandle)
+            {
+                correctedFrom = DataCacheUtils.getCandleStartFast(period, correctedFrom);
+                if(correctedFrom < timeOfFirstCandle)
+                    correctedFrom = DataCacheUtils.getCandleStartFast(period, timeOfFirstCandle);
+            }
+            if(lastTickTime != 0x8000000000000000L)
+            {
+                long lastTickCandleStartTime = DataCacheUtils.getCandleStartFast(period, lastTickTime);
+                if(correctedTo >= lastTickCandleStartTime)
+                    correctedTo = DataCacheUtils.getPreviousCandleStartFast(period, lastTickCandleStartTime);
+            }
+        }
+        if(correctedFrom > correctedTo)
+        {
+            loadingProgress.dataLoaded(from, to, to, "Data loaded!");
+            loadingProgress.loadingFinished(true, from, to, to, null);
+            return;
+        }
+        final double feedCommission = feedDataProvider.getFeedInfo() != null && feedDataProvider.getFeedInfo().getFeedCommission() != null ? feedDataProvider.getFeedInfo().getFeedCommission().doubleValue() : 0.0D;
+        if(!blocking || listener == null)
+        {
+            final long correctedFromFinal = correctedFrom;
+            final long correctedToFinal = correctedTo;
+            ChunkLoadingListener reader = listener != null ? new ChunkLoadingListener() {
+
+                public void chunkLoaded(long chunk[])
+                    throws DataCacheException
+                {
+                    LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+                    if(period == Period.DAILY_SKIP_SUNDAY || period == Period.DAILY_SUNDAY_IN_MONDAY)
+                    {
+                        long dailyFilterCorrectedFrom = DailyFilterListener.calculateDailyFilterFromCorrection(timeOfFirstCandle, period, correctedFromFinal);
+                        lastNonEmptyElement = localCacheManager.readData(instrument, period, side, dailyFilterCorrectedFrom, correctedToFinal, new DailyFilterListener(listener, DataCacheUtils.getCandlesCountBetweenFast(period, dailyFilterCorrectedFrom, correctedFromFinal) - 1, lastNonEmptyElement), blocking, intraperiodExistsPolicy, chunk, lastNonEmptyElement, feedCommission);
+                    } else
+                    {
+                        lastNonEmptyElement = localCacheManager.readData(instrument, period, side, correctedFromFinal, correctedToFinal, listener, blocking, intraperiodExistsPolicy, chunk, lastNonEmptyElement, feedCommission);
+                    }
+                }
+
+                CandleData lastNonEmptyElement;
+                final long val$timeOfFirstCandle;
+                final long val$correctedFromFinal;
+                final long val$correctedToFinal;
+                final double val$feedCommission;
+                final LoadDataAction this$0;
+
+            
+            {
+                this$0 = LoadDataAction.this;
+                timeOfFirstCandle = l;
+                correctedFromFinal = l1;
+                correctedToFinal = l2;
+                feedCommission = d;
+                super();
+                lastNonEmptyElement = null;
+            }
+            } : null;
+            curvesDataLoader.loadInCache(instrument, period, side, correctedFrom, correctedTo, loadingProgress, intraperiodExistsPolicy, loadFromChunkStart, reader);
+        } else
+        {
+            final LinkedBlockingQueue processedChunks = new LinkedBlockingQueue();
+            ChunkLoadingListener reader = listener != null ? new ChunkLoadingListener() {
+
+                public void chunkLoaded(long chunk[])
+                {
+                    try
+                    {
+                        processedChunks.put(chunk);
+                        chunks++;
+                        if(chunks >= 5)
+                            Thread.currentThread().setPriority(1);
+                    }
+                    catch(InterruptedException e)
+                    {
+                        LoadDataAction.LOGGER.error(e.getMessage(), e);
+                        loadingProgress.loadingFinished(false, from, to, from, e);
+                    }
+                }
+
+                int chunks;
+                final LinkedBlockingQueue val$processedChunks;
+                final LoadDataAction this$0;
+
+            
+            {
+                this$0 = LoadDataAction.this;
+                processedChunks = linkedblockingqueue;
+                super();
+                chunks = 0;
+            }
+            } : null;
+            CacheLoadingProgressListener cacheLoadingProgress = new CacheLoadingProgressListener(processedChunks, loadingProgress);
+            Thread loadInCacheThread = feedDataProvider.loadInCacheAsynch(instrument, period, side, correctedFrom, correctedTo, cacheLoadingProgress, intraperiodExistsPolicy, loadFromChunkStart, reader);
+            LocalCacheManager localCacheManager = feedDataProvider.getLocalCacheManager();
+            CandleData lastNonEmptyElement = null;
+            do
+            {
+                if(loadingProgress.stopJob() || cacheLoadingProgress.done != 0 && (cacheLoadingProgress.done != 1 || processedChunks.isEmpty()))
+                    break;
+                long chunk[] = (long[])processedChunks.poll(20L, TimeUnit.MILLISECONDS);
+                if(chunk != null && chunk.length > 0)
+                {
+                    if(period == Period.DAILY_SKIP_SUNDAY || period == Period.DAILY_SUNDAY_IN_MONDAY)
+                    {
+                        long dailyFilterCorrectedFrom = DailyFilterListener.calculateDailyFilterFromCorrection(timeOfFirstCandle, period, correctedFrom);
+                        lastNonEmptyElement = localCacheManager.readData(instrument, period, side, dailyFilterCorrectedFrom, correctedTo, new DailyFilterListener(listener, DataCacheUtils.getCandlesCountBetweenFast(period, dailyFilterCorrectedFrom, correctedFrom) - 1, lastNonEmptyElement), blocking, intraperiodExistsPolicy, chunk, lastNonEmptyElement, feedCommission);
+                    } else
+                    {
+                        lastNonEmptyElement = localCacheManager.readData(instrument, period, side, correctedFrom, correctedTo, listener, blocking, intraperiodExistsPolicy, chunk, lastNonEmptyElement, feedCommission);
+                    }
+                } else
+                if(loadInCacheThread.getPriority() == 1)
+                    loadInCacheThread.setPriority(5);
+            } while(true);
+            if(cacheLoadingProgress.done == 2)
+                return;
+        }
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, from, to, to, null);
+            return;
+        }
+        if(loadingProgress.stopJob())
+        {
+            loadingProgress.loadingFinished(false, from, to, to, null);
+            return;
+        }
+        try
+        {
+            loadingProgress.dataLoaded(from, to, to, "Data loaded!");
+            loadingProgress.loadingFinished(true, from, to, to, null);
+        }
+        catch(Exception e)
+        {
+            LOGGER.error(e.getMessage(), e);
+            loadingProgress.loadingFinished(false, from, to, from, e);
+        }
+        catch(Throwable t)
+        {
+            LOGGER.error(t.getMessage(), t);
+            loadingProgress.loadingFinished(false, from, to, from, null);
+        }
+    }
+
+    private static SimpleDateFormat formatter;
+    private static final Logger LOGGER = LoggerFactory.getLogger(com/dukascopy/charts/data/datacache/LoadDataAction);
+    private final Instrument instrument;
+    private final Period period;
+    private final OfferSide side;
+    private final long from;
+    private final long to;
+    private final LiveFeedListener listener;
+    private final boolean blocking;
+    private final StackTraceElement stackTrace[];
+    private final FeedDataProvider feedDataProvider;
+    private final CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy;
+    private final boolean loadFromChunkStart;
+    private final LoadCustomPeriodDataAction loadCustomPeriodDataAction;
+
+    static 
+    {
+        formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSZ");
+        formatter.setTimeZone(TimeZone.getTimeZone("GMT 0"));
+    }
+
+
+
+
+
+
+
+
+
+
+}

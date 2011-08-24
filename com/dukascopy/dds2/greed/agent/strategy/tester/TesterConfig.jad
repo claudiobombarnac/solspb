@@ -1,0 +1,413 @@
+// Decompiled by Jad v1.5.8e2. Copyright 2001 Pavel Kouznetsov.
+// Jad home page: http://kpdus.tripod.com/jad.html
+// Decompiler options: packimports(3) 
+// Source File Name:   TesterConfig.java
+
+package com.dukascopy.dds2.greed.agent.strategy.tester;
+
+import com.dukascopy.api.*;
+import com.dukascopy.api.feed.*;
+import com.dukascopy.api.impl.History;
+import com.dukascopy.charts.data.datacache.JForexPeriod;
+import com.dukascopy.charts.data.datacache.LoadingProgressListener;
+import com.dukascopy.dds2.greed.agent.strategy.notification.IStrategyRateDataNotificationFactory;
+import com.dukascopy.dds2.greed.agent.strategy.notification.StrategyRateDataNotificationFactory;
+import com.dukascopy.dds2.greed.agent.strategy.notification.candle.IStrategyCandleNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.pnf.IStrategyPointAndFigureNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.pr.IStrategyPriceRangeNotificationManager;
+import com.dukascopy.dds2.greed.agent.strategy.notification.tickbar.IStrategyTickBarNotificationManager;
+import com.dukascopy.dds2.greed.util.FilePathManager;
+import com.dukascopy.dds2.greed.util.INotificationUtils;
+import java.io.File;
+import java.io.PrintStream;
+import java.security.*;
+import java.util.*;
+import java.util.concurrent.*;
+
+// Referenced classes of package com.dukascopy.dds2.greed.agent.strategy.tester:
+//            TesterHistory, TesterIndicators, TesterChartData, TesterCustodian, 
+//            ExecutionControl, IStrategyRunner, TesterOrdersProvider, TesterOutputStream
+
+public class TesterConfig
+    implements IContext
+{
+
+    public TesterConfig(TesterCustodian engine, INotificationUtils notificationUtils, boolean isFullAccessGranted, Map chartPanels, ExecutionControl executionControl, TesterOrdersProvider ordersProvider, LoadingProgressListener progressListener, 
+            IStrategyRunner strategyRunner, IAccount account, IStrategy strategy)
+    {
+        delayedTasks = new ArrayList();
+        this.strategyRunner = strategyRunner;
+        history = new TesterHistory(ordersProvider, strategyRunner, account.getCurrency(), engine.getCurrencyConverter());
+        indicators = new TesterIndicators((History)history, strategyRunner);
+        this.engine = engine;
+        this.notificationUtils = notificationUtils;
+        this.isFullAccessGranted = isFullAccessGranted;
+        console = new IConsole() {
+
+            public PrintStream getErr()
+            {
+                return errorStream;
+            }
+
+            public PrintStream getOut()
+            {
+                return infoStream;
+            }
+
+            PrintStream errorStream;
+            PrintStream infoStream;
+            final TesterConfig this$0;
+
+            
+            {
+                this$0 = TesterConfig.this;
+                super();
+                errorStream = new PrintStream(new TesterOutputStream("ERROR", notificationUtils));
+                infoStream = new PrintStream(new TesterOutputStream("INFO", notificationUtils));
+            }
+        };
+        this.chartPanels = chartPanels;
+        filesDir = FilePathManager.getInstance().getFilesForStrategiesDir();
+        this.executionControl = executionControl;
+        this.progressListener = progressListener;
+        this.account = account;
+        this.strategy = strategy;
+    }
+
+    public IChart getChart(Instrument instrument)
+    {
+        if(chartPanels != null)
+        {
+            TesterChartData chartObjects = (TesterChartData)chartPanels.get(instrument);
+            if(chartObjects != null)
+                return chartObjects.chart;
+        }
+        return null;
+    }
+
+    public Set getCharts(Instrument instrument)
+    {
+        if(chartPanels != null)
+        {
+            TesterChartData chartObjects = (TesterChartData)chartPanels.get(instrument);
+            if(chartObjects != null)
+                return Collections.singleton(chartObjects.chart);
+        }
+        return null;
+    }
+
+    public IUserInterface getUserInterface()
+    {
+        return null;
+    }
+
+    public IConsole getConsole()
+    {
+        return console;
+    }
+
+    public IEngine getEngine()
+    {
+        return engine;
+    }
+
+    public IHistory getHistory()
+    {
+        return history;
+    }
+
+    public Future executeTask(Callable callable)
+    {
+        FutureTask futureTask = new FutureTask(callable);
+        synchronized(delayedTasks)
+        {
+            delayedTasks.add(futureTask);
+        }
+        return futureTask;
+    }
+
+    public FutureTask[] getDelayedTasks()
+    {
+        List list = delayedTasks;
+        JVM INSTR monitorenter ;
+        if(delayedTasks.isEmpty())
+            return EMPTY_DELAYED_TASKS;
+        (FutureTask[])delayedTasks.toArray(new FutureTask[delayedTasks.size()]);
+        list;
+        JVM INSTR monitorexit ;
+        return;
+        Exception exception;
+        exception;
+        throw exception;
+    }
+
+    public void stop()
+    {
+        stop = true;
+    }
+
+    public IIndicators getIndicators()
+    {
+        return indicators;
+    }
+
+    public boolean isFullAccessGranted()
+    {
+        return isFullAccessGranted;
+    }
+
+    public boolean isStopped()
+    {
+        return stop || progressListener.stopJob();
+    }
+
+    public File getFilesDir()
+    {
+        return filesDir;
+    }
+
+    public void pause()
+    {
+        executionControl.pause();
+    }
+
+    public void setSubscribedInstruments(Set instruments)
+    {
+        if(!strategyRunner.getInstruments().containsAll(instruments))
+        {
+            console.getErr().println("One of the instruments requested by the strategy is not selected");
+            stop = true;
+        }
+    }
+
+    public Set getSubscribedInstruments()
+    {
+        return Collections.unmodifiableSet(strategyRunner.getInstruments());
+    }
+
+    public IAccount getAccount()
+    {
+        return account;
+    }
+
+    public void subscribeToBarsFeed(final Instrument instrument, Period period, final OfferSide offerSide, final IBarFeedListener listener)
+    {
+        final JForexPeriod jForexPeriod = new JForexPeriod(DataType.TIME_PERIOD_AGGREGATION, period);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Object run()
+                    throws Exception
+                {
+                    StrategyRateDataNotificationFactory.getIsntance().getCandleNotificationManager().subscribeToBarsFeedForHistoricalTester(strategy, strategyRunner, instrument, jForexPeriod, offerSide, listener, null, null, null, notificationUtils);
+                    return null;
+                }
+
+                final Instrument val$instrument;
+                final JForexPeriod val$jForexPeriod;
+                final OfferSide val$offerSide;
+                final IBarFeedListener val$listener;
+                final TesterConfig this$0;
+
+            
+            {
+                this$0 = TesterConfig.this;
+                instrument = instrument1;
+                jForexPeriod = jforexperiod;
+                offerSide = offerside;
+                listener = ibarfeedlistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void unsubscribeFromBarsFeed(IBarFeedListener listener)
+    {
+        StrategyRateDataNotificationFactory.getIsntance().getCandleNotificationManager().unsubscribeFromBarsFeedForHistoricalTester(strategy, strategyRunner, listener);
+    }
+
+    public IStrategies getStrategies()
+    {
+        return new IStrategies() {
+
+            public long startStrategy(File jfxFile, IStrategyListener listener, Map configurables, boolean fullAccess)
+                throws JFException
+            {
+                throw new JFException("Not supported by tester");
+            }
+
+            public long startStrategy(IStrategy strategy, IStrategyListener listener, boolean fullAccess)
+                throws JFException
+            {
+                throw new JFException("Not supported by tester");
+            }
+
+            public void stopStrategy(long strategyId)
+                throws JFException
+            {
+                throw new JFException("Not supported by tester");
+            }
+
+            final TesterConfig this$0;
+
+            
+            {
+                this$0 = TesterConfig.this;
+                super();
+            }
+        };
+    }
+
+    public void subscribeToPointAndFigureFeed(final Instrument instrument, final OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, final IPointAndFigureFeedListener listener)
+    {
+        final JForexPeriod jForexPeriod = new JForexPeriod(DataType.POINT_AND_FIGURE, Period.TICK, priceRange, reversalAmount);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Object run()
+                    throws Exception
+                {
+                    StrategyRateDataNotificationFactory.getIsntance().getPointAndFigureNotificationManager().subscribeToBarsFeedForHistoricalTester(strategy, strategyRunner, instrument, jForexPeriod, offerSide, listener, null, null, null, notificationUtils);
+                    return null;
+                }
+
+                final Instrument val$instrument;
+                final JForexPeriod val$jForexPeriod;
+                final OfferSide val$offerSide;
+                final IPointAndFigureFeedListener val$listener;
+                final TesterConfig this$0;
+
+            
+            {
+                this$0 = TesterConfig.this;
+                instrument = instrument1;
+                jForexPeriod = jforexperiod;
+                offerSide = offerside;
+                listener = ipointandfigurefeedlistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void subscribeToRangeBarFeed(final Instrument instrument, final OfferSide offerSide, PriceRange priceRange, final IRangeBarFeedListener listener)
+    {
+        final JForexPeriod jForexPeriod = new JForexPeriod(DataType.PRICE_RANGE_AGGREGATION, Period.TICK, priceRange);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Object run()
+                    throws Exception
+                {
+                    StrategyRateDataNotificationFactory.getIsntance().getPriceRangeNotificationManager().subscribeToBarsFeedForHistoricalTester(strategy, strategyRunner, instrument, jForexPeriod, offerSide, listener, null, null, null, notificationUtils);
+                    return null;
+                }
+
+                final Instrument val$instrument;
+                final JForexPeriod val$jForexPeriod;
+                final OfferSide val$offerSide;
+                final IRangeBarFeedListener val$listener;
+                final TesterConfig this$0;
+
+            
+            {
+                this$0 = TesterConfig.this;
+                instrument = instrument1;
+                jForexPeriod = jforexperiod;
+                offerSide = offerside;
+                listener = irangebarfeedlistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void subscribeToTickBarFeed(final Instrument instrument, final OfferSide offerSide, TickBarSize tickBarSize, final ITickBarFeedListener listener)
+    {
+        final JForexPeriod jForexPeriod = new JForexPeriod(DataType.TICK_BAR, Period.TICK, null, null, tickBarSize);
+        try
+        {
+            AccessController.doPrivileged(new PrivilegedExceptionAction() {
+
+                public Object run()
+                    throws Exception
+                {
+                    StrategyRateDataNotificationFactory.getIsntance().getTickBarNotificationManager().subscribeToBarsFeedForHistoricalTester(strategy, strategyRunner, instrument, jForexPeriod, offerSide, listener, null, null, null, notificationUtils);
+                    return null;
+                }
+
+                final Instrument val$instrument;
+                final JForexPeriod val$jForexPeriod;
+                final OfferSide val$offerSide;
+                final ITickBarFeedListener val$listener;
+                final TesterConfig this$0;
+
+            
+            {
+                this$0 = TesterConfig.this;
+                instrument = instrument1;
+                jForexPeriod = jforexperiod;
+                offerSide = offerside;
+                listener = itickbarfeedlistener;
+                super();
+            }
+            });
+        }
+        catch(PrivilegedActionException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void unsubscribeFromPointAndFigureFeed(IPointAndFigureFeedListener listener)
+    {
+        StrategyRateDataNotificationFactory.getIsntance().getPointAndFigureNotificationManager().unsubscribeFromBarsFeedForHistoricalTester(strategy, strategyRunner, listener);
+    }
+
+    public void unsubscribeFromRangeBarFeed(IRangeBarFeedListener listener)
+    {
+        StrategyRateDataNotificationFactory.getIsntance().getPriceRangeNotificationManager().unsubscribeFromBarsFeedForHistoricalTester(strategy, strategyRunner, listener);
+    }
+
+    public void unsubscribeFromTickBarFeed(ITickBarFeedListener listener)
+    {
+        StrategyRateDataNotificationFactory.getIsntance().getTickBarNotificationManager().unsubscribeFromBarsFeedForHistoricalTester(strategy, strategyRunner, listener);
+    }
+
+    private static final FutureTask EMPTY_DELAYED_TASKS[] = new FutureTask[0];
+    private IHistory history;
+    private IEngine engine;
+    private IIndicators indicators;
+    private boolean stop;
+    private LoadingProgressListener progressListener;
+    private INotificationUtils notificationUtils;
+    private boolean isFullAccessGranted;
+    private IConsole console;
+    private List delayedTasks;
+    private Map chartPanels;
+    private File filesDir;
+    private ExecutionControl executionControl;
+    private IStrategyRunner strategyRunner;
+    private IAccount account;
+    private IStrategy strategy;
+
+
+
+
+}

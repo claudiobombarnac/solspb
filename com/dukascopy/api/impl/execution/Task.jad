@@ -1,0 +1,59 @@
+// Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 23.08.2011 13:30:27
+// Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
+// Decompiler options: packimports(3) 
+// Source File Name:   Task.java
+
+package com.dukascopy.api.impl.execution;
+
+import java.util.concurrent.Callable;
+
+public interface Task
+    extends Callable
+{
+    public static final class Type extends Enum
+    {
+
+        public static Type[] values()
+        {
+            return (Type[])$VALUES.clone();
+        }
+
+        public static Type valueOf(String name)
+        {
+            return (Type)Enum.valueOf(com/dukascopy/api/impl/execution/Task$Type, name);
+        }
+
+        public static final Type TICK;
+        public static final Type ACCOUNT;
+        public static final Type START;
+        public static final Type STOP;
+        public static final Type BAR;
+        public static final Type MESSAGE;
+        public static final Type PARAMETER;
+        public static final Type CUSTOM;
+        private static final Type $VALUES[];
+
+        static 
+        {
+            TICK = new Type("TICK", 0);
+            ACCOUNT = new Type("ACCOUNT", 1);
+            START = new Type("START", 2);
+            STOP = new Type("STOP", 3);
+            BAR = new Type("BAR", 4);
+            MESSAGE = new Type("MESSAGE", 5);
+            PARAMETER = new Type("PARAMETER", 6);
+            CUSTOM = new Type("CUSTOM", 7);
+            $VALUES = (new Type[] {
+                TICK, ACCOUNT, START, STOP, BAR, MESSAGE, PARAMETER, CUSTOM
+            });
+        }
+
+        private Type(String s, int i)
+        {
+            super(s, i);
+        }
+    }
+
+
+    public abstract Type getType();
+}
