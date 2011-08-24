@@ -84,10 +84,7 @@ public class TaskManager
         strategyId = 0x8000000000000000L;
         strategyListeners = new ArrayList();
         requiredInstruments = new HashSet();
-        if(lastAccountInfo == null)
-        {
-            throw new NullPointerException("Account info is null");
-        } else
+        
         {
             history = new History();
             this.console = console;
@@ -95,8 +92,6 @@ public class TaskManager
             this.ddsChartsController = ddsChartsController;
             this.userInterface = userInterface;
             this.exceptionHandler = exceptionHandler;
-            this.lastAccountInfo = lastAccountInfo;
-            account = new PlatformAccountImpl(lastAccountInfo);
             forexEngineImpl = new Engine(this, accountName, live);
             this.environment = environment;
             this.externalIP = externalIP;
@@ -178,14 +173,6 @@ public class TaskManager
         }
     }
 
-    public void updateAccountInfo(AccountInfoMessage protocolMessage)
-    {
-        lastAccountInfo = protocolMessage;
-        account.updateFromMessage(protocolMessage);
-        if(runningStrategy != null && !isStrategyStopping())
-            runningStrategy.updateAccountInfo(account);
-    }
-
     public void onMessage(PlatformMessageImpl platformMessageImpl)
     {
         if(runningStrategy != null && !isStrategyStopping())
@@ -257,7 +244,6 @@ public class TaskManager
                     if(listener != null)
                         strategyListeners.add(listener);
                     fireOnStart();
-                    strategyProcessor.updateAccountInfo(account);
                 } else
                 {
                     stopStrategy();
@@ -395,42 +381,6 @@ public class TaskManager
         return strategyId;
     }
 
-    public boolean isGlobal()
-    {
-        return lastAccountInfo.isGlobal();
-    }
-
-    public Currency getAccountCurrency()
-    {
-        return lastAccountInfo.getCurrency();
-    }
-
-    public String getUserId()
-    {
-        return lastAccountInfo.getUserId();
-    }
-
-    public String getAccountLoginId()
-    {
-        return lastAccountInfo.getAcountLoginId();
-    }
-
-    public IAccount getAccount()
-    {
-        return account;
-    }
-
-    public BigDecimal getUsableMargin()
-    {
-        Money margin = lastAccountInfo.getUsableMargin();
-        return margin != null ? margin.getValue() : null;
-    }
-
-    public Integer getLeverage()
-    {
-        return lastAccountInfo.getLeverage();
-    }
-
     public String getStrategyKey()
     {
         return strategyKey;
@@ -511,8 +461,6 @@ public class TaskManager
     private List strategyListeners;
     private final TransportClient transportClient;
     private final IStrategyExceptionHandler exceptionHandler;
-    private volatile PlatformAccountImpl account;
-    private volatile AccountInfoMessage lastAccountInfo;
     private Set requiredInstruments;
     private final Environment environment;
     private Boolean connected;

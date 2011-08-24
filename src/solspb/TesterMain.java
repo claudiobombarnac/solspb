@@ -1,6 +1,7 @@
 package solspb;
 
 import java.io.File;
+import java.io.PrintStream;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -10,9 +11,14 @@ import jforex.MA6_Play;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import solspb.TaskManager.Environment;
+
+import com.dukascopy.api.IConsole;
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.LoadingProgressListener;
 import com.dukascopy.api.system.ISystemListener;
+import com.dukascopy.dds2.greed.agent.strategy.tester.TesterOutputStream;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
 
 public class TesterMain {
     private static final Logger LOGGER = LoggerFactory.getLogger(TesterMain.class);
@@ -65,48 +71,27 @@ public class TesterMain {
         LOGGER.info("Connecting...");
         //connect to the server using jnlp, user name and password
         //connection is needed for data downloading
-        client.connect(jnlpUrl, userName, password);
+        IConsole console = new IConsole() {
 
-        //wait for it to connect
-        int i = 10; //wait max ten seconds
-        while (i > 0 && !client.isConnected()) {
-            Thread.sleep(1000);
-            i--;
-        }
-        if (!client.isConnected()) {
-            LOGGER.error("Failed to connect Dukascopy servers");
-            System.exit(1);
-        }
+            public PrintStream getErr()
+            {
+                return System.err;
+            }
 
+            public PrintStream getOut()
+            {
+                return System.out;
+            }
+        };
+
+        TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, null,null,null,null,null,null, null, null);
         //set instruments that will be used in testing
         Set<Instrument> instruments = new HashSet<Instrument>();
         instruments.add(Instrument.EURUSD);
         LOGGER.info("Subscribing instruments...");
-        client.setSubscribedInstruments(instruments);
-        //setting initial deposit
-        client.setInitialDeposit(Instrument.EURUSD.getSecondaryCurrency(), 50000);
-        //load data
-        LOGGER.info("Downloading data");
-        Future<?> future = client.downloadData(null);
-        //wait for downloading to complete
-        future.get();
         //start the strategy
         LOGGER.info("Starting strategy");
-        client.startStrategy(new MA6_Play(), new LoadingProgressListener() {
-            @Override
-            public void dataLoaded(long startTime, long endTime, long currentTime, String information) {
-                LOGGER.info(information);
-            }
-
-            @Override
-            public void loadingFinished(boolean allDataLoaded, long startTime, long endTime, long currentTime) {
-            }
-
-            @Override
-            public boolean stopJob() {
-                return false;
-            }
-        });
+        manager.startStrategy(new MA6_Play(), null, "MA6_Play", true);
         //now it's running
     }
 }

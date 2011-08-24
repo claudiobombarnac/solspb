@@ -211,11 +211,6 @@ public class Context implements IContext {
             return strategyProcessor.getSubscribedInstruments();
         }
 
-        public IAccount getAccount()
-        {
-            return strategyProcessor.getAccount();
-        }
-
         public void subscribeToBarsFeed(Instrument instrument, Period period, OfferSide offerSide, IBarFeedListener listener)
         {
             throw new UnsupportedOperationException();
@@ -255,4 +250,9 @@ public class Context implements IContext {
         {
             StrategyRateDataNotificationFactory.getIsntance().getTickBarNotificationManager().unsubscribeFromLiveBarsFeed(strategyProcessor.getStrategy(), listener);
         }
+        
+        public IAccount getAccount() {
+        	throw new UnsupportedOperationException();
+        }
+
 }

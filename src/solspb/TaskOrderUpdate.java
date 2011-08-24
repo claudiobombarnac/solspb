@@ -48,11 +48,6 @@ public class TaskOrderUpdate
             return null;
         if(LOGGER.isDebugEnabled())
             LOGGER.debug((new StringBuilder()).append("Starting processing of order message [").append(orderMessage).append("]").toString());
-        if(!taskManager.isGlobal())
-        {
-            LOGGER.error("Received OrderMessage for not global account");
-            return null;
-        }
         return null;
     }
 
