@@ -4726,7 +4726,7 @@ import org.slf4j.LoggerFactory;
 	/*      */       }
 	/*      */     }
 	/*      */ 
-	/* 4831 */     double[][][] doubleInputs = new double[OfferSide.values().length][IIndicators.AppliedPrice.values().length];
+	/* 4831 */     double[][][] doubleInputs = new double[OfferSide.values().length][IIndicators.AppliedPrice.values().length][];
 	/* 4832 */     double[][][] priceInput = calculateIndicatorInputs(instrument, period, side, formulasToRecalculate, timeDataAsk, timeDataBid, doubleInputs, isTicksDataType);
 	/*      */ 
 	/* 4835 */     label477: for (AbstractDataProvider.IndicatorData formulaData : formulasToRecalculate) {
@@ -4756,7 +4756,7 @@ import org.slf4j.LoggerFactory;
 	/* 4859 */             if ((inputParameterInfo.getOfferSide() != null) || (inputParameterInfo.getPeriod() != null) || (inputParameterInfo.getInstrument() != null)) { if (inputParameterInfo.getOfferSide() != null);
 	/* 4859 */               if ((inputParameterInfo.getOfferSide() != ((isTicksDataType) ? tickOfferSides[i] : side)) || ((inputParameterInfo.getPeriod() != null) && (((noFilterPeriod(inputParameterInfo.getPeriod()) != period) || (dailyFilterPeriod(inputParameterInfo.getPeriod()) != dailyFilterPeriod(this.dailyFilterPeriod))))) || ((inputParameterInfo.getInstrument() != null) && (inputParameterInfo.getInstrument() != instrument)))
 	/*      */               {
-	/*      */                 break label1137;
+	/*      */                 return;
 	/*      */               }
 	/*      */ 
 	/*      */             }
@@ -4816,12 +4816,12 @@ import org.slf4j.LoggerFactory;
 	/*      */ 
 	/*      */             }
 	/*      */ 
-	/* 5152 */             indicatorContext.setChartInfo(null, null, null); break label477:
+	/* 5152 */             indicatorContext.setChartInfo(null, null, null); break label477;
 	/*      */           }
 	/* 4925 */           outArrays = new Object[indicatorInfo.getNumberOfOutputs()];
 	/*      */ 
 	/* 4927 */           if (dataSize <= formulaData.lookback + formulaData.lookforward) {
-	/* 4928 */             result = new IndicatorResult(0, 0, 0); break label2648:
+	/* 4928 */             result = new IndicatorResult(0, 0, 0); return;
 	/*      */           }
 	/*      */ 
 	/* 4931 */           i = 0; for (int j = indicatorInfo.getNumberOfOutputs(); i < j; ++i) {
@@ -4838,7 +4838,7 @@ import org.slf4j.LoggerFactory;
 	/* 4941 */                 NotificationUtilsProvider.getNotificationUtils().postErrorMessage("Error in indicator: " + error, t, true);
 	/*      */               }
 	/*      */ 
-	/* 5152 */               indicatorContext.setChartInfo(null, null, null); break label477:
+	/* 5152 */               indicatorContext.setChartInfo(null, null, null); break label477;
 	/*      */ 
 	/* 4944 */               outArrays[i] = arrayInt;
 	/* 4945 */               break;
@@ -4852,7 +4852,7 @@ import org.slf4j.LoggerFactory;
 	/* 4953 */                 NotificationUtilsProvider.getNotificationUtils().postErrorMessage("Error in indicator: " + error, t, true);
 	/*      */               }
 	/*      */ 
-	/* 5152 */               indicatorContext.setChartInfo(null, null, null); break label477:
+	/* 5152 */               indicatorContext.setChartInfo(null, null, null); break label477;
 	/*      */ 
 	/* 4956 */               outArrays[i] = arrayDouble;
 	/* 4957 */               break;
@@ -4866,7 +4866,7 @@ import org.slf4j.LoggerFactory;
 	/* 4965 */                 NotificationUtilsProvider.getNotificationUtils().postErrorMessage("Error in indicator: " + error, t, true);
 	/*      */               }
 	/*      */ 
-	/* 5152 */               indicatorContext.setChartInfo(null, null, null); break label477:
+	/* 5152 */               indicatorContext.setChartInfo(null, null, null); break label477;
 	/*      */ 
 	/* 4968 */               outArrays[i] = arrayObject;
 	/*      */             }
@@ -4881,7 +4881,7 @@ import org.slf4j.LoggerFactory;
 	/* 4978 */             String error = StrategyWrapper.representError(indicator, t);
 	/* 4979 */             NotificationUtilsProvider.getNotificationUtils().postErrorMessage("Error in indicator: " + error, t, true);
 	/*      */ 
-	/* 5152 */             indicatorContext.setChartInfo(null, null, null); break label477:
+	/* 5152 */             indicatorContext.setChartInfo(null, null, null); break label477;
 	/*      */           }
 	/*      */           catch (Throwable t)
 	/*      */           {
@@ -4892,7 +4892,7 @@ import org.slf4j.LoggerFactory;
 	/*      */ 
 	/*      */         }
 	/*      */ 
-	/* 5152 */         indicatorContext.setChartInfo(null, null, null); break label477:
+	/* 5152 */         indicatorContext.setChartInfo(null, null, null); break label477;
 	/*      */ 
 	/* 4988 */         if (result.getNumberOfElements() < dataSize - formulaData.lookback - formulaData.lookforward) {
 	/* 4989 */           String error = "calculate() method of indicator [" + indicatorInfo.getName() + "] returned less values than expected. Requested from-to [0]-[" + (dataSize - 1) + "], input array size [" + dataSize + "], returned first calculated index [" + result.getFirstValueIndex() + "], number of calculated values [" + result.getNumberOfElements() + "], lookback [" + formulaData.lookback + "], lookforward [" + formulaData.lookforward + "], expected number of elements is [" + (dataSize - formulaData.lookback - formulaData.lookforward) + "]";
