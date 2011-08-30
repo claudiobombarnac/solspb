@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.PrintStream;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.Future;
 
 import jforex.MA6_Play;
 
@@ -15,10 +14,9 @@ import solspb.TaskManager.Environment;
 
 import com.dukascopy.api.IConsole;
 import com.dukascopy.api.Instrument;
-import com.dukascopy.api.LoadingProgressListener;
+import com.dukascopy.api.Period;
 import com.dukascopy.api.system.ISystemListener;
-import com.dukascopy.dds2.greed.agent.strategy.tester.TesterOutputStream;
-import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import com.dukascopy.charts.data.datacache.CandleData;
 
 public class TesterMain {
     private static final Logger LOGGER = LoggerFactory.getLogger(TesterMain.class);
@@ -92,6 +90,8 @@ public class TesterMain {
         //start the strategy
         LOGGER.info("Starting strategy");
         manager.startStrategy(new MA6_Play(), null, "MA6_Play", true);
+        for (int i = 0; i < 1000; i++)
+        	manager.newCandle(Instrument.EURUSD, Period.ONE_MIN, new CandleData(), new CandleData());
         //now it's running
     }
 }
