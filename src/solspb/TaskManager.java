@@ -86,7 +86,7 @@ public class TaskManager
         requiredInstruments = new HashSet();
         
         {
-            history = new History();
+            history = new History(0);
             this.console = console;
             this.transportClient = transportClient;
             this.ddsChartsController = ddsChartsController;
@@ -225,7 +225,7 @@ public class TaskManager
             public Long call()
                 throws Exception
             {
-                Context forexContextImpl = new Context(strategyProcessor, forexEngineImpl, new History(), console, ddsChartsController, userInterface);
+                Context forexContextImpl = new Context(strategyProcessor, forexEngineImpl, new History(0), console, ddsChartsController, userInterface);
                 strategyId = strategyProcessor.getStrategyId();
                 runningStrategy = strategyProcessor;
                 StrategyMessages.strategyIsStarted(runningStrategy.getStrategy());

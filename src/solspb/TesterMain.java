@@ -92,6 +92,7 @@ public class TesterMain {
         manager.startStrategy(new MA6_Play(), null, "MA6_Play", true);
         for (int i = 0; i < 1000; i++)
         	manager.newCandle(Instrument.EURUSD, Period.ONE_MIN, new CandleData(), new CandleData());
+        manager.stopStrategy();
         //now it's running
     }
 }
