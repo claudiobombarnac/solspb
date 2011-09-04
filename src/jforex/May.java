@@ -2,7 +2,7 @@ package jforex;
 import java.util.*;
 import com.dukascopy.api.*;
 
-public class May implements IStrategy {
+public class May implements solspb.IStrategy {
 	private IEngine engine;
 	private IConsole console;
 	private IHistory history;

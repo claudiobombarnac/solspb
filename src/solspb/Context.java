@@ -218,7 +218,7 @@ public class Context implements IContext {
 
         public void unsubscribeFromBarsFeed(IBarFeedListener listener)
         {
-            StrategyRateDataNotificationFactory.getIsntance().getCandleNotificationManager().unsubscribeFromLiveBarsFeed(strategyProcessor.getStrategy(), listener);
+            throw new UnsupportedOperationException();
         }
 
         public void subscribeToPointAndFigureFeed(Instrument instrument, OfferSide offerSide, PriceRange priceRange, ReversalAmount reversalAmount, IPointAndFigureFeedListener listener)
@@ -228,7 +228,7 @@ public class Context implements IContext {
 
         public void unsubscribeFromPointAndFigureFeed(IPointAndFigureFeedListener listener)
         {
-            StrategyRateDataNotificationFactory.getIsntance().getPointAndFigureNotificationManager().unsubscribeFromLiveBarsFeed(strategyProcessor.getStrategy(), listener);
+            throw new UnsupportedOperationException();
         }
 
         public void subscribeToRangeBarFeed(Instrument instrument, OfferSide offerSide, PriceRange priceRange, IRangeBarFeedListener listener)
@@ -238,7 +238,7 @@ public class Context implements IContext {
 
         public void unsubscribeFromRangeBarFeed(IRangeBarFeedListener listener)
         {
-            StrategyRateDataNotificationFactory.getIsntance().getPriceRangeNotificationManager().unsubscribeFromLiveBarsFeed(strategyProcessor.getStrategy(), listener);
+            throw new UnsupportedOperationException();
         }
 
         public void subscribeToTickBarFeed(Instrument instrument, OfferSide offerSide, TickBarSize tickBarSize, ITickBarFeedListener listener)
@@ -248,7 +248,7 @@ public class Context implements IContext {
 
         public void unsubscribeFromTickBarFeed(ITickBarFeedListener listener)
         {
-            StrategyRateDataNotificationFactory.getIsntance().getTickBarNotificationManager().unsubscribeFromLiveBarsFeed(strategyProcessor.getStrategy(), listener);
+            throw new UnsupportedOperationException();
         }
         
         public IAccount getAccount() {

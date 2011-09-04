@@ -3,7 +3,7 @@ package jforex;
 import java.util.*;
 import com.dukascopy.api.*;
 
-public class midnightTraderEURUSD implements IStrategy { 
+public class midnightTraderEURUSD implements solspb.IStrategy { 
 
     private IEngine engine;
     private IConsole console;

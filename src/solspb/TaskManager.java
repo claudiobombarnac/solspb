@@ -21,8 +21,6 @@ import com.dukascopy.charts.data.datacache.*;
 import com.dukascopy.charts.data.orders.ExposureData;
 import com.dukascopy.charts.data.orders.OrdersProvider;
 import com.dukascopy.charts.main.interfaces.DDSChartsController;
-import com.dukascopy.dds2.greed.agent.strategy.notification.IStrategyRateDataNotificationFactory;
-import com.dukascopy.dds2.greed.agent.strategy.notification.StrategyRateDataNotificationFactory;
 import com.dukascopy.dds2.greed.util.INotificationUtils;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 import com.dukascopy.transport.client.TransportClient;
@@ -185,15 +183,15 @@ public class TaskManager
             runningStrategy.onMessage(message, false);
     }
 
-    public ITick onMarketState(CurrencyMarket market)
+    public ITick onMarketState(ADMessage market)
     {
         if(runningStrategy == null || isStrategyStopping())
             return null;
         Instrument instrument = Instrument.fromString(market.getInstrument());
-        TickData tick = FeedDataProvider.getDefaultInstance().getLastTick(instrument);
+        TickData tick = ADFeedDataProvider.getDefaultInstance().getLastTick(instrument);
         if(tick == null)
         {
-            LOGGER.warn((new StringBuilder()).append("Got tick for instrument [").append(instrument).append("] that was not processed by FeedDataProvider... Instrument subscription status [").append(FeedDataProvider.getDefaultInstance().isSubscribedToInstrument(instrument)).append("] MarketState [").append(market).append("]").toString());
+            LOGGER.warn((new StringBuilder()).append("Got tick for instrument [").append(instrument).append("] that was not processed by FeedDataProvider... Instrument subscription status [").append(ADFeedDataProvider.getDefaultInstance().isSubscribedToInstrument(instrument)).append("] MarketState [").append(market).append("]").toString());
             return null;
         } else
         {
@@ -228,7 +226,7 @@ public class TaskManager
                 Context forexContextImpl = new Context(strategyProcessor, forexEngineImpl, new History(0), console, ddsChartsController, userInterface);
                 strategyId = strategyProcessor.getStrategyId();
                 runningStrategy = strategyProcessor;
-                StrategyMessages.strategyIsStarted(runningStrategy.getStrategy());
+                LOGGER.info("Strategy is started: " + runningStrategy.getStrategy());
                 requiredInstruments = new HashSet(0);
                 try
                 {
@@ -268,7 +266,7 @@ public class TaskManager
             return;
         if(runningStrategy != null)
         {
-            StrategyMessages.stoppingStrategy(runningStrategy.getStrategy());
+            LOGGER.info("Stopping strategy: " + runningStrategy.getStrategy());
             StopCallable cc = new StopCallable();
             try
             {
@@ -333,9 +331,8 @@ public class TaskManager
             listener.onStop(strategyId);
         }
 
-        StrategyRateDataNotificationFactory.getIsntance().unsubscribeFromAll(strategy);
         strategyId = 0x8000000000000000L;
-        StrategyMessages.strategyIsStopped(strategy);
+        LOGGER.info("Strategy is stopped: " + strategy);
     }
 
     public boolean isStrategyStopping()

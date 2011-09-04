@@ -3,7 +3,7 @@ package jforex;
 import java.util.*;
 import com.dukascopy.api.*;
 
-public class power implements IStrategy {
+public class power implements solspb.IStrategy {
     
 
 private IEngine engine;

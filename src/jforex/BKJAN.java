@@ -4,7 +4,7 @@ import java.util.*;
 
 import com.dukascopy.api.*;
 
-public class BKJAN implements IStrategy {
+public class BKJAN implements solspb.IStrategy {
     private IEngine engine = null;
     private IIndicators indicators = null;
     private int tagCounter = 0;
