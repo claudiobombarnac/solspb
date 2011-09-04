@@ -30,10 +30,12 @@ import com.dukascopy.api.feed.IPointAndFigureFeedListener;
 import com.dukascopy.api.feed.IRangeBarFeedListener;
 import com.dukascopy.api.feed.ITickBarFeedListener;
 import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.charts.data.orders.CalculatedAccount;
 import com.dukascopy.charts.main.interfaces.DDSChartsController;
 import com.dukascopy.charts.wrapper.DelegatableChartWrapper;
 import com.dukascopy.dds2.greed.util.FilePathManager;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import com.dukascopy.transport.common.msg.news.Currency;
 
 public class Context implements IContext {
     private StrategyProcessor strategyProcessor;
@@ -44,6 +46,7 @@ public class Context implements IContext {
     private IUserInterface userInterface;
     private IIndicators indicators;
     private File filesDir;
+	private CalculatedAccount account;
 
     // Referenced classes of package com.dukascopy.api.impl.connect:
 //                StrategyProcessor, JForexTaskManager, JForexEngineImpl
@@ -79,6 +82,8 @@ public class Context implements IContext {
             filesDir = FilePathManager.getInstance().getFilesForStrategiesDir();
             this.chartsController = chartsController;
             this.userInterface = userInterface;
+            account = new CalculatedAccount();
+            account.setCurrency(java.util.Currency.getInstance("USD"));
         }
 
         public boolean isStopped()
@@ -249,7 +254,7 @@ public class Context implements IContext {
         }
         
         public IAccount getAccount() {
-        	throw new UnsupportedOperationException();
+        	return account ;
         }
 
 }

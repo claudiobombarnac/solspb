@@ -108,7 +108,9 @@ public enum Instrument {
 	     */
 	    public static Instrument fromString(String instrumentAsString) {
 	        for (Instrument instrument : values()) {
-	            if (instrumentAsString.equals(instrument.getPrimaryCurrency().getCurrencyCode() + "/" + instrument.getSecondaryCurrency().getCurrencyCode())) {
+	        	if (instrumentAsString.equals(instrument.instrument))
+	        		return instrument;
+	            if (instrument.getPrimaryCurrency() != null && instrument.getSecondaryCurrency() != null && instrumentAsString.equals(instrument.getPrimaryCurrency().getCurrencyCode() + "/" + instrument.getSecondaryCurrency().getCurrencyCode())) {
 	                return instrument;
 	            }
 	        }
