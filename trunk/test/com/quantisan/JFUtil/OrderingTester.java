@@ -1,8 +1,21 @@
 package com.quantisan.JFUtil;
 
 import java.util.List;
-import java.util.concurrent.*;
-import com.dukascopy.api.*;
+import java.util.concurrent.Future;
+
+import com.dukascopy.api.Configurable;
+import com.dukascopy.api.IAccount;
+import com.dukascopy.api.IBar;
+import com.dukascopy.api.IContext;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IMessage;
+import com.dukascopy.api.IOrder;
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.Library;
+import com.dukascopy.api.Period;
 
 @Library("JFQuantisan.jar")
 public class OrderingTester implements IStrategy {

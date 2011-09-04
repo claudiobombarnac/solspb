@@ -3,41 +3,49 @@
 // Decompiler options: packimports(3) 
 // Source File Name:   JForexTaskManager.java
 
-package solspb;
+package solspb.jforex;
 
-import com.dukascopy.api.*;
-import com.dukascopy.api.impl.StrategyMessages;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.dukascopy.api.IConsole;
+import com.dukascopy.api.IMessage;
+import com.dukascopy.api.IStrategyBroadcastMessage;
+import com.dukascopy.api.IStrategyListener;
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.IUserInterface;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.Period;
 import com.dukascopy.api.impl.StrategyWrapper;
 import com.dukascopy.api.impl.connect.ISystemListenerExtended;
-import com.dukascopy.api.impl.connect.OrdersInternalCollection;
-import com.dukascopy.api.impl.connect.PlatformAccountImpl;
 import com.dukascopy.api.impl.connect.PlatformMessageImpl;
 import com.dukascopy.api.impl.connect.PlatformOrderImpl;
 import com.dukascopy.api.impl.connect.StratTickData;
-import com.dukascopy.api.impl.connect.StrategiesControl;
-import com.dukascopy.api.impl.execution.TaskFlush;
 import com.dukascopy.api.system.IStrategyExceptionHandler;
-import com.dukascopy.charts.data.datacache.*;
-import com.dukascopy.charts.data.orders.ExposureData;
-import com.dukascopy.charts.data.orders.OrdersProvider;
+import com.dukascopy.charts.data.datacache.CandleData;
+import com.dukascopy.charts.data.datacache.LiveCandleListener;
+import com.dukascopy.charts.data.datacache.TickData;
 import com.dukascopy.charts.main.interfaces.DDSChartsController;
-import com.dukascopy.dds2.greed.util.INotificationUtils;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 import com.dukascopy.transport.client.TransportClient;
-import com.dukascopy.transport.common.model.type.*;
-import com.dukascopy.transport.common.msg.group.*;
-import com.dukascopy.transport.common.msg.news.*;
-import com.dukascopy.transport.common.msg.request.*;
+import com.dukascopy.transport.common.msg.group.OrderGroupMessage;
+import com.dukascopy.transport.common.msg.group.OrderMessage;
+import com.dukascopy.transport.common.msg.news.NewsStoryMessage;
+import com.dukascopy.transport.common.msg.request.AccountInfoMessage;
+import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
 import com.dukascopy.transport.common.msg.response.ErrorResponseMessage;
 import com.dukascopy.transport.common.msg.response.NotificationMessage;
-import java.math.BigDecimal;
-import java.util.*;
-import java.util.Currency;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 
 // Referenced classes of package com.dukascopy.api.impl.connect:
 //            OrdersInternalCollection, PlatformAccountImpl, JForexEngineImpl, PlatformOrderImpl, 

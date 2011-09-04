@@ -1,39 +1,38 @@
 // Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 24.08.2011 11:18:08
 // Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
 // Decompiler options: packimports(3) 
-// Source File Name:   TaskFlush.java
+// Source File Name:   TaskStop.java
 
-package solspb;
+package solspb.jforex;
+
 
 import com.dukascopy.api.impl.execution.Task;
-
 
 // Referenced classes of package com.dukascopy.api.impl.execution:
 //            Task
 
-public class TaskFlush
+public class TaskStop
     implements Task
 {
 
-    public TaskFlush(Object notifyObject)
+    public TaskStop(IStrategy strategy)
     {
-        this.notifyObject = notifyObject;
+        this.strategy = null;
+        this.strategy = strategy;
     }
 
     public Task.Type getType()
     {
-        return Task.Type.CUSTOM;
+        return Task.Type.STOP;
     }
 
     public Object call()
         throws Exception
     {
-        synchronized(notifyObject)
-        {
-            notifyObject.notifyAll();
-        }
+        if(strategy != null)
+            strategy.onStop();
         return null;
     }
 
-    private Object notifyObject;
+    private IStrategy strategy;
 }

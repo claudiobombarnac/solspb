@@ -1,11 +1,11 @@
-package solspb;
+package solspb.jforex;
 
-import com.dukascopy.api.Instrument;
 import com.dukascopy.api.IAccount;
 import com.dukascopy.api.IBar;
 import com.dukascopy.api.IContext;
 import com.dukascopy.api.IMessage;
 import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
 import com.dukascopy.api.JFException;
 import com.dukascopy.api.Period;
 

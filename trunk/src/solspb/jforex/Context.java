@@ -1,4 +1,4 @@
-package solspb;
+package solspb.jforex;
 
 import java.io.File;
 import java.security.AccessController;
@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
-import com.dukascopy.api.DataType;
 import com.dukascopy.api.IAccount;
 import com.dukascopy.api.IChart;
 import com.dukascopy.api.IConsole;
@@ -31,10 +30,8 @@ import com.dukascopy.api.feed.IPointAndFigureFeedListener;
 import com.dukascopy.api.feed.IRangeBarFeedListener;
 import com.dukascopy.api.feed.ITickBarFeedListener;
 import com.dukascopy.api.impl.StrategyWrapper;
-import com.dukascopy.charts.data.datacache.JForexPeriod;
 import com.dukascopy.charts.main.interfaces.DDSChartsController;
 import com.dukascopy.charts.wrapper.DelegatableChartWrapper;
-import com.dukascopy.dds2.greed.agent.strategy.notification.StrategyRateDataNotificationFactory;
 import com.dukascopy.dds2.greed.util.FilePathManager;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 

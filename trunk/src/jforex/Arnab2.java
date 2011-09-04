@@ -1,6 +1,6 @@
 package jforex;
 
-import solspb.IStrategy;
+import solspb.jforex.IStrategy;
 
 import com.dukascopy.api.IAccount;
 import com.dukascopy.api.IBar;

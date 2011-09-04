@@ -7,8 +7,13 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.List;
 
-import com.dukascopy.api.*;
+import com.dukascopy.api.IConsole;
+import com.dukascopy.api.IContext;
+import com.dukascopy.api.IHistory;
+import com.dukascopy.api.IOrder;
 import com.dukascopy.api.IOrder.State;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
 
 /**
  * Logging operations

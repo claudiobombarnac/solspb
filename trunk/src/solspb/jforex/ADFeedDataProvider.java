@@ -1,4 +1,4 @@
-package solspb;
+package solspb.jforex;
 
 import com.dukascopy.api.Instrument;
 import com.dukascopy.charts.data.datacache.TickData;

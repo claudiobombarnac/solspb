@@ -3,11 +3,11 @@
 // Decompiler options: packimports(3) 
 // Source File Name:   TaskCustom.java
 
-package solspb;
-
-import com.dukascopy.api.impl.execution.Task;
+package solspb.jforex;
 
 import java.util.concurrent.Callable;
+
+import com.dukascopy.api.impl.execution.Task;
 
 // Referenced classes of package com.dukascopy.api.impl.execution:
 //            Task

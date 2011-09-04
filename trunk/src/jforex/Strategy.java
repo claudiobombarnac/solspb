@@ -4,7 +4,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
-import java.util.Vector;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -13,27 +12,27 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.Vector;
 
+import com.dukascopy.api.Filter;
 import com.dukascopy.api.IAccount;
 import com.dukascopy.api.IBar;
 import com.dukascopy.api.IConsole;
 import com.dukascopy.api.IContext;
 import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IEngine.OrderCommand;
 import com.dukascopy.api.IHistory;
 import com.dukascopy.api.IIndicators;
 import com.dukascopy.api.IMessage;
 import com.dukascopy.api.IOrder;
-import com.dukascopy.api.IStrategy;
 import com.dukascopy.api.ITick;
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.JFException;
+import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.Period;
 import com.dukascopy.api.Properties;
-import com.dukascopy.api.OfferSide;
-import com.dukascopy.api.IEngine.OrderCommand;
-import com.dukascopy.api.Filter;
 
-public class Strategy implements solspb.IStrategy {
+public class Strategy implements solspb.jforex.IStrategy {
 	//
 	private 		Vector<Stg_Base> 	strategys;        
     private			boolean			 	mInitialized = false;

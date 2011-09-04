@@ -1,7 +1,29 @@
-import java.util.*;
-import com.dukascopy.api.*;
-import com.quantisan.JFUtil.*;
-import com.quantisan.JFUtil.IndicatorBean.*;
+import java.util.HashSet;
+import java.util.Set;
+
+import com.dukascopy.api.IAccount;
+import com.dukascopy.api.IBar;
+import com.dukascopy.api.IContext;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IIndicators;
+import com.dukascopy.api.IMessage;
+import com.dukascopy.api.IOrder;
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.Library;
+import com.dukascopy.api.Period;
+import com.quantisan.JFUtil.JForexAccount;
+import com.quantisan.JFUtil.JForexContext;
+import com.quantisan.JFUtil.LabelMaker;
+import com.quantisan.JFUtil.OrderTicket;
+import com.quantisan.JFUtil.Orderer;
+import com.quantisan.JFUtil.Pairer;
+import com.quantisan.JFUtil.Printer;
+import com.quantisan.JFUtil.IndicatorBean.Indicating;
+import com.quantisan.JFUtil.IndicatorBean.IndicatorBeanFactory;
+import com.quantisan.JFUtil.IndicatorBean.MovingAverage;
 
 /*
  * Changelog:

@@ -1,10 +1,20 @@
 package jforex;
 
-import java.util.*;
+import com.dukascopy.api.IAccount;
+import com.dukascopy.api.IBar;
+import com.dukascopy.api.IConsole;
+import com.dukascopy.api.IContext;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IIndicators;
+import com.dukascopy.api.IMessage;
+import com.dukascopy.api.IOrder;
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
 
-import com.dukascopy.api.*;
-
-public class BKJAN implements solspb.IStrategy {
+public class BKJAN implements solspb.jforex.IStrategy {
     private IEngine engine = null;
     private IIndicators indicators = null;
     private int tagCounter = 0;
