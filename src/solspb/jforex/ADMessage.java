@@ -1,4 +1,4 @@
-package solspb;
+package solspb.jforex;
 
 import java.math.BigDecimal;
 

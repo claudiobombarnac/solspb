@@ -8,8 +8,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import com.dukascopy.api.*;
+import com.dukascopy.api.IContext;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IOrder;
 import com.dukascopy.api.IOrder.State;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.OfferSide;
 
 /**
  * Executing orders in separate threads

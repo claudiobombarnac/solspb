@@ -1,57 +1,40 @@
 // Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 24.08.2011 11:18:08
 // Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
 // Decompiler options: packimports(3) 
-// Source File Name:   TaskTick.java
+// Source File Name:   TaskAccount.java
 
-package solspb;
+package solspb.jforex;
 
-import com.dukascopy.api.*;
-import com.dukascopy.api.impl.StrategyWrapper;
-import com.dukascopy.api.impl.connect.JForexTaskManager;
-import com.dukascopy.api.impl.execution.Task;
-import com.dukascopy.api.system.IStrategyExceptionHandler;
-import com.dukascopy.dds2.greed.util.INotificationUtils;
-import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.dukascopy.api.IAccount;
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.api.impl.StrategyWrapper;
+import com.dukascopy.api.impl.execution.Task;
+import com.dukascopy.api.system.IStrategyExceptionHandler;
+import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 
 // Referenced classes of package com.dukascopy.api.impl.execution:
 //            Task
 
-public class TaskTick extends com.dukascopy.api.impl.execution.TaskTick
+public class TaskAccount
     implements Task
 {
 
-    public TaskTick(TaskManager taskManager, IStrategy strategy, Instrument instrument, ITick tick, IStrategyExceptionHandler exceptionHandler)
+    public TaskAccount(TaskManager taskManager, IStrategy strategy, IAccount account, IStrategyExceptionHandler exceptionHandler)
     {
-    	super(null, null, null, tick, exceptionHandler);
         this.strategy = null;
+        this.account = null;
         this.strategy = strategy;
-        this.instrument = instrument;
-        this.tick = tick;
+        this.account = account;
         this.exceptionHandler = exceptionHandler;
-        addedTime = System.currentTimeMillis();
         this.taskManager = taskManager;
-    }
-
-    public long getAddedTime()
-    {
-        return addedTime;
     }
 
     public Task.Type getType()
     {
-        return Task.Type.TICK;
-    }
-
-    public Instrument getInstrument()
-    {
-        return instrument;
-    }
-
-    public ITick getTick()
-    {
-        return tick;
+        return Task.Type.ACCOUNT;
     }
 
     public Object call()
@@ -61,24 +44,22 @@ public class TaskTick extends com.dukascopy.api.impl.execution.TaskTick
             return null;
         try
         {
-            strategy.onTick(instrument, tick);
+            strategy.onAccount(account);
         }
         catch(Throwable t)
         {
             String msg = StrategyWrapper.representError(strategy, t);
             NotificationUtilsProvider.getNotificationUtils().postErrorMessage(msg, t, false);
             LOGGER.error(t.getMessage(), t);
-            exceptionHandler.onException(taskManager.getStrategyId(), com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_TICK, t);
+            exceptionHandler.onException(taskManager.getStrategyId(), com.dukascopy.api.system.IStrategyExceptionHandler.Source.ON_ACCOUNT_INFO, t);
         }
         return null;
     }
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TaskTick.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(TaskAccount.class);
     private IStrategy strategy;
-    private final Instrument instrument;
-    private final ITick tick;
+    private IAccount account;
     private IStrategyExceptionHandler exceptionHandler;
-    private long addedTime;
     private TaskManager taskManager;
 
 }

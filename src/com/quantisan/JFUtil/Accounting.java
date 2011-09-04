@@ -1,8 +1,15 @@
 package com.quantisan.JFUtil;
 
-import java.util.*;
+import java.util.Currency;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
-import com.dukascopy.api.*;
+import com.dukascopy.api.IAccount;
+import com.dukascopy.api.IContext;
+import com.dukascopy.api.IHistory;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
 
 /**
  * Accounting class

@@ -1,7 +1,8 @@
 package com.quantisan.JFUtil;
 
-import com.dukascopy.api.*;
-import com.dukascopy.api.IEngine.OrderCommand;;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IEngine.OrderCommand;
+import com.dukascopy.api.Instrument;
 
 /**
  * Order ticket information encapsulation class using Builder pattern.

@@ -4,7 +4,6 @@ import com.dukascopy.api.Filter;
 import com.dukascopy.api.IAccount;
 import com.dukascopy.api.IBar;
 import com.dukascopy.api.IContext;
-import com.dukascopy.api.IIndicators;
 import com.dukascopy.api.IMessage;
 import com.dukascopy.api.IStrategy;
 import com.dukascopy.api.ITick;

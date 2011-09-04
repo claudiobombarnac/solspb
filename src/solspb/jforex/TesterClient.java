@@ -3,7 +3,35 @@
 // Decompiler options: packimports(3) 
 // Source File Name:   TesterClientImpl.java
 
-package solspb;
+package solspb.jforex;
+
+import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Currency;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TimeZone;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.dukascopy.api.DataType;
 import com.dukascopy.api.IConsole;
@@ -15,7 +43,6 @@ import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.Period;
 import com.dukascopy.api.impl.connect.AuthorizationClient;
 import com.dukascopy.api.impl.connect.ITesterGuiImpl;
-import com.dukascopy.api.impl.connect.IndicatorsSettingsStorage;
 import com.dukascopy.api.impl.connect.PrintStreamNotificationUtils;
 import com.dukascopy.api.impl.connect.TesterChartControllerImpl;
 import com.dukascopy.api.system.Commissions;
@@ -31,12 +58,9 @@ import com.dukascopy.api.system.tester.ITesterUserInterface;
 import com.dukascopy.charts.data.datacache.DataCacheException;
 import com.dukascopy.charts.data.datacache.DataCacheUtils;
 import com.dukascopy.charts.data.datacache.FeedDataProvider;
-import com.dukascopy.charts.data.datacache.IAuthenticator;
 import com.dukascopy.charts.data.datacache.IFeedDataProvider;
 import com.dukascopy.charts.data.datacache.JForexPeriod;
-import com.dukascopy.charts.data.orders.OrdersProvider;
 import com.dukascopy.charts.main.interfaces.DDSChartsController;
-import com.dukascopy.charts.math.indicators.IndicatorsProvider;
 import com.dukascopy.charts.persistence.ChartBean;
 import com.dukascopy.dds2.greed.agent.compiler.JFXPack;
 import com.dukascopy.dds2.greed.agent.strategy.tester.ExecutionControl;
@@ -52,44 +76,6 @@ import com.dukascopy.dds2.greed.agent.strategy.tester.TesterReportData;
 import com.dukascopy.dds2.greed.util.AbstractCurrencyConverter;
 import com.dukascopy.dds2.greed.util.FilePathManager;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
-import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Currency;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.TimeZone;
-import java.util.UUID;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
 // Referenced classes of package com.dukascopy.api.impl.connect:
 //            PrintStreamNotificationUtils, IndicatorsSettingsStorage, ITesterGuiImpl, TesterChartControllerImpl, 

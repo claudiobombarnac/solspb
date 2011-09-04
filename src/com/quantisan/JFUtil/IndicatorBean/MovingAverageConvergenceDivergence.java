@@ -1,8 +1,8 @@
 package com.quantisan.JFUtil.IndicatorBean;
 
 import com.dukascopy.api.IIndicators;
-import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.IIndicators.AppliedPrice;
+import com.dukascopy.api.OfferSide;
 
 /**
  * Example use to cast the output

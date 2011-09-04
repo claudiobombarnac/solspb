@@ -1,27 +1,27 @@
 // Decompiled by DJ v3.9.9.91 Copyright 2005 Atanas Neshkov  Date: 24.08.2011 11:18:08
 // Home Page : http://members.fortunecity.com/neshkov/dj.html  - Check often for new version!
 // Decompiler options: packimports(3) 
-// Source File Name:   TaskOrdersMerged.java
+// Source File Name:   TaskOrderNotify.java
 
-package solspb;
+package solspb.jforex;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dukascopy.api.impl.execution.Task;
-import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
+import com.dukascopy.transport.common.msg.response.NotificationMessage;
 
 // Referenced classes of package com.dukascopy.api.impl.execution:
 //            Task
 
-public class TaskOrdersMerged
+public class TaskOrderNotify
     implements Task
 {
 
-    public TaskOrdersMerged(TaskManager taskManager, IStrategy strategy, MergePositionsMessage mergePositionsMessage)
+    public TaskOrderNotify(TaskManager taskManager, IStrategy strategy, NotificationMessage notificationMessage)
     {
         this.strategy = strategy;
-        this.mergePositionsMessage = mergePositionsMessage;
+        this.notificationMessage = notificationMessage;
         this.taskManager = taskManager;
     }
 
@@ -36,13 +36,18 @@ public class TaskOrdersMerged
         if(taskManager.isStrategyStopping())
             return null;
         if(LOGGER.isDebugEnabled())
-            LOGGER.debug((new StringBuilder()).append("Starting processing of merge message [").append(mergePositionsMessage).append("]").toString());
+            LOGGER.debug((new StringBuilder()).append("Starting processing of notify message [").append(notificationMessage).append("]").toString());
         return null;
     }
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TaskOrdersMerged.class);
-    private IStrategy strategy;
-    private MergePositionsMessage mergePositionsMessage;
+    public String toString()
+    {
+        return (new StringBuilder()).append("TaskOrderNotify [").append(notificationMessage).append("]").toString();
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TaskOrderNotify.class);
     private TaskManager taskManager;
+    private IStrategy strategy;
+    private NotificationMessage notificationMessage;
 
 }

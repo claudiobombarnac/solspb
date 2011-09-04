@@ -1,29 +1,34 @@
 package jforex;
 
-import java.util.*;
-import java.math.*;
-import java.text.*;  // DateFormat etc.
-import java.awt.*;
-import java.awt.Color;
-import java.awt.geom.AffineTransform;
-import javax.swing.*;
-import javax.swing.filechooser.FileSystemView;
-import java.io.ObjectOutputStream;
-import java.io.ObjectInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.LinkedList;
-import java.util.Hashtable;
-import java.util.Iterator;
-import java.util.Vector;
-import java.io.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Calendar;
+import java.util.Currency;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TimeZone;
 
+import javax.swing.filechooser.FileSystemView;
 
-
-
-import com.dukascopy.api.*;
+import com.dukascopy.api.Configurable;
+import com.dukascopy.api.IAccount;
+import com.dukascopy.api.IBar;
+import com.dukascopy.api.IChart;
+import com.dukascopy.api.IConsole;
+import com.dukascopy.api.IContext;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IHistory;
+import com.dukascopy.api.IIndicators;
+import com.dukascopy.api.IMessage;
+import com.dukascopy.api.IOrder;
+import com.dukascopy.api.IStrategy;
+import com.dukascopy.api.ITick;
+import com.dukascopy.api.IUserInterface;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
+import com.dukascopy.api.OfferSide;
+import com.dukascopy.api.Period;
 
 
 

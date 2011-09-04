@@ -3,15 +3,18 @@
 // Decompiler options: packimports(3) 
 // Source File Name:   TaskOnBar.java
 
-package solspb;
+package solspb.jforex;
 
-import com.dukascopy.api.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.dukascopy.api.IBar;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.Period;
 import com.dukascopy.api.impl.StrategyWrapper;
 import com.dukascopy.api.impl.execution.Task;
 import com.dukascopy.api.system.IStrategyExceptionHandler;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 // Referenced classes of package com.dukascopy.api.impl.execution:
 //            Task

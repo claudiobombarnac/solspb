@@ -3,7 +3,7 @@
 // Decompiler options: packimports(3) 
 // Source File Name:   JForexEngineImpl.java
 
-package solspb;
+package solspb.jforex;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -14,13 +14,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dukascopy.api.IEngine;
-import com.dukascopy.api.IMessage;
 import com.dukascopy.api.IOrder;
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.JFException;
-import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.impl.AbstractEngine;
-import com.dukascopy.api.impl.connect.JForexTaskManager;
 import com.dukascopy.api.impl.connect.PlatformOrderImpl;
 import com.dukascopy.transport.common.msg.ProtocolMessage;
 import com.dukascopy.transport.common.msg.response.ErrorResponseMessage;

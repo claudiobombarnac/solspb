@@ -3,7 +3,13 @@ package com.quantisan.JFUtil;
 import java.util.Calendar;
 import java.util.TimeZone;
 
-import com.dukascopy.api.*;
+import com.dukascopy.api.IConsole;
+import com.dukascopy.api.IContext;
+import com.dukascopy.api.IEngine;
+import com.dukascopy.api.IHistory;
+import com.dukascopy.api.IIndicators;
+import com.dukascopy.api.Instrument;
+import com.dukascopy.api.JFException;
 
 /**
  * Provides singleton access to JForex context objects
