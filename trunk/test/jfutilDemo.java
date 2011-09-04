@@ -1,6 +1,8 @@
 import java.util.HashSet;
 import java.util.Set;
 
+import solspb.jforex.IStrategy;
+
 import com.dukascopy.api.IAccount;
 import com.dukascopy.api.IBar;
 import com.dukascopy.api.IContext;
@@ -8,7 +10,6 @@ import com.dukascopy.api.IEngine;
 import com.dukascopy.api.IIndicators;
 import com.dukascopy.api.IMessage;
 import com.dukascopy.api.IOrder;
-import com.dukascopy.api.IStrategy;
 import com.dukascopy.api.ITick;
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.JFException;
