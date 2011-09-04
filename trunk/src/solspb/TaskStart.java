@@ -6,7 +6,6 @@
 package solspb;
 
 import com.dukascopy.api.IContext;
-import com.dukascopy.api.IStrategy;
 import com.dukascopy.api.impl.execution.Task;
 
 // Referenced classes of package com.dukascopy.api.impl.execution:

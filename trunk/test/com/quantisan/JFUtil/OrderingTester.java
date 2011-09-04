@@ -9,7 +9,7 @@ public class OrderingTester implements IStrategy {
 	Ordering orderer;
 	Logging logger;
 	
-	@Configurable("Instrument") public Instrument selectedInst = Instrument.EURJPY;
+	@Configurable("Instrument") public Instrument selectedInst = Instrument.EURUSD;
 	
 	@Override
 	public void onStart(IContext context) throws JFException {		

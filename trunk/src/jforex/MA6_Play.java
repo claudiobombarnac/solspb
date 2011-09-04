@@ -4,7 +4,7 @@ import java.util.*;
 
 import com.dukascopy.api.*;
 
-public class MA6_Play implements IStrategy {
+public class MA6_Play implements solspb.IStrategy {
     private IEngine engine = null;
     private IIndicators indicators = null;
     private int tagCounter = 0;

@@ -5,17 +5,11 @@
 
 package solspb;
 
-import com.dukascopy.api.IMessage;
-import com.dukascopy.api.IStrategy;
-import com.dukascopy.api.impl.StrategyWrapper;
-import com.dukascopy.api.impl.connect.*;
-import com.dukascopy.api.impl.execution.Task;
-import com.dukascopy.api.system.IStrategyExceptionHandler;
-import com.dukascopy.dds2.greed.util.INotificationUtils;
-import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
-import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.dukascopy.api.impl.execution.Task;
+import com.dukascopy.transport.common.msg.request.MergePositionsMessage;
 
 // Referenced classes of package com.dukascopy.api.impl.execution:
 //            Task

@@ -33,7 +33,7 @@ import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.IEngine.OrderCommand;
 import com.dukascopy.api.Filter;
 
-public class Strategy implements IStrategy {
+public class Strategy implements solspb.IStrategy {
 	//
 	private 		Vector<Stg_Base> 	strategys;        
     private			boolean			 	mInitialized = false;

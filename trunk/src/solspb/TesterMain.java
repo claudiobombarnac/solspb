@@ -2,9 +2,11 @@ package solspb;
 
 import java.io.File;
 import java.io.PrintStream;
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.Set;
 
+import jforex.Arnab2;
 import jforex.MA6_Play;
 
 import org.slf4j.Logger;
@@ -33,39 +35,6 @@ public class TesterMain {
         System.setProperty("http.proxyHost", "10.10.0.20");
         System.setProperty("http.proxyPort", "80");
 
-        final TesterClient client = new TesterClient();
-        //set the listener that will receive system events
-        client.setSystemListener(new ISystemListener() {
-            @Override
-            public void onStart(long processId) {
-                LOGGER.info("Strategy started: " + processId);
-            }
-
-            @Override
-            public void onStop(long processId) {
-                LOGGER.info("Strategy stopped: " + processId);
-                File reportFile = new File("C:\\report.html");
-                try {
-                    client.createReport(processId, reportFile);
-                } catch (Exception e) {
-                    LOGGER.error(e.getMessage(), e);
-                }
-                if (client.getStartedStrategies().size() == 0) {
-                    System.exit(0);
-                }
-            }
-
-            @Override
-            public void onConnect() {
-                LOGGER.info("Connected");
-            }
-
-            @Override
-            public void onDisconnect() {
-                //tester doesn't disconnect
-            }
-        });
-
         LOGGER.info("Connecting...");
         //connect to the server using jnlp, user name and password
         //connection is needed for data downloading
@@ -85,13 +54,16 @@ public class TesterMain {
         TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, null,null,null,null,null,null, null, null);
         //set instruments that will be used in testing
         Set<Instrument> instruments = new HashSet<Instrument>();
-        instruments.add(Instrument.EURUSD);
+        instruments.add(Instrument.LKOH);
         LOGGER.info("Subscribing instruments...");
         //start the strategy
         LOGGER.info("Starting strategy");
-        manager.startStrategy(new MA6_Play(), null, "MA6_Play", true);
+        manager.startStrategy(new Arnab2(), null, "Arnab2", true);
         for (int i = 0; i < 1000; i++)
-        	manager.newCandle(Instrument.EURUSD, Period.ONE_MIN, new CandleData(), new CandleData());
+        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, new CandleData(), new CandleData());
+        for (int i = 0; i < 1000; i++)
+        	manager.onMarketState(new ADStockMarket("LKOH", BigDecimal.valueOf(100), BigDecimal.valueOf(100)));
+
         manager.stopStrategy();
         //now it's running
     }

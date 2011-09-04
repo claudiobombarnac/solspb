@@ -3,7 +3,7 @@ package jforex;
 import com.dukascopy.api.*;
 import java.util.*;
 
-public class OctoberStrategy implements IStrategy {
+public class OctoberStrategy implements solspb.IStrategy {
     
   
     private IContext context = null;

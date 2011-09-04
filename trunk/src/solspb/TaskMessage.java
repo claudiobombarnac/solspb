@@ -6,12 +6,9 @@
 package solspb;
 
 import com.dukascopy.api.IMessage;
-import com.dukascopy.api.IStrategy;
 import com.dukascopy.api.impl.StrategyWrapper;
-import com.dukascopy.api.impl.connect.JForexTaskManager;
 import com.dukascopy.api.impl.execution.Task;
 import com.dukascopy.api.system.IStrategyExceptionHandler;
-import com.dukascopy.dds2.greed.util.INotificationUtils;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

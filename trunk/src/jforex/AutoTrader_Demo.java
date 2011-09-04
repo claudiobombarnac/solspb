@@ -3,7 +3,7 @@ import java.util.*;
 import java.text.*;
 import com.dukascopy.api.*;
 
-public class AutoTrader_Demo implements IStrategy {
+public class AutoTrader_Demo implements solspb.IStrategy {
 	private IEngine engine;
 	private IConsole console;
 	private IHistory history;

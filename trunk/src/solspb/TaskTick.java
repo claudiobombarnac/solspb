@@ -18,12 +18,13 @@ import org.slf4j.LoggerFactory;
 // Referenced classes of package com.dukascopy.api.impl.execution:
 //            Task
 
-public class TaskTick
+public class TaskTick extends com.dukascopy.api.impl.execution.TaskTick
     implements Task
 {
 
     public TaskTick(TaskManager taskManager, IStrategy strategy, Instrument instrument, ITick tick, IStrategyExceptionHandler exceptionHandler)
     {
+    	super(null, null, null, tick, exceptionHandler);
         this.strategy = null;
         this.strategy = strategy;
         this.instrument = instrument;

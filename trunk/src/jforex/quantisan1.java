@@ -36,7 +36,7 @@ import com.dukascopy.api.*;
 import java.util.*;
 import java.awt.Color;
 
-public class quantisan1 implements IStrategy {
+public class quantisan1 implements solspb.IStrategy {
 	private final double version = 2.16;
 	
 	private IEngine engine;
