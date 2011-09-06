@@ -1584,12 +1584,14 @@ import com.dukascopy.transport.util.Hex;
 /*      */ 
 /*      */   public void addCacheDataUpdatedListener(Instrument instrument, CacheDataUpdatedListener listener)
 /*      */   {
-/* 1781 */     this.cacheDataChangeListeners[instrument.ordinal()].add(listener);
+				if (cacheDataChangeListeners != null)
+/* 1781 */     		this.cacheDataChangeListeners[instrument.ordinal()].add(listener);
 /*      */   }
 /*      */ 
 /*      */   public void removeCacheDataUpdatedListener(Instrument instrument, CacheDataUpdatedListener listener)
 /*      */   {
-/* 1786 */     this.cacheDataChangeListeners[instrument.ordinal()].remove(listener);
+	if (cacheDataChangeListeners != null)
+	/* 1786 */     this.cacheDataChangeListeners[instrument.ordinal()].remove(listener);
 /*      */   }
 /*      */ 
 /*      */   protected void fireCacheDataChanged(Instrument instrument, long disconnectedTime, long connectedTime) {

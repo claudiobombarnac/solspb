@@ -183,7 +183,7 @@ public class StrategyProcessor
         executorService.shutdownNow();
         try
         {
-            executorService.awaitTermination(5L, TimeUnit.SECONDS);
+            executorService.awaitTermination(120L, TimeUnit.SECONDS);
         }
         catch(InterruptedException e) { }
         if(!executorService.isTerminated())

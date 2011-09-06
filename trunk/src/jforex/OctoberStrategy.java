@@ -72,7 +72,7 @@ public class OctoberStrategy implements solspb.jforex.IStrategy {
     }
 
     public void onBar(Instrument instrument, Period period, IBar askbar, IBar bidbar) throws JFException {
-        
+    	
        if(period == Period.ONE_HOUR) { 
       
         profitLimit = 42;

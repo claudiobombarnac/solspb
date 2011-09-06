@@ -96,6 +96,7 @@ class Engine extends AbstractEngine
     {
     	SubmitOrder order = new SubmitOrder();
         orders.add(order);
+        System.out.println("*********************ORDER SUBMITTED FOR PRICE: " + order.getOpenPrice());
         return order;
     }
 
