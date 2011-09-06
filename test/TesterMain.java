@@ -20,6 +20,7 @@ import com.dukascopy.api.Period;
 import com.dukascopy.api.impl.connect.PrintStreamNotificationUtils;
 import com.dukascopy.charts.data.datacache.CandleData;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
+import com.dukascopy.transport.client.TransportClient;
 
 public class TesterMain {
     private static final Logger LOGGER = LoggerFactory.getLogger(TesterMain.class);
@@ -50,11 +51,12 @@ public class TesterMain {
         //start the strategy
         LOGGER.info("Starting strategy");
         manager.startStrategy(new jfutilDemo(), null, "Arnab2", true);
-//        for (int i = 0; i < 1000; i++)
-//        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, new CandleData(), new CandleData());
         for (int i = 0; i < 1000; i++)
-        	manager.onMarketState(new ADStockMarket("LKOH", BigDecimal.valueOf(100), BigDecimal.valueOf(100)));
-
+        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, new CandleData(), new CandleData());
+        for (int i = 0; i < 100000; i++) {
+            manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
+            manager.onMarketState(new ADStockMarket("LKOH", BigDecimal.valueOf(10*Math.random()), BigDecimal.valueOf(10*Math.random())));
+        }
         manager.stopStrategy();
     }
 }

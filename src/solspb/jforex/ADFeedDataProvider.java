@@ -9,7 +9,7 @@ public class ADFeedDataProvider {
 		return instance;
 	}
 	public TickData getLastTick(Instrument instrument) {
-		return new TickData(System.currentTimeMillis(), 100, 100, 100, 100);
+		return new TickData(System.currentTimeMillis(), Math.random() * 100, Math.random() * 100, Math.random() * 100, Math.random() * 100);
 	}
 	public boolean isSubscribedToInstrument(Instrument instrument) {
 		return true;
