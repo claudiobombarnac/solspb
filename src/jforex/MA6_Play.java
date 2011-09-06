@@ -46,6 +46,7 @@ public class MA6_Play implements solspb.jforex.IStrategy {
         }
 
         double diff = (ma1[instrument.ordinal()] - ma0) / (instrument.getPipValue());
+        System.out.println(diff);
 
         if (positionsTotal(instrument) == 0) {
             if (diff > 1) {

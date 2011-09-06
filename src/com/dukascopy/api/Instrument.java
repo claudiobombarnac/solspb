@@ -72,7 +72,7 @@ public enum Instrument {
 	    private Instrument(String instrument, double pipValue) {
 	        this.instrument = instrument;
 	        this.isForex = false;
-	        this.pipValue = 1;
+	        this.pipValue = pipValue;
 	        this.pipScale = 1;
 	    }
 

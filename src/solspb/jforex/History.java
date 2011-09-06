@@ -1,58 +1,58 @@
 /*      */ package solspb.jforex;
 /*      */ 
-/*      */ import java.math.BigDecimal;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Currency;
-import java.util.Date;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.TimeZone;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.dukascopy.api.Filter;
-import com.dukascopy.api.IBar;
-import com.dukascopy.api.IHistory;
-import com.dukascopy.api.IOrder;
-import com.dukascopy.api.ITick;
-import com.dukascopy.api.Instrument;
-import com.dukascopy.api.JFException;
-import com.dukascopy.api.LoadingDataListener;
-import com.dukascopy.api.LoadingOrdersListener;
-import com.dukascopy.api.OfferSide;
-import com.dukascopy.api.Period;
-import com.dukascopy.api.PriceRange;
-import com.dukascopy.api.ReversalAmount;
-import com.dukascopy.api.TickBarSize;
-import com.dukascopy.api.feed.IPointAndFigure;
-import com.dukascopy.api.feed.IPointAndFigureFeedListener;
-import com.dukascopy.api.feed.IRangeBar;
-import com.dukascopy.api.feed.IRangeBarFeedListener;
-import com.dukascopy.api.feed.ITickBar;
-import com.dukascopy.api.feed.ITickBarFeedListener;
+/*      */ import com.dukascopy.api.Filter;
+/*      */ import com.dukascopy.api.IBar;
+/*      */ import com.dukascopy.api.IHistory;
+/*      */ import com.dukascopy.api.IOrder;
+/*      */ import com.dukascopy.api.ITick;
+/*      */ import com.dukascopy.api.Instrument;
+/*      */ import com.dukascopy.api.JFException;
+/*      */ import com.dukascopy.api.LoadingDataListener;
+/*      */ import com.dukascopy.api.LoadingOrdersListener;
+/*      */ import com.dukascopy.api.OfferSide;
+/*      */ import com.dukascopy.api.Period;
+/*      */ import com.dukascopy.api.PriceRange;
+/*      */ import com.dukascopy.api.ReversalAmount;
+/*      */ import com.dukascopy.api.TickBarSize;
+/*      */ import com.dukascopy.api.feed.IPointAndFigure;
+/*      */ import com.dukascopy.api.feed.IPointAndFigureFeedListener;
+/*      */ import com.dukascopy.api.feed.IRangeBar;
+/*      */ import com.dukascopy.api.feed.IRangeBarFeedListener;
+/*      */ import com.dukascopy.api.feed.ITickBar;
+/*      */ import com.dukascopy.api.feed.ITickBarFeedListener;
 import com.dukascopy.api.impl.HistoryOrder;
-import com.dukascopy.api.impl.util.HistoryUtils;
-import com.dukascopy.charts.data.datacache.CandleData;
-import com.dukascopy.charts.data.datacache.DataCacheException;
-import com.dukascopy.charts.data.datacache.DataCacheUtils;
-import com.dukascopy.charts.data.datacache.LiveFeedListener;
-import com.dukascopy.charts.data.datacache.LoadingProgressAdapter;
-import com.dukascopy.charts.data.datacache.OrderHistoricalData;
-import com.dukascopy.charts.data.datacache.OrdersListener;
-import com.dukascopy.charts.data.datacache.TickData;
-import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
-import com.dukascopy.charts.data.datacache.pnf.PointAndFigureLiveFeedAdapter;
-import com.dukascopy.charts.data.datacache.rangebar.PriceRangeData;
-import com.dukascopy.charts.data.datacache.rangebar.PriceRangeLiveFeedAdapter;
-import com.dukascopy.charts.data.datacache.tickbar.TickBarData;
-import com.dukascopy.charts.data.datacache.tickbar.TickBarLiveFeedAdapter;
-import com.dukascopy.charts.data.orders.IOrdersProvider;
+/*      */ import com.dukascopy.api.impl.util.HistoryUtils;
+/*      */ import com.dukascopy.charts.data.datacache.CandleData;
+/*      */ import com.dukascopy.charts.data.datacache.DataCacheException;
+/*      */ import com.dukascopy.charts.data.datacache.DataCacheUtils;
+/*      */ import com.dukascopy.charts.data.datacache.LiveFeedListener;
+/*      */ import com.dukascopy.charts.data.datacache.LoadingProgressAdapter;
+/*      */ import com.dukascopy.charts.data.datacache.OrderHistoricalData;
+/*      */ import com.dukascopy.charts.data.datacache.OrdersListener;
+/*      */ import com.dukascopy.charts.data.datacache.TickData;
+/*      */ import com.dukascopy.charts.data.datacache.pnf.PointAndFigureData;
+/*      */ import com.dukascopy.charts.data.datacache.pnf.PointAndFigureLiveFeedAdapter;
+/*      */ import com.dukascopy.charts.data.datacache.rangebar.PriceRangeData;
+/*      */ import com.dukascopy.charts.data.datacache.rangebar.PriceRangeLiveFeedAdapter;
+/*      */ import com.dukascopy.charts.data.datacache.tickbar.TickBarData;
+/*      */ import com.dukascopy.charts.data.datacache.tickbar.TickBarLiveFeedAdapter;
+/*      */ import com.dukascopy.charts.data.orders.IOrdersProvider;
+/*      */ import java.math.BigDecimal;
+/*      */ import java.security.AccessController;
+/*      */ import java.security.PrivilegedActionException;
+/*      */ import java.security.PrivilegedExceptionAction;
+/*      */ import java.text.SimpleDateFormat;
+/*      */ import java.util.ArrayList;
+/*      */ import java.util.Collection;
+/*      */ import java.util.Currency;
+/*      */ import java.util.Date;
+/*      */ import java.util.List;
+/*      */ import java.util.ListIterator;
+/*      */ import java.util.Map;
+/*      */ import java.util.TimeZone;
+/*      */ import java.util.concurrent.atomic.AtomicBoolean;
+/*      */ import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /*      */ 
 /*      */ public class History
 /*      */   implements IHistory
@@ -79,7 +79,7 @@ import com.dukascopy.charts.data.orders.IOrdersProvider;
 /*   80 */     this.accountCurrency = accountCurrency;
 /*      */   }
 /*      */ 
-/*      */   public History(int noNeedToInitializeAnythingForTests)
+/*      */   protected History(int noNeedToInitializeAnythingForTests)
 /*      */   {
 /*   67 */     DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
 /*      */ 
