@@ -2563,6 +2563,16 @@ public TickData getLastTick(Instrument instrument) {
 
 public IBar getLastCandle(Instrument instrument, Period period, OfferSide side) {
 	Quote lastQuote = lastQuotes.get(instrument);
+	if (lastQuote == null) {
+		IDataQueue q = context.getQueue(Quote.class);
+		if (q.size() != 0) {
+			Quote quote = (Quote)q.pop();
+			lastQuotes.put(instrument, quote);
+			lastQuote = quote;
+		}
+		else
+			return null;
+	}
 	return new CandleData(lastQuote.getDate().getTime(), lastQuote.getOpen(), lastQuote.getClose(), lastQuote.getLow(), lastQuote.getHi(), lastQuote.getVol());
 } }
 
