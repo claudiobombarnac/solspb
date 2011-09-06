@@ -50,6 +50,7 @@ public class TesterMain {
         OrdersProvider.createInstance(null);
         IndicatorsProvider.createInstance(new IndicatorsSettingsStorage("sol"));
         FeedDataProvider.createFeedDataProvider("sol");
+        FeedDataProvider.getDefaultInstance().addInstrumentNamesSubscribed(new HashSet<String>() {{add("LKOH");add("GAZP");}});
         TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, null,null,null,null,null,null, null, null);
         //set instruments that will be used in testing
         Set<Instrument> instruments = new HashSet<Instrument>();

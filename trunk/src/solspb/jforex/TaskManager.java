@@ -196,10 +196,10 @@ public class TaskManager
         if(runningStrategy == null || isStrategyStopping())
             return null;
         Instrument instrument = Instrument.fromString(market.getInstrument());
-        TickData tick = ADFeedDataProvider.getDefaultInstance().getLastTick(instrument);
+        TickData tick = FeedDataProvider.getDefaultInstance().getLastTick(instrument);
         if(tick == null)
         {
-            LOGGER.warn((new StringBuilder()).append("Got tick for instrument [").append(instrument).append("] that was not processed by FeedDataProvider... Instrument subscription status [").append(ADFeedDataProvider.getDefaultInstance().isSubscribedToInstrument(instrument)).append("] MarketState [").append(market).append("]").toString());
+            LOGGER.warn((new StringBuilder()).append("Got tick for instrument [").append(instrument).append("] that was not processed by FeedDataProvider... Instrument subscription status [").append(FeedDataProvider.getDefaultInstance().isSubscribedToInstrument(instrument)).append("] MarketState [").append(market).append("]").toString());
             return null;
         } else
         {
