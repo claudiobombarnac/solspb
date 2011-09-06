@@ -162,12 +162,16 @@ import org.slf4j.LoggerFactory;
 /*      */   }
 /*      */ 
 /*      */   public IBar getCurrentBar(Instrument instrument, Period period, OfferSide side) throws DataCacheException {
-/*  158 */     CandleData candle = this.feedDataProvider.getInProgressCandleBlocking(instrument, period, side);
-/*  159 */     if (candle == null) {
-/*  160 */       return null;
-/*      */     }
-/*  162 */     return new CandleData(candle.time, candle.open, candle.close, candle.low, candle.high, candle.vol);
-/*      */   }
+			   return this.feedDataProvider.getLastCandle(instrument, period, side);
+}
+
+///*      */   public IBar getCurrentBar(Instrument instrument, Period period, OfferSide side) throws DataCacheException {
+///*  158 */     CandleData candle = this.feedDataProvider.getInProgressCandleBlocking(instrument, period, side);
+///*  159 */     if (candle == null) {
+///*  160 */       return null;
+///*      */     }
+///*  162 */     return new CandleData(candle.time, candle.open, candle.close, candle.low, candle.high, candle.vol);
+///*      */   }
 /*      */ 
 /*      */   public IBar getHistoryBarBlocking(Instrument instrument, Period period, OfferSide side, int shift) throws JFException
 /*      */   {

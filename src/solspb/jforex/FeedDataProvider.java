@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -34,7 +35,13 @@ import javax.crypto.SecretKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import artist.api.ContextLoader;
+import artist.api.IContext;
+import artist.api.IDataQueue;
+import artist.api.beans.Quote;
+
 import com.dukascopy.api.Filter;
+import com.dukascopy.api.IBar;
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.Period;
@@ -1336,9 +1343,9 @@ import com.dukascopy.transport.util.Hex;
 /* 1527 */     return ret;
 /*      */   }
 /*      */ 
-/*      */   public synchronized TickData getLastTick(Instrument instrument) {
-/* 1531 */     return this.lastTicks[instrument.ordinal()];
-/*      */   }
+///*      */   public synchronized TickData getLastTick(Instrument instrument) {
+///* 1531 */     return this.lastTicks[instrument.ordinal()];
+///*      */   }
 /*      */ 
 /*      */   public void setCurrentTime(long currentTime)
 /*      */   {
@@ -1351,7 +1358,12 @@ import com.dukascopy.transport.util.Hex;
 /*      */ 
 /*      */   public long getTimeOfFirstCandle(Instrument instrument, Period period) {
 /* 1546 */     Period basicPeriod = Period.getBasicPeriodForCustom(period);
-/* 1547 */     return timesOfTheFirstCandle[instrument.ordinal()][basicPeriod.ordinal()];
+				try {
+/* 1547 */     		return timesOfTheFirstCandle[instrument.ordinal()][basicPeriod.ordinal()];
+				}
+				catch (Exception e) {
+					return timesOfTheFirstCandle[0][0];
+				}
 /*      */   }
 /*      */ 
 /*      */   public static long getTimeOfFirstCandleStatic(Instrument instrument, Period period) {
@@ -2535,7 +2547,24 @@ import com.dukascopy.transport.util.Hex;
 /* 2251 */       return thread;
 /*      */     }
 /*      */   }
-/*      */ }
+/*      */
+private static IContext context = ContextLoader.getInstance();
+private Hashtable<Instrument, Quote> lastQuotes = new Hashtable<Instrument, Quote>();
+public TickData getLastTick(Instrument instrument) {
+	IDataQueue q = context.getQueue(Quote.class);
+	if (q.size() != 0) {
+		Quote quote = (Quote)q.pop();
+		lastQuotes.put(instrument, quote);
+		return new TickData(System.currentTimeMillis(), quote.getHi(), quote.getLow(), quote.getVol(), quote.getVol());
+	}
+	else
+		return null;
+}
+
+public IBar getLastCandle(Instrument instrument, Period period, OfferSide side) {
+	Quote lastQuote = lastQuotes.get(instrument);
+	return new CandleData(lastQuote.getDate().getTime(), lastQuote.getOpen(), lastQuote.getClose(), lastQuote.getLow(), lastQuote.getHi(), lastQuote.getVol());
+} }
 
 /* Location:           C:\Projects\jforex\libs\greed-common-162.jar
  * Qualified Name:     com.dukascopy.charts.data.datacache.FeedDataProvider
