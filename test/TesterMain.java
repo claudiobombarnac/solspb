@@ -17,8 +17,10 @@ import solspb.jforex.FeedDataProvider;
 import solspb.jforex.TaskManager;
 import solspb.jforex.TaskManager.Environment;
 
+import com.dukascopy.api.IBar;
 import com.dukascopy.api.IConsole;
 import com.dukascopy.api.Instrument;
+import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.Period;
 import com.dukascopy.api.impl.connect.IndicatorsSettingsStorage;
 import com.dukascopy.api.impl.connect.PrintStreamNotificationUtils;
@@ -59,8 +61,9 @@ public class TesterMain {
         //start the strategy
         LOGGER.info("Starting strategy");
         manager.startStrategy(new jforex.MA6_Play(), null, "Arnab2", true);
+        CandleData d = (CandleData)FeedDataProvider.getDefaultInstance().getLastCandle(Instrument.LKOH, Period.ONE_MIN, OfferSide.BID);
         for (int i = 0; i < 1000; i++)
-        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, new CandleData(), new CandleData());
+        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, d, d);
         for (int i = 0; i < 2000; i++) {
             manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
 //            manager.onMarketState(new ADStockMarket("LKOH", BigDecimal.valueOf(10*Math.random()), BigDecimal.valueOf(10*Math.random())));
