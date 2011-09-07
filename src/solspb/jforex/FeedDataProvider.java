@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.Vector;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -207,11 +206,11 @@ import com.dukascopy.transport.util.Hex;
 /*  309 */     createFeedDataProvider(cacheName, null, feedInfo);
 /*      */   }
 /*      */ 
-/*      */   public static void createFeedDataProvider(String cacheName, ICurvesProtocolHandler curvesProtocolHandler, IFeedInfo feedInfo) throws DataCacheException {
+/*      */   public static void createFeedDataProvider(String cacheName, ICurvesProtocolHandler cph, IFeedInfo feedInfo) throws DataCacheException {
 /*  313 */     if (feedDataProvider == null) {
 /*  314 */       OrdersProvider ordersProvider = OrdersProvider.getInstance();
 /*  315 */       feedDataProvider = new FeedDataProvider(cacheName, false, ordersProvider, feedInfo);
-/*  319 */       curvesProtocolHandler = curvesProtocolHandler;
+/*  319 */       curvesProtocolHandler = cph;
 /*  321 */       for (Instrument instrument : Instrument.values())
 /*  322 */         ordersProvider.addOrdersListener(instrument, feedDataProvider);
 /*      */     }
@@ -581,8 +580,12 @@ import com.dukascopy.transport.util.Hex;
 /*      */   public void loadInProgressCandleDataSynched(Instrument instrument, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
 /*      */     throws DataCacheException
 /*      */   {
-/*  724 */     LoadInProgressCandleDataAction loadDataAction = getLoadInProgressCandleDataAction(instrument, to, candleListener, loadingProgress);
-/*  725 */     loadDataAction.run();
+    for (Quote q  : (ArrayList<Quote>)quoteHistory.clone()) {
+        candleListener.newCandle(instrument, Period.DAILY, OfferSide.ASK, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol());
+    }
+
+	///*  724 */     LoadInProgressCandleDataAction loadDataAction = getLoadInProgressCandleDataAction(instrument, to, candleListener, loadingProgress);
+///*  725 */     loadDataAction.run();
 /*      */   }
 /*      */ 
 /*      */   private LoadNumberOfCandlesAction getLoadNumberOfCandlesAction(Instrument instrument, Period period, com.dukascopy.api.OfferSide side, int numberOfCandlesBefore, int numberOfCandlesAfter, long time, Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
@@ -1185,7 +1188,7 @@ import com.dukascopy.transport.util.Hex;
 /* 1365 */     return this.firstTickLocalTime;
 /*      */   }
 /*      */ 
-/*      */   public void tickReceived(CurrencyMarket tick)
+/*      */   public void tickReceived(ADCurrencyMarket tick)
 /*      */   {
 /* 1371 */     Instrument instrument = Instrument.fromString(tick.getInstrument());
 /* 1372 */     long time = tick.getCreationTimestamp().longValue();

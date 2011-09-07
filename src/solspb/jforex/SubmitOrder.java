@@ -11,10 +11,16 @@ import com.dukascopy.api.OfferSide;
 
 public class SubmitOrder implements IOrder {
 
+	private Instrument instrument;
+	private String id;
+
+	public SubmitOrder(Instrument instrument, String id) {
+		this.instrument = instrument;
+		this.id = id;
+	}
 	@Override
 	public Instrument getInstrument() {
-		// TODO Auto-generated method stub
-		return null;
+		return instrument;
 	}
 
 	@Override
@@ -25,8 +31,7 @@ public class SubmitOrder implements IOrder {
 
 	@Override
 	public String getId() {
-		// TODO Auto-generated method stub
-		return null;
+		return id;
 	}
 
 	@Override
