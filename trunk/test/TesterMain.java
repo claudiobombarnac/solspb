@@ -68,7 +68,7 @@ public class TesterMain {
 //        for (int i = 0; i < 1000; i++)
 //        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, d, d);
         for (int i = 0; i < 2000; i++) {
-        	FeedDataProvider.getDefaultInstance().tickReceived(new ADCurrencyMarket("GAZP", 100*Math.random(), 100*Math.random()));
+//        	FeedDataProvider.getDefaultInstance().tickReceived(new ADCurrencyMarket("GAZP", 100*Math.random(), 100*Math.random()));
             manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
 //            manager.onMarketState(new ADStockMarket("LKOH", BigDecimal.valueOf(10*Math.random()), BigDecimal.valueOf(10*Math.random())));
         }
