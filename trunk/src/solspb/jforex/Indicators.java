@@ -3253,6 +3253,7 @@ import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 	/* 3253 */           NotificationUtilsProvider.getNotificationUtils().postErrorMessage("Error in indicator: " + error, t, true);
 	/* 3254 */           throw new JFException(t);
 	/*      */         }
+	                    break;
 	/*      */       case INT:
 	/* 3258 */         int[] ints = new int[inputLength - (indicatorLookback + lookforward)];
 	/* 3259 */         outputs[i] = ints;
@@ -3264,6 +3265,7 @@ import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 	/* 3265 */           NotificationUtilsProvider.getNotificationUtils().postErrorMessage("Error in indicator: " + error, t, true);
 	/* 3266 */           throw new JFException(t);
 	/*      */         }
+	                break;
 	/*      */       case OBJECT:
 	/* 3270 */         Object[] objects = new Object[inputLength - (indicatorLookback + lookforward)];
 	/* 3271 */         outputs[i] = objects;
@@ -4143,14 +4145,14 @@ import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 	/* 4202 */     int i = 0;
 	/* 4203 */     switch (inputType)
 	/*      */     {
-	/*      */     case PRICE:
+	/*      */     case DOUBLE:
 	/* 4205 */       double[] retDouble = new double[bars.size()];
 	/* 4206 */       for (IBar bar : bars) {
 	/* 4207 */         retDouble[i] = barToReal(bar, appliedPrice);
 	/* 4208 */         ++i;
 	/*      */       }
 	/* 4210 */       return retDouble;
-	/*      */     case DOUBLE:
+	/*      */     case PRICE:
 	/* 4212 */       double[][] retPrice = new double[5][bars.size()];
 	/* 4213 */       for (IBar bar : bars) {
 	/* 4214 */         retPrice[0][i] = barToReal(bar, IIndicators.AppliedPrice.OPEN);

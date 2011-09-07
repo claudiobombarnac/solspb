@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.Vector;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -550,8 +551,11 @@ import com.dukascopy.transport.util.Hex;
 /*      */   public void loadCandlesDataSynched(Instrument instrument, Period period, com.dukascopy.api.OfferSide side, long from, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
 /*      */     throws DataCacheException
 /*      */   {
-/*  695 */     LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, false);
-/*  696 */     loadDataAction.run();
+                for (Quote q  : (ArrayList<Quote>)quoteHistory.clone()) {
+                    candleListener.newCandle(instrument, period, side, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol());
+                }
+///*  695 */     LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, false);
+///*  696 */     loadDataAction.run();
 /*      */   }
 /*      */ 
 /*      */   public void loadCandlesDataSynched(Instrument instrument, Period period, com.dukascopy.api.OfferSide side, long from, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress, boolean loadFromChunkStart) throws DataCacheException
@@ -2550,10 +2554,12 @@ import com.dukascopy.transport.util.Hex;
 /*      */
 private static IContext context = ContextLoader.getInstance();
 private Hashtable<Instrument, Quote> lastQuotes = new Hashtable<Instrument, Quote>();
+private ArrayList<Quote> quoteHistory = new ArrayList<Quote>(); //should be synchronized
 public TickData getLastTick(Instrument instrument) {
 	IDataQueue q = context.getQueue(Quote.class);
 	if (q.size() != 0) {
 		Quote quote = (Quote)q.pop();
+		quoteHistory.add(quote);
 		lastQuotes.put(instrument, quote);
 		return new TickData(System.currentTimeMillis(), quote.getHi(), quote.getLow(), quote.getVol(), quote.getVol());
 	}
@@ -2567,6 +2573,7 @@ public IBar getLastCandle(Instrument instrument, Period period, OfferSide side) 
 		IDataQueue q = context.getQueue(Quote.class);
 		if (q.size() != 0) {
 			Quote quote = (Quote)q.pop();
+			quoteHistory.add(quote);
 			lastQuotes.put(instrument, quote);
 			lastQuote = quote;
 		}
