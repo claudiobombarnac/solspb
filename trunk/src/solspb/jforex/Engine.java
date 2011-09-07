@@ -6,6 +6,7 @@
 package solspb.jforex;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -13,7 +14,12 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import artist.api.BrokerInt;
+import artist.api.Constants;
 import artist.api.ContextLoader;
+import artist.api.OrderInt.OrderType;
+import artist.api.beans.LimitOrder;
+import artist.api.beans.StopOrder;
 
 import com.dukascopy.api.IEngine;
 import com.dukascopy.api.IOrder;
@@ -32,7 +38,7 @@ import com.dukascopy.transport.common.msg.strategy.StrategyBroadcastMessage;
 class Engine extends AbstractEngine
     implements IEngine
 {
-
+	private BrokerInt broker;
     private List<IOrder> orders = new ArrayList<IOrder>();
 
 	public Engine(TaskManager taskManager, String accountName, boolean live)
@@ -44,6 +50,7 @@ class Engine extends AbstractEngine
             myType = com.dukascopy.api.IEngine.Type.LIVE;
         this.taskManager = taskManager;
         this.accountName = accountName;
+        this.broker = ContextLoader.getInstance().getBroker();
     }
 
     public IOrder getOrder(String label)
@@ -92,13 +99,24 @@ class Engine extends AbstractEngine
         return myType;
     }
 
+    private static int orderId = 1;
     public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
             double slippage, double stopLossPrice, double takeProfitPrice, long goodTillTime, String comment)
         throws JFException
     {
-    	SubmitOrder order = new SubmitOrder();
-        orders.add(order);
+    	SubmitOrder order = new SubmitOrder(instrument, String.valueOf(orderId++));
         System.out.println(orderCommand + " STOP-LOSS: " + stopLossPrice + " TAKE-PROFIT: " + takeProfitPrice);
+        Date expiration = new Date();
+        expiration.setDate(expiration.getDate() + 1);
+        if (orderCommand == OrderCommand.BUY) {
+        	broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, price, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
+        	broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, takeProfitPrice, Constants.ORDER_TIMEOUT));
+        }
+        else {
+        	broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, price, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
+        	broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, takeProfitPrice, Constants.ORDER_TIMEOUT));
+        }
+        orders.add(order);
         return order;
     }
 
