@@ -69,10 +69,14 @@ public class CurvesProtocolHandler implements ICurvesProtocolHandler {
 	}
 
 	@Override
-	public Data[] loadCandles(String arg0, Period arg1, long arg2, long arg3,
+	public Data[] loadCandles(String inst, Period period, long from, long to,
 			LoadingProgressListener arg4) throws DataCacheException {
-		// TODO Auto-generated method stub
-		return null;
+        Calendar fc = new GregorianCalendar();
+        fc.setTimeInMillis(from);
+        Calendar tc = new GregorianCalendar();
+        tc.setTimeInMillis(to);
+
+        return FinamDataLoader.loadData(fc, tc, translateMarket(Instrument.fromString(inst).getMarket()), inst, translatePeriod(period));
 	}
 
 	private FinamDataLoader.Period translatePeriod(Period p) {
