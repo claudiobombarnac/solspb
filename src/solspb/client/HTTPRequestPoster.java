@@ -47,6 +47,7 @@ public class HTTPRequestPoster
                 while ((line = rd.readLine()) != null)
                 {
                     sb.append(line);
+                    sb.append('\n');
                 }
                 rd.close();
                 result = sb.toString();
