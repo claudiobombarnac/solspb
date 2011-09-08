@@ -135,7 +135,7 @@ import com.dukascopy.transport.util.Hex;
 /*  107 */   protected Deque<Weekend> cachedWeekends = new LinkedList();
 /*      */   private final CurvesDataLoader curvesDataLoader;
 /*      */   protected LocalCacheManager localCacheManager;
-/*      */   private static ICurvesProtocolHandler curvesProtocolHandler;
+///*      */   private static ICurvesProtocolHandler curvesProtocolHandler;
 /*      */   private static String accountId;
 /*      */   protected IntraperiodCandlesGenerator intraperiodCandlesGenerator;
 /*      */   private final IOrdersProvider ordersProvider;
@@ -210,10 +210,12 @@ import com.dukascopy.transport.util.Hex;
 /*  313 */     if (feedDataProvider == null) {
 /*  314 */       OrdersProvider ordersProvider = OrdersProvider.getInstance();
 /*  315 */       feedDataProvider = new FeedDataProvider(cacheName, false, ordersProvider, feedInfo);
-/*  319 */       curvesProtocolHandler = cph;
+///*  319 */       curvesProtocolHandler = cph;
 /*  321 */       for (Instrument instrument : Instrument.values())
 /*  322 */         ordersProvider.addOrdersListener(instrument, feedDataProvider);
 /*      */     }
+//				FeedDataProvider.curvesProtocolHandler = cph;
+com.dukascopy.charts.data.datacache.FeedDataProvider.createFeedDataProvider(cacheName, cph, feedInfo);
 /*      */   }
 /*      */ 
 /*      */   public void connectToHistoryServer(Collection<String> authServerUrls, String userName, String instanceId, String historyServerUrl, String encryptionKey, String version)
@@ -225,7 +227,7 @@ import com.dukascopy.transport.util.Hex;
 /*  339 */     if (encryptionKey == null) {
 /*  340 */       encryptionKey = encryptionKey;
 /*      */     }
-/*  342 */     curvesProtocolHandler.connect(new FeedAuthenticator(authServerUrls, version, userName, instanceId), userName, instanceId, historyServerUrl);
+/*  342 */     getCurvesProtocolHandler().connect(new FeedAuthenticator(authServerUrls, version, userName, instanceId), userName, instanceId, historyServerUrl);
 /*      */   }
 /*      */ 
 /*      */   public void connectToHistoryServer(IAuthenticator authenticator, String userName, String instanceId, String historyServerUrl, String encryptionKey)
@@ -234,7 +236,7 @@ import com.dukascopy.transport.util.Hex;
 /*  354 */     if (encryptionKey == null) {
 /*  355 */       encryptionKey = encryptionKey;
 /*      */     }
-/*  357 */     curvesProtocolHandler.connect(authenticator, userName, instanceId, historyServerUrl);
+/*  357 */     getCurvesProtocolHandler().connect(authenticator, userName, instanceId, historyServerUrl);
 /*      */   }
 /*      */ 
 /*      */   public IFeedInfo getFeedInfo() {
@@ -550,11 +552,11 @@ import com.dukascopy.transport.util.Hex;
 /*      */   public void loadCandlesDataSynched(Instrument instrument, Period period, com.dukascopy.api.OfferSide side, long from, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
 /*      */     throws DataCacheException
 /*      */   {
-                for (Quote q  : (ArrayList<Quote>)quoteHistory.clone()) {
-                    candleListener.newCandle(instrument, period, side, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol());
-                }
-///*  695 */     LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, false);
-///*  696 */     loadDataAction.run();
+//                for (Quote q  : (ArrayList<Quote>)quoteHistory.clone()) {
+//                    candleListener.newCandle(instrument, period, side, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol());
+//                }
+/*  695 */     LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, false);
+/*  696 */     loadDataAction.run();
 /*      */   }
 /*      */ 
 /*      */   public void loadCandlesDataSynched(Instrument instrument, Period period, com.dukascopy.api.OfferSide side, long from, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress, boolean loadFromChunkStart) throws DataCacheException
@@ -580,12 +582,12 @@ import com.dukascopy.transport.util.Hex;
 /*      */   public void loadInProgressCandleDataSynched(Instrument instrument, long to, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
 /*      */     throws DataCacheException
 /*      */   {
-    for (Quote q  : (ArrayList<Quote>)quoteHistory.clone()) {
-        candleListener.newCandle(instrument, Period.DAILY, OfferSide.ASK, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol());
-    }
+//    for (Quote q  : (ArrayList<Quote>)quoteHistory.clone()) {
+//        candleListener.newCandle(instrument, Period.DAILY, OfferSide.ASK, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol());
+//    }
 
-	///*  724 */     LoadInProgressCandleDataAction loadDataAction = getLoadInProgressCandleDataAction(instrument, to, candleListener, loadingProgress);
-///*  725 */     loadDataAction.run();
+/*  724 */     LoadInProgressCandleDataAction loadDataAction = getLoadInProgressCandleDataAction(instrument, to, candleListener, loadingProgress);
+/*  725 */     loadDataAction.run();
 /*      */   }
 /*      */ 
 /*      */   private LoadNumberOfCandlesAction getLoadNumberOfCandlesAction(Instrument instrument, Period period, com.dukascopy.api.OfferSide side, int numberOfCandlesBefore, int numberOfCandlesAfter, long time, Filter filter, LiveFeedListener candleListener, LoadingProgressListener loadingProgress)
@@ -1105,9 +1107,9 @@ import com.dukascopy.transport.util.Hex;
 /* 1278 */     return this.localCacheManager;
 /*      */   }
 /*      */ 
-/*      */   public static ICurvesProtocolHandler getCurvesProtocolHandler() {
-/* 1282 */     return curvesProtocolHandler;
-/*      */   }
+///*      */   public static ICurvesProtocolHandler getCurvesProtocolHandler() {
+///* 1282 */     return curvesProtocolHandler;
+///*      */   }
 /*      */ 
 /*      */   protected void fireNewTick(Instrument instrument, long time, double ask, double bid, double askVol, double bidVol) {
 /* 1286 */     List listeners = this.tickListeners[instrument.ordinal()];
@@ -1265,11 +1267,11 @@ import com.dukascopy.transport.util.Hex;
 /* 1441 */       this.currentTime = time;
 /*      */     }
 /*      */ 
-/* 1444 */     this.localCacheManager.newTick(instrument, time, ask, bid, askVol, bidVol, false);
+///* 1444 */     this.localCacheManager.newTick(instrument, time, ask, bid, askVol, bidVol, false);
 /*      */ 
 /* 1446 */     this.intraperiodCandlesGenerator.newTick(instrument, time, ask, bid, askVol, bidVol);
 /*      */ 
-/* 1448 */     fireNewTick(instrument, time, ask, bid, askVol, bidVol);
+///* 1448 */     fireNewTick(instrument, time, ask, bid, askVol, bidVol);
 /*      */   }
 /*      */ 
 /*      */   public void newOrder(Instrument instrument, OrderHistoricalData orderData)
@@ -1467,8 +1469,8 @@ import com.dukascopy.transport.util.Hex;
 /* 1641 */     this.ordersProvider.close();
 /* 1642 */     if (this == getDefaultInstance()) {
 /* 1643 */       feedDataProvider = null;
-/* 1644 */       curvesProtocolHandler.close();
-/* 1645 */       curvesProtocolHandler = null;
+///* 1644 */       curvesProtocolHandler.close();
+///* 1645 */       curvesProtocolHandler = null;
 /*      */     }
 /*      */ 
 /* 1648 */     if (this.backgroundFeedLoadingThread != null)

@@ -64,12 +64,12 @@ public class TesterMain {
         //start the strategy
         LOGGER.info("Starting strategy");
         manager.startStrategy(new jforex.MA6_Play(), null, "Arnab2", true);
-        CandleData d = (CandleData)FeedDataProvider.getDefaultInstance().getLastCandle(Instrument.LKOH, Period.ONE_MIN, OfferSide.BID);
+//        CandleData d = (CandleData)FeedDataProvider.getDefaultInstance().getLastCandle(Instrument.LKOH, Period.ONE_MIN, OfferSide.BID);
 //        for (int i = 0; i < 1000; i++)
 //        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, d, d);
-        for (int i = 0; i < 2000; i++) {
-//        	FeedDataProvider.getDefaultInstance().tickReceived(new ADCurrencyMarket("GAZP", 100*Math.random(), 100*Math.random()));
-            manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
+        for (int i = 0; i < 1; i++) {
+        	FeedDataProvider.getDefaultInstance().tickReceived(new ADCurrencyMarket("GAZP", 100*Math.random(), 100*Math.random()));
+//            manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
 //            manager.onMarketState(new ADStockMarket("LKOH", BigDecimal.valueOf(10*Math.random()), BigDecimal.valueOf(10*Math.random())));
         }
         manager.stopStrategy();

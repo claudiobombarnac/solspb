@@ -14,17 +14,19 @@ import java.util.StringTokenizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dukascopy.api.Period;
 import com.dukascopy.charts.data.datacache.CandleData;
 import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.DataCacheUtils;
 
 public class FinamDataLoader {
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMdd,HHmmss");
     private static final String DELIM = ",;";
     
     private static Logger logger = LoggerFactory.getLogger(FinamDataLoader.class);
-    
+
     public enum Market {NONE, MICEX_STOCKS, MICEX_BONDS, RTS, N4, FOREX, WORLD_IDX, US_FUTURES, ADR, SPFB_ARCH, RTS_GAZ, RTS_GTS,MICEX_UNLIST_BONDS, N13, FORTS, N15, MICEX_ARCH, FORTS_ARCH, RTS_ARCH, N19, RTS_BOARD, N21, N22, N23, GOODS, US_BATS, US_GOVBONDS, US_INDUSTRY, ETF, MICEX_PIF, WORLD_ECO_IDX, N31, N32, N33, N34, N35, N36, N37, RTS_STD}; 
-    public enum Period {NONE, TICK, MIN, FIVE_MIN, TEN_MIN, FIFTEEN_MIN, THIRTY_MIN, HOUR, DAY, WEEK, MONTH, HOUR1030 };
+    public enum Period {NONE, TICK, ONE_MIN, FIVE_MINS, TEN_MINS, FIFTEEN_MINS, THIRTY_MINS, ONE_HOUR, DAILY, WEEKLY, MONTHLY, HOUR1030 };
     public enum Format {NONE, TPDTOHLCV, TPDTOHLC, TPDTCV, TPDTC, DTOHLCV};
     public HashMap<Market, String[]> instrument = new HashMap<Market, String[]>() {{
         put(Market.MICEX_STOCKS, new String[] {"LKOH", "GAZP", "SBER", "GMKN"});
@@ -50,9 +52,24 @@ public class FinamDataLoader {
                "&dtf=1&tmf=1&MSOR=0&sep=1&sep2=1&datf=" + format.ordinal();
     }
     
+	private static com.dukascopy.api.Period translatePeriod(Period p) {
+        if (p == Period.TICK) return com.dukascopy.api.Period.TICK;
+        else if (p == Period.ONE_MIN) return com.dukascopy.api.Period.ONE_MIN;
+        else if (p == Period.FIVE_MINS) return com.dukascopy.api.Period.FIVE_MINS;
+        else if (p == Period.TEN_MINS) return com.dukascopy.api.Period.TEN_MINS;
+        else if (p == Period.FIFTEEN_MINS) return com.dukascopy.api.Period.FIFTEEN_MINS;
+        else if (p == Period.THIRTY_MINS) return com.dukascopy.api.Period.THIRTY_MINS;
+        else if (p == Period.ONE_HOUR) return com.dukascopy.api.Period.ONE_HOUR;
+        else if (p == Period.DAILY) return com.dukascopy.api.Period.DAILY;
+        else if (p == Period.WEEKLY) return com.dukascopy.api.Period.WEEKLY;
+        else if (p == Period.MONTHLY) return com.dukascopy.api.Period.MONTHLY;
+        else throw new UnsupportedOperationException("Period " + p + " is not supported");
+    }	    
+    
     public static CandleData getCandle(String quote, Period period) throws ParseException {
         StringTokenizer st = new StringTokenizer(quote, DELIM);
         Date date = DATE_FORMAT.parse(st.nextToken() + ',' + st.nextToken());
+        date = new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), date.getTime()));
         Double open = Double.parseDouble(st.nextToken());
         Double high = Double.parseDouble(st.nextToken());
         Double low = Double.parseDouble(st.nextToken());
@@ -62,12 +79,13 @@ public class FinamDataLoader {
     }
     
     public static Data[] loadData(Calendar from, Calendar to, Market market, String inst, Period period) {
-        String response = HTTPRequestPoster.sendGetRequest(FinamDataLoader.SERVER + "/" + getFileName(from, to, inst), getParams(from, to, market, inst, period, Format.DTOHLCV));
+        logger.info("FINAM: " + DateFormat.getDateTimeInstance().format(from.getTime()) + "-" + DateFormat.getDateTimeInstance().format(to.getTime()) + " for " + inst + " " + period);
+    	String response = HTTPRequestPoster.sendGetRequest(FinamDataLoader.SERVER + "/" + getFileName(from, to, inst), getParams(from, to, market, inst, period, Format.DTOHLCV));
         ArrayList<Data> data = new ArrayList<Data>(); 
             StringTokenizer t = new StringTokenizer(response);
             String quote;
-            while ((quote = t.nextToken()) != null) {
-              quote = quote.trim();
+            while (t.hasMoreTokens()) {
+            	quote = t.nextToken().trim();
               if (quote.length() == 0)
                   continue;
               try {
