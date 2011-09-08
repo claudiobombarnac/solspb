@@ -1,6 +1,10 @@
 package solspb.jforex;
 
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.List;
+
+import solspb.client.FinamDataLoader;
 
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.OfferSide;
@@ -71,12 +75,39 @@ public class CurvesProtocolHandler implements ICurvesProtocolHandler {
 		return null;
 	}
 
+	private FinamDataLoader.Period translatePeriod(Period p) {
+        if (p == Period.TICK) return FinamDataLoader.Period.TICK;
+        else if (p == Period.ONE_MIN) return FinamDataLoader.Period.MIN;
+        else if (p == Period.FIVE_MINS) return FinamDataLoader.Period.FIVE_MIN;
+        else if (p == Period.TEN_MINS) return FinamDataLoader.Period.TEN_MIN;
+        else if (p == Period.FIFTEEN_MINS) return FinamDataLoader.Period.FIFTEEN_MIN;
+        else if (p == Period.THIRTY_MINS) return FinamDataLoader.Period.THIRTY_MIN;
+        else if (p == Period.ONE_HOUR) return FinamDataLoader.Period.HOUR;
+        else if (p == Period.DAILY) return FinamDataLoader.Period.DAY;
+        else if (p == Period.WEEKLY) return FinamDataLoader.Period.WEEK;
+        else if (p == Period.MONTHLY) return FinamDataLoader.Period.MONTH;
+        else throw new UnsupportedOperationException("Period " + p + " is not supported");
+    }	    
+    private FinamDataLoader.Market translateMarket(String market) {
+        if ("FOREX".equals(market))
+            return FinamDataLoader.Market.FOREX;
+        else if ("MICEX".equals(market))
+            return FinamDataLoader.Market.MICEX_STOCKS;
+        else if ("FORTS".equals(market))
+            return FinamDataLoader.Market.FORTS;
+        else throw new UnsupportedOperationException("Market " + market + " is not supported");
+    }
+	
 	@Override
-	public Data[] loadData(Instrument arg0, Period arg1, OfferSide arg2,
-			long arg3, long arg4, boolean arg5, LoadingProgressListener arg6)
+	public Data[] loadData(Instrument inst, Period period, OfferSide offerSide,
+			long from, long to, boolean dontKnow, LoadingProgressListener lpListener)
 			throws NotConnectedException, DataCacheException {
-		// TODO Auto-generated method stub
-		return null;
+	    Calendar fc = new GregorianCalendar();
+	    fc.setTimeInMillis(from);
+        Calendar tc = new GregorianCalendar();
+	    tc.setTimeInMillis(to);
+
+		return FinamDataLoader.loadData(fc, tc, translateMarket(inst.getMarket()), inst.name(), translatePeriod(period));
 	}
 
 	@Override
