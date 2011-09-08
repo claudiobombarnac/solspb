@@ -5,7 +5,7 @@ import java.util.Currency;
 import java.util.HashSet;
 import java.util.Set;
 
-public enum Instrument {
+public enum Instrument {    
     AUDJPY(Currency.getInstance("AUD"), Currency.getInstance("JPY"), 0.01, 2),
     AUDNZD(Currency.getInstance("AUD"), Currency.getInstance("NZD"), 0.0001, 4),
     AUDUSD(Currency.getInstance("AUD"), Currency.getInstance("USD"), 0.0001, 4),
@@ -58,30 +58,34 @@ public enum Instrument {
     USDZAR(Currency.getInstance("USD"), Currency.getInstance("ZAR"), 0.0001, 4),
     ZARJPY(Currency.getInstance("ZAR"), Currency.getInstance("JPY"), 0.0001, 4),
     
-    LKOH("LKOH", 0.01),
-    GAZP("GAZP", 0.01);
+    LKOH("LKOH", 0.01, "MICEX"),
+    GAZP("GAZP", 0.01, "MICEX");
 
     private Currency primaryCurrency;
     private Currency secondaryCurrency;
     private double pipValue;
     private int pipScale;
-    private boolean isForex = true;
+    private String market = "FOREX";
     
 	    private String instrument;
 	    
-	    private Instrument(String instrument, double pipValue) {
+	    private Instrument(String instrument, double pipValue, String market) {
 	        this.instrument = instrument;
-	        this.isForex = false;
+	        this.market = market;
 	        this.pipValue = pipValue;
 	        this.pipScale = 1;
 	    }
 
+	    public String getMarket() {
+	        return market;
+	    }
+	    
 	    @Override
 	    public String toString() {
-	    	if (!isForex)
+	    	if (!"FOREX".equals(market))
 	    		return instrument;
 	    	else
-		        return name().substring(0, 3) + getPairsSeparator() + name().substring(3, 6);	    		
+		        return name().substring(0, 3) + getPairsSeparator() + name().substring(3, 6);
 	    }
 
 	    private Instrument(Currency primaryCurrency, Currency secondaryCurrency, double pipValue, int pipScale) {
