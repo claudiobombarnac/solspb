@@ -1,7 +1,5 @@
 package jforex;
 
-import solspb.jforex.IStrategy;
-
 import com.dukascopy.api.IAccount;
 import com.dukascopy.api.IBar;
 import com.dukascopy.api.IChart;
@@ -12,6 +10,7 @@ import com.dukascopy.api.IIndicators.AppliedPrice;
 import com.dukascopy.api.IIndicators.MaType;
 import com.dukascopy.api.IMessage;
 import com.dukascopy.api.IOrder;
+import com.dukascopy.api.IStrategy;
 import com.dukascopy.api.ITick;
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.JFException;

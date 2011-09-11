@@ -126,23 +126,23 @@ import com.dukascopy.transport.util.Hex;
 /*   98 */   private final List<LiveCandleListener> allCandlePeriodListener = Collections.synchronizedList(new ArrayList());
 /*   99 */   private final Map<Instrument, Map<Period, Map<com.dukascopy.api.OfferSide, List<LiveFeedListener>>>> inProgressCandleListenersMap = new HashMap();
 /*  100 */   private final List<CacheDataUpdatedListener>[] cacheDataChangeListeners = new List[Instrument.values().length];
-/*  101 */   protected final double[] lastAsks = new double[Instrument.values().length];
-/*  102 */   protected final double[] lastBids = new double[Instrument.values().length];
-/*  103 */   protected final TickData[] lastTicks = new TickData[Instrument.values().length];
-/*  104 */   protected final long[] currentTimes = new long[Instrument.values().length];
-/*  105 */   protected volatile long currentTime = -9223372036854775808L;
-/*  106 */   protected volatile long firstTickLocalTime = -9223372036854775808L;
-/*  107 */   protected Deque<Weekend> cachedWeekends = new LinkedList();
+///*  101 */   protected final double[] lastAsks = new double[Instrument.values().length];
+///*  102 */   protected final double[] lastBids = new double[Instrument.values().length];
+///*  103 */   protected final TickData[] lastTicks = new TickData[Instrument.values().length];
+///*  104 */   protected final long[] currentTimes = new long[Instrument.values().length];
+///*  105 */   protected volatile long currentTime = -9223372036854775808L;
+///*  106 */   protected volatile long firstTickLocalTime = -9223372036854775808L;
+///*  107 */   protected Deque<Weekend> cachedWeekends = new LinkedList();
 /*      */   private final CurvesDataLoader curvesDataLoader;
-/*      */   protected LocalCacheManager localCacheManager;
+///*      */   protected LocalCacheManager localCacheManager;
 ///*      */   private static ICurvesProtocolHandler curvesProtocolHandler;
 /*      */   private static String accountId;
-/*      */   protected IntraperiodCandlesGenerator intraperiodCandlesGenerator;
+///*      */   protected IntraperiodCandlesGenerator intraperiodCandlesGenerator;
 /*      */   private final IOrdersProvider ordersProvider;
 /*      */   private final IFeedInfo feedInfo;
 /*  117 */   private final List<Instrument> subscribedInstruments = new ArrayList();
 /*  118 */   private final List<InstrumentSubscriptionListener> instrumentSubscriptionListeners = Collections.synchronizedList(new ArrayList());
-/*  119 */   protected CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy = CurvesDataLoader.IntraperiodExistsPolicy.DOWNLOAD_CHUNK_IN_BACKGROUND;
+///*  119 */   protected CurvesDataLoader.IntraperiodExistsPolicy intraperiodExistsPolicy = CurvesDataLoader.IntraperiodExistsPolicy.DOWNLOAD_CHUNK_IN_BACKGROUND;
 /*      */   private static final long[][] timesOfTheFirstCandle;
 /*      */   private static final long[][] timesOfTheFirstOurCandle;
 /*  124 */   private final int[] networkLatency = new int[15];
@@ -1352,9 +1352,9 @@ com.dukascopy.charts.data.datacache.FeedDataProvider.createFeedDataProvider(cach
 /* 1527 */     return ret;
 /*      */   }
 /*      */ 
-///*      */   public synchronized TickData getLastTick(Instrument instrument) {
-///* 1531 */     return this.lastTicks[instrument.ordinal()];
-///*      */   }
+/*      */   public synchronized TickData getLastTick(Instrument instrument) {
+/* 1531 */     return this.lastTicks[instrument.ordinal()];
+/*      */   }
 /*      */ 
 /*      */   public void setCurrentTime(long currentTime)
 /*      */   {
@@ -2560,17 +2560,17 @@ com.dukascopy.charts.data.datacache.FeedDataProvider.createFeedDataProvider(cach
 private static IContext context = ContextLoader.getInstance();
 private Hashtable<Instrument, Quote> lastQuotes = new Hashtable<Instrument, Quote>();
 private ArrayList<Quote> quoteHistory = new ArrayList<Quote>(); //should be synchronized
-public TickData getLastTick(Instrument instrument) {
-	IDataQueue q = context.getQueue(Quote.class);
-	if (q.size() != 0) {
-		Quote quote = (Quote)q.pop();
-		quoteHistory.add(quote);
-		lastQuotes.put(instrument, quote);
-		return new TickData(System.currentTimeMillis(), quote.getHi(), quote.getLow(), quote.getVol(), quote.getVol());
-	}
-	else
-		return null;
-}
+//public TickData getLastTick(Instrument instrument) {
+//	IDataQueue q = context.getQueue(Quote.class);
+//	if (q.size() != 0) {
+//		Quote quote = (Quote)q.pop();
+//		quoteHistory.add(quote);
+//		lastQuotes.put(instrument, quote);
+//		return new TickData(System.currentTimeMillis(), quote.getHi(), quote.getLow(), quote.getVol(), quote.getVol());
+//	}
+//	else
+//		return null;
+//}
 
 public IBar getLastCandle(Instrument instrument, Period period, OfferSide side) {
 	Quote lastQuote = lastQuotes.get(instrument);

@@ -18,6 +18,7 @@ import com.dukascopy.api.Period;
 import com.dukascopy.charts.data.datacache.CandleData;
 import com.dukascopy.charts.data.datacache.Data;
 import com.dukascopy.charts.data.datacache.DataCacheUtils;
+import com.dukascopy.charts.data.datacache.IntraPeriodCandleData;
 
 public class FinamDataLoader {
     private static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMdd,HHmmss");
@@ -75,7 +76,7 @@ public class FinamDataLoader {
         Double low = Double.parseDouble(st.nextToken());
         Double close = Double.parseDouble(st.nextToken());
         Long vol = Long.parseLong(st.nextToken());
-        return new CandleData(date.getTime(), open, close, low, high, vol);
+        return new IntraPeriodCandleData(false, date.getTime(), open, close, low, high, vol);
     }
     
     public static Data[] loadData(Calendar from, Calendar to, Market market, String inst, Period period) {

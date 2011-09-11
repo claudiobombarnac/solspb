@@ -82,12 +82,14 @@ public class TaskManager
         }
     }
 
-    public static enum Environment {LOCAL_JFOREX, LOCAL_EMBEDDED, REMOTE};
+    public static enum Environment {LOCAL_JFOREX, LOCAL_EMBEDDED, REMOTE}
+	private FeedDataProvider feedProvider;;
 
-    public TaskManager(Environment environment, boolean live, String accountName, IConsole console, TransportClient transportClient, DDSChartsController ddsChartsController, IUserInterface userInterface, 
+    public TaskManager(Environment environment, boolean live, String accountName, IConsole console, FeedDataProvider feedProvider, TransportClient transportClient, DDSChartsController ddsChartsController, IUserInterface userInterface, 
             IStrategyExceptionHandler exceptionHandler, AccountInfoMessage lastAccountInfo, String externalIP, String internalIP, String sessionID)
     {
         strategyId = 0x8000000000000000L;
+        this.feedProvider = feedProvider;
         strategyListeners = new ArrayList();
         requiredInstruments = new HashSet();
         
@@ -196,7 +198,7 @@ public class TaskManager
         if(runningStrategy == null || isStrategyStopping())
             return null;
         Instrument instrument = Instrument.fromString(market.getInstrument());
-        TickData tick = FeedDataProvider.getDefaultInstance().getLastTick(instrument);
+        TickData tick = feedProvider.getLastTick(instrument);
         if(tick == null)
         {
             LOGGER.warn((new StringBuilder()).append("Got tick for instrument [").append(instrument).append("] that was not processed by FeedDataProvider... Instrument subscription status [").append(FeedDataProvider.getDefaultInstance().isSubscribedToInstrument(instrument)).append("] MarketState [").append(market).append("]").toString());

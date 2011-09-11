@@ -49,7 +49,7 @@ public class Client {
         IndicatorsProvider.createInstance(new IndicatorsSettingsStorage("sol"));
         FeedDataProvider.createFeedDataProvider("sol", new CurvesProtocolHandler(), null);
         FeedDataProvider.getDefaultInstance().addInstrumentNamesSubscribed(new HashSet<String>() {{add("LKOH");add("GAZP");}});
-        TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, null,null,null,null,null,null, null, null);
+        TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, FeedDataProvider.getDefaultInstance(), null,null,null,null,null,null, null, null);
         //set instruments that will be used in testing
         Set<Instrument> instruments = new HashSet<Instrument>();
         instruments.add(Instrument.LKOH);
