@@ -1,16 +1,28 @@
 package solspb.jforex;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.URL;
 import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
+import java.util.TimeZone;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import solspb.client.FinamDataLoader;
+
+import SevenZip.Compression.LZMA.Decoder;
 
 import com.dukascopy.api.Instrument;
 import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.Period;
+import com.dukascopy.charts.data.datacache.CurvesProtocolUtil;
 import com.dukascopy.charts.data.datacache.Data;
 import com.dukascopy.charts.data.datacache.DataCacheException;
 import com.dukascopy.charts.data.datacache.DataCacheUtils;
@@ -18,8 +30,10 @@ import com.dukascopy.charts.data.datacache.IAuthenticator;
 import com.dukascopy.charts.data.datacache.ICurvesProtocolHandler;
 import com.dukascopy.charts.data.datacache.LoadingProgressListener;
 import com.dukascopy.charts.data.datacache.NotConnectedException;
+import com.dukascopy.dds2.greed.agent.strategy.StratUtils;
 import com.dukascopy.dds2.greed.gui.component.filechooser.CancelLoadingException;
 import com.dukascopy.dds2.greed.gui.component.filechooser.FileProgressListener;
+import com.dukascopy.dds2.greed.util.FilePathManager;
 import com.dukascopy.transport.common.datafeed.FileAlreadyExistException;
 import com.dukascopy.transport.common.datafeed.FileType;
 import com.dukascopy.transport.common.datafeed.KeyNotFoundException;
@@ -29,6 +43,9 @@ import com.dukascopy.transport.common.msg.strategy.FileItem.AccessType;
 import com.dukascopy.transport.common.msg.strategy.StrategyParameter;
 
 public class CurvesProtocolHandler implements ICurvesProtocolHandler {
+	private Logger LOGGER = LoggerFactory.getLogger(CurvesProtocolHandler.class);
+
+	private String historyServerUrl = "file:///C:\\Users\\Sony\\Local Settings\\JForex\\.cache\\";
 
 	@Override
 	public void close() {
@@ -118,11 +135,81 @@ public class CurvesProtocolHandler implements ICurvesProtocolHandler {
 	}
 
 	@Override
-	public Data[] loadFile(Instrument arg0, Period arg1, OfferSide arg2,
-			long arg3, LoadingProgressListener arg4)
+	public Data[] loadFile(Instrument instrument, Period period, OfferSide side,
+			long chunkStart, LoadingProgressListener loadingProgress)
 			throws NotConnectedException, DataCacheException {
-		// TODO Auto-generated method stub
-		throw new UnsupportedOperationException();
+	    {
+	        long firstChunkCandle;
+	        String fileName;
+	        firstChunkCandle = DataCacheUtils.getFirstCandleInChunkFast(period, chunkStart);
+	        if(DataCacheUtils.getChunkEnd(period, firstChunkCandle) < FeedDataProvider.getDefaultInstance().getTimeOfFirstCandle(instrument, period))
+	            return new Data[0];
+	        fileName = DataCacheUtils.getChunkFile(instrument, period, side, firstChunkCandle, 5).getPath();
+	        Data dataArray[];
+	        byte bytesData[] = new byte[0];
+//	        try {
+//		        ByteArrayOutputStream os = new ByteArrayOutputStream();
+//		        URL fileUrl = new URL((new StringBuilder()).append(historyServerUrl).append(fileName.substring(FilePathManager.getInstance().getCacheDirectory().length()).replace('\\', '/')).toString());
+//				StratUtils.returnURL(fileUrl, os);
+//		        bytesData = os.toByteArray();
+//		        os.close();
+		        bytesData = StratUtils.readFile(fileName);
+//			} catch (IOException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
+	        if(bytesData.length != 0)
+	        {
+	            ByteArrayInputStream is = new ByteArrayInputStream(bytesData);
+	            int propertiesSize = 5;
+	            byte properties[] = new byte[propertiesSize];
+	            int readBytes;
+	            int i;
+	            for(readBytes = 0; (i = is.read(properties, readBytes, properties.length - readBytes)) > -1 && readBytes < properties.length; readBytes += i);
+	            if(readBytes != propertiesSize)
+	                throw new DataCacheException("7ZIP: input .lzma file is too short");
+	            Decoder decoder = new Decoder();
+	            if(!decoder.SetDecoderProperties(properties))
+	                throw new DataCacheException("7ZIP: Incorrect stream properties");
+	            long outSize = 0L;
+	            for(i = 0; i < 8; i++)
+	            {
+	                int v = is.read();
+	                if(v < 0)
+	                    throw new DataCacheException("7ZIP: Can't read stream size");
+	                outSize |= (long)v << 8 * i;
+	            }
+
+	            ByteArrayOutputStream bos = new ByteArrayOutputStream((int)outSize);
+	            try {
+					if(!decoder.Code(is, bos, outSize))
+					    throw new DataCacheException((new StringBuilder()).append("Cannot decode 7zip compressed file [").append(fileName).append("]").toString());
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+	            bytesData = bos.toByteArray();
+	        }
+	        dataArray = CurvesProtocolUtil.bytesToChunkData(bytesData, period, 5, firstChunkCandle, instrument.getPipValue());
+	        if(LOGGER.isTraceEnabled())
+	        {
+	            DateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss SSS");
+	            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+	            String logMessage = (new StringBuilder()).append("Data file downloaded, size [").append(dataArray.length).append("]").toString();
+	            if(dataArray.length > 0)
+	                logMessage = (new StringBuilder()).append(logMessage).append(", first data time [").append(dateFormat.format(new Date(dataArray[0].time))).append("], last data time [").append(dateFormat.format(new Date(dataArray[dataArray.length - 1].time))).append("]").toString();
+	            LOGGER.trace(logMessage);
+	        }
+	        if(dataArray.length > 0)
+	        {
+	            long lastTime = dataArray[0].time;
+	            for(int i = 1; i < dataArray.length; i++)
+	                if(dataArray[i].time < lastTime)
+	                    throw new DataCacheException("Data consistency error, not sorted");
+
+	        }
+	        return dataArray;
+	    }
 	}
 
 	@Override
@@ -193,6 +280,8 @@ public class CurvesProtocolHandler implements ICurvesProtocolHandler {
 
 	public static void main(String[] args) {
 		try {
+				new CurvesProtocolHandler().loadFile(Instrument.GAZP, Period.TICK, OfferSide.ASK, 0, null);
+			
 			Data[] result = new CurvesProtocolHandler().loadInProgressCandle(Instrument.GAZP, 0, null);
 			System.out.println(DateFormat.getDateTimeInstance().format(result[0].getTime()) + "X" + DateFormat.getDateTimeInstance().format(new Date(DataCacheUtils.getCandleStartFast(Period.MONTHLY, result[0].getTime()))));
 			System.out.println(DateFormat.getDateTimeInstance().format(result[2].getTime()) + "X" + DateFormat.getDateTimeInstance().format(new Date(DataCacheUtils.getCandleStartFast(Period.WEEKLY, result[2].getTime()))));
@@ -226,6 +315,7 @@ public class CurvesProtocolHandler implements ICurvesProtocolHandler {
 			LoadingProgressListener arg2) throws StorageException,
 			FileAlreadyExistException {
 		// TODO Auto-generated method stub
+		System.out.println("UploadFile");
 		return null;
 	}
 

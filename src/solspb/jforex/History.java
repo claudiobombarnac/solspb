@@ -68,25 +68,13 @@ import org.slf4j.LoggerFactory;
 /*      */   protected Currency accountCurrency;
 /*      */   protected FeedDataProvider feedDataProvider;
 /*      */ 
-/*      */   public History(IOrdersProvider ordersProvider, Currency accountCurrency)
+/*      */   public History(FeedDataProvider feedDataProvider)
 /*      */   {
 /*   67 */     DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
 /*      */ 
 /*   73 */     this.ordersHistoryRequestSent = new AtomicBoolean();
 /*      */ 
-/*   76 */     this.feedDataProvider = FeedDataProvider.getDefaultInstance();
-/*      */ 
-/*   79 */     this.ordersProvider = ordersProvider;
-/*   80 */     this.accountCurrency = accountCurrency;
-/*      */   }
-/*      */ 
-/*      */   protected History(int noNeedToInitializeAnythingForTests)
-/*      */   {
-/*   67 */     DATE_FORMAT.setTimeZone(TimeZone.getTimeZone("GMT"));
-/*      */ 
-/*   73 */     this.ordersHistoryRequestSent = new AtomicBoolean();
-/*      */ 
-/*   76 */     this.feedDataProvider = FeedDataProvider.getDefaultInstance();
+/*   76 */     this.feedDataProvider = feedDataProvider;
 /*      */   }
 /*      */ 
 /*      */   public long getTimeOfLastTick(Instrument instrument)
@@ -167,8 +155,7 @@ import org.slf4j.LoggerFactory;
 //}
 
 /*      */   public IBar getCurrentBar(Instrument instrument, Period period, OfferSide side) throws DataCacheException {
-///*  158 */     CandleData candle = this.feedDataProvider.getInProgressCandleBlocking(instrument, period, side);
-/*  158 */     CandleData candle = this.feedDataProvider.getInProgressCandle(instrument, period, side);
+/*  158 */     CandleData candle = this.feedDataProvider.getInProgressCandleBlocking(instrument, period, side);
 /*  159 */     if (candle == null) {
 /*  160 */       return null;
 /*      */     }

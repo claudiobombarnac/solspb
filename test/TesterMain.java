@@ -19,6 +19,13 @@ import solspb.jforex.TaskManager;
 import solspb.jforex.TaskManager.Environment;
 import solspb.jforex.TesterFeedDataProvider;
 
+import artist.api.BrokerInt;
+import artist.api.ContextLoader;
+import artist.api.IContext;
+import artist.api.beans.Queue;
+import artist.api.beans.Quote;
+import artist.api.beans.Tick;
+
 import com.dukascopy.api.IBar;
 import com.dukascopy.api.IConsole;
 import com.dukascopy.api.Instrument;
@@ -78,7 +85,7 @@ public class TesterMain {
 
         testerFeedDataProvider.setInstrumentsSubscribed(instruments);
         FeedDataProvider.getDefaultInstance().setInstrumentsSubscribed(instruments);
-        TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, testerFeedDataProvider, null,null,null,null,null,null, null, null);
+        TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, testerFeedDataProvider, null, null,null,null,null,null, null, null);
         LOGGER.info("Subscribing instruments...");
         
         //start the strategy
@@ -92,22 +99,19 @@ public class TesterMain {
         	}
         }.start();
         
+        IContext ctx = ContextLoader.getInstance();
+        BrokerInt broker = ctx.getBroker();
 //        CandleData d = (CandleData)FeedDataProvider.getDefaultInstance().getLastCandle(Instrument.LKOH, Period.ONE_MIN, OfferSide.BID);
 //        for (int i = 0; i < 1000; i++)
 //        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, d, d);
-        for (int i = 0; i < 1000; i++) {
-        	testerFeedDataProvider.tickReceived(Instrument.GAZP, System.currentTimeMillis(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random());
-        	long time = DataCacheUtils.getNextCandleStartFast(Period.ONE_MIN, System.currentTimeMillis() + 100000);
-//        	testerFeedDataProvider.barsReceived(Instrument.GAZP, Period.ONE_MIN, new IntraPeriodCandleData(false, time, 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()), new IntraPeriodCandleData(false, time, 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()));
-        }
-        for (int i = 0; i < 1000; i++) {
-//        	testerFeedDataProvider.barsReceived(Instrument.GAZP, Period.ONE_MIN, new IntraPeriodCandleData(false, System.currentTimeMillis(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()), new IntraPeriodCandleData(false, System.currentTimeMillis(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()));
+        for (int i = 0; i < 100000; i++) {
+        	Tick tick = broker.getTick("GAZP");
+        	testerFeedDataProvider.tickReceived(Instrument.GAZP, tick.time, tick.ask, tick.bid, tick.askVol, tick.bidVol);
+        	long time = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, System.currentTimeMillis());
+        	testerFeedDataProvider.barsReceived(Instrument.GAZP, Period.ONE_SEC, new IntraPeriodCandleData(false, time, 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()), new IntraPeriodCandleData(false, time, 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()));
             manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
-//            manager.onMarketState(new ADStockMarket("LKOH", BigDecimal.valueOf(10*Math.random()), BigDecimal.valueOf(10*Math.random())));
-            Thread.sleep(1000);
         }
 
-        Thread.sleep(120000);
         manager.stopStrategy();
     }
 }

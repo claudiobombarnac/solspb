@@ -35,6 +35,7 @@ import com.dukascopy.api.system.IStrategyExceptionHandler;
 import com.dukascopy.charts.data.datacache.CandleData;
 import com.dukascopy.charts.data.datacache.LiveCandleListener;
 import com.dukascopy.charts.data.datacache.TickData;
+import com.dukascopy.charts.data.orders.OrdersProvider;
 import com.dukascopy.charts.main.interfaces.DDSChartsController;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
 import com.dukascopy.transport.client.TransportClient;
@@ -94,7 +95,7 @@ public class TaskManager
         requiredInstruments = new HashSet();
         
         {
-            history = new History(0);
+            history = new History(feedProvider);
             this.console = console;
             this.transportClient = transportClient;
             this.ddsChartsController = ddsChartsController;
@@ -233,7 +234,7 @@ public class TaskManager
             public Long call()
                 throws Exception
             {
-                Context forexContextImpl = new Context(strategyProcessor, forexEngineImpl, new History(0), console, ddsChartsController, userInterface);
+                Context forexContextImpl = new Context(strategyProcessor, forexEngineImpl, history, console, ddsChartsController, userInterface);
                 strategyId = strategyProcessor.getStrategyId();
                 runningStrategy = strategyProcessor;
                 LOGGER.info("Strategy is started: " + runningStrategy.getStrategy());

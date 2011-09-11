@@ -36,11 +36,10 @@ public class MA6_Play implements solspb.jforex.IStrategy {
     }
 
     public void onTick(Instrument instrument, ITick tick) throws JFException {
-    	System.out.println("OnBar");
     	if (ma1[instrument.ordinal()] == -1) {
-            ma1[instrument.ordinal()] = indicators.ema(instrument, Period.ONE_SEC, OfferSide.BID, IIndicators.AppliedPrice.MEDIAN_PRICE, 7, 1);
+            ma1[instrument.ordinal()] = indicators.ema(instrument, Period.TEN_SECS, OfferSide.BID, IIndicators.AppliedPrice.MEDIAN_PRICE, 7, 1);
         }
-        double ma0 = indicators.ema(instrument, Period.ONE_SEC, OfferSide.BID, IIndicators.AppliedPrice.MEDIAN_PRICE, 3, 0);
+        double ma0 = indicators.ema(instrument, Period.TEN_SECS, OfferSide.BID, IIndicators.AppliedPrice.MEDIAN_PRICE, 3, 0);
         if (ma0 == 0 || ma1[instrument.ordinal()] == 0) {
             ma1[instrument.ordinal()] = ma0;
             return;
@@ -62,7 +61,6 @@ public class MA6_Play implements solspb.jforex.IStrategy {
     }
 
     public void onBar(Instrument instrument, Period period, IBar askBar, IBar bidBar) {
-    	System.out.println("OnBar");
     }
 
     //count open positions

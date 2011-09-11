@@ -2586,7 +2586,6 @@ public IBar getLastCandle(Instrument instrument, Period period, OfferSide side) 
 			return null;
 	}
 	CandleData data = new CandleData(lastQuote.getDate().getTime(), lastQuote.getOpen(), lastQuote.getClose(), lastQuote.getLow(), lastQuote.getHi(), lastQuote.getVol());
-	System.out.println(data.toString());
 	return data;
 } }
 
