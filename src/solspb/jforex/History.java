@@ -25,6 +25,7 @@ import com.dukascopy.api.impl.HistoryOrder;
 /*      */ import com.dukascopy.charts.data.datacache.CandleData;
 /*      */ import com.dukascopy.charts.data.datacache.DataCacheException;
 /*      */ import com.dukascopy.charts.data.datacache.DataCacheUtils;
+import com.dukascopy.charts.data.datacache.FeedDataProvider;
 /*      */ import com.dukascopy.charts.data.datacache.LiveFeedListener;
 /*      */ import com.dukascopy.charts.data.datacache.LoadingProgressAdapter;
 /*      */ import com.dukascopy.charts.data.datacache.OrderHistoricalData;
@@ -161,17 +162,18 @@ import org.slf4j.LoggerFactory;
 /*      */     }
 /*      */   }
 /*      */ 
-/*      */   public IBar getCurrentBar(Instrument instrument, Period period, OfferSide side) throws DataCacheException {
-			   return this.feedDataProvider.getLastCandle(instrument, period, side);
-}
-
 ///*      */   public IBar getCurrentBar(Instrument instrument, Period period, OfferSide side) throws DataCacheException {
+//			   return this.feedDataProvider.getLastCandle(instrument, period, side);
+//}
+
+/*      */   public IBar getCurrentBar(Instrument instrument, Period period, OfferSide side) throws DataCacheException {
 ///*  158 */     CandleData candle = this.feedDataProvider.getInProgressCandleBlocking(instrument, period, side);
-///*  159 */     if (candle == null) {
-///*  160 */       return null;
-///*      */     }
-///*  162 */     return new CandleData(candle.time, candle.open, candle.close, candle.low, candle.high, candle.vol);
-///*      */   }
+/*  158 */     CandleData candle = this.feedDataProvider.getInProgressCandle(instrument, period, side);
+/*  159 */     if (candle == null) {
+/*  160 */       return null;
+/*      */     }
+/*  162 */     return new CandleData(candle.time, candle.open, candle.close, candle.low, candle.high, candle.vol);
+/*      */   }
 /*      */ 
 /*      */   public IBar getHistoryBarBlocking(Instrument instrument, Period period, OfferSide side, int shift) throws JFException
 /*      */   {
