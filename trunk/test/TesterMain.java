@@ -1,53 +1,44 @@
 
 
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.Set;
 
-import jforex.Arnab2;
-import jforex.AutoTrader_Demo;
-import jforex.BKJAN;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import solspb.jforex.ADCurrencyMarket;
 import solspb.jforex.ADStockMarket;
 import solspb.jforex.CurvesProtocolHandler;
 import solspb.jforex.TaskManager;
-import solspb.jforex.TaskManager.Environment;
 import solspb.jforex.TesterFeedDataProvider;
-
+import solspb.jforex.TaskManager.Environment;
 import artist.api.BrokerInt;
 import artist.api.ContextLoader;
 import artist.api.IContext;
-import artist.api.beans.Queue;
-import artist.api.beans.Quote;
 import artist.api.beans.Tick;
 
-import com.dukascopy.api.IBar;
 import com.dukascopy.api.IConsole;
 import com.dukascopy.api.Instrument;
-import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.Period;
 import com.dukascopy.api.impl.connect.IndicatorsSettingsStorage;
 import com.dukascopy.api.impl.connect.PrintStreamNotificationUtils;
-import com.dukascopy.charts.data.datacache.CandleData;
 import com.dukascopy.charts.data.datacache.DataCacheException;
 import com.dukascopy.charts.data.datacache.DataCacheUtils;
 import com.dukascopy.charts.data.datacache.FeedDataProvider;
 import com.dukascopy.charts.data.datacache.IntraPeriodCandleData;
 import com.dukascopy.charts.data.orders.OrdersProvider;
 import com.dukascopy.charts.math.indicators.IndicatorsProvider;
-import com.dukascopy.dds2.greed.agent.strategy.tester.TesterOrdersProvider;
 import com.dukascopy.dds2.greed.util.NotificationUtilsProvider;
-import com.dukascopy.transport.common.msg.request.CurrencyMarket;
 
 public class TesterMain {
     private static final Logger LOGGER = LoggerFactory.getLogger(TesterMain.class);
 
     public static void main(String[] args) throws Exception {
+        InputStream is = ClassLoader.getSystemResourceAsStream("system.properties");
+        System.getProperties().load(is);
+        is.close();
         LOGGER.info("Connecting...");
         IConsole console = new IConsole() {
 
