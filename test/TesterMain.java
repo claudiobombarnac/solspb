@@ -14,9 +14,13 @@ import solspb.jforex.CurvesProtocolHandler;
 import solspb.jforex.TaskManager;
 import solspb.jforex.TesterFeedDataProvider;
 import solspb.jforex.TaskManager.Environment;
+import artist.api.BaseThread;
 import artist.api.BrokerInt;
 import artist.api.ContextLoader;
 import artist.api.IContext;
+import artist.api.IDataQueue;
+import artist.api.beans.Queue;
+import artist.api.beans.Quote;
 import artist.api.beans.Tick;
 
 import com.dukascopy.api.IConsole;
@@ -76,33 +80,96 @@ public class TesterMain {
 
         testerFeedDataProvider.setInstrumentsSubscribed(instruments);
         FeedDataProvider.getDefaultInstance().setInstrumentsSubscribed(instruments);
-        TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, testerFeedDataProvider, null, null,null,null,null,null, null, null);
+        final TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, testerFeedDataProvider, null, null,null,null,null,null, null, null);
         LOGGER.info("Subscribing instruments...");
         
         //start the strategy
         LOGGER.info("Starting strategy");
 
         manager.startStrategy(new jforex.MA6_Play(), null, "Arnab2", true);
-        new Thread() {
-        	public void run() {
-                FeedDataProvider.getDefaultInstance().connected();
-        		
-        	}
-        }.start();
         
-        IContext ctx = ContextLoader.getInstance();
+                FeedDataProvider.getDefaultInstance().connected();
+        
+        final IContext ctx = ContextLoader.getInstance();
         BrokerInt broker = ctx.getBroker();
 //        CandleData d = (CandleData)FeedDataProvider.getDefaultInstance().getLastCandle(Instrument.LKOH, Period.ONE_MIN, OfferSide.BID);
 //        for (int i = 0; i < 1000; i++)
 //        	manager.newCandle(Instrument.LKOH, Period.ONE_MIN, d, d);
-        for (int i = 0; i < 100000; i++) {
-        	Tick tick = broker.getTick("GAZP");
-        	testerFeedDataProvider.tickReceived(Instrument.GAZP, tick.time, tick.ask, tick.bid, tick.askVol, tick.bidVol);
-        	long time = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, System.currentTimeMillis());
-        	testerFeedDataProvider.barsReceived(Instrument.GAZP, Period.ONE_SEC, new IntraPeriodCandleData(false, time, 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()), new IntraPeriodCandleData(false, time, 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()));
-            manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
-        }
+//        for (int i = 0; i < 1000000; i++) {
+//        	Tick tick = broker.getTick("GAZP");
+//        	testerFeedDataProvider.tickReceived(Instrument.GAZP, tick.time, tick.ask, tick.bid, tick.askVol, tick.bidVol);
+//        	long time = DataCacheUtils.getCandleStartFast(Period.ONE_SEC, System.currentTimeMillis());
+//        	testerFeedDataProvider.barsReceived(Instrument.GAZP, Period.ONE_SEC, new IntraPeriodCandleData(false, time, 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()), new IntraPeriodCandleData(false, time, 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random(), 100*Math.random()));
+//            manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
+//            Thread.sleep(100);
+//        }
 
+        final TesterFeedDataProvider tfp = testerFeedDataProvider;
+
+        BaseThread queueThread = new BaseThread() {
+        	public void tick() {
+                IDataQueue<Queue> dataQueue = (IDataQueue<Queue>)ctx.getQueue(Queue.class);
+                	if (dataQueue.size() == 0)
+        			synchronized(dataQueue) {
+        				try {
+							dataQueue.wait();
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+        			}
+        		while (dataQueue.size() != 0) {
+        			Queue q = dataQueue.pop();
+        	        LOGGER.info("Size" + dataQueue.size() + " price " + q.getPrice());
+                	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), q.getPrice(), q.getPrice(), q.getSellQty(), q.getBuyQty());
+                	manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
+        		}
+        	}
+        	public void tack() {
+        		try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+        	}
+        };
+
+        BaseThread quoteThread = new BaseThread() {
+        	public void tick() {
+                IDataQueue<Quote> dataQueue = (IDataQueue<Quote>)ctx.getQueue(Quote.class);
+                	if (dataQueue.size() == 0) {
+        			synchronized(dataQueue) {
+        				try {
+							dataQueue.wait();
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+        			}
+                }
+        		while (dataQueue.size() != 0) {
+        			Quote q = dataQueue.pop();
+        	        LOGGER.info("Size" + dataQueue.size() + " date " + q.getDate());
+                	tfp.barsReceived(Instrument.fromString(q.getTicker()), Period.ONE_SEC, new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()), new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()));
+                	manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
+                	}
+        	}
+                	public void tack() {
+                		try {
+							Thread.sleep(1000);
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+                	}
+        };
+
+        queueThread.start();
+        quoteThread.start();
+        Thread.sleep(10000);
         manager.stopStrategy();
+        Thread.sleep(10000);
+        queueThread.stopIt();
+        quoteThread.stopIt();
+        FeedDataProvider.getDefaultInstance().disconnected();
     }
 }
