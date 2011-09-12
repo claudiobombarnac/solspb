@@ -1,20 +1,19 @@
 package solspb.client;
 
-import java.io.BufferedReader;
-import java.io.StringReader;
+import java.io.IOException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.StringTokenizer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.dukascopy.api.Period;
 import com.dukascopy.charts.data.datacache.CandleData;
 import com.dukascopy.charts.data.datacache.Data;
 import com.dukascopy.charts.data.datacache.DataCacheUtils;
@@ -70,6 +69,7 @@ public class FinamDataLoader {
     public static CandleData getCandle(String quote, Period period) throws ParseException {
         StringTokenizer st = new StringTokenizer(quote, DELIM);
         Date date = DATE_FORMAT.parse(st.nextToken() + ',' + st.nextToken());
+        System.out.println(DateFormat.getInstance().format(date.getTime()) + "*" + DateFormat.getInstance().format(new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), date.getTime()))));
         date = new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), date.getTime()));
         Double open = Double.parseDouble(st.nextToken());
         Double high = Double.parseDouble(st.nextToken());
@@ -81,7 +81,21 @@ public class FinamDataLoader {
     
     public static Data[] loadData(Calendar from, Calendar to, Market market, String inst, Period period) {
         logger.info("FINAM: " + DateFormat.getDateTimeInstance().format(from.getTime()) + "-" + DateFormat.getDateTimeInstance().format(to.getTime()) + " for " + inst + " " + period);
-    	String response = HTTPRequestPoster.sendGetRequest(FinamDataLoader.SERVER + "/" + getFileName(from, to, inst), getParams(from, to, market, inst, period, Format.DTOHLCV));
+    	String response = null;
+    	try {
+    	    response = HTTPRequestPoster.sendGetRequest(FinamDataLoader.SERVER + "/" + getFileName(from, to, inst), getParams(from, to, market, inst, period, Format.DTOHLCV));
+    	}
+    	catch (IOException e) {
+            System.setProperty("http.proxyHost", "10.10.0.20");
+            System.setProperty("http.proxyPort", "80");
+            try {
+                response = HTTPRequestPoster.sendGetRequest(FinamDataLoader.SERVER + "/" + getFileName(from, to, inst), getParams(from, to, market, inst, period, Format.DTOHLCV));
+            }
+            catch(Exception ex) {
+                e.printStackTrace();
+                return null;
+            }
+    	}
         ArrayList<Data> data = new ArrayList<Data>(); 
             StringTokenizer t = new StringTokenizer(response);
             String quote;
