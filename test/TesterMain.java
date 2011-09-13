@@ -16,6 +16,7 @@ import solspb.jforex.TesterFeedDataProvider;
 import solspb.jforex.TaskManager.Environment;
 import artist.api.BaseThread;
 import artist.api.BrokerInt;
+import artist.api.Constants;
 import artist.api.ContextLoader;
 import artist.api.IContext;
 import artist.api.IDataQueue;
@@ -40,9 +41,6 @@ public class TesterMain {
     private static final Logger LOGGER = LoggerFactory.getLogger(TesterMain.class);
 
     public static void main(String[] args) throws Exception {
-        InputStream is = ClassLoader.getSystemResourceAsStream("system.properties");
-        System.getProperties().load(is);
-        is.close();
         LOGGER.info("Connecting...");
         IConsole console = new IConsole() {
 
@@ -121,7 +119,7 @@ public class TesterMain {
         			Queue q = dataQueue.pop();
         	        LOGGER.info("Size" + dataQueue.size() + " price " + q.getPrice());
                 	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), q.getPrice(), q.getPrice(), q.getSellQty(), q.getBuyQty());
-                	manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
+                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
         		}
         	}
         	public void tack() {
@@ -167,9 +165,9 @@ public class TesterMain {
         quoteThread.start();
         Thread.sleep(10000);
         manager.stopStrategy();
-        Thread.sleep(10000);
         queueThread.stopIt();
         quoteThread.stopIt();
+        ctx.stopIt();
         FeedDataProvider.getDefaultInstance().disconnected();
     }
 }
