@@ -105,57 +105,57 @@ public class TesterMain {
         final TesterFeedDataProvider tfp = testerFeedDataProvider;
 
         BaseThread queueThread = new BaseThread() {
-        	public void tick() {
+        	private double price;
+        	public void tick() throws InterruptedException {
                 IDataQueue<Queue> dataQueue = (IDataQueue<Queue>)ctx.getQueue(Queue.class);
                 	if (dataQueue.size() == 0)
         			synchronized(dataQueue) {
-        				try {
 							dataQueue.wait();
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
         			}
         		while (dataQueue.size() != 0) {
         			Queue q = dataQueue.pop();
-        	        LOGGER.info("Size" + dataQueue.size() + " price " + q.getPrice());
-                	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), q.getPrice(), q.getPrice(), q.getSellQty(), q.getBuyQty());
-                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
-        		}
+        			if (q.getPrice() > price && q.getBuyQty() > 0) {
+	        	        LOGGER.info("Buy " + q.getBuyQty() + " price " + q.getPrice());
+	                	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), q.getPrice(), price, q.getSellQty(), q.getBuyQty());
+	                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
+	                	price = q.getPrice();
+        			}
+        			else if (q.getPrice() < price && q.getSellQty() > 0) {
+	        	        LOGGER.info("Sell " + q.getSellQty() + " price " + q.getPrice());
+	                	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), price, q.getPrice(), q.getSellQty(), q.getBuyQty());
+	                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
+	                	price = q.getPrice();        			
+	                	}
+        			}
         	}
         	public void tack() {
         		try {
 					Thread.sleep(1000);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
         	}
         };
 
         BaseThread quoteThread = new BaseThread() {
-        	public void tick() {
+        	public void tick() throws InterruptedException {
                 IDataQueue<Quote> dataQueue = (IDataQueue<Quote>)ctx.getQueue(Quote.class);
                 	if (dataQueue.size() == 0) {
         			synchronized(dataQueue) {
-        				try {
 							dataQueue.wait();
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
         			}
                 }
         		while (dataQueue.size() != 0) {
         			Quote q = dataQueue.pop();
         	        LOGGER.info("Size" + dataQueue.size() + " date " + q.getDate());
                 	tfp.barsReceived(Instrument.fromString(q.getTicker()), Period.ONE_SEC, new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()), new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()));
-                	manager.onMarketState(new ADStockMarket("GAZP", BigDecimal.valueOf(100*Math.random()), BigDecimal.valueOf(100*Math.random())));
+                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
                 	}
         	}
                 	public void tack() {
                 		try {
 							Thread.sleep(1000);
 						} catch (InterruptedException e) {
-							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
                 	}
