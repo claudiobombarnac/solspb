@@ -69,7 +69,6 @@ public class FinamDataLoader {
     public static CandleData getCandle(String quote, Period period) throws ParseException {
         StringTokenizer st = new StringTokenizer(quote, DELIM);
         Date date = DATE_FORMAT.parse(st.nextToken() + ',' + st.nextToken());
-        System.out.println(DateFormat.getInstance().format(date.getTime()) + "*" + DateFormat.getInstance().format(new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), date.getTime()))));
         date = new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), date.getTime()));
         Double open = Double.parseDouble(st.nextToken());
         Double high = Double.parseDouble(st.nextToken());

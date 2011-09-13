@@ -115,13 +115,13 @@ public class TesterMain {
         		while (dataQueue.size() != 0) {
         			Queue q = dataQueue.pop();
         			if (q.getPrice() > price && q.getBuyQty() > 0) {
-	        	        LOGGER.info("Buy " + q.getBuyQty() + " price " + q.getPrice());
+	        	        LOGGER.debug("Buy " + q.getBuyQty() + " price " + q.getPrice());
 	                	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), q.getPrice(), price, q.getSellQty(), q.getBuyQty());
 	                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
 	                	price = q.getPrice();
         			}
         			else if (q.getPrice() < price && q.getSellQty() > 0) {
-	        	        LOGGER.info("Sell " + q.getSellQty() + " price " + q.getPrice());
+	        	        LOGGER.debug("Sell " + q.getSellQty() + " price " + q.getPrice());
 	                	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), price, q.getPrice(), q.getSellQty(), q.getBuyQty());
 	                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
 	                	price = q.getPrice();        			
@@ -147,7 +147,7 @@ public class TesterMain {
                 }
         		while (dataQueue.size() != 0) {
         			Quote q = dataQueue.pop();
-        	        LOGGER.info("Size" + dataQueue.size() + " date " + q.getDate());
+        	        LOGGER.debug("Size" + dataQueue.size() + " date " + q.getDate());
                 	tfp.barsReceived(Instrument.fromString(q.getTicker()), Period.ONE_SEC, new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()), new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()));
                 	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
                 	}
