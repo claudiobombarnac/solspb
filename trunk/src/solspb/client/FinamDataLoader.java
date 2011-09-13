@@ -81,7 +81,9 @@ public class FinamDataLoader {
     
     public static Data[] loadData(Calendar from, Calendar to, Market market, String inst, Period period) {
         logger.info("FINAM: " + DateFormat.getDateTimeInstance().format(from.getTime()) + "-" + DateFormat.getDateTimeInstance().format(to.getTime()) + " for " + inst + " " + period);
-    	String response = null;
+    	if (period == Period.TICK)
+    		return new Data[0];
+        String response = null;
     	try {
     	    response = HTTPRequestPoster.sendGetRequest(FinamDataLoader.SERVER + "/" + getFileName(from, to, inst), getParams(from, to, market, inst, period, Format.DTOHLCV));
     	}
