@@ -555,7 +555,8 @@ com.dukascopy.charts.data.datacache.FeedDataProvider.createFeedDataProvider(cach
 //                for (Quote q  : (ArrayList<Quote>)quoteHistory.clone()) {
 //                    candleListener.newCandle(instrument, period, side, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol());
 //                }
-/*  695 */     LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, false);
+/*  695 */     System.out.println(instrument + ":" + period + ":" + side + ":" + from + ":" + to);
+               LoadDataAction loadDataAction = getLoadCandlesDataAction(instrument, period, side, from, to, candleListener, loadingProgress, false, false);
 /*  696 */     loadDataAction.run();
 /*      */   }
 /*      */ 
