@@ -109,13 +109,18 @@ class Engine extends AbstractEngine
         Date expiration = new Date();
         expiration.setDate(expiration.getDate() + 1);
         if (orderCommand == OrderCommand.BUY) {
-        	broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, price, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
-        	broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, takeProfitPrice, Constants.ORDER_TIMEOUT));
+        	int no = broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, price, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
+            System.out.println("Order " + no + ": " + broker.lastResultMessage());
+        	no = broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, takeProfitPrice, Constants.ORDER_TIMEOUT));
+            System.out.println("Order " + no + ": " + broker.lastResultMessage());
         }
         else {
-        	broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, price, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
-        	broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, takeProfitPrice, Constants.ORDER_TIMEOUT));
+        	int no = broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, price, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
+            System.out.println("Order " + no + ": " + broker.lastResultMessage());
+        	no = broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, takeProfitPrice, Constants.ORDER_TIMEOUT));
+            System.out.println("Order " + no + ": " + broker.lastResultMessage());
         }
+        System.out.println(broker.lastResultMessage());
         orders.add(order);
         return order;
     }

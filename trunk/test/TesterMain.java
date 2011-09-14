@@ -116,13 +116,13 @@ public class TesterMain {
         			Queue q = dataQueue.pop();
         			if (q.getPrice() > price && q.getBuyQty() > 0) {
 	        	        LOGGER.debug("Buy " + q.getBuyQty() + " price " + q.getPrice());
-	                	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), q.getPrice(), price, q.getSellQty(), q.getBuyQty());
+	                	tfp.tickReceived(Instrument.fromString(q.getPaper()), System.currentTimeMillis(), q.getPrice(), price, q.getSellQty(), q.getBuyQty());
 	                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
 	                	price = q.getPrice();
         			}
         			else if (q.getPrice() < price && q.getSellQty() > 0) {
 	        	        LOGGER.debug("Sell " + q.getSellQty() + " price " + q.getPrice());
-	                	tfp.tickReceived(Instrument.fromString(q.getPaper()), q.getLastUpdateMillies().getTime(), price, q.getPrice(), q.getSellQty(), q.getBuyQty());
+	                	tfp.tickReceived(Instrument.fromString(q.getPaper()), System.currentTimeMillis(), price, q.getPrice(), q.getSellQty(), q.getBuyQty());
 	                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
 	                	price = q.getPrice();        			
 	                	}
@@ -138,6 +138,7 @@ public class TesterMain {
         };
 
         BaseThread quoteThread = new BaseThread() {
+            private Quote quote;
         	public void tick() throws InterruptedException {
                 IDataQueue<Quote> dataQueue = (IDataQueue<Quote>)ctx.getQueue(Quote.class);
                 	if (dataQueue.size() == 0) {
@@ -147,10 +148,13 @@ public class TesterMain {
                 }
         		while (dataQueue.size() != 0) {
         			Quote q = dataQueue.pop();
-        	        LOGGER.debug("Size" + dataQueue.size() + " date " + q.getDate());
-                	tfp.barsReceived(Instrument.fromString(q.getTicker()), Period.ONE_SEC, new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()), new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()));
-                	manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
-                	}
+        			if (quote == null || q.getLow() != quote.getLow() || q.getHi() != quote.getHi() || q.getOpen() != quote.getOpen() || q.getClose() != quote.getClose())
+        			{
+        			    LOGGER.debug("Size" + dataQueue.size() + " date " + q.getDate());
+        			    tfp.barsReceived(Instrument.fromString(q.getTicker()), Period.ONE_SEC, new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()), new IntraPeriodCandleData(false, q.getDate().getTime(), q.getOpen(), q.getClose(), q.getLow(), q.getHi(), q.getVol()));
+        			    manager.onMarketState(new ADStockMarket(Constants.PAPER, BigDecimal.ONE, BigDecimal.ONE));
+        			}
+        			}
         	}
                 	public void tack() {
                 		try {
@@ -163,7 +167,7 @@ public class TesterMain {
 
         queueThread.start();
         quoteThread.start();
-        Thread.sleep(10000);
+        Thread.sleep(1000000);
         manager.stopStrategy();
         queueThread.stopIt();
         quoteThread.stopIt();
