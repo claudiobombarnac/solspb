@@ -15,6 +15,7 @@ import java.util.TimeZone;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import solspb.client.ADDataLoader;
 import solspb.client.FinamDataLoader;
 
 import SevenZip.Compression.LZMA.Decoder;
@@ -96,32 +97,9 @@ public class CurvesProtocolHandler implements ICurvesProtocolHandler {
         Calendar tc = new GregorianCalendar();
         tc.setTimeInMillis(to);
 
-        return FinamDataLoader.loadData(fc, tc, translateMarket(Instrument.fromString(inst).getMarket()), inst, translatePeriod(period));
+        return ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(Instrument.fromString(inst).getMarket()), inst, ADDataLoader.translatePeriod(period));
 	}
 
-	private FinamDataLoader.Period translatePeriod(Period p) {
-        if (p == Period.TICK) return FinamDataLoader.Period.TICK;
-        else if (p == Period.ONE_MIN) return FinamDataLoader.Period.ONE_MIN;
-        else if (p == Period.FIVE_MINS) return FinamDataLoader.Period.FIVE_MINS;
-        else if (p == Period.TEN_MINS) return FinamDataLoader.Period.TEN_MINS;
-        else if (p == Period.FIFTEEN_MINS) return FinamDataLoader.Period.FIFTEEN_MINS;
-        else if (p == Period.THIRTY_MINS) return FinamDataLoader.Period.THIRTY_MINS;
-        else if (p == Period.ONE_HOUR) return FinamDataLoader.Period.ONE_HOUR;
-        else if (p == Period.DAILY) return FinamDataLoader.Period.DAILY;
-        else if (p == Period.WEEKLY) return FinamDataLoader.Period.WEEKLY;
-        else if (p == Period.MONTHLY) return FinamDataLoader.Period.MONTHLY;
-        else throw new UnsupportedOperationException("Period " + p + " is not supported");
-    }	    
-    private FinamDataLoader.Market translateMarket(String market) {
-        if ("FOREX".equals(market))
-            return FinamDataLoader.Market.FOREX;
-        else if ("MICEX".equals(market))
-            return FinamDataLoader.Market.MICEX_STOCKS;
-        else if ("FORTS".equals(market))
-            return FinamDataLoader.Market.FORTS;
-        else throw new UnsupportedOperationException("Market " + market + " is not supported");
-    }
-	
 	@Override
 	public Data[] loadData(Instrument inst, Period period, OfferSide offerSide,
 			long from, long to, boolean dontKnow, LoadingProgressListener lpListener)
@@ -131,7 +109,7 @@ public class CurvesProtocolHandler implements ICurvesProtocolHandler {
         Calendar tc = new GregorianCalendar();
 	    tc.setTimeInMillis(to);
 
-		return FinamDataLoader.loadData(fc, tc, translateMarket(inst.getMarket()), inst.name(), translatePeriod(period));
+		return ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(inst.getMarket()), inst.name(), ADDataLoader.translatePeriod(period));
 	}
 
 	@Override
@@ -219,39 +197,39 @@ public class CurvesProtocolHandler implements ICurvesProtocolHandler {
 	    Calendar fc = new GregorianCalendar();
 	    fc.add(Calendar.MONTH, -2);
         Calendar tc = new GregorianCalendar();
-		Data[] monthly = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.MONTHLY));
+		Data[] monthly = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.MONTHLY));
 
 		fc = new GregorianCalendar();
 		fc.add(Calendar.WEEK_OF_YEAR, -2);
-		Data[] weekly = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.WEEKLY));
+		Data[] weekly = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.WEEKLY));
 
 		fc = new GregorianCalendar();
 		fc.add(Calendar.DAY_OF_YEAR, -2);
-		Data[] daily = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.DAILY));
+		Data[] daily = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.DAILY));
 
 		fc = new GregorianCalendar();
 		fc.add(Calendar.HOUR_OF_DAY, -2);
-		Data[] onehour = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.ONE_HOUR));
+		Data[] onehour = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.ONE_HOUR));
 
 		fc = new GregorianCalendar();
 		fc.add(Calendar.HOUR_OF_DAY, -1);
-		Data[] thirtymin = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.THIRTY_MINS));
+		Data[] thirtymin = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.THIRTY_MINS));
 
 		fc = new GregorianCalendar();
 		fc.add(Calendar.MINUTE, -30);
-		Data[] fifteenmin = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.FIFTEEN_MINS));
+		Data[] fifteenmin = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.FIFTEEN_MINS));
 
 		fc = new GregorianCalendar();
 		fc.add(Calendar.MINUTE, -20);
-		Data[] tenmin = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.TEN_MINS));
+		Data[] tenmin = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.TEN_MINS));
 
 		fc = new GregorianCalendar();
 		fc.add(Calendar.MINUTE, -10);
-		Data[] fivemin = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.FIVE_MINS));
+		Data[] fivemin = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.FIVE_MINS));
 
 		fc = new GregorianCalendar();
 		fc.add(Calendar.MINUTE, -2);
-		Data[] onemin = FinamDataLoader.loadData(fc, tc, translateMarket(arg0.getMarket()), arg0.name(), translatePeriod(Period.ONE_MIN));
+		Data[] onemin = ADDataLoader.loadData(fc, tc, ADDataLoader.translateMarket(arg0.getMarket()), arg0.name(), ADDataLoader.translatePeriod(Period.ONE_MIN));
 		
 		return new Data[] {
 				monthly.length > 0 ? monthly[0] : null, 

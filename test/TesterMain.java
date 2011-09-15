@@ -72,7 +72,8 @@ public class TesterMain {
         Set<Instrument> instruments = new HashSet<Instrument>();
         instruments.add(Instrument.LKOH);
         instruments.add(Instrument.GAZP);
-
+        instruments.add(Instrument.SBER3);
+        
         testerFeedDataProvider.setInstrumentsSubscribed(instruments);
         FeedDataProvider.getDefaultInstance().setInstrumentsSubscribed(instruments);
         final TaskManager manager = new TaskManager(Environment.REMOTE, true, "sol", console, testerFeedDataProvider, null, null,null,null,null,null, null, null);
@@ -164,7 +165,7 @@ public class TesterMain {
 
         queueThread.start();
         quoteThread.start();
-        Thread.sleep(1000000);
+        Thread.sleep(10000000);
         manager.stopStrategy();
         queueThread.stopIt();
         quoteThread.stopIt();

@@ -40,6 +40,8 @@ class Engine extends AbstractEngine
     implements IEngine
 {
 	private static final int MAX_ORDER = 100;
+	private static final boolean NO_DEALS = false;
+	private static final int MAX_TOTAL = 20000;
 	private BrokerInt broker;
     private List<IOrder> orders = new ArrayList<IOrder>();
 
@@ -102,13 +104,20 @@ class Engine extends AbstractEngine
     }
 
     private static int orderId = 1;
+    private static long orderTotal = 0;
+    
     public IOrder submitOrder(String label, Instrument instrument, com.dukascopy.api.IEngine.OrderCommand orderCommand, double amount, double price, 
             double slippage, double stopLossPrice, double takeProfitPrice, long goodTillTime, String comment)
         throws JFException
     {
     	SubmitOrder order = new SubmitOrder(instrument, String.valueOf(orderId++), orderCommand);
+    	orderTotal += price * amount;
         System.out.println(orderCommand.toString() + orderId + "PRICE " + price + " STOP-LOSS: " + stopLossPrice + " TAKE-PROFIT: " + takeProfitPrice);
         if (orderId > MAX_ORDER)
+        	return order;
+        if (orderTotal > MAX_TOTAL)
+        	return order;
+        if (NO_DEALS)
         	return order;
         Date expiration = new Date();
         expiration.setDate(expiration.getDate() + 1);
