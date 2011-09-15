@@ -82,10 +82,10 @@ import com.dukascopy.charts.data.datacache.IntraPeriodCandleData;
 	    
 	    public static void main(String[] args) {
 	    	loadData(new GregorianCalendar(2011,8,1), new GregorianCalendar(2011,8,30), Constants.PLACE_CODE, "SBER3", 0);
+	    	loadData(new GregorianCalendar(2011,8,1), new GregorianCalendar(2011,8,30), Constants.PLACE_CODE, "SBER3", 0);	    	
 	    }
 	    
 	    public static Data[] loadData(Calendar from, Calendar to, String market, String inst, int period) {
-	    	from.add(Calendar.MONTH, -1);
 	        logger.info("AD: " + DateFormat.getDateTimeInstance().format(from.getTime()) + "-" + DateFormat.getDateTimeInstance().format(to.getTime()) + " for " + inst + " " + period);
 	        String response = broker.getArchiveFinInfo(market, inst, period, from.getTime(), to.getTime(), 3, 50);
 	        ArrayList<Data> data = new ArrayList<Data>(); 
