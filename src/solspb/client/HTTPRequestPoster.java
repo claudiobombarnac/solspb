@@ -12,6 +12,7 @@ import java.net.HttpURLConnection;
 import java.net.ProtocolException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.Charset;
 
 public class HTTPRequestPoster
 {

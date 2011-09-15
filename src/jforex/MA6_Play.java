@@ -13,6 +13,7 @@ import com.dukascopy.api.Instrument;
 import com.dukascopy.api.JFException;
 import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.Period;
+import com.dukascopy.api.IEngine.OrderCommand;
 
 public class MA6_Play implements solspb.jforex.IStrategy {
     private IEngine engine = null;
@@ -38,9 +39,9 @@ public class MA6_Play implements solspb.jforex.IStrategy {
     public void onTick(Instrument instrument, ITick tick) throws JFException {
         System.out.println("onTick");
     	if (ma1[instrument.ordinal()] == -1) {
-            ma1[instrument.ordinal()] = indicators.ema(instrument, Period.TEN_SECS, OfferSide.BID, IIndicators.AppliedPrice.MEDIAN_PRICE, 7, 1);
+            ma1[instrument.ordinal()] = indicators.ema(instrument, Period.ONE_HOUR, OfferSide.BID, IIndicators.AppliedPrice.MEDIAN_PRICE, 7, 1);
         }
-        double ma0 = indicators.ema(instrument, Period.TEN_SECS, OfferSide.BID, IIndicators.AppliedPrice.MEDIAN_PRICE, 3, 0);
+        double ma0 = indicators.ema(instrument, Period.ONE_HOUR, OfferSide.BID, IIndicators.AppliedPrice.MEDIAN_PRICE, 3, 0);
         if (ma0 == 0 || ma1[instrument.ordinal()] == 0) {
             ma1[instrument.ordinal()] = ma0;
             return;
@@ -48,13 +49,13 @@ public class MA6_Play implements solspb.jforex.IStrategy {
 
         double diff = (ma1[instrument.ordinal()] - ma0) / (instrument.getPipValue());
 
-        if (positionsTotal(instrument) == 0) {
+        if (positionsTotal(instrument, diff > 1 ? OrderCommand.SELL : OrderCommand.BUY) == 0) {
             if (diff > 1) {
-                engine.submitOrder(getLabel(instrument), instrument, IEngine.OrderCommand.SELL, 10, 0, 0, tick.getAsk()
+                engine.submitOrder(getLabel(instrument), instrument, IEngine.OrderCommand.SELL, 10, tick.getAsk(), 2, tick.getAsk()
                         + instrument.getPipValue() * 100, tick.getAsk() - instrument.getPipValue() * 30);
             }
             if (diff < -1) {
-                engine.submitOrder(getLabel(instrument), instrument, IEngine.OrderCommand.BUY, 10, 0, 0, tick.getBid()
+                engine.submitOrder(getLabel(instrument), instrument, IEngine.OrderCommand.BUY, 10, tick.getBid(), 2, tick.getBid()
                         - instrument.getPipValue() * 100, tick.getBid() + instrument.getPipValue() * 30);
             }
         }
@@ -66,11 +67,14 @@ public class MA6_Play implements solspb.jforex.IStrategy {
     }
 
     //count open positions
-    protected int positionsTotal(Instrument instrument) throws JFException {
+    protected int positionsTotal(Instrument instrument, OrderCommand command) throws JFException {
         int counter = 0;
         for (IOrder order : engine.getOrders(instrument)) {
-            if (order.getState() == IOrder.State.FILLED) {
+            if (order.getState() == IOrder.State.FILLED && order.getOrderCommand().equals(command)) {
                 counter++;
+            }
+            else if (order.getState() == IOrder.State.FILLED && !order.getOrderCommand().equals(command)) {
+                counter--;
             }
         }
         return counter;

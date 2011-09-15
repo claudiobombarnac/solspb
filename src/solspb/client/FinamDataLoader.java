@@ -1,6 +1,7 @@
 package solspb.client;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -81,7 +82,7 @@ public class FinamDataLoader {
     public static Data[] loadData(Calendar from, Calendar to, Market market, String inst, Period period) {
         logger.info("FINAM: " + DateFormat.getDateTimeInstance().format(from.getTime()) + "-" + DateFormat.getDateTimeInstance().format(to.getTime()) + " for " + inst + " " + period);
     	if (period == Period.TICK)
-    		return new Data[0];
+    		period = Period.ONE_MIN;
         String response = null;
     	try {
     	    response = HTTPRequestPoster.sendGetRequest(FinamDataLoader.SERVER + "/" + getFileName(from, to, inst), getParams(from, to, market, inst, period, Format.DTOHLCV));
@@ -110,6 +111,8 @@ public class FinamDataLoader {
               }
               catch (Exception e) {
                   logger.error("Failed to parse quote: {}", quote);
+                  System.out.println(new String(quote.getBytes(), Charset.forName("ISO8859_5")));
+                  System.out.println(new String(quote.getBytes(), Charset.forName("Cp866")));
               }
           }
             return data.toArray(new Data[]{});
