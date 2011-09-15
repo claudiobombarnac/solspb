@@ -13,10 +13,12 @@ public class SubmitOrder implements IOrder {
 
 	private Instrument instrument;
 	private String id;
+    private OrderCommand command;
 
-	public SubmitOrder(Instrument instrument, String id) {
+	public SubmitOrder(Instrument instrument, String id, OrderCommand command) {
 		this.instrument = instrument;
 		this.id = id;
+		this.command = command;
 	}
 	@Override
 	public Instrument getInstrument() {
@@ -48,8 +50,7 @@ public class SubmitOrder implements IOrder {
 
 	@Override
 	public OrderCommand getOrderCommand() {
-		// TODO Auto-generated method stub
-		return null;
+		return command;
 	}
 
 	@Override
@@ -183,8 +184,7 @@ public class SubmitOrder implements IOrder {
 
 	@Override
 	public State getState() {
-		// TODO Auto-generated method stub
-		return null;
+		return State.FILLED;
 	}
 
 	@Override

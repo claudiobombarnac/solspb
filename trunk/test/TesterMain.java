@@ -1,6 +1,5 @@
 
 
-import java.io.InputStream;
 import java.io.PrintStream;
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -22,7 +21,6 @@ import artist.api.IContext;
 import artist.api.IDataQueue;
 import artist.api.beans.Queue;
 import artist.api.beans.Quote;
-import artist.api.beans.Tick;
 
 import com.dukascopy.api.IConsole;
 import com.dukascopy.api.Instrument;
@@ -30,7 +28,6 @@ import com.dukascopy.api.Period;
 import com.dukascopy.api.impl.connect.IndicatorsSettingsStorage;
 import com.dukascopy.api.impl.connect.PrintStreamNotificationUtils;
 import com.dukascopy.charts.data.datacache.DataCacheException;
-import com.dukascopy.charts.data.datacache.DataCacheUtils;
 import com.dukascopy.charts.data.datacache.FeedDataProvider;
 import com.dukascopy.charts.data.datacache.IntraPeriodCandleData;
 import com.dukascopy.charts.data.orders.OrdersProvider;

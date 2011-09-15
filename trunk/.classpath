@@ -9,13 +9,13 @@
 	<classpathentry kind="lib" path="lib/slf4j-api-1.5.11.jar"/>
 	<classpathentry kind="lib" path="lib/com4j.jar">
 		<attributes>
-			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="C:/Projects/solspb/lib"/>
+			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="D:/Projects/solspb/lib"/>
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="lib" path="config"/>
 	<classpathentry kind="lib" path="lib/jacob.jar">
 		<attributes>
-			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="C:/Projects/solspb/lib"/>
+			<attribute name="org.eclipse.jdt.launching.CLASSPATH_ATTR_LIBRARY_PATH_ENTRY" value="D:/Projects/solspb/lib"/>
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="output" path="bin"/>
