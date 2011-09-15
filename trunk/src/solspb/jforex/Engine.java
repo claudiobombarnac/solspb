@@ -38,6 +38,7 @@ import com.dukascopy.transport.common.msg.strategy.StrategyBroadcastMessage;
 class Engine extends AbstractEngine
     implements IEngine
 {
+	private static final int MAX_ORDER = 10;
 	private BrokerInt broker;
     private List<IOrder> orders = new ArrayList<IOrder>();
 
@@ -105,19 +106,21 @@ class Engine extends AbstractEngine
         throws JFException
     {
     	SubmitOrder order = new SubmitOrder(instrument, String.valueOf(orderId++));
-        System.out.println(orderCommand + " STOP-LOSS: " + stopLossPrice + " TAKE-PROFIT: " + takeProfitPrice);
+        System.out.println(orderCommand.toString() + orderId + "PRICE " + price + " STOP-LOSS: " + stopLossPrice + " TAKE-PROFIT: " + takeProfitPrice);
+        if (orderId > MAX_ORDER)
+        	return order;
         Date expiration = new Date();
         expiration.setDate(expiration.getDate() + 1);
         if (orderCommand == OrderCommand.BUY) {
-        	int no = broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, price, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
+        	int no = broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, price * 1.05, Constants.ORDER_TIMEOUT));
             System.out.println("Order " + no + ": " + broker.lastResultMessage());
-        	no = broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, takeProfitPrice, Constants.ORDER_TIMEOUT));
+        	no = broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, takeProfitPrice, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
             System.out.println("Order " + no + ": " + broker.lastResultMessage());
         }
         else {
-        	int no = broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, price, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
+        	int no = broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, price * 0.95, Constants.ORDER_TIMEOUT));
             System.out.println("Order " + no + ": " + broker.lastResultMessage());
-        	no = broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, takeProfitPrice, Constants.ORDER_TIMEOUT));
+        	no = broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, takeProfitPrice, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
             System.out.println("Order " + no + ": " + broker.lastResultMessage());
         }
         System.out.println(broker.lastResultMessage());
