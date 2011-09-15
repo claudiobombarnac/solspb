@@ -15,6 +15,7 @@ import java.util.StringTokenizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.dukascopy.api.Period;
 import com.dukascopy.charts.data.datacache.CandleData;
 import com.dukascopy.charts.data.datacache.Data;
 import com.dukascopy.charts.data.datacache.DataCacheUtils;
@@ -53,7 +54,30 @@ public class FinamDataLoader {
                "&dtf=1&tmf=1&MSOR=0&sep=1&sep2=1&datf=" + format.ordinal();
     }
     
-	private static com.dukascopy.api.Period translatePeriod(Period p) {
+	public static FinamDataLoader.Period translatePeriod(com.dukascopy.api.Period p) {
+        if (p == com.dukascopy.api.Period.TICK) return FinamDataLoader.Period.TICK;
+        else if (p == com.dukascopy.api.Period.ONE_MIN) return FinamDataLoader.Period.ONE_MIN;
+        else if (p == com.dukascopy.api.Period.FIVE_MINS) return FinamDataLoader.Period.FIVE_MINS;
+        else if (p == com.dukascopy.api.Period.TEN_MINS) return FinamDataLoader.Period.TEN_MINS;
+        else if (p == com.dukascopy.api.Period.FIFTEEN_MINS) return FinamDataLoader.Period.FIFTEEN_MINS;
+        else if (p == com.dukascopy.api.Period.THIRTY_MINS) return FinamDataLoader.Period.THIRTY_MINS;
+        else if (p == com.dukascopy.api.Period.ONE_HOUR) return FinamDataLoader.Period.ONE_HOUR;
+        else if (p == com.dukascopy.api.Period.DAILY) return FinamDataLoader.Period.DAILY;
+        else if (p == com.dukascopy.api.Period.WEEKLY) return FinamDataLoader.Period.WEEKLY;
+        else if (p == com.dukascopy.api.Period.MONTHLY) return FinamDataLoader.Period.MONTHLY;
+        else throw new UnsupportedOperationException("Period " + p + " is not supported");
+    }	    
+    public static FinamDataLoader.Market translateMarket(String market) {
+        if ("FOREX".equals(market))
+            return FinamDataLoader.Market.FOREX;
+        else if ("MICEX".equals(market))
+            return FinamDataLoader.Market.MICEX_STOCKS;
+        else if ("FORTS".equals(market))
+            return FinamDataLoader.Market.FORTS;
+        else throw new UnsupportedOperationException("Market " + market + " is not supported");
+    }
+	
+    public static com.dukascopy.api.Period translatePeriod(Period p) {
         if (p == Period.TICK) return com.dukascopy.api.Period.TICK;
         else if (p == Period.ONE_MIN) return com.dukascopy.api.Period.ONE_MIN;
         else if (p == Period.FIVE_MINS) return com.dukascopy.api.Period.FIVE_MINS;
