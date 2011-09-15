@@ -59,7 +59,8 @@ public enum Instrument {
     ZARJPY(Currency.getInstance("ZAR"), Currency.getInstance("JPY"), 0.0001, 4),
     
     LKOH("LKOH", 0.01, "MICEX"),
-    GAZP("GAZP", 0.01, "MICEX");
+    GAZP("GAZP", 0.01, "MICEX"),
+    SBER3("SBER3", 0.01, "MICEX");
 
     private Currency primaryCurrency;
     private Currency secondaryCurrency;
