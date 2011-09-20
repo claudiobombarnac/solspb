@@ -11,6 +11,7 @@
 	import java.util.GregorianCalendar;
 	import java.util.HashMap;
 	import java.util.StringTokenizer;
+import java.util.TimeZone;
 
 	import org.slf4j.Logger;
 	import org.slf4j.LoggerFactory;
@@ -19,18 +20,22 @@ import artist.api.BrokerInt;
 import artist.api.Constants;
 import artist.api.ContextLoader;
 
+import com.dukascopy.api.Instrument;
 	import com.dukascopy.charts.data.datacache.CandleData;
 	import com.dukascopy.charts.data.datacache.Data;
 	import com.dukascopy.charts.data.datacache.DataCacheUtils;
 import com.dukascopy.charts.data.datacache.IntraPeriodCandleData;
+import com.sun.org.apache.bcel.internal.generic.NEW;
 
 	public class ADDataLoader {
-	    private static final DateFormat DATE_FORMAT = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+	    private static final DateFormat DATETIME_FORMAT = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+	    private static final DateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy");
 	    private static final String DELIM = "|";
 	    
 	    private static Logger logger = LoggerFactory.getLogger(ADDataLoader.class);
 	    private static BrokerInt broker = ContextLoader.getInstance().getBroker();
-	    
+        private static int localOffset = broker.sessionTime().getHours() - new GregorianCalendar().get(Calendar.HOUR_OF_DAY);
+//        private static int gmtOffset = broker.sessionTime().getHours() - new GregorianCalendar(TimeZone.getTimeZone("GMT")).get(Calendar.HOUR_OF_DAY);
 	    
 		public static int translatePeriod(com.dukascopy.api.Period p) {
 	        if (p == com.dukascopy.api.Period.TICK) return 0;
@@ -70,24 +75,44 @@ import com.dukascopy.charts.data.datacache.IntraPeriodCandleData;
 	    
 	    public static CandleData getCandle(String quote, int period) throws ParseException {
 	        StringTokenizer st = new StringTokenizer(quote, DELIM);
-	        Date date = DATE_FORMAT.parse(st.nextToken());
-	        date = new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), date.getTime()));
+	        Date date;
+	        String dateStr = st.nextToken();
+	        int periodOffset = 0;
+	        if (period == 0) periodOffset = 60 * 1000;
+	        else if (period == 1) periodOffset = 300 * 1000;
+	        else if (period == 2) periodOffset = 600 * 1000;
+	        else if (period == 3) periodOffset = 900 * 1000;
+	        else if (period == 4) periodOffset = 1800 * 1000;
+            else if (period == 5) periodOffset = 3600 * 1000;
+	        
+            Date d;
+	        if (period < 6) {
+	            d = DATETIME_FORMAT.parse(dateStr);
+	        }
+	        else {
+                d = DATE_FORMAT.parse(dateStr);
+	        }
+            date = new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), d.getTime() - periodOffset));
+
 	        Double open = Double.parseDouble(st.nextToken().replace(",", "."));
 	        Double high = Double.parseDouble(st.nextToken().replace(",", "."));
 	        Double low = Double.parseDouble(st.nextToken().replace(",", "."));
 	        Double close = Double.parseDouble(st.nextToken().replace(",", "."));
 	        Long vol = Long.parseLong(st.nextToken());
+            System.out.println(SimpleDateFormat.getInstance().format(date) + " " + open + " " + close  + " " + low  + " " + high  + " " + vol);	        
 	        return new IntraPeriodCandleData(false, date.getTime(), open, close, low, high, vol);
 	    }
 	    
 	    public static void main(String[] args) {
-	    	loadData(new GregorianCalendar(2011,8,1), new GregorianCalendar(2011,8,30), Constants.PLACE_CODE, "SBER3", 0);
-	    	loadData(new GregorianCalendar(2011,8,1), new GregorianCalendar(2011,8,30), Constants.PLACE_CODE, "SBER3", 0);	    	
+	    	loadData(new GregorianCalendar(2011,8,19, 23, 00), new GregorianCalendar(2011,8,20, 9,00), Constants.PLACE_CODE, "RIZ1", 0);
+            logger.info(broker.lastResultMessage());
 	    }
 	    
 	    public static Data[] loadData(Calendar from, Calendar to, String market, String inst, int period) {
-	        logger.info("AD: " + DateFormat.getDateTimeInstance().format(from.getTime()) + "-" + DateFormat.getDateTimeInstance().format(to.getTime()) + " for " + inst + " " + period);
-	        String response = broker.getArchiveFinInfo(market, inst, period, from.getTime(), to.getTime(), 3, 50);
+//	        from.set(Calendar.HOUR_OF_DAY, 0);
+//	        to.set(Calendar.HOUR_OF_DAY, 23);
+	        logger.info("AD: " + DateFormat.getDateTimeInstance().format(from.getTime()) + " - " + DateFormat.getDateTimeInstance().format(to.getTime()) + " for " + inst + " " + period);
+	        String response = broker.getArchiveFinInfo(market, Instrument.fromString(inst).toString(), period, from.getTime(), to.getTime(), 3, 50);
 	        ArrayList<Data> data = new ArrayList<Data>(); 
 	        if (response == null) return
 	        		new Data[0];
@@ -102,7 +127,7 @@ import com.dukascopy.charts.data.datacache.IntraPeriodCandleData;
 	                  data.add(q);
 	              }
 	              catch (Exception e) {
-	                  logger.error("Failed to parse quote: {}", quote);
+	                  logger.error("Failed to parse quote: {}, period: {}", quote, period);
 	              }
 	          }
 	            return data.toArray(new Data[]{});
