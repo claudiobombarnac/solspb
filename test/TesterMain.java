@@ -73,6 +73,7 @@ public class TesterMain {
         instruments.add(Instrument.LKOH);
         instruments.add(Instrument.GAZP);
         instruments.add(Instrument.SBER3);
+        instruments.add(Instrument.RIZ1);
         
         testerFeedDataProvider.setInstrumentsSubscribed(instruments);
         FeedDataProvider.getDefaultInstance().setInstrumentsSubscribed(instruments);

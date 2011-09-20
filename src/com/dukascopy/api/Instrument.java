@@ -60,7 +60,8 @@ public enum Instrument {
     
     LKOH("LKOH", 0.01, "MICEX"),
     GAZP("GAZP", 0.01, "MICEX"),
-    SBER3("SBER3", 0.01, "MICEX");
+    SBER3("SBER3", 0.01, "MICEX"),
+    RIZ1("RTSI-12.11", 5, "FORTS");
 
     private Currency primaryCurrency;
     private Currency secondaryCurrency;
@@ -113,7 +114,7 @@ public enum Instrument {
 	     */
 	    public static Instrument fromString(String instrumentAsString) {
 	        for (Instrument instrument : values()) {
-	        	if (instrumentAsString.equals(instrument.instrument))
+	        	if (instrumentAsString.equals(instrument.name()) || instrumentAsString.equals(instrument.instrument))
 	        		return instrument;
 	            if (instrument.getPrimaryCurrency() != null && instrument.getSecondaryCurrency() != null && instrumentAsString.equals(instrument.getPrimaryCurrency().getCurrencyCode() + "/" + instrument.getSecondaryCurrency().getCurrencyCode())) {
 	                return instrument;

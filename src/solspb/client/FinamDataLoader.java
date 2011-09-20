@@ -122,6 +122,7 @@ public class FinamDataLoader {
                 return null;
             }
     	}
+        System.out.print(response);    	
         ArrayList<Data> data = new ArrayList<Data>(); 
             StringTokenizer t = new StringTokenizer(response);
             String quote;

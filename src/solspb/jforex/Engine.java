@@ -40,7 +40,7 @@ class Engine extends AbstractEngine
     implements IEngine
 {
 	private static final int MAX_ORDER = 100;
-	private static final boolean NO_DEALS = false;
+	private static final boolean NO_DEALS = true;
 	private static final int MAX_TOTAL = 20000;
 	private BrokerInt broker;
     private List<IOrder> orders = new ArrayList<IOrder>();
@@ -123,15 +123,15 @@ class Engine extends AbstractEngine
         expiration.setDate(expiration.getDate() + 1);
         if (orderCommand == OrderCommand.BUY) {
         	int no = broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, price * 1.05, Constants.ORDER_TIMEOUT));
-            System.out.println("Order " + no + ": " + new String(broker.lastResultMessage().getBytes(), Charset.forName("CP1251")));
+            System.out.println("Order " + no + ": " + new String(broker.lastResultMessage().getBytes(), Charset.forName("UTF-8")));
         	no = broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, takeProfitPrice, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
-            System.out.println("Order " + no + ": " + new String(broker.lastResultMessage().getBytes(), Charset.forName("CP1251")));
+            System.out.println("Order " + no + ": " + new String(broker.lastResultMessage().getBytes(), Charset.forName("UTF-8")));
         }
         else {
         	int no = broker.createOrder(new LimitOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.S, (int)amount, price * 0.95, Constants.ORDER_TIMEOUT));
-            System.out.println("Order " + no + ": " + new String(broker.lastResultMessage().getBytes(), Charset.forName("CP1251")));
+            System.out.println("Order " + no + ": " + new String(broker.lastResultMessage().getBytes(), Charset.forName("UTF-8")));
         	no = broker.createOrder(new StopOrder(Constants.ACCOUNT, Constants.PLACE_CODE, instrument.toString(), expiration, Constants.CURRENCY, OrderType.B, (int)amount, takeProfitPrice, stopLossPrice, slippage, Constants.ORDER_TIMEOUT));
-            System.out.println("Order " + no + ": " + new String(broker.lastResultMessage().getBytes(), Charset.forName("CP1251")));
+            System.out.println("Order " + no + ": " + new String(broker.lastResultMessage().getBytes(), Charset.forName("UTF-8")));
         }
         orders.add(order);
         return order;

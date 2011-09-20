@@ -48,14 +48,14 @@ public class MA6_Play implements solspb.jforex.IStrategy {
         }
 
         double diff = (ma1[instrument.ordinal()] - ma0) / (instrument.getPipValue());
-
+        System.out.print(diff + " ");
         if (positionsTotal(instrument, diff > 1 ? OrderCommand.SELL : OrderCommand.BUY) == 0) {
             if (diff > 1) {
-                engine.submitOrder(getLabel(instrument), instrument, IEngine.OrderCommand.SELL, 10, tick.getAsk(), 2, tick.getAsk()
+                engine.submitOrder(getLabel(instrument), instrument, IEngine.OrderCommand.SELL, 1, tick.getAsk(), 2, tick.getAsk()
                         + instrument.getPipValue() * 100, tick.getAsk() - instrument.getPipValue() * 30);
             }
             if (diff < -1) {
-                engine.submitOrder(getLabel(instrument), instrument, IEngine.OrderCommand.BUY, 10, tick.getBid(), 2, tick.getBid()
+                engine.submitOrder(getLabel(instrument), instrument, IEngine.OrderCommand.BUY, 1, tick.getBid(), 2, tick.getBid()
                         - instrument.getPipValue() * 100, tick.getBid() + instrument.getPipValue() * 30);
             }
         }
