@@ -104,7 +104,7 @@ import com.sun.org.apache.bcel.internal.generic.NEW;
 	    }
 	    
 	    public static void main(String[] args) {
-	    	loadData(new GregorianCalendar(2011,8,19, 23, 00), new GregorianCalendar(2011,8,20, 9,00), Constants.PLACE_CODE, "RIZ1", 0);
+	    	loadData(new GregorianCalendar(2011,8,16, 15, 00), new GregorianCalendar(2011,8,20, 17,00), Constants.PLACE_CODE, "RIZ1", 0);
             logger.info(broker.lastResultMessage());
 	    }
 	    
