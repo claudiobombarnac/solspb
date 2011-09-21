@@ -10,6 +10,7 @@
 	import java.util.Date;
 	import java.util.GregorianCalendar;
 	import java.util.HashMap;
+import java.util.List;
 	import java.util.StringTokenizer;
 import java.util.TimeZone;
 
@@ -23,6 +24,7 @@ import artist.api.ContextLoader;
 import com.dukascopy.api.Instrument;
 	import com.dukascopy.charts.data.datacache.CandleData;
 	import com.dukascopy.charts.data.datacache.Data;
+import com.dukascopy.charts.data.datacache.DataCacheException;
 	import com.dukascopy.charts.data.datacache.DataCacheUtils;
 import com.dukascopy.charts.data.datacache.IntraPeriodCandleData;
 import com.sun.org.apache.bcel.internal.generic.NEW;
@@ -73,17 +75,10 @@ import com.sun.org.apache.bcel.internal.generic.NEW;
 	        else throw new UnsupportedOperationException("Period " + p + " is not supported");
 	    }	    
 	    
-	    public static CandleData getCandle(String quote, int period) throws ParseException {
+	    public static CandleData getCandle(String quote, int period, boolean applyTimezoneOffset) throws ParseException {
 	        StringTokenizer st = new StringTokenizer(quote, DELIM);
 	        Date date;
 	        String dateStr = st.nextToken();
-	        int periodOffset = 0;
-	        if (period == 0) periodOffset = 60 * 1000;
-	        else if (period == 1) periodOffset = 300 * 1000;
-	        else if (period == 2) periodOffset = 600 * 1000;
-	        else if (period == 3) periodOffset = 900 * 1000;
-	        else if (period == 4) periodOffset = 1800 * 1000;
-            else if (period == 5) periodOffset = 3600 * 1000;
 	        
             Date d;
 	        if (period < 6) {
@@ -92,7 +87,12 @@ import com.sun.org.apache.bcel.internal.generic.NEW;
 	        else {
                 d = DATE_FORMAT.parse(dateStr);
 	        }
-            date = new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), d.getTime() - periodOffset));
+	        long offset;
+	        if (applyTimezoneOffset)
+	            offset = periodOffset(period) + localOffset;
+	        else
+	            offset = periodOffset(period);
+            date = new Date(DataCacheUtils.getCandleStartFast(translatePeriod(period), d.getTime() - offset));
 
 	        Double open = Double.parseDouble(st.nextToken().replace(",", "."));
 	        Double high = Double.parseDouble(st.nextToken().replace(",", "."));
@@ -103,16 +103,36 @@ import com.sun.org.apache.bcel.internal.generic.NEW;
 	        return new IntraPeriodCandleData(false, date.getTime(), open, close, low, high, vol);
 	    }
 	    
-	    public static void main(String[] args) {
-	    	loadData(new GregorianCalendar(2011,8,16, 15, 00), new GregorianCalendar(2011,8,20, 17,00), Constants.PLACE_CODE, "RIZ1", 0);
+	    private static long periodOffset(int period) {
+            int periodOffset = 0;
+            if (period == 0) periodOffset = 60 * 1000;
+            else if (period == 1) periodOffset = 300 * 1000;
+            else if (period == 2) periodOffset = 600 * 1000;
+            else if (period == 3) periodOffset = 900 * 1000;
+            else if (period == 4) periodOffset = 1800 * 1000;
+            else if (period == 5) periodOffset = 3600 * 1000;
+            else if (period == 6) periodOffset = 3600 * 24 * 1000;
+            else if (period == 6) periodOffset = 3600 * 24 * 7 * 1000;
+            return periodOffset;
+        }
+	    
+        public static void main(String[] args) {
+	    	loadData(new GregorianCalendar(2011,8,17, 8, 00), new GregorianCalendar(2011,8,18, 8,00), Constants.PLACE_CODE, "GAZP", 0, false);
             logger.info(broker.lastResultMessage());
 	    }
 	    
-	    public static Data[] loadData(Calendar from, Calendar to, String market, String inst, int period) {
-//	        from.set(Calendar.HOUR_OF_DAY, 0);
-//	        to.set(Calendar.HOUR_OF_DAY, 23);
+        public static Data[] loadData(Calendar from, Calendar to, String market, String inst, int period) {
+            return loadData(from, to, market, inst, period, true);
+        }
+        public static Data[] loadData(Calendar from, Calendar to, String market, String inst, int period, boolean applyTimezoneOffset) {
+	        Calendar fc = (Calendar)from.clone();
+	        Calendar tc = (Calendar)to.clone();
+	        if (applyTimezoneOffset) {
+    	        fc.add(Calendar.HOUR_OF_DAY, localOffset);
+    	        tc.add(Calendar.HOUR_OF_DAY, localOffset);
+	        }
 	        logger.info("AD: " + DateFormat.getDateTimeInstance().format(from.getTime()) + " - " + DateFormat.getDateTimeInstance().format(to.getTime()) + " for " + inst + " " + period);
-	        String response = broker.getArchiveFinInfo(market, Instrument.fromString(inst).toString(), period, from.getTime(), to.getTime(), 3, 50);
+	        String response = broker.getArchiveFinInfo(market, Instrument.fromString(inst).toString(), period, fc.getTime(), tc.getTime(), 3, 50);
 	        ArrayList<Data> data = new ArrayList<Data>(); 
 	        if (response == null) return
 	        		new Data[0];
@@ -123,13 +143,110 @@ import com.sun.org.apache.bcel.internal.generic.NEW;
 	              if (quote.length() == 0)
 	                  continue;
 	              try {
-	                  CandleData q = getCandle(quote, period);
+	                  CandleData q = getCandle(quote, period, applyTimezoneOffset);
 	                  data.add(q);
 	              }
 	              catch (Exception e) {
 	                  logger.error("Failed to parse quote: {}, period: {}", quote, period);
 	              }
 	          }
-	            return data.toArray(new Data[]{});
+	          return fillMissingData(from, to, market, inst, period, data);
 	        }
-	}
+        private static Data[] fillMissingData(Calendar from, Calendar to,
+                String market, String inst, int period, ArrayList<Data> data) {
+            try {
+                if (data != null && data.size() != 0)
+                    return data.toArray(new Data[]{});
+                else {
+                    int nPeriods = DataCacheUtils.getCandlesCountBetween(translatePeriod(period), from.getTimeInMillis(), to.getTimeInMillis());
+                    ArrayList<Data> result = new ArrayList<Data>();
+                    Data lastMeaningCandle = getLastMeaningCandle(from, market, inst, period);
+                    for (int i = 0; i < nPeriods; i++) {
+                        result.add(lastMeaningCandle);
+                    }
+                    return result.toArray(new Data[]{});
+                }
+            }
+            catch (DataCacheException e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+        private static Data getLastMeaningCandleForts(Calendar from, String inst, int period) {
+            if (from.get(Calendar.HOUR_OF_DAY) == 23 && from.get(Calendar.MINUTE) > 45) {
+                from.set(Calendar.HOUR_OF_DAY, 23);
+                from.set(Calendar.MINUTE, 45);
+            }
+            else if (from.get(Calendar.HOUR_OF_DAY) < 10) {
+                from.set(Calendar.HOUR_OF_DAY, 10);
+                from.set(Calendar.MINUTE, 0);
+            }
+            if (from.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY) {
+                    from.add(Calendar.DAY_OF_MONTH, -1);
+                    from.set(Calendar.HOUR_OF_DAY, 23);
+                    from.set(Calendar.MINUTE, 45);                    
+            }
+            else if (from.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+                    from.add(Calendar.DAY_OF_MONTH, -2);
+                    from.set(Calendar.HOUR_OF_DAY, 23);
+                    from.set(Calendar.MINUTE, 45);                    
+            }
+            Calendar to = new GregorianCalendar();
+            if (from.after(to)) //in the future
+                from.setTimeInMillis(from.getTimeInMillis() - periodOffset(period));
+            else
+                to.setTimeInMillis(from.getTimeInMillis() + periodOffset(period));
+            Data[] result = loadData(from, to, "FORTS", inst, period, false);
+            if (result == null || result.length != 1) {
+                System.err.println("Can't calculate last meaning candle " + from + inst + period);
+                return null;
+            }
+            else
+                return result[0];
+        }
+
+        private static Data getLastMeaningCandleMicex(Calendar from, String inst, int period) {
+            if (from.get(Calendar.HOUR_OF_DAY) == 18 && from.get(Calendar.MINUTE) > 45 || from.get(Calendar.HOUR_OF_DAY) > 18) {
+                from.set(Calendar.HOUR_OF_DAY, 18);
+                from.set(Calendar.MINUTE, 45);
+            }
+            else if (from.get(Calendar.HOUR_OF_DAY) < 10 || from.get(Calendar.HOUR_OF_DAY) == 10 && from.get(Calendar.MINUTE) < 30) {
+                from.set(Calendar.HOUR_OF_DAY, 10);
+                from.set(Calendar.MINUTE, 30);
+            }
+            if (from.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY) {
+                    from.add(Calendar.DAY_OF_MONTH, -1);
+                    from.set(Calendar.HOUR_OF_DAY, 18);
+                    from.set(Calendar.MINUTE, 45);                    
+            }
+            else if (from.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+                    from.add(Calendar.DAY_OF_MONTH, -2);
+                    from.set(Calendar.HOUR_OF_DAY, 18);
+                    from.set(Calendar.MINUTE, 45);                    
+            }
+            Calendar to = new GregorianCalendar();
+            if (from.after(to)) //in the future
+                from.setTimeInMillis(from.getTimeInMillis() - periodOffset(period));
+            else
+                to.setTimeInMillis(from.getTimeInMillis() + periodOffset(period));
+            Data[] result = loadData(from, to, "MICEX_SHR", inst, period, false);
+            if (result == null) {
+                System.err.println("Can't calculate last meaning candle " + from + inst + period);
+                return null;
+            }
+            else
+                return result[0];
+        }
+
+        
+        private static Data getLastMeaningCandle(Calendar from, String market, String inst, int period) {
+                if ("FORTS".equals(market)) {
+                    return getLastMeaningCandleForts(from, inst, period);
+                }
+                else if ("MICEX_SHR".equals(market)) {
+                    return getLastMeaningCandleMicex(from, inst, period);
+                }
+                else
+                    throw new RuntimeException("Can't process market: " + market);
+            }
+        }
